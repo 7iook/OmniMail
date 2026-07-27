@@ -4,8 +4,8 @@ OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认�
 `HttpOnly` Cookie；桌面端应使用短期 Access Token，并用 Refresh Token
 轮换续期。两种认证方式执行完全相同的用户角色、邮箱归属和回信权限检查。
 
-下面示例中的 API 地址使用 `https://api-mail.example.com`，请替换为实际
-Worker 自定义域名。
+下面示例中的 API 地址使用 `https://mail.example.com`。生产环境中前端与 API
+由同一个 Worker 提供，API 路径统一位于 `/api/*`。
 
 ## 公开配置与注册
 
@@ -37,7 +37,7 @@ Content-Type: application/json
 }
 ```
 
-Worker 会将令牌、来源 IP、`action=register` 和 Pages Hostname 发送到 Cloudflare
+Worker 会将令牌、来源 IP、`action=register` 和当前 Webmail Hostname 发送到 Cloudflare
 Siteverify 验证。令牌只能使用一次，验证失败后客户端必须重新生成。注册成功后
 创建普通用户并返回 `201`，浏览器同时获得登录 Cookie。新用户默认
 邮箱额度为 1，但没有创建邮箱或 Resend 回信权限，也不会自动获得收件地址。

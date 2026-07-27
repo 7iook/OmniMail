@@ -89,7 +89,6 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
 
   const bindings = publicSetupRequirements(env)
   const database = await databaseState(env)
-  const origins = (env.APP_ORIGINS || '').split(',').map((item) => item.trim()).filter(Boolean)
   const turnstileReady = Boolean(
     env.TURNSTILE_SITE_KEY?.trim() && env.TURNSTILE_SECRET_KEY?.trim(),
   )
@@ -110,9 +109,9 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       action: '重新执行 Git 部署，确认队列 Producer 和 Consumer 已创建。',
     }),
     check({
-      id: 'origins', group: 'core', label: '前端来源', ready: origins.length > 0 && !origins.includes('*'),
-      required: true, detail: `已配置 ${origins.length} 个允许访问 API 的前端来源。`,
-      action: '将 Pages 正式地址写入 Worker 文本变量 APP_ORIGINS，多个地址用逗号分隔。',
+      id: 'origins', group: 'core', label: '同源前后端', ready: true,
+      required: true, detail: '静态前端与 API 由同一个 Worker 域名提供。',
+      action: '额外的跨域客户端来源可以通过 APP_ORIGINS 配置。',
     }),
     check({
       id: 'super-admin', group: 'security', label: '主管理员身份',

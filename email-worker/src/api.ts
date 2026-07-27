@@ -9,6 +9,7 @@ import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { listMessages, messageSummary } from './message-list-api'
+import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
 import { externalRegistrationEnabled, registerExternalUser, registrationDomainPolicy, updateExternalRegistration, updateRegistrationDomainPolicy } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
@@ -44,17 +45,6 @@ type AppContext = {
 }
 
 const app = new Hono<AppContext>()
-
-function origins(env: Env): string[] {
-  return (env.APP_ORIGINS || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/$/, ''))
-    .filter(Boolean)
-}
-
-function isAllowedOrigin(requestOrigin: string | undefined, env: Env): boolean {
-  return !requestOrigin || origins(env).includes(requestOrigin.replace(/\/$/, ''))
-}
 
 function setSessionCookie(context: Parameters<typeof setCookie>[0], env: Env, token: string): void {
   setCookie(context, SESSION_COOKIE, token, {
@@ -126,7 +116,11 @@ async function syncSuperAdminIdentity(env: Env): Promise<void> {
 
 app.use('*', async (context, next) => {
   const requestOrigin = context.req.header('Origin')
-  const originAllowed = isAllowedOrigin(requestOrigin, context.env)
+  const originAllowed = isAllowedOrigin(
+    requestOrigin,
+    context.req.url,
+    context.env.APP_ORIGINS,
+  )
 
   if (context.req.method === 'OPTIONS') {
     if (!originAllowed) return context.json({ error: 'Origin is not allowed.' }, 403)

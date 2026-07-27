@@ -34,6 +34,21 @@ describe('registration Turnstile protection', () => {
     ).resolves.toBe('valid')
   })
 
+  it('accepts the same-origin Worker hostname without APP_ORIGINS', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+      success: true,
+      hostname: 'mail.example.com',
+      action: 'register',
+    })))
+    await expect(verifyRegistrationTurnstile(
+      { ...env, APP_ORIGINS: undefined },
+      'valid-token',
+      '203.0.113.10',
+      'register',
+      'https://mail.example.com',
+    )).resolves.toBe('valid')
+  })
+
   it('accepts the dedicated action for a multi-use invitation', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
       success: true,

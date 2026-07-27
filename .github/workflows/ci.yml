@@ -20,5 +20,4 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - run: npx wrangler deploy -c email-worker/wrangler.jsonc --dry-run
-
+      - run: npx wrangler deploy --dry-run

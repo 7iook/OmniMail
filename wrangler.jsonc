@@ -1,9 +1,15 @@
 {
-  "$schema": "../node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "omnimail-core",
-  "main": "./src/index.ts",
+  "main": "./email-worker/src/index.ts",
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
   "d1_databases": [
     {
       "binding": "DB"

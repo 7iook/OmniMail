@@ -1,4 +1,5 @@
 import { sha256 } from './auth'
+import { allowedTurnstileHostnames } from './origin-policy'
 import type { Env } from './types'
 
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
@@ -30,22 +31,12 @@ export function registrationProtectionReady(env: Env): boolean {
   return Boolean(env.TURNSTILE_SITE_KEY?.trim() && env.TURNSTILE_SECRET_KEY?.trim())
 }
 
-function allowedHostnames(env: Env): Set<string> {
-  const values = (env.APP_ORIGINS || 'http://localhost:5173').split(',')
-  return new Set(values.flatMap((value) => {
-    try {
-      return [new URL(value.trim()).hostname.toLowerCase()]
-    } catch {
-      return []
-    }
-  }))
-}
-
 export async function verifyRegistrationTurnstile(
   env: Env,
   token: string,
   ip: string,
   expectedAction: 'register' | 'temporary-invite' = 'register',
+  requestOrigin?: string,
 ): Promise<TurnstileResult> {
   const secret = env.TURNSTILE_SECRET_KEY?.trim()
   if (!secret || !token || token.length > 2048) return 'invalid'
@@ -70,7 +61,10 @@ export async function verifyRegistrationTurnstile(
     const testWidget = TEST_SITE_KEYS.has(env.TURNSTILE_SITE_KEY?.trim() || '')
     const actionValid = testWidget || result.action === expectedAction
     const hostnameValid = testWidget || Boolean(
-      result.hostname && allowedHostnames(env).has(result.hostname.toLowerCase()),
+      result.hostname && allowedTurnstileHostnames(
+        env.APP_ORIGINS,
+        requestOrigin,
+      ).has(result.hostname.toLowerCase()),
     )
     if (!result.success || !actionValid || !hostnameValid) {
       console.warn('Turnstile registration rejected', {

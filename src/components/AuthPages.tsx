@@ -500,7 +500,7 @@ export function PublicLanding({
             <p className="eyebrow">YOUR DOMAINS · ONE INBOX</p>
             <h1>把多个域名，<br />收进一个清爽邮箱。</h1>
             <p>
-              基于 Cloudflare Workers、Pages、D1 与 R2 的轻量邮件工作台。
+              基于 Cloudflare Workers、Static Assets、D1 与 R2 的轻量邮件工作台。
               集中管理域名、邮箱地址和访问权限。
             </p>
             <div className="public-hero__actions">

@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/github/license/mibgb65-cloud/OmniMail?style=flat" alt="MIT License">
   </a>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node.js 20+">
-  <img src="https://img.shields.io/badge/Cloudflare-Workers%20%26%20Pages-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers and Pages">
+  <img src="https://img.shields.io/badge/Cloudflare-Worker%20%2B%20Static%20Assets-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Worker with Static Assets">
   <img src="https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white" alt="TypeScript 7.0">
 </p>
 
@@ -50,7 +50,7 @@ Serverless Webmail：
 | 特点 | 说明 |
 | --- | --- |
 | 数据归属自己 | D1、R2、Queue 和 Worker 都运行在你的 Cloudflare 账户中 |
-| Git 驱动部署 | Pages 与 Core Worker 连接同一个 GitHub 仓库，推送后自动构建 |
+| 一体化 Git 部署 | 一次构建同时发布 React 静态前端与 Worker API |
 | 多域名与多邮箱 | 一个实例统一管理多个域名、用户和收件地址 |
 | 完整权限模型 | 主管理员、管理员、普通用户和限时临时用户 |
 | 可选回信能力 | 通过 Resend 回复；不配置时仍可正常收件 |
@@ -97,16 +97,16 @@ Serverless Webmail：
 ```mermaid
 flowchart LR
     Sender[外部邮件服务器] -->|MX| Routing[Cloudflare Email Routing]
-    Routing -->|Email Event| Worker[OmniMail Core Worker]
+    Routing -->|Email Event| Worker[OmniMail Worker + Static Assets]
     Worker -->|原文 / 正文 / 附件| R2[(Private R2)]
     Worker -->|解析任务| Queue[Cloudflare Queue]
     Queue --> Worker
     Worker -->|索引 / 用户 / 会话| D1[(Cloudflare D1)]
     Worker -->|可选回复| Resend[Resend]
 
-    Browser[浏览器] --> Pages[Cloudflare Pages]
+    Browser[浏览器] -->|HTML / CSS / JS| Worker
+    Browser -->|同源 /api| Worker
     Desktop[桌面客户端] -->|Bearer Token| Worker
-    Pages -->|HTTPS API| Worker
 ```
 
 | 层级 | 技术 |
@@ -125,13 +125,13 @@ flowchart LR
 ```text
 .
 ├── src/                       # React Webmail
-├── public/                    # Pages 静态文件与安全响应头
+├── public/                    # Worker Static Assets 与安全响应头
 ├── email-worker/
 │   ├── src/                   # API、收件、队列与定时任务
-│   └── wrangler.jsonc         # Worker 与 Cloudflare 资源配置
 ├── migrations/                # 可审阅的 D1 迁移
 ├── docs/API.md                # HTTP API 文档
 ├── scripts/                   # 仓库质量检查脚本
+├── wrangler.jsonc             # Worker、静态前端与 Cloudflare 资源配置
 └── .github/workflows/ci.yml   # GitHub Actions
 ```
 
@@ -148,20 +148,19 @@ flowchart LR
 > 如果根域名已经承载其他邮件服务，建议先使用专用子域测试，例如
 > `inbox.example.com`，不要直接替换现有 MX 记录。
 
-推荐的生产拓扑：
+前端和 API 使用同一个 Worker 域名：
 
 ```text
-Webmail  https://mail.example.com
-API      https://api-mail.example.com
+Webmail + API  https://mail.example.com
+API path       https://mail.example.com/api/*
 ```
 
-两个地址使用同一主域，可以让登录 Cookie 保持 same-site。不要把
-`pages.dev` 与 `workers.dev` 的跨站组合直接作为正式登录环境。
+同源部署不需要额外的 Pages 项目或独立 API 域名，登录 Cookie 和 CORS 配置也更简单。
 
 ### 1. Fork 仓库
 
 Fork [mibgb65-cloud/OmniMail](https://github.com/mibgb65-cloud/OmniMail)，
-后续 Cloudflare Pages 和 Worker 都连接你的 Fork。
+然后让 Cloudflare Worker 连接你的 Fork。
 
 如果使用本地 Git：
 
@@ -170,24 +169,32 @@ git clone https://github.com/YOUR_NAME/OmniMail.git
 cd OmniMail
 ```
 
-### 2. 连接 Core Worker
+### 2. 连接 Cloudflare Worker
 
 在 Cloudflare Dashboard 中进入 **Workers & Pages → Create application →
 Import a repository**，选择你的 OmniMail 仓库：
 
 | 项目 | 值 |
 | --- | --- |
-| Worker name | `omnimail-core` |
+| Project name | `omnimail-core` |
 | Production branch | `main` |
 | Root directory | `/` |
-| Build command | 留空 |
-| Deploy command | `npx wrangler deploy -c email-worker/wrangler.jsonc` |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Non-production branch builds | 首次部署暂时关闭 |
+| API token | 让 Cloudflare 自动创建 |
 
 第一次部署会依据
-[`email-worker/wrangler.jsonc`](./email-worker/wrangler.jsonc)
-准备 D1、R2、Queue、死信队列和定时任务绑定。
+[`wrangler.jsonc`](./wrangler.jsonc) 完成两件事：
 
-随后进入 Worker 的 **Settings → Variables & Secrets**：
+1. `npm run build` 将 React 前端生成到 `dist/`。
+2. Wrangler 将 `dist/`、Worker API、D1、R2、Queue 和定时任务作为同一个
+   Worker 版本发布。
+
+`/api/*` 优先交给 Worker 脚本，其余路径由 Static Assets 提供；未匹配的浏览器
+导航会回退到 `index.html`，因此 React SPA 刷新不会出现 404。
+
+### 3. 配置 Worker
 
 #### 必需配置
 
@@ -195,7 +202,6 @@ Import a repository**，选择你的 OmniMail 仓库：
 | --- | --- | --- | --- |
 | `SETUP_TOKEN` | Secret | 首次创建主管理员的一次性令牌 | 至少 32 字节随机值 |
 | `SUPER_ADMIN_EMAIL` | Text | 主管理员登录邮箱 | `owner@example.com` |
-| `APP_ORIGINS` | Text | 允许访问 API 的 Pages 来源 | `https://mail.example.com` |
 
 #### 可选配置
 
@@ -203,40 +209,23 @@ Import a repository**，选择你的 OmniMail 仓库：
 | --- | --- | --- |
 | `APP_NAME` | Text | 自定义站点名称，默认 `OmniMail` |
 | `COOKIE_SECURE` | Text | 生产环境保持 `true`；仅本地 HTTP 使用 `false` |
+| `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端来源 |
 | `TURNSTILE_SITE_KEY` | Text | Turnstile 公开 Site Key |
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
 | `RESEND_API_KEY` | Secret | Resend 回复 |
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
 
-`APP_ORIGINS` 支持用英文逗号配置多个精确来源，但不能使用 `*`。
+同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
+Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
 
-最后在 Worker 的 **Settings → Domains & Routes** 添加 API 自定义域名：
+在 Worker 的 **Settings → Domains & Routes** 添加 Webmail 自定义域名：
 
 ```text
-api-mail.example.com
+mail.example.com
 ```
 
-### 3. 连接 Cloudflare Pages
-
-进入 **Workers & Pages → Create application → Pages → Connect to Git**，
-选择同一个仓库：
-
-| 项目 | 值 |
-| --- | --- |
-| Project name | `omnimail` |
-| Production branch | `main` |
-| Root directory | `/` |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-
-添加 Pages 构建环境变量：
-
-```text
-VITE_API_ORIGIN=https://api-mail.example.com
-```
-
-部署完成后，将 `mail.example.com` 添加为 Pages Custom Domain。
+生产构建不需要设置 `VITE_API_ORIGIN`，前端默认使用同源 `/api`。
 
 ### 4. 启用 Email Routing
 
@@ -253,7 +242,7 @@ SMTP 阶段返回 `Mailbox unavailable`，不会被写入 R2 或 D1。
 
 ## 首次初始化
 
-打开 Pages 地址后，首次运行页会检查：
+打开 Worker 地址后，首次运行页会检查：
 
 - D1 数据库
 - R2 邮件存储
@@ -342,7 +331,7 @@ npm run check:lines
 npm run check
 npm test
 npm run build
-npx wrangler deploy -c email-worker/wrangler.jsonc --dry-run
+npx wrangler deploy --dry-run
 ```
 
 最后一条命令只执行 Worker 打包验证，不会部署。CI 会在每次 Push 和 Pull Request
@@ -358,7 +347,7 @@ Wrangler 构建产物不计入限制。
 - Access Token 短期有效，Refresh Token 轮换并仅保存摘要。
 - 登录、公开注册和邀请注册均有限速保护。
 - 开放注册和多人邀请使用 Turnstile 服务端校验。
-- API 仅允许 `APP_ORIGINS` 中的精确来源。
+- API 自动允许当前 Worker 同源请求；额外跨域来源必须在 `APP_ORIGINS` 中精确配置。
 - R2 Bucket 必须保持私有，文件只能通过鉴权 API 下载。
 - HTML 邮件在禁止脚本、表单和远程网络的 sandbox iframe 中显示。
 - 远程图片默认阻止，降低追踪像素泄露风险。

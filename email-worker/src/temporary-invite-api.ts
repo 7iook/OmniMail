@@ -366,6 +366,7 @@ export async function registerTemporaryInvite(
       body.turnstileToken || '',
       ip,
       'temporary-invite',
+      request.headers.get('Origin') || new URL(request.url).origin,
     )
     if (turnstile !== 'valid') {
       await audit(env, null, 'temporary_invite.register_failed', invite.id, ip, {

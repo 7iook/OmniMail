@@ -6,6 +6,7 @@ export interface Env {
   DB: D1Database
   MAIL_BUCKET: R2Bucket
   MAIL_QUEUE: Queue<ParseJob>
+  ASSETS: Fetcher
   APP_NAME?: string
   APP_ORIGINS?: string
   SUPER_ADMIN_EMAIL?: string

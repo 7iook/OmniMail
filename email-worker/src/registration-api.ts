@@ -184,7 +184,13 @@ export async function registerExternalUser(
     }
   }
 
-  const turnstile = await verifyRegistrationTurnstile(env, turnstileToken, ip)
+  const turnstile = await verifyRegistrationTurnstile(
+    env,
+    turnstileToken,
+    ip,
+    'register',
+    request.headers.get('Origin') || new URL(request.url).origin,
+  )
   if (turnstile !== 'valid') {
     await writeAudit(env, null, 'auth.register_failed', email, ip, {
       reason: turnstile === 'unavailable' ? 'turnstile_unavailable' : 'turnstile_invalid',
