@@ -74,6 +74,7 @@ const actionLabels: Record<string, string> = {
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
+  'system.remote_images.update': '修改远程图片策略',
 }
 
 const categoryLabels: Record<string, string> = {
@@ -85,6 +86,7 @@ const categoryLabels: Record<string, string> = {
   domain: '域名',
   temporary_invite: '邀请',
   message: '邮件',
+  system: '系统',
 }
 
 function actionCategory(action: string): string {
@@ -115,6 +117,9 @@ function detailText(log: AuditLog): string {
   if (detail.status) parts.push(`状态 ${String(detail.status)}`)
   if (typeof detail.mailboxLimit === 'number') parts.push(`邮箱额度 ${detail.mailboxLimit}`)
   if (detail.address) parts.push(String(detail.address))
+  if (log.action === 'system.remote_images.update' && typeof detail.enabled === 'boolean') {
+    parts.push(detail.enabled ? '默认加载' : '默认阻止')
+  }
   return parts.join(' · ')
 }
 

@@ -492,6 +492,7 @@ function Mailbox({
           message={detail}
           loading={detailLoading}
           replyEnabled={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
+          remoteImagesEnabled={config.remoteImagesEnabled}
           onBack={() => {
             setSelectedId(null)
             setDetail(null)

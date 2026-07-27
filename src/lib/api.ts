@@ -9,6 +9,7 @@ export interface AppConfig {
   registrationProtectionReady: boolean
   turnstileSiteKey: string
   mailRefreshInterval: MailRefreshInterval
+  remoteImagesEnabled: boolean
   superAdminEmail: string
   setupRequirements: SetupRequirements
 }
@@ -313,6 +314,12 @@ export const api = {
     request<{ mailRefreshInterval: MailRefreshInterval }>('/api/admin/settings/mail-refresh', {
       method: 'PATCH',
       body: jsonBody({ interval }),
+    })
+  ),
+  updateRemoteImagesSetting: (enabled: boolean) => (
+    request<{ remoteImagesEnabled: boolean }>('/api/admin/settings/remote-images', {
+      method: 'PATCH',
+      body: jsonBody({ enabled }),
     })
   ),
   updateAccount: (input: {

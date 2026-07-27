@@ -85,6 +85,19 @@ Content-Type: application/json
 { "interval": 30 }
 ```
 
+管理员可设置 HTML 邮件是否默认加载 HTTPS 远程图片：
+
+```http
+PATCH /api/admin/settings/remote-images
+Authorization: Bearer om_at_...
+Content-Type: application/json
+
+{ "enabled": true }
+```
+
+该设置通过 `GET /api/config` 的 `remoteImagesEnabled` 字段返回。关闭时邮件阅读器
+仍允许 `data:` 与 `cid:` 图片，但不会向远程图片服务器发起请求。
+
 ## 邀请注册安全
 
 单次邀请的注册请求按来源 IP 和邀请令牌分别限速，超限返回 `429` 和
@@ -307,6 +320,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `PATCH /api/admin/settings/registration` | 管理员开启或关闭外部注册 |
 | `PATCH /api/admin/settings/registration-domains` | 管理员设置注册邮箱允许/禁止规则 |
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |
+| `PATCH /api/admin/settings/remote-images` | 管理员设置邮件远程图片默认策略 |
 
 附件和原始邮件接口同样支持 Bearer Token。桌面端下载文件时需要通过 HTTP
 客户端设置 `Authorization` 请求头，不能把 Token 拼接到 URL 查询参数中。

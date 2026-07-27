@@ -36,8 +36,12 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function buildEmailDocument(html: string): string {
-  const policy = "default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"
+export function emailImageSources(remoteImagesEnabled: boolean): string {
+  return remoteImagesEnabled ? 'data: cid: https:' : 'data: cid:'
+}
+
+function buildEmailDocument(html: string, remoteImagesEnabled: boolean): string {
+  const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled)}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
   const document = new DOMParser().parseFromString(html, 'text/html')
   document.querySelectorAll('script, iframe, object, embed, form, base, meta[http-equiv]').forEach((node) => node.remove())
   document.querySelectorAll('*').forEach((node) => {
@@ -51,6 +55,7 @@ function buildEmailDocument(html: string): string {
   const head = `
     <meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="${policy}">
+    <meta name="referrer" content="no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       :root { color-scheme: light; }
@@ -131,6 +136,7 @@ export function MessageReader({
   message,
   loading,
   replyEnabled,
+  remoteImagesEnabled,
   onBack,
   onStar,
   onTrash,
@@ -140,6 +146,7 @@ export function MessageReader({
   message: MessageDetail | null
   loading: boolean
   replyEnabled: boolean
+  remoteImagesEnabled: boolean
   onBack: () => void
   onStar: () => void
   onTrash: () => void
@@ -158,7 +165,9 @@ export function MessageReader({
       <div className="reader-state reader-state--empty">
         <span className="reader-empty-symbol"><Mail size={29} /></span>
         <h2>选择一封邮件</h2>
-        <p>邮件内容会安全地显示在这里，远程图片默认被阻止。</p>
+        <p>{remoteImagesEnabled
+          ? '邮件内容会安全地显示在这里，HTTPS 远程图片按系统设置加载。'
+          : '邮件内容会安全地显示在这里，远程图片默认被阻止。'}</p>
       </div>
     )
   }
@@ -216,7 +225,7 @@ export function MessageReader({
           <iframe
             className="email-frame"
             sandbox=""
-            srcDoc={buildEmailDocument(message.html)}
+            srcDoc={buildEmailDocument(message.html, remoteImagesEnabled)}
             title={`邮件正文：${message.subject}`}
           />
         ) : (

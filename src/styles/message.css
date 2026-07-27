@@ -141,14 +141,20 @@
 }
 
 .sender-block strong {
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 .sender-block span,
-.sender-block small,
+.sender-block small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .sender-block time {
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sender-block time {

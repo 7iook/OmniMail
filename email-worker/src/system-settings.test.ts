@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMailRefreshInterval } from './system-settings'
+import { parseMailRefreshInterval, parseRemoteImagesEnabled } from './system-settings'
 
 describe('mail refresh settings', () => {
   it('accepts only the supported refresh intervals', () => {
@@ -14,5 +14,18 @@ describe('mail refresh settings', () => {
     expect(parseMailRefreshInterval(-1)).toBeNull()
     expect(parseMailRefreshInterval('30')).toBeNull()
     expect(parseMailRefreshInterval(undefined)).toBeNull()
+  })
+})
+
+describe('remote image settings', () => {
+  it('accepts only boolean values from the administrator request', () => {
+    expect(parseRemoteImagesEnabled(true)).toBe(true)
+    expect(parseRemoteImagesEnabled(false)).toBe(false)
+  })
+
+  it('rejects string and missing values', () => {
+    expect(parseRemoteImagesEnabled('true')).toBeNull()
+    expect(parseRemoteImagesEnabled(1)).toBeNull()
+    expect(parseRemoteImagesEnabled(undefined)).toBeNull()
   })
 })

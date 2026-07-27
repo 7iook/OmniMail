@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRight, BadgeCheck, Ban, BarChart3, Clock3, ListChecks, LoaderCircle, Mail, RefreshCw, Save, Send, Settings2, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { AlertCircle, ArrowRight, BadgeCheck, Ban, BarChart3, Clock3, Image as ImageIcon, ListChecks, LoaderCircle, Mail, RefreshCw, Save, Send, Settings2, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import {
   api,
@@ -71,6 +71,8 @@ export function AdminWorkspace({
   const [registrationDomainsError, setRegistrationDomainsError] = useState('')
   const [refreshSaving, setRefreshSaving] = useState(false)
   const [refreshError, setRefreshError] = useState('')
+  const [remoteImagesSaving, setRemoteImagesSaving] = useState(false)
+  const [remoteImagesError, setRemoteImagesError] = useState('')
 
   async function toggleRegistration() {
     setRegistrationSaving(true)
@@ -96,6 +98,19 @@ export function AdminWorkspace({
       setRefreshError(error instanceof Error ? error.message : '无法更新自动刷新设置。')
     } finally {
       setRefreshSaving(false)
+    }
+  }
+
+  async function toggleRemoteImages() {
+    setRemoteImagesSaving(true)
+    setRemoteImagesError('')
+    try {
+      const result = await api.updateRemoteImagesSetting(!config.remoteImagesEnabled)
+      onConfigChange({ ...config, remoteImagesEnabled: result.remoteImagesEnabled })
+    } catch (error) {
+      setRemoteImagesError(error instanceof Error ? error.message : '无法更新远程图片设置。')
+    } finally {
+      setRemoteImagesSaving(false)
     }
   }
 
@@ -233,6 +248,44 @@ export function AdminWorkspace({
               <AlertCircle size={15} />{refreshError}
             </p>
           )}
+        </section>
+
+        <section className="admin-card admin-card--settings">
+          <header>
+            <ImageIcon size={17} />
+            <div>
+              <h2>远程图片</h2>
+              <p>设置所有用户查看 HTML 邮件时的默认策略</p>
+            </div>
+          </header>
+          <label className="policy-toggle">
+            <span>
+              {remoteImagesSaving
+                ? <LoaderCircle className="spin" size={17} />
+                : <ImageIcon size={17} />}
+              <span>
+                <strong>{config.remoteImagesEnabled ? '默认加载远程图片' : '默认阻止远程图片'}</strong>
+                <small>{config.remoteImagesEnabled
+                  ? '邮件中的 HTTPS 远程图片会自动请求'
+                  : '保护用户隐私，避免触发发件人的追踪像素'}</small>
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={config.remoteImagesEnabled}
+              disabled={remoteImagesSaving}
+              aria-label="默认加载邮件中的远程图片"
+              onChange={() => void toggleRemoteImages()}
+            />
+          </label>
+          {remoteImagesError && (
+            <p className="inline-error" role="alert">
+              <AlertCircle size={15} />{remoteImagesError}
+            </p>
+          )}
+          <p className="admin-note">
+            开启后可能向图片服务器暴露访问时间和网络信息；邮件脚本、表单与嵌入页面仍会被阻止。
+          </p>
         </section>
 
         <section className="admin-card admin-card--settings">

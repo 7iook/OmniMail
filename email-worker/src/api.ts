@@ -16,7 +16,7 @@ import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
-import { mailRefreshInterval, updateMailRefreshInterval } from './system-settings'
+import { mailRefreshInterval, remoteImagesEnabled, updateMailRefreshInterval, updateRemoteImagesSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
@@ -190,6 +190,7 @@ app.get('/api/config', async (context) => context.json({
   registrationProtectionReady: registrationProtectionReady(context.env),
   turnstileSiteKey: context.env.TURNSTILE_SITE_KEY?.trim() || '',
   mailRefreshInterval: await mailRefreshInterval(context.env.DB),
+  remoteImagesEnabled: await remoteImagesEnabled(context.env.DB),
   superAdminEmail: configuredSuperAdminEmail(context.env),
   setupRequirements: publicSetupRequirements(context.env),
 }))
@@ -390,6 +391,7 @@ app.post('/api/admin/users', (context) => createManagedUser(
 app.patch('/api/admin/settings/registration', (context) => updateExternalRegistration(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/users/:id', (context) => updateManagedUser(
   context.env,
   context.get('user'),
