@@ -11,6 +11,7 @@ import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { listMessages, messageSummary } from './message-list-api'
 import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
+import { publicConfig } from './public-config'
 import { externalRegistrationEnabled, registerExternalUser, registrationDomainPolicy, updateExternalRegistration, updateRegistrationDomainPolicy } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
@@ -181,19 +182,7 @@ app.use('/api/*', async (context, next) => {
 
 app.get('/api/health', (context) => context.json({ ok: true }))
 
-app.get('/api/config', async (context) => context.json({
-  appName: context.env.APP_NAME || 'OmniMail',
-  setupComplete: await setupComplete(context.env.DB),
-  replyEnabled: Boolean(context.env.RESEND_API_KEY),
-  registrationEnabled: await externalRegistrationEnabled(context.env.DB),
-  registrationDomainPolicy: await registrationDomainPolicy(context.env.DB),
-  registrationProtectionReady: registrationProtectionReady(context.env),
-  turnstileSiteKey: context.env.TURNSTILE_SITE_KEY?.trim() || '',
-  mailRefreshInterval: await mailRefreshInterval(context.env.DB),
-  remoteImagesEnabled: await remoteImagesEnabled(context.env.DB),
-  superAdminEmail: configuredSuperAdminEmail(context.env),
-  setupRequirements: publicSetupRequirements(context.env),
-}))
+app.get('/api/config', async (context) => context.json(await publicConfig(context.env)))
 
 app.post('/api/setup', async (context) => {
   if (await setupComplete(context.env.DB)) {

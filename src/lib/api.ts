@@ -252,15 +252,25 @@ export class ApiError extends Error {
 }
 
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || '').replace(/\/$/, '')
+const REQUEST_TIMEOUT_MS = 15000
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_ORIGIN}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_ORIGIN}${path}`, {
+      ...init,
+      headers,
+      credentials: 'include',
+      signal: init.signal || AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
+      throw new ApiError('连接超时，请检查网络后重试。', 408)
+    }
+    throw error
+  }
   const data = await response.json().catch(() => ({})) as { error?: string }
   if (!response.ok) throw new ApiError(data.error || `请求失败（${response.status}）`, response.status)
   return data as T

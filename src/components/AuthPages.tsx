@@ -7,7 +7,6 @@ import {
   Layers3,
   LoaderCircle,
   LogIn,
-  Mail,
   Monitor,
   Moon,
   RefreshCw,
@@ -33,6 +32,7 @@ import {
   subscribeTheme,
 } from '../lib/theme'
 import { TurnstileWidget } from './TurnstileWidget'
+import { OmniLogo } from './OmniLogo'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '发生了未知错误。'
@@ -41,7 +41,7 @@ function errorMessage(error: unknown): string {
 export function Brand() {
   return (
     <span className="brand">
-      <span className="brand-mark" aria-hidden="true"><Mail size={17} /></span>
+      <span className="brand-mark" aria-hidden="true"><OmniLogo size={18} /></span>
       <span>OmniMail</span>
     </span>
   )
@@ -87,7 +87,7 @@ export function PageLoader() {
   return (
     <div className="page-loader" role="status" aria-label="正在打开 OmniMail">
       <div className="opening-splash" aria-hidden="true">
-        <span className="opening-splash__mark"><Mail size={31} /></span>
+        <span className="opening-splash__mark"><OmniLogo size={35} /></span>
         <span className="opening-splash__copy">
           <strong>OmniMail</strong>
           <small>YOUR DOMAINS · ONE INBOX</small>

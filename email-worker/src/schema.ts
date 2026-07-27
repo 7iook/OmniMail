@@ -168,6 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_cursor
 `
 
 let schemaReady: Promise<void> | undefined
+const SCHEMA_VERSION = '2026-07-28'
 
 async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
@@ -330,6 +331,12 @@ export function ensureSchema(db: D1Database): Promise<void> {
       const exists = await db.prepare(
         "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'settings'",
       ).first<{ present: number }>()
+      const version = exists
+        ? await db.prepare(
+          "SELECT value FROM settings WHERE key = 'schema_version'",
+        ).first<{ value: string }>()
+        : null
+      if (version?.value === SCHEMA_VERSION) return
       if (!exists) {
         const statements = SCHEMA_SQL
           .split(';')
@@ -352,6 +359,11 @@ export function ensureSchema(db: D1Database): Promise<void> {
         `CREATE INDEX IF NOT EXISTS idx_audit_cursor
          ON audit_logs(created_at DESC, id DESC)`,
       ).run()
+      await db.prepare(
+        `INSERT INTO settings (key, value, updated_at)
+         VALUES ('schema_version', ?, unixepoch())
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      ).bind(SCHEMA_VERSION).run()
     })().catch((error) => {
       schemaReady = undefined
       throw error
