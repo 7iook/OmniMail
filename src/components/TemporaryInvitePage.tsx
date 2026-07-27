@@ -1,0 +1,246 @@
+import {
+  AlertCircle,
+  AtSign,
+  Check,
+  Clock3,
+  Globe2,
+  LoaderCircle,
+  MailPlus,
+  Send,
+  ShieldCheck,
+  UserRoundPlus,
+} from 'lucide-react'
+import { type FormEvent, useEffect, useState } from 'react'
+import { api, type TemporaryInvite, type User } from '../lib/api'
+import { Brand, ThemeToggle } from './AuthPages'
+
+function formatDate(timestamp: number): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp * 1000))
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '发生了未知错误。'
+}
+
+function formatDuration(hours: number): string {
+  return hours % 24 === 0 ? `${hours / 24} 天` : `${hours} 小时`
+}
+
+export function TemporaryInvitePage({
+  token,
+  appName,
+  onAuthenticated,
+}: {
+  token: string
+  appName: string
+  onAuthenticated: (user: User) => void
+}) {
+  const [invite, setInvite] = useState<TemporaryInvite | null>(null)
+  const [displayName, setDisplayName] = useState('')
+  const [localPart, setLocalPart] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [registeredEmail, setRegisteredEmail] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    api.temporaryInvite(token)
+      .then((result) => {
+        if (active) setInvite(result.invite)
+      })
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [token])
+
+  function leaveInvitation() {
+    window.history.replaceState(null, '', window.location.pathname)
+    window.location.reload()
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!invite) return
+    if (password !== confirmation) {
+      setError('两次输入的密码不一致。')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      const result = await api.registerTemporaryInvite(token, {
+        displayName,
+        localPart: invite.addressMode === 'self_selected' ? localPart : undefined,
+        password,
+      })
+      setRegisteredEmail(result.email)
+      try {
+        const login = await api.login(result.email, password)
+        window.history.replaceState(null, '', window.location.pathname)
+        onAuthenticated(login.user)
+      } catch {
+        setError(`账号 ${result.email} 已创建，但自动登录失败，请返回登录页手动登录。`)
+      }
+    } catch (registerError) {
+      setError(errorMessage(registerError))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="auth-page invite-page">
+      <div className="auth-page__top">
+        <Brand />
+        <ThemeToggle />
+      </div>
+
+      {loading ? (
+        <section className="invite-public-card invite-public-state" role="status">
+          <LoaderCircle className="spin" size={22} />
+          <span>正在验证邀请链接…</span>
+        </section>
+      ) : !invite ? (
+        <section className="invite-public-card invite-public-error">
+          <span className="auth-symbol auth-symbol--danger"><AlertCircle size={27} /></span>
+          <p className="eyebrow">INVITATION UNAVAILABLE</p>
+          <h1>这个邀请无法使用</h1>
+          <p>{error || '邀请链接不存在或已经失效。'}</p>
+          <button className="button button--secondary" type="button" onClick={leaveInvitation}>
+            返回 {appName} 登录页
+          </button>
+        </section>
+      ) : (
+        <section className="invite-public-card">
+          <header className="invite-public-header">
+            <span className="auth-symbol"><UserRoundPlus size={27} /></span>
+            <div>
+              <p className="eyebrow">TEMPORARY ACCOUNT</p>
+              <h1>创建临时邮箱账号</h1>
+              <p>{invite.addressMode === 'assigned'
+                ? `管理员已经为你分配好邮箱，设置密码后即可进入 ${appName}。`
+                : `管理员邀请你加入 ${appName}，请自行选择一个尚未使用的邮箱名称。`}</p>
+            </div>
+          </header>
+
+          <div className="invite-public-layout">
+            <aside className="invite-public-summary">
+              {invite.addressMode === 'assigned'
+                ? <div><AtSign size={17} /><span><small>管理员指定邮箱</small><strong>{invite.assignedAddress}</strong></span></div>
+                : <div><Globe2 size={17} /><span><small>管理员指定域名</small><strong>{invite.domain}</strong></span></div>}
+              <div><Clock3 size={17} /><span><small>注册链接有效至</small><strong>{formatDate(invite.expiresAt)}</strong></span></div>
+              <div><Clock3 size={17} /><span><small>临时账号有效时间</small><strong>注册成功后 {formatDuration(invite.accountLifetimeHours)}</strong></span></div>
+              <div><ShieldCheck size={17} /><span><small>链接类型</small><strong>{invite.multiUse ? '多人注册链接' : '单次使用链接'}</strong></span></div>
+              <div><MailPlus size={17} /><span><small>邮箱权限</small><strong>{invite.addressMode === 'assigned' ? '固定邮箱，不能自行新增或更改' : invite.canCreateMailboxes ? `最多创建 ${invite.mailboxLimit} 个邮箱` : '仅使用注册时创建的邮箱'}</strong></span></div>
+              <div><Send size={17} /><span><small>回信权限</small><strong>{invite.canReply ? '可以通过 Resend 回信' : '仅接收与查看邮件'}</strong></span></div>
+              <p><Check size={16} />链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。</p>
+            </aside>
+
+            {registeredEmail ? (
+              <div className="invite-registration-result">
+                <span><Check size={24} /></span>
+                <h2>账号已经创建</h2>
+                <strong>{registeredEmail}</strong>
+                {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
+                <button className="button button--primary" type="button" onClick={leaveInvitation}>
+                  前往登录
+                </button>
+              </div>
+            ) : (
+              <form className="invite-register-form" onSubmit={(event) => void submit(event)}>
+                <label>
+                  <span>显示名称</span>
+                  <input
+                    autoComplete="name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    maxLength={60}
+                    placeholder="例如：Omni"
+                    required
+                  />
+                </label>
+                {invite.addressMode === 'assigned' ? (
+                  <label className="invite-fixed-address">
+                    <span>管理员指定邮箱</span>
+                    <input
+                      autoComplete="username"
+                      value={invite.assignedAddress || ''}
+                      readOnly
+                    />
+                    <small>该邮箱会成为固定的登录账号和收件地址，注册后不能自行更改。</small>
+                  </label>
+                ) : (
+                  <label>
+                    <span>选择邮箱名称</span>
+                    <span className="invite-address-field">
+                      <AtSign size={16} />
+                      <input
+                        autoComplete="username"
+                        value={localPart}
+                        onChange={(event) => setLocalPart(event.target.value.toLowerCase())}
+                        maxLength={64}
+                        placeholder="your-name"
+                        pattern="[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
+                        title="只能填写邮箱 @ 前面的有效字符"
+                        required
+                      />
+                      <strong>@{invite.domain}</strong>
+                    </span>
+                    <small>完整登录邮箱：{localPart || 'your-name'}@{invite.domain}</small>
+                  </label>
+                )}
+                <label>
+                  <span>设置密码</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    minLength={10}
+                    maxLength={128}
+                    placeholder="至少 10 个字符"
+                    required
+                  />
+                </label>
+                <label>
+                  <span>确认密码</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    minLength={10}
+                    maxLength={128}
+                    placeholder="再次输入密码"
+                    required
+                  />
+                </label>
+
+                {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
+                <button className="button button--primary" type="submit" disabled={submitting}>
+                  {submitting && <LoaderCircle className="spin" size={17} />}
+                  {submitting ? '正在创建账号…' : '创建账号并进入邮箱'}
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+      )}
+    </main>
+  )
+}

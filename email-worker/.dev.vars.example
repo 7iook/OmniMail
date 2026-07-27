@@ -1,0 +1,10 @@
+# Copy to .dev.vars for `npm run dev:worker`.
+SETUP_TOKEN=replace-with-a-long-random-value
+SUPER_ADMIN_EMAIL=owner@example.com
+APP_ORIGINS=http://localhost:5173
+COOKIE_SECURE=false
+APP_NAME=OmniMail
+
+# Optional. Reply is hidden until both values are configured.
+RESEND_API_KEY=
+RESEND_FROM=

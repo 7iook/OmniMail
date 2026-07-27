@@ -1,0 +1,198 @@
+# OmniMail HTTP API
+
+OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认使用
+`HttpOnly` Cookie；桌面端应使用短期 Access Token，并用 Refresh Token
+轮换续期。两种认证方式执行完全相同的用户角色、邮箱归属和回信权限检查。
+
+下面示例中的 API 地址使用 `https://api-mail.example.com`，请替换为实际
+Worker 自定义域名。
+
+## 获取设备令牌
+
+```http
+POST /api/auth/token
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "your-password",
+  "deviceName": "OmniMail Desktop / Windows"
+}
+```
+
+成功响应：
+
+```json
+{
+  "tokenType": "Bearer",
+  "accessToken": "om_at_...",
+  "expiresIn": 900,
+  "refreshToken": "om_rt_...",
+  "refreshExpiresIn": 2592000,
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "role": "user"
+  }
+}
+```
+
+- Access Token 有效 15 分钟，只保存在桌面应用内存中。
+- Refresh Token 有效 30 天，应保存在 Windows Credential Manager、macOS
+  Keychain 或 Linux Secret Service，不能写入普通配置文件或日志。
+- 令牌在 D1 中只保存 SHA-256 摘要，服务端无法还原明文。
+- 登录失败与网页密码登录共用 IP + 邮箱限速。
+
+## 使用 Access Token
+
+所有原本需要登录的 `/api/*` 接口都接受：
+
+```http
+Authorization: Bearer om_at_...
+```
+
+例如：
+
+```http
+GET /api/mailboxes
+Authorization: Bearer om_at_...
+```
+
+访问令牌过期或被撤销时返回 `401`。桌面端收到 `401` 后应先尝试刷新一次；
+刷新失败则清除本地令牌并让用户重新登录。
+
+## 刷新与退出
+
+刷新会同时轮换 Access Token 和 Refresh Token。请求成功后，旧的两个令牌
+都会立即失效，客户端必须原子替换本地保存的 Refresh Token。
+
+```http
+POST /api/auth/token/refresh
+Content-Type: application/json
+
+{ "refreshToken": "om_rt_..." }
+```
+
+主动退出时使用当前 Refresh Token：
+
+```http
+POST /api/auth/token/revoke
+Content-Type: application/json
+
+{ "refreshToken": "om_rt_..." }
+```
+
+撤销接口是幂等的，即使令牌已经失效也返回 `{ "ok": true }`。使用 Bearer
+Token 调用现有 `POST /api/logout` 也会撤销当前设备会话。
+
+修改密码、管理员封禁账号、临时账号到期或用户自助删除账号，都会撤销该账号
+所有设备令牌。邮箱和历史邮件仍按原有保留规则处理。
+
+## 设备管理
+
+已登录用户可以查看和撤销自己的桌面设备：
+
+```http
+GET /api/auth/devices
+Authorization: Bearer om_at_...
+```
+
+```http
+DELETE /api/auth/devices/{deviceSessionId}
+Authorization: Bearer om_at_...
+```
+
+用户只能操作自己的设备会话。设备列表不会返回任何令牌明文。
+
+## 游标分页
+
+邮件、管理员用户列表和临时邀请列表支持游标分页：
+
+```http
+GET /api/messages?folder=inbox&limit=30
+Authorization: Bearer om_at_...
+```
+
+响应保留原有数组字段，并增加 `page`：
+
+```json
+{
+  "messages": [],
+  "counts": {
+    "unread": 0,
+    "starred": 0,
+    "sent": 0,
+    "trash": 0
+  },
+  "page": {
+    "hasMore": true,
+    "nextCursor": "opaque-cursor",
+    "limit": 30
+  }
+}
+```
+
+读取下一页时原样传回游标：
+
+```http
+GET /api/messages?folder=inbox&limit=30&cursor=opaque-cursor
+Authorization: Bearer om_at_...
+```
+
+规则：
+
+- `limit` 范围为 1–100；邮件默认 30，用户默认 50，邀请默认 30。
+- `cursor` 是不透明值，客户端不应解析、修改或长期保存。
+- 翻页期间必须保持 `folder`、`q`、`mailbox` 和 `domain` 等筛选参数不变。
+- `nextCursor` 为 `null` 或 `hasMore` 为 `false` 时已经到达最后一页。
+- 排序使用“时间 + 唯一 ID”，新邮件到达时不会导致已读取页面重复或跳项。
+
+分页接口：
+
+| 接口 | 数组字段 | 权限 |
+| --- | --- | --- |
+| `GET /api/messages` | `messages` | 当前用户自己的邮箱 |
+| `GET /api/admin/users` | `users` | 管理员 |
+| `GET /api/admin/invites` | `invites` | 管理员 |
+
+## 操作日志
+
+管理员可以读取登录安全和重要业务操作：
+
+```http
+GET /api/admin/audit-logs?days=7&category=auth&q=example.com&limit=50
+Authorization: Bearer om_at_...
+```
+
+`days` 支持 `1`、`7`、`30`、`90`；`category` 支持 `all`、`auth`、
+`account`、`user`、`mailbox`、`domain`、`invitation`、`message` 和
+`system`。`q` 可以搜索操作者、目标、操作名称和来源 IP，后续页面使用通用
+`cursor` 参数。
+
+日志详情会递归移除名称中包含 password、token、secret、authorization 或
+cookie 的字段。登录失败日志只记录邮箱、来源 IP、客户端类型和失败原因，不记录
+提交的密码。
+
+## 常用资源
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/session` | 查询当前 Cookie 或 Bearer 会话 |
+| `GET /api/mailboxes` | 当前用户邮箱列表 |
+| `POST /api/mailboxes` | 按用户权限创建邮箱 |
+| `GET /api/messages` | 邮件列表、筛选与分页 |
+| `GET /api/messages/{id}` | 邮件正文和附件元数据 |
+| `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
+| `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
+| `POST /api/messages/{id}/reply` | 使用 Resend 回复 |
+| `GET /api/admin/statistics` | 管理员邮件统计 |
+| `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
+| `GET /api/admin/users` | 管理员用户列表 |
+| `GET /api/admin/invites` | 管理员临时邀请列表 |
+
+附件和原始邮件接口同样支持 Bearer Token。桌面端下载文件时需要通过 HTTP
+客户端设置 `Authorization` 请求头，不能把 Token 拼接到 URL 查询参数中。
+
+当前仓库处于 `0.x` 阶段，第一版沿用网页端现有 `/api/*` 路径，没有复制一套
+`/api/v1/*` 路由。发布稳定版前如需破坏性调整，应新增版本化路径并保留旧接口
+一段迁移期。

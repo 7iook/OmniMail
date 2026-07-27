@@ -1,0 +1,36 @@
+{
+  "name": "omnimail",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A small, self-hosted webmail built on Cloudflare Workers, Pages, D1, R2, Queues, and Resend.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev -c email-worker/wrangler.jsonc --persist-to .wrangler/state",
+    "check:lines": "node scripts/check-file-lines.mjs",
+    "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false",
+    "test": "vitest run",
+    "build": "npm run check && vite build"
+  },
+  "dependencies": {
+    "hono": "latest",
+    "lucide-react": "latest",
+    "postal-mime": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}

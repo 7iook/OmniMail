@@ -1,0 +1,162 @@
+import { normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
+import { pageResult, parsePageRequest } from './pagination'
+import type { Env, MessageRow, SessionUser } from './types'
+
+type SummaryFields = Pick<
+  MessageRow,
+  | 'id'
+  | 'mailbox_address'
+  | 'direction'
+  | 'status'
+  | 'folder'
+  | 'sender_name'
+  | 'sender_address'
+  | 'recipients_json'
+  | 'subject'
+  | 'preview'
+  | 'received_at'
+  | 'sent_at'
+  | 'attachment_count'
+  | 'is_read'
+  | 'is_starred'
+  | 'processing_error'
+  | 'created_at'
+>
+
+type SummaryRow = SummaryFields & { sort_time: number }
+
+export function messageSummary(row: SummaryFields) {
+  return {
+    id: row.id,
+    mailboxAddress: row.mailbox_address,
+    direction: row.direction,
+    status: row.status,
+    folder: row.folder,
+    senderName: row.sender_name || '',
+    senderAddress: row.sender_address,
+    recipients: safeJsonArray(row.recipients_json),
+    subject: row.subject || '无主题',
+    preview: row.preview,
+    date: (row.received_at ?? row.sent_at ?? row.created_at) * 1000,
+    attachmentCount: row.attachment_count,
+    isRead: Boolean(row.is_read),
+    isStarred: Boolean(row.is_starred),
+    processingError: row.processing_error,
+  }
+}
+
+export async function listMessages(
+  env: Env,
+  user: SessionUser,
+  request: Request,
+): Promise<Response> {
+  const params = new URL(request.url).searchParams
+  const pagination = parsePageRequest(request, 2)
+  if (!pagination) {
+    return Response.json({ error: '分页参数无效，limit 需要在 1–100 之间。' }, { status: 400 })
+  }
+  const folder = params.get('folder') || 'inbox'
+  const query = (params.get('q') || '').trim().slice(0, 120)
+  const mailbox = normalizeEmail(params.get('mailbox') || '')
+  const domain = (params.get('domain') || '').trim().toLowerCase().slice(0, 253)
+  const scopeConditions = ['mb.user_id = ?']
+  const scopeBindings: Array<string | number> = [user.id]
+
+  if (mailbox) {
+    if (!validEmail(mailbox)) {
+      return Response.json({ error: '邮箱筛选条件无效。' }, { status: 400 })
+    }
+    scopeConditions.push('m.mailbox_address = ?')
+    scopeBindings.push(mailbox)
+  } else if (domain) {
+    scopeConditions.push(
+      "substr(lower(m.mailbox_address), instr(m.mailbox_address, '@') + 1) = ?",
+    )
+    scopeBindings.push(domain)
+  }
+
+  const conditions = [...scopeConditions]
+  const bindings = [...scopeBindings]
+  if (folder === 'starred') {
+    conditions.push('m.is_starred = 1', "m.folder != 'trash'")
+  } else if (folder === 'sent') {
+    conditions.push("m.direction = 'outgoing'", "m.folder = 'sent'")
+  } else if (folder === 'trash') {
+    conditions.push("m.folder = 'trash'")
+  } else {
+    conditions.push("m.direction = 'incoming'", "m.folder = 'inbox'")
+  }
+
+  if (query) {
+    const escaped = query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
+    conditions.push(
+      "(m.subject LIKE ? ESCAPE '\\' OR m.sender_address LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\')",
+    )
+    bindings.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`)
+  }
+
+  if (pagination.cursor) {
+    const [sortTime, id] = pagination.cursor.values
+    if (
+      typeof sortTime !== 'number'
+      || !Number.isSafeInteger(sortTime)
+      || sortTime < 0
+      || typeof id !== 'string'
+      || !id
+      || id.length > 100
+    ) {
+      return Response.json({ error: '邮件分页游标无效。' }, { status: 400 })
+    }
+    conditions.push(
+      '(COALESCE(m.received_at, m.sent_at, m.created_at) < ? OR '
+      + '(COALESCE(m.received_at, m.sent_at, m.created_at) = ? AND m.id < ?))',
+    )
+    bindings.push(sortTime, sortTime, id)
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT
+       m.id, m.mailbox_address, m.direction, m.status, m.folder,
+       m.sender_name, m.sender_address, m.recipients_json, m.subject, m.preview,
+       m.received_at, m.sent_at, m.attachment_count, m.is_read, m.is_starred,
+       m.processing_error, m.created_at,
+       COALESCE(m.received_at, m.sent_at, m.created_at) AS sort_time
+     FROM messages m
+     JOIN mailboxes mb ON mb.address = m.mailbox_address
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY sort_time DESC, m.id DESC
+     LIMIT ?`,
+  ).bind(...bindings, pagination.limit + 1).all<SummaryRow>()
+  const result = pageResult(
+    results,
+    pagination.limit,
+    (row) => [row.sort_time, row.id],
+  )
+
+  const counts = await env.DB.prepare(
+    `SELECT
+       SUM(CASE WHEN m.direction = 'incoming' AND m.folder = 'inbox' AND m.is_read = 0 THEN 1 ELSE 0 END) AS unread,
+       SUM(CASE WHEN m.is_starred = 1 AND m.folder != 'trash' THEN 1 ELSE 0 END) AS starred,
+       SUM(CASE WHEN m.direction = 'outgoing' AND m.folder = 'sent' THEN 1 ELSE 0 END) AS sent,
+       SUM(CASE WHEN m.folder = 'trash' THEN 1 ELSE 0 END) AS trash
+     FROM messages m
+     JOIN mailboxes mb ON mb.address = m.mailbox_address
+     WHERE ${scopeConditions.join(' AND ')}`,
+  ).bind(...scopeBindings).first<{
+    unread: number | null
+    starred: number | null
+    sent: number | null
+    trash: number | null
+  }>()
+
+  return Response.json({
+    messages: result.items.map(messageSummary),
+    counts: {
+      unread: counts?.unread ?? 0,
+      starred: counts?.starred ?? 0,
+      sent: counts?.sent ?? 0,
+      trash: counts?.trash ?? 0,
+    },
+    page: result.page,
+  })
+}

@@ -1,0 +1,378 @@
+import {
+  AlertCircle,
+  AtSign,
+  CheckCircle2,
+  Clock3,
+  KeyRound,
+  LoaderCircle,
+  LogOut,
+  Mail,
+  MonitorCog,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+} from 'lucide-react'
+import { type FormEvent, useEffect, useState } from 'react'
+import { api, type User } from '../lib/api'
+import { roleLabel } from '../lib/roles'
+import { AdminPageHeader } from './AdminPageHeader'
+import { ThemeToggle } from './AuthPages'
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '保存账户设置时发生了未知错误。'
+}
+
+function formatDate(timestamp: number): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp * 1000))
+}
+
+function Feedback({ type, children }: {
+  type: 'error' | 'success'
+  children: string
+}) {
+  const Icon = type === 'error' ? AlertCircle : CheckCircle2
+  return (
+    <p className={`account-feedback is-${type}`} role={type === 'error' ? 'alert' : 'status'}>
+      <Icon size={16} />
+      {children}
+    </p>
+  )
+}
+
+export function AccountSettings({
+  user,
+  onUserChange,
+  onLogout,
+}: {
+  user: User
+  onUserChange: (user: User) => void
+  onLogout: () => Promise<void>
+}) {
+  const [displayName, setDisplayName] = useState(user.displayName)
+  const [profileBusy, setProfileBusy] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSaved, setPasswordSaved] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  useEffect(() => setDisplayName(user.displayName), [user.displayName])
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault()
+    setProfileBusy(true)
+    setProfileError('')
+    setProfileSaved(false)
+    try {
+      const result = await api.updateAccount({ displayName })
+      onUserChange(result.user)
+      setProfileSaved(true)
+    } catch (error) {
+      setProfileError(errorMessage(error))
+    } finally {
+      setProfileBusy(false)
+    }
+  }
+
+  async function savePassword(event: FormEvent) {
+    event.preventDefault()
+    setPasswordError('')
+    setPasswordSaved(false)
+    if (newPassword !== confirmPassword) {
+      setPasswordError('两次输入的新密码不一致。')
+      return
+    }
+    setPasswordBusy(true)
+    try {
+      const result = await api.updateAccount({ currentPassword, newPassword })
+      onUserChange(result.user)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordSaved(true)
+    } catch (error) {
+      setPasswordError(errorMessage(error))
+    } finally {
+      setPasswordBusy(false)
+    }
+  }
+
+  async function deleteAccount(event: FormEvent) {
+    event.preventDefault()
+    setDeleteBusy(true)
+    setDeleteError('')
+    try {
+      await api.deleteAccount(deletePassword)
+      window.location.reload()
+    } catch (error) {
+      setDeleteError(errorMessage(error))
+      setDeleteBusy(false)
+    }
+  }
+
+  function closeDeleteDialog() {
+    if (deleteBusy) return
+    setDeleteOpen(false)
+    setDeletePassword('')
+    setDeleteError('')
+  }
+
+  const profileChanged = displayName.trim() !== user.displayName
+
+  return (
+    <main className="admin-workspace account-workspace">
+      <AdminPageHeader
+        icon={UserRound}
+        eyebrow="ACCOUNT · PERSONAL"
+        title="账号设置"
+        description="管理你的个人资料、登录密码和当前设备偏好。"
+      />
+
+      <div className="account-settings-grid">
+        <div className="account-settings-column">
+          <section className="admin-card account-card">
+            <header>
+              <UserRound size={17} />
+              <div>
+                <h2>个人资料</h2>
+                <p>这些信息只属于当前登录账户</p>
+              </div>
+            </header>
+            <div className="account-identity">
+              <span>{user.displayName.slice(0, 1).toUpperCase()}</span>
+              <div>
+                <strong>{user.displayName}</strong>
+                <small>{roleLabel(user.role)}</small>
+              </div>
+            </div>
+            <dl className="settings-list account-summary-list">
+              <div>
+                <dt><AtSign size={15} />登录邮箱</dt>
+                <dd>{user.email}</dd>
+              </div>
+              <div>
+                <dt><ShieldCheck size={15} />账户角色</dt>
+                <dd>{roleLabel(user.role)}</dd>
+              </div>
+              {user.role === 'temporary' && (
+                <div>
+                  <dt><Clock3 size={15} />账号有效至</dt>
+                  <dd>{user.temporaryExpiresAt
+                    ? formatDate(user.temporaryExpiresAt)
+                    : '未设置自动到期时间'}</dd>
+                </div>
+              )}
+            </dl>
+            <form className="account-form" onSubmit={saveProfile}>
+              <label className="account-field">
+                <span>显示名称</span>
+                <input
+                  autoComplete="name"
+                  value={displayName}
+                  onChange={(event) => {
+                    setDisplayName(event.target.value)
+                    setProfileSaved(false)
+                  }}
+                  maxLength={60}
+                  required
+                />
+              </label>
+              {profileError && <Feedback type="error">{profileError}</Feedback>}
+              {profileSaved && <Feedback type="success">个人资料已保存。</Feedback>}
+              <button
+                className="button button--primary"
+                type="submit"
+                disabled={profileBusy || !profileChanged}
+              >
+                {profileBusy && <LoaderCircle className="spin" size={16} />}
+                保存资料
+              </button>
+            </form>
+          </section>
+
+          <section className="admin-card account-card">
+            <header>
+              <MonitorCog size={17} />
+              <div>
+                <h2>外观</h2>
+                <p>主题偏好保存在当前浏览器</p>
+              </div>
+            </header>
+            <div className="account-preference">
+              <div>
+                <strong>界面主题</strong>
+                <span>在浅色和深色模式之间切换</span>
+              </div>
+              <ThemeToggle labeled />
+            </div>
+          </section>
+        </div>
+
+        <div className="account-settings-column">
+          <section className="admin-card account-card">
+            <header>
+              <KeyRound size={17} />
+              <div>
+                <h2>修改密码</h2>
+                <p>需要先验证当前登录密码</p>
+              </div>
+            </header>
+            <form className="account-form account-password-form" onSubmit={savePassword}>
+              <label className="account-field">
+                <span>当前密码</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="account-field">
+                <span>新密码</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value)
+                    setPasswordSaved(false)
+                  }}
+                  minLength={10}
+                  maxLength={128}
+                  placeholder="至少 10 个字符"
+                  required
+                />
+              </label>
+              <label className="account-field">
+                <span>确认新密码</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  minLength={10}
+                  maxLength={128}
+                  required
+                />
+              </label>
+              {passwordError && <Feedback type="error">{passwordError}</Feedback>}
+              {passwordSaved && <Feedback type="success">密码已经更新。</Feedback>}
+              <button className="button button--primary" type="submit" disabled={passwordBusy}>
+                {passwordBusy && <LoaderCircle className="spin" size={16} />}
+                更新密码
+              </button>
+            </form>
+          </section>
+
+          <section className="admin-card account-card">
+            <header>
+              <LogOut size={17} />
+              <div>
+                <h2>当前会话</h2>
+                <p>安全退出这台设备上的 OmniMail</p>
+              </div>
+            </header>
+            <button
+              className="button button--secondary account-logout"
+              type="button"
+              onClick={() => void onLogout()}
+            >
+              <LogOut size={16} />
+              退出登录
+            </button>
+          </section>
+
+          {user.role === 'temporary' && (
+            <section className="admin-card account-card account-danger-card">
+              <header>
+                <Trash2 size={17} />
+                <div>
+                  <h2>删除临时账号</h2>
+                  <p>立即结束账号访问，但保留邮箱数据</p>
+                </div>
+              </header>
+              <div className="account-danger-note">
+                <Mail size={17} />
+                <p><strong>邮箱不会随账号删除</strong><span>收件地址、已有邮件和附件会继续保留，删除账号后将无法再登录查看。</span></p>
+              </div>
+              <button
+                className="button account-delete-trigger"
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 size={16} />
+                删除我的临时账号
+              </button>
+            </section>
+          )}
+        </div>
+      </div>
+
+      {deleteOpen && (
+        <div className="user-panel-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeDeleteDialog()
+        }}>
+          <section
+            className="user-panel account-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="account-delete-title"
+            aria-describedby="account-delete-description"
+          >
+            <header>
+              <span><TriangleAlert size={21} /></span>
+              <div>
+                <p className="eyebrow">DELETE TEMPORARY ACCOUNT</p>
+                <h2 id="account-delete-title">确认删除临时账号</h2>
+                <p id="account-delete-description">这会立即退出当前设备，并永久关闭该账号的登录能力。</p>
+              </div>
+            </header>
+            <form onSubmit={(event) => void deleteAccount(event)}>
+              <div className="account-delete-risks">
+                <p><Trash2 size={16} /><span><strong>账号无法恢复</strong><small>当前账号及其所有登录会话会立即失效。</small></span></p>
+                <p><Mail size={16} /><span><strong>邮箱继续保留</strong><small>邮箱地址、邮件和附件不会随账号一起删除。</small></span></p>
+              </div>
+              <label className="account-field">
+                <span>输入当前密码确认</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                  maxLength={128}
+                  required
+                />
+              </label>
+              {deleteError && <Feedback type="error">{deleteError}</Feedback>}
+              <footer>
+                <button className="button button--secondary" type="button" disabled={deleteBusy} onClick={closeDeleteDialog}>
+                  取消
+                </button>
+                <button className="button account-delete-confirm" type="submit" disabled={deleteBusy || !deletePassword}>
+                  {deleteBusy ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}
+                  {deleteBusy ? '正在删除…' : '确认删除账号'}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
+    </main>
+  )
+}

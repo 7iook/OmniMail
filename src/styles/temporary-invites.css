@@ -1,0 +1,543 @@
+.invite-panel {
+  width: min(100%, 760px);
+  max-height: min(92vh, 900px);
+}
+
+.invite-loading,
+.invite-empty {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.invite-form {
+  display: grid;
+  gap: 18px;
+}
+
+.invite-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.invite-field,
+.invite-limit {
+  display: grid;
+  gap: 7px;
+}
+
+.invite-field > span,
+.invite-limit > span,
+.invite-mode legend {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.invite-select > button,
+.invite-limit input {
+  width: 100%;
+  min-height: 42px;
+  padding-inline: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.invite-select > button:focus-visible,
+.invite-limit input:focus {
+  border-color: var(--text-tertiary);
+  background: var(--surface);
+}
+
+.invite-select {
+  position: relative;
+}
+
+.invite-select > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.invite-select > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.invite-select > button > svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transition: transform 160ms ease;
+}
+
+.invite-select.is-open > button {
+  border-color: var(--text-tertiary);
+  background: var(--surface);
+}
+
+.invite-select.is-open > button > svg {
+  transform: rotate(180deg);
+}
+
+.invite-select__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 3px;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.invite-select__menu > button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.invite-select__menu > button:hover,
+.invite-select__menu > button.is-selected {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.invite-select__menu > button > svg {
+  color: var(--success);
+}
+
+.invite-field > small,
+.invite-limit small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (min-width: 761px) {
+  .invite-form-grid .invite-field > small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.invite-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.invite-mode--single {
+  grid-template-columns: 1fr;
+}
+
+.invite-mode legend {
+  grid-column: 1 / -1;
+  margin-bottom: 7px;
+}
+
+.invite-mode label {
+  display: flex;
+  min-height: 78px;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.invite-mode label.is-selected {
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.invite-mode input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.invite-mode label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.invite-mode strong {
+  font-size: 13px;
+}
+
+.invite-mode small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.invite-permissions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 10px;
+}
+
+.invite-admin-address {
+  display: grid;
+  gap: 7px;
+}
+
+.invite-admin-address > span:first-child {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.invite-admin-address > span:nth-child(2) {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) auto;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.invite-admin-address > span:nth-child(2):focus-within {
+  border-color: var(--text-tertiary);
+  background: var(--surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.invite-admin-address svg {
+  margin-left: 12px;
+  color: var(--text-tertiary);
+}
+
+.invite-admin-address input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding-inline: 8px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.invite-admin-address strong {
+  padding-right: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.invite-admin-address > small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.invite-permissions .policy-toggle:last-child {
+  grid-column: 1 / -1;
+}
+
+.invite-limit {
+  align-content: center;
+}
+
+.invite-limit input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.invite-create-button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.created-invite {
+  display: grid;
+  gap: 11px;
+  margin: 0 22px 22px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
+  border-radius: 13px;
+  background: var(--success-soft);
+}
+
+.created-invite > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--success);
+}
+
+.created-invite > div > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.created-invite > div > span {
+  display: grid;
+  gap: 2px;
+}
+
+.created-invite strong {
+  font-size: 13px;
+}
+
+.created-invite small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.created-invite label {
+  display: flex;
+  gap: 8px;
+}
+
+.created-invite input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding-inline: 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.created-invite input:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.created-invite .button {
+  min-width: 86px;
+  flex: 0 0 auto;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.invite-history {
+  border-top: 1px solid var(--line);
+}
+
+.invite-history > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 13px;
+}
+
+.invite-history h3 {
+  margin: 0 0 2px;
+  font-size: 16px;
+}
+
+.invite-history header p {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.invite-history > header > span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.invite-list {
+  padding: 0 22px 22px;
+}
+
+.invite-load-more {
+  display: flex;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.invite-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.25fr) minmax(150px, 1fr) minmax(160px, 1.2fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 62px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.invite-row:last-child {
+  border-bottom: 0;
+}
+
+.invite-row > span:not(.invite-state) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.invite-row > span > svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.invite-domain > span {
+  display: grid;
+  min-width: 0;
+}
+
+.invite-domain strong,
+.invite-domain small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-domain strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.invite-domain small {
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.invite-state {
+  width: fit-content;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.invite-state--active {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.invite-state--expired,
+.invite-state--used,
+.invite-state--domain_disabled {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.invite-state--revoked {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.invite-row > button {
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.invite-row > button:hover {
+  background: var(--danger-soft);
+}
+
+@media (max-width: 760px) {
+  .invite-panel {
+    max-height: 94dvh;
+  }
+
+  .invite-form-grid,
+  .invite-mode {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-mode legend {
+    grid-column: auto;
+  }
+
+  .invite-permissions {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+
+  .invite-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding-block: 12px;
+  }
+
+  .invite-row > span:nth-child(2),
+  .invite-row > span:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .invite-row > button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .invite-permissions {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-permissions .policy-toggle:last-child {
+    grid-column: auto;
+  }
+
+  .created-invite {
+    margin-inline: 16px;
+  }
+
+  .created-invite label {
+    display: grid;
+  }
+
+  .invite-history > header,
+  .invite-list {
+    padding-inline: 16px;
+  }
+}
