@@ -12,11 +12,13 @@ import {
 } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { api, type TemporaryInvite, type User } from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
 import { Brand, ThemeToggle } from './AuthPages'
+import { LanguageToggle } from './LanguageToggle'
 import { TurnstileWidget } from './TurnstileWidget'
 
 function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -26,11 +28,13 @@ function formatDate(timestamp: number): string {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '发生了未知错误。'
+  return t(error instanceof Error ? error.message : '发生了未知错误。')
 }
 
 function formatDuration(hours: number): string {
-  return hours % 24 === 0 ? `${hours / 24} 天` : `${hours} 小时`
+  return hours % 24 === 0
+    ? t('{count} 天', { count: hours / 24 })
+    : t('{count} 小时', { count: hours })
 }
 
 export function TemporaryInvitePage({
@@ -82,11 +86,11 @@ export function TemporaryInvitePage({
     event.preventDefault()
     if (!invite) return
     if (password !== confirmation) {
-      setError('两次输入的密码不一致。')
+      setError(t('两次输入的密码不一致。'))
       return
     }
     if (invite.multiUse && !turnstileToken) {
-      setError('请先完成人机验证。')
+      setError(t('请先完成人机验证。'))
       return
     }
     setSubmitting(true)
@@ -104,7 +108,7 @@ export function TemporaryInvitePage({
         window.history.replaceState(null, '', window.location.pathname)
         onAuthenticated(login.user)
       } catch {
-        setError(`账号 ${result.email} 已创建，但自动登录失败，请返回登录页手动登录。`)
+        setError(t('账号 {email} 已创建，但自动登录失败，请返回登录页手动登录。', { email: result.email }))
       }
     } catch (registerError) {
       setError(errorMessage(registerError))
@@ -121,22 +125,22 @@ export function TemporaryInvitePage({
     <main className="auth-page invite-page">
       <div className="auth-page__top">
         <Brand />
-        <ThemeToggle />
+        <div><LanguageToggle /><ThemeToggle /></div>
       </div>
 
       {loading ? (
         <section className="invite-public-card invite-public-state" role="status">
           <LoaderCircle className="spin" size={22} />
-          <span>正在验证邀请链接…</span>
+          <span>{t('正在验证邀请链接…')}</span>
         </section>
       ) : !invite ? (
         <section className="invite-public-card invite-public-error">
           <span className="auth-symbol auth-symbol--danger"><AlertCircle size={27} /></span>
           <p className="eyebrow">INVITATION UNAVAILABLE</p>
-          <h1>这个邀请无法使用</h1>
-          <p>{error || '邀请链接不存在或已经失效。'}</p>
+          <h1>{t('这个邀请无法使用')}</h1>
+          <p>{error || t('邀请链接不存在或已经失效。')}</p>
           <button className="button button--secondary" type="button" onClick={leaveInvitation}>
-            返回 {appName} 登录页
+            {t('返回 {appName} 登录页', { appName })}
           </button>
         </section>
       ) : (
@@ -145,62 +149,62 @@ export function TemporaryInvitePage({
             <span className="auth-symbol"><UserRoundPlus size={27} /></span>
             <div>
               <p className="eyebrow">TEMPORARY ACCOUNT</p>
-              <h1>创建临时邮箱账号</h1>
+              <h1>{t('创建临时邮箱账号')}</h1>
               <p>{invite.addressMode === 'assigned'
-                ? `管理员已经为你分配好邮箱，设置密码后即可进入 ${appName}。`
-                : `管理员邀请你加入 ${appName}，请自行选择一个尚未使用的邮箱名称。`}</p>
+                ? t('管理员已经为你分配好邮箱，设置密码后即可进入 {appName}。', { appName })
+                : t('管理员邀请你加入 {appName}，请自行选择一个尚未使用的邮箱名称。', { appName })}</p>
             </div>
           </header>
 
           <div className="invite-public-layout">
             <aside className="invite-public-summary">
               {invite.addressMode === 'assigned'
-                ? <div><AtSign size={17} /><span><small>管理员指定邮箱</small><strong>{invite.assignedAddress}</strong></span></div>
-                : <div><Globe2 size={17} /><span><small>管理员指定域名</small><strong>{invite.domain}</strong></span></div>}
-              <div><Clock3 size={17} /><span><small>注册链接有效至</small><strong>{formatDate(invite.expiresAt)}</strong></span></div>
-              <div><Clock3 size={17} /><span><small>临时账号有效时间</small><strong>注册成功后 {formatDuration(invite.accountLifetimeHours)}</strong></span></div>
-              <div><ShieldCheck size={17} /><span><small>链接类型</small><strong>{invite.multiUse ? '多人注册链接' : '单次使用链接'}</strong></span></div>
-              <div><MailPlus size={17} /><span><small>邮箱权限</small><strong>{invite.addressMode === 'assigned' ? '固定邮箱，不能自行新增或更改' : invite.canCreateMailboxes ? `最多创建 ${invite.mailboxLimit} 个邮箱` : '仅使用注册时创建的邮箱'}</strong></span></div>
-              <div><Send size={17} /><span><small>回信权限</small><strong>{invite.canReply ? '可以通过 Resend 回信' : '仅接收与查看邮件'}</strong></span></div>
-              <p><Check size={16} />链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。</p>
+                ? <div><AtSign size={17} /><span><small>{t('管理员指定邮箱')}</small><strong>{invite.assignedAddress}</strong></span></div>
+                : <div><Globe2 size={17} /><span><small>{t('管理员指定域名')}</small><strong>{invite.domain}</strong></span></div>}
+              <div><Clock3 size={17} /><span><small>{t('注册链接有效至')}</small><strong>{formatDate(invite.expiresAt)}</strong></span></div>
+              <div><Clock3 size={17} /><span><small>{t('临时账号有效时间')}</small><strong>{t('注册成功后 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</strong></span></div>
+              <div><ShieldCheck size={17} /><span><small>{t('链接类型')}</small><strong>{t(invite.multiUse ? '多人注册链接' : '单次使用链接')}</strong></span></div>
+              <div><MailPlus size={17} /><span><small>{t('邮箱权限')}</small><strong>{invite.addressMode === 'assigned' ? t('固定邮箱，不能自行新增或更改') : invite.canCreateMailboxes ? t('最多创建 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅使用注册时创建的邮箱')}</strong></span></div>
+              <div><Send size={17} /><span><small>{t('回信权限')}</small><strong>{t(invite.canReply ? '可以通过 Resend 回信' : '仅接收与查看邮件')}</strong></span></div>
+              <p><Check size={16} />{t('链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。')}</p>
             </aside>
 
             {registeredEmail ? (
               <div className="invite-registration-result">
                 <span><Check size={24} /></span>
-                <h2>账号已经创建</h2>
+                <h2>{t('账号已经创建')}</h2>
                 <strong>{registeredEmail}</strong>
                 {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
                 <button className="button button--primary" type="button" onClick={leaveInvitation}>
-                  前往登录
+                  {t('前往登录')}
                 </button>
               </div>
             ) : (
               <form className="invite-register-form" onSubmit={(event) => void submit(event)}>
                 <label>
-                  <span>显示名称</span>
+                  <span>{t('显示名称')}</span>
                   <input
                     autoComplete="name"
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     maxLength={60}
-                    placeholder="例如：Omni"
+                    placeholder={t('例如：Omni')}
                     required
                   />
                 </label>
                 {invite.addressMode === 'assigned' ? (
                   <label className="invite-fixed-address">
-                    <span>管理员指定邮箱</span>
+                    <span>{t('管理员指定邮箱')}</span>
                     <input
                       autoComplete="username"
                       value={invite.assignedAddress || ''}
                       readOnly
                     />
-                    <small>该邮箱会成为固定的登录账号和收件地址，注册后不能自行更改。</small>
+                    <small>{t('该邮箱会成为固定的登录账号和收件地址，注册后不能自行更改。')}</small>
                   </label>
                 ) : (
                   <label>
-                    <span>选择邮箱名称</span>
+                    <span>{t('选择邮箱名称')}</span>
                     <span className="invite-address-field">
                       <AtSign size={16} />
                       <input
@@ -210,16 +214,16 @@ export function TemporaryInvitePage({
                         maxLength={64}
                         placeholder="your-name"
                         pattern="[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
-                        title="只能填写邮箱 @ 前面的有效字符"
+                        title={t('只能填写邮箱 @ 前面的有效字符')}
                         required
                       />
                       <strong>@{invite.domain}</strong>
                     </span>
-                    <small>完整登录邮箱：{localPart || 'your-name'}@{invite.domain}</small>
+                    <small>{t('完整登录邮箱：{address}', { address: `${localPart || 'your-name'}@${invite.domain}` })}</small>
                   </label>
                 )}
                 <label>
-                  <span>设置密码</span>
+                  <span>{t('设置密码')}</span>
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -227,12 +231,12 @@ export function TemporaryInvitePage({
                     onChange={(event) => setPassword(event.target.value)}
                     minLength={10}
                     maxLength={128}
-                    placeholder="至少 10 个字符"
+                    placeholder={t('至少 10 个字符')}
                     required
                   />
                 </label>
                 <label>
-                  <span>确认密码</span>
+                  <span>{t('确认密码')}</span>
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -240,7 +244,7 @@ export function TemporaryInvitePage({
                     onChange={(event) => setConfirmation(event.target.value)}
                     minLength={10}
                     maxLength={128}
-                    placeholder="再次输入密码"
+                    placeholder={t('再次输入密码')}
                     required
                   />
                 </label>
@@ -255,7 +259,7 @@ export function TemporaryInvitePage({
                     />
                   ) : (
                     <p className="form-error" role="alert">
-                      <AlertCircle size={16} />管理员尚未配置邀请安全验证。
+                      <AlertCircle size={16} />{t('管理员尚未配置邀请安全验证。')}
                     </p>
                   )
                 )}
@@ -266,7 +270,7 @@ export function TemporaryInvitePage({
                   disabled={submitting || (invite.multiUse && !turnstileToken)}
                 >
                   {submitting && <LoaderCircle className="spin" size={17} />}
-                  {submitting ? '正在创建账号…' : '创建账号并进入邮箱'}
+                  {t(submitting ? '正在创建账号…' : '创建账号并进入邮箱')}
                 </button>
               </form>
             )}

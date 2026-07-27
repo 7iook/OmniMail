@@ -42,32 +42,13 @@ import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
 import { useAutoRefresh } from './lib/useAutoRefresh'
 import { openingSplashDelay } from './lib/initialSplash'
+import { t, useLocale } from './lib/i18n'
+import { formatMessageDate, senderLabel } from './lib/mailFormatting'
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '发生了未知错误。'
-}
-
-function formatMessageDate(timestamp: number): string {
-  const date = new Date(timestamp)
-  const today = new Date()
-  if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(date)
-  }
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
-}
-
-function senderLabel(message: MessageSummary): string {
-  if (message.direction === 'outgoing') return `发给 ${message.recipients.join(', ')}`
-  return message.senderName || message.senderAddress
+  return t(error instanceof Error ? error.message : '发生了未知错误。')
 }
 
 function MessageList({
@@ -95,7 +76,7 @@ function MessageList({
     return (
       <div className="list-state" role="status">
         <LoaderCircle className="spin" size={21} />
-        <span>正在读取邮件</span>
+        <span>{t('正在读取邮件')}</span>
       </div>
     )
   }
@@ -103,14 +84,14 @@ function MessageList({
     return (
       <div className="list-state list-state--empty">
         <span className="empty-symbol"><Inbox size={24} /></span>
-        <strong>这里还是空的</strong>
-        <span>新邮件到达后会出现在这里。</span>
+        <strong>{t('这里还是空的')}</strong>
+        <span>{t('新邮件到达后会出现在这里。')}</span>
       </div>
     )
   }
 
   return (
-    <div className="message-list" role="listbox" aria-label="邮件列表">
+    <div className="message-list" role="listbox" aria-label={t('邮件列表')}>
       {messages.map((message) => (
         <article
           className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''}`}
@@ -128,7 +109,7 @@ function MessageList({
               {message.status === 'failed' && <AlertCircle size={13} />}
               {message.subject}
             </span>
-            <span className="message-row__preview">{message.preview || '暂无正文预览'}</span>
+            <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
             {showMailbox && (
               <span className="mailbox-hint"><AtSign size={12} />{message.mailboxAddress}</span>
             )}
@@ -140,8 +121,8 @@ function MessageList({
             className={`row-star ${message.isStarred ? 'is-active' : ''}`}
             type="button"
             onClick={() => onStar(message)}
-            aria-label={message.isStarred ? '取消星标' : '添加星标'}
-            title={message.isStarred ? '取消星标' : '添加星标'}
+            aria-label={t(message.isStarred ? '取消星标' : '添加星标')}
+            title={t(message.isStarred ? '取消星标' : '添加星标')}
           >
             <Star size={16} fill={message.isStarred ? 'currentColor' : 'none'} />
           </button>
@@ -155,7 +136,7 @@ function MessageList({
           onClick={onLoadMore}
         >
           {loadingMore && <LoaderCircle className="spin" size={15} />}
-          {loadingMore ? '正在加载…' : '加载更多邮件'}
+          {t(loadingMore ? '正在加载…' : '加载更多邮件')}
         </button>
       )}
     </div>
@@ -347,12 +328,12 @@ function Mailbox({
   async function trashSelected() {
     if (!detail) return
     if (detail.folder === 'trash') {
-      if (!window.confirm('永久删除这封邮件及其附件？此操作无法撤销。')) return
+      if (!window.confirm(t('永久删除这封邮件及其附件？此操作无法撤销。'))) return
       await api.deleteMessage(detail.id)
-      setNotice('邮件已永久删除')
+      setNotice(t('邮件已永久删除'))
     } else {
       await api.updateMessage(detail.id, { folder: 'trash' })
-      setNotice('邮件已移入垃圾箱')
+      setNotice(t('邮件已移入垃圾箱'))
     }
     setSelectedId(null)
     setDetail(null)
@@ -366,7 +347,7 @@ function Mailbox({
     })
     setSelectedId(null)
     setDetail(null)
-    setNotice('邮件已恢复')
+    setNotice(t('邮件已恢复'))
     await loadMessages(true)
   }
 
@@ -451,27 +432,27 @@ function Mailbox({
             onRefresh={() => void loadMessages(true)}
             onCopied={(address) => {
               setError('')
-              setNotice(`已复制：${address}`)
+              setNotice(t('已复制：{address}', { address }))
             }}
-            onCopyError={() => setError('无法访问剪贴板，请手动复制邮箱地址。')}
+            onCopyError={() => setError(t('无法访问剪贴板，请手动复制邮箱地址。'))}
             onMailboxCreated={async (mailbox) => {
               await loadMailboxData()
               changeScope({ type: 'mailbox', value: mailbox.address })
-              setNotice(`已生成：${mailbox.address}`)
+              setNotice(t('已生成：{address}', { address: mailbox.address }))
             }}
           />
         </header>
         <label className="search-field">
           <Search size={17} />
-          <span className="sr-only">搜索邮件</span>
+          <span className="sr-only">{t('搜索邮件')}</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索发件人或主题"
+            placeholder={t('搜索发件人或主题')}
             type="search"
           />
           {query && (
-            <button type="button" onClick={() => setQuery('')} aria-label="清除搜索"><X size={15} /></button>
+            <button type="button" onClick={() => setQuery('')} aria-label={t('清除搜索')}><X size={15} /></button>
           )}
         </label>
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
@@ -502,7 +483,7 @@ function Mailbox({
           onTrash={() => void trashSelected()}
           onRestore={() => void restoreSelected()}
           onReplySent={() => {
-            setNotice('回复已发送')
+            setNotice(t('回复已发送'))
             void loadMessages(true)
           }}
         />
@@ -516,6 +497,7 @@ function Mailbox({
 }
 
 export function App() {
+  useLocale()
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -561,7 +543,7 @@ export function App() {
 
   if (loading) return <PageLoader />
   if (connectionError || !config) {
-    return <ConnectionError message={connectionError || '配置读取失败。'} retry={() => setLoadVersion((value) => value + 1)} />
+    return <ConnectionError message={connectionError || t('配置读取失败。')} retry={() => setLoadVersion((value) => value + 1)} />
   }
   if (!config.setupComplete) {
     return (

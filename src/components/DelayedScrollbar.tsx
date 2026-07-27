@@ -1,4 +1,5 @@
 import { ArrowUp } from 'lucide-react'
+import { t } from '../lib/i18n'
 import {
   type PointerEvent,
   type ReactNode,
@@ -72,9 +73,9 @@ export function DelayedScrollbar({
       <button
         className={`admin-scroll-top ${showScrollTop ? 'is-visible' : ''}`}
         type="button"
-        aria-label="回到顶部"
+        aria-label={t('回到顶部')}
         aria-hidden={!showScrollTop}
-        title="回到顶部"
+        title={t('回到顶部')}
         tabIndex={showScrollTop ? 0 : -1}
         onClick={scrollToTop}
       >

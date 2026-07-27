@@ -20,6 +20,7 @@ import {
   type DeploymentCheckItem,
   type DeploymentCheckState,
 } from '../lib/api'
+import { t } from '../lib/i18n'
 
 const steps = [
   { id: 'core' as const, label: '核心资源', description: 'Worker、D1、R2 与队列', Icon: Database },
@@ -47,12 +48,12 @@ function CheckRow({ item }: { item: DeploymentCheckItem }) {
       <span className="deployment-check__icon"><CheckStateIcon state={item.state} /></span>
       <span className="deployment-check__content">
         <span>
-          <strong>{item.label}</strong>
-          <small>{item.required ? '必需' : '可选'}</small>
+          <strong>{t(item.label)}</strong>
+          <small>{t(item.required ? '必需' : '可选')}</small>
         </span>
-        <p>{item.state === 'ready' ? item.detail : item.action}</p>
+        <p>{t(item.state === 'ready' ? item.detail : item.action)}</p>
       </span>
-      <span className="deployment-check__state">{stateLabels[item.state]}</span>
+      <span className="deployment-check__state">{t(stateLabels[item.state])}</span>
     </li>
   )
 }
@@ -77,7 +78,7 @@ export function DeploymentWizard({
     try {
       setResult(await api.deploymentCheck())
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '无法运行部署自检。')
+      setError(t(loadError instanceof Error ? loadError.message : '无法运行部署自检。'))
     } finally {
       setLoading(false)
     }
@@ -148,21 +149,21 @@ export function DeploymentWizard({
           <span className="deployment-dialog__symbol"><CloudCog size={24} /></span>
           <div>
             <p className="eyebrow">DEPLOYMENT CHECK</p>
-            <h2 id={titleId}>部署初始化向导</h2>
-            <p>检查 GitHub 连接 Cloudflare 后的关键配置，不会读取或显示 Secret 内容。</p>
+            <h2 id={titleId}>{t('部署初始化向导')}</h2>
+            <p>{t('检查 GitHub 连接 Cloudflare 后的关键配置，不会读取或显示 Secret 内容。')}</p>
           </div>
           <button
             className="icon-button"
             type="button"
             data-autofocus
             onClick={onClose}
-            aria-label="关闭部署向导"
+            aria-label={t('关闭部署向导')}
           >
             <X size={17} />
           </button>
         </header>
 
-        <nav className="deployment-steps" aria-label="部署检查步骤">
+        <nav className="deployment-steps" aria-label={t('部署检查步骤')}>
           {steps.map(({ id, label, description, Icon }, index) => {
             const groupChecks = result?.checks.filter((item) => item.group === id) || []
             const hasMissing = groupChecks.some((item) => item.required && item.state !== 'ready')
@@ -171,12 +172,12 @@ export function DeploymentWizard({
                 className={`${index === step ? 'is-current' : ''} ${hasMissing ? 'has-missing' : ''}`}
                 type="button"
                 key={id}
-                aria-label={`${label}：${description}`}
+                aria-label={t('{label}：{description}', { label: t(label), description: t(description) })}
                 aria-current={index === step ? 'step' : undefined}
                 onClick={() => setStep(index)}
               >
                 <span><Icon size={16} /></span>
-                <span><strong>{label}</strong><small>{description}</small></span>
+                <span><strong>{t(label)}</strong><small>{t(description)}</small></span>
               </button>
             )
           })}
@@ -185,12 +186,12 @@ export function DeploymentWizard({
         <div className="deployment-dialog__body">
           <header>
             <div>
-              <span>步骤 {step + 1} / {steps.length}</span>
-              <h3>{current.label}</h3>
+              <span>{t('步骤 {current} / {total}', { current: step + 1, total: steps.length })}</span>
+              <h3>{t(current.label)}</h3>
             </div>
             {result && (
               <span className={`deployment-summary ${result.ready ? 'is-ready' : ''}`}>
-                {readyCount}/{result.checks.length} 项就绪
+                {t('{ready}/{total} 项就绪', { ready: readyCount, total: result.checks.length })}
               </span>
             )}
           </header>
@@ -198,15 +199,15 @@ export function DeploymentWizard({
           {loading && (
             <div className="deployment-loading" role="status">
               <LoaderCircle className="spin" size={20} />
-              <span>正在检查 Worker 配置和资源绑定…</span>
+              <span>{t('正在检查 Worker 配置和资源绑定…')}</span>
             </div>
           )}
           {!loading && error && (
             <div className="deployment-error" role="alert">
               <AlertCircle size={18} />
-              <span><strong>自检没有完成</strong><small>{error}</small></span>
+              <span><strong>{t('自检没有完成')}</strong><small>{error}</small></span>
               <button className="button button--secondary button--small" type="button" onClick={() => void load()}>
-                重新检查
+                {t('重新检查')}
               </button>
             </div>
           )}
@@ -225,21 +226,21 @@ export function DeploymentWizard({
             onClick={() => void load()}
           >
             <RefreshCw className={loading ? 'spin' : ''} size={15} />
-            重新检查
+            {t('重新检查')}
           </button>
           <div>
             {step > 0 && (
               <button className="button button--secondary" type="button" onClick={() => setStep(step - 1)}>
-                <ArrowLeft size={15} />上一步
+                <ArrowLeft size={15} />{t('上一步')}
               </button>
             )}
             {step < steps.length - 1 ? (
               <button className="button button--primary" type="button" onClick={() => setStep(step + 1)}>
-                下一步<ArrowRight size={15} />
+                {t('下一步')}<ArrowRight size={15} />
               </button>
             ) : (
               <button className="button button--primary" type="button" onClick={onClose}>
-                <CheckCircle2 size={15} />完成
+                <CheckCircle2 size={15} />{t('完成')}
               </button>
             )}
           </div>

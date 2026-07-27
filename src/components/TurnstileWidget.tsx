@@ -1,5 +1,6 @@
 import { AlertCircle, LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { getLocale, t } from '../lib/i18n'
 
 interface TurnstileApi {
   render: (container: HTMLElement, options: {
@@ -56,6 +57,7 @@ export function TurnstileWidget({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const locale = getLocale()
 
   useEffect(() => {
     let cancelled = false
@@ -67,7 +69,7 @@ export function TurnstileWidget({
         sitekey: siteKey,
         action,
         theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
-        language: 'zh-CN',
+        language: locale,
         size: 'flexible',
         callback: (token) => {
           setState('ready')
@@ -88,17 +90,17 @@ export function TurnstileWidget({
       cancelled = true
       if (widgetId) window.turnstile?.remove(widgetId)
     }
-  }, [action, onTokenChange, siteKey])
+  }, [action, locale, onTokenChange, siteKey])
 
   return (
     <div className="turnstile-field" aria-busy={state === 'loading'}>
       <div className="turnstile-container" ref={containerRef} />
       {state === 'loading' && (
-        <p role="status"><LoaderCircle className="spin" size={15} />正在加载安全验证…</p>
+        <p role="status"><LoaderCircle className="spin" size={15} />{t('正在加载安全验证…')}</p>
       )}
       {state === 'error' && (
         <p className="is-error" role="alert">
-          <AlertCircle size={15} />安全验证加载失败，请检查网络后重新打开注册窗口。
+          <AlertCircle size={15} />{t('安全验证加载失败，请检查网络后重新打开注册窗口。')}
         </p>
       )}
     </div>

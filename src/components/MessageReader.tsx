@@ -14,13 +14,14 @@ import {
 } from 'lucide-react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { api, type MessageDetail } from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '发生了未知错误。'
+  return t(error instanceof Error ? error.message : '发生了未知错误。')
 }
 
 function formatFullDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -104,28 +105,28 @@ function ReplyComposer({
     <form className="reply-composer" onSubmit={submit}>
       <div className="reply-composer__header">
         <div>
-          <small>回复给</small>
+          <small>{t('回复给')}</small>
           <strong>{message.senderName || message.senderAddress}</strong>
         </div>
-        <button className="icon-button icon-button--small" type="button" onClick={onClose} aria-label="关闭回复">
+        <button className="icon-button icon-button--small" type="button" onClick={onClose} aria-label={t('关闭回复')}>
           <X size={17} />
         </button>
       </div>
-      <label className="sr-only" htmlFor="reply-body">回复内容</label>
+      <label className="sr-only" htmlFor="reply-body">{t('回复内容')}</label>
       <textarea
         id="reply-body"
         autoFocus
         value={text}
         onChange={(event) => setText(event.target.value)}
-        placeholder="写下回复…"
+        placeholder={t('写下回复…')}
         maxLength={50_000}
       />
       {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
       <div className="reply-composer__footer">
-        <span>通过 Resend 发送</span>
+        <span>{t('通过 Resend 发送')}</span>
         <button className="button button--primary button--small" type="submit" disabled={sending || !text.trim()}>
           {sending ? <LoaderCircle className="spin" size={15} /> : <Send size={15} />}
-          发送回复
+          {t('发送回复')}
         </button>
       </div>
     </form>
@@ -164,8 +165,8 @@ export function MessageReader({
           <span className="reader-loading-mail"><Mail size={23} /></span>
         </span>
         <span className="reader-loading-copy">
-          <strong>正在打开邮件</strong>
-          <small>安全读取邮件内容</small>
+          <strong>{t('正在打开邮件')}</strong>
+          <small>{t('安全读取邮件内容')}</small>
         </span>
       </div>
     )
@@ -174,10 +175,10 @@ export function MessageReader({
     return (
       <div className="reader-state reader-state--empty">
         <span className="reader-empty-symbol"><Mail size={29} /></span>
-        <h2>选择一封邮件</h2>
-        <p>{remoteImagesEnabled
+        <h2>{t('选择一封邮件')}</h2>
+        <p>{t(remoteImagesEnabled
           ? '邮件内容会安全地显示在这里，HTTPS 远程图片按系统设置加载。'
-          : '邮件内容会安全地显示在这里，远程图片默认被阻止。'}</p>
+          : '邮件内容会安全地显示在这里，远程图片默认被阻止。')}</p>
       </div>
     )
   }
@@ -185,26 +186,26 @@ export function MessageReader({
   return (
     <article className="message-reader">
       <header className="reader-toolbar">
-        <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label="返回邮件列表">
+        <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}>
           <ArrowLeft size={18} />
         </button>
         <div className="reader-toolbar__spacer" />
         {message.folder === 'trash' && (
           <button className="toolbar-button" type="button" onClick={onRestore}>
-            <Undo2 size={16} /> 恢复
+            <Undo2 size={16} /> {t('恢复')}
           </button>
         )}
-        <button className="icon-button" type="button" onClick={onStar} aria-label={message.isStarred ? '取消星标' : '添加星标'}>
+        <button className="icon-button" type="button" onClick={onStar} aria-label={t(message.isStarred ? '取消星标' : '添加星标')}>
           <Star size={17} fill={message.isStarred ? 'currentColor' : 'none'} />
         </button>
-        <button className="icon-button icon-button--danger" type="button" onClick={onTrash} aria-label={message.folder === 'trash' ? '永久删除' : '移入垃圾箱'}>
+        <button className="icon-button icon-button--danger" type="button" onClick={onTrash} aria-label={t(message.folder === 'trash' ? '永久删除' : '移入垃圾箱')}>
           <Trash2 size={17} />
         </button>
       </header>
 
       <div className="reader-content">
         <header className="message-heading">
-          <h1>{message.subject || '无主题'}</h1>
+          <h1>{message.subject || t('无主题')}</h1>
           <div className="sender-block">
             <span className="sender-avatar">
               {(message.senderName || message.senderAddress || 'M').slice(0, 1).toUpperCase()}
@@ -214,8 +215,8 @@ export function MessageReader({
               {message.senderName && <span>&lt;{message.senderAddress}&gt;</span>}
               <small>
                 {message.direction === 'outgoing'
-                  ? `发给 ${message.recipients.join(', ')}`
-                  : `发送至 ${message.mailboxAddress}`}
+                  ? t('发给 {recipients}', { recipients: message.recipients.join(', ') })
+                  : t('发送至 {address}', { address: message.mailboxAddress })}
               </small>
             </div>
             <time dateTime={new Date(message.date).toISOString()}>{formatFullDate(message.date)}</time>
@@ -223,11 +224,11 @@ export function MessageReader({
         </header>
 
         {message.status === 'processing' && (
-          <div className="message-notice"><LoaderCircle className="spin" size={17} />邮件正在安全解析，请稍后刷新。</div>
+          <div className="message-notice"><LoaderCircle className="spin" size={17} />{t('邮件正在安全解析，请稍后刷新。')}</div>
         )}
         {message.status === 'failed' && (
           <div className="message-notice message-notice--error">
-            <AlertCircle size={17} />解析失败：{message.processingError || '未知错误'}
+            <AlertCircle size={17} />{t('解析失败：{error}', { error: message.processingError || t('未知错误') })}
           </div>
         )}
 
@@ -236,15 +237,15 @@ export function MessageReader({
             className="email-frame"
             sandbox=""
             srcDoc={buildEmailDocument(message.html, remoteImagesEnabled)}
-            title={`邮件正文：${message.subject}`}
+            title={t('邮件正文：{subject}', { subject: message.subject })}
           />
         ) : (
-          <div className="plain-body">{message.text || '这封邮件没有可显示的正文。'}</div>
+          <div className="plain-body">{message.text || t('这封邮件没有可显示的正文。')}</div>
         )}
 
         {message.attachments.length > 0 && (
           <section className="attachments" aria-labelledby="attachments-title">
-            <h2 id="attachments-title"><Paperclip size={16} />附件</h2>
+            <h2 id="attachments-title"><Paperclip size={16} />{t('附件')}</h2>
             <div className="attachment-grid">
               {message.attachments.map((attachment) => (
                 <a
@@ -268,12 +269,12 @@ export function MessageReader({
         <div className="message-footer-actions">
           {message.direction === 'incoming' && (
             <a className="quiet-link" href={api.rawUrl(message.id)} download>
-              <Download size={14} /> 下载原始邮件
+              <Download size={14} /> {t('下载原始邮件')}
             </a>
           )}
           {message.direction === 'incoming' && replyEnabled && message.status === 'ready' && !replying && (
             <button className="button button--secondary" type="button" onClick={() => setReplying(true)}>
-              <Reply size={16} /> 回复
+              <Reply size={16} /> {t('回复')}
             </button>
           )}
         </div>

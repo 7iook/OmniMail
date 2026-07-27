@@ -15,16 +15,18 @@ import {
 } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { api, type User } from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
 import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
 import { ThemeToggle } from './AuthPages'
+import { LanguageToggle } from './LanguageToggle'
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '保存账户设置时发生了未知错误。'
+  return t(error instanceof Error ? error.message : '保存账户设置时发生了未知错误。')
 }
 
 function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -93,7 +95,7 @@ export function AccountSettings({
     setPasswordError('')
     setPasswordSaved(false)
     if (newPassword !== confirmPassword) {
-      setPasswordError('两次输入的新密码不一致。')
+      setPasswordError(t('两次输入的新密码不一致。'))
       return
     }
     setPasswordBusy(true)
@@ -138,8 +140,8 @@ export function AccountSettings({
       <AdminPageHeader
         icon={UserRound}
         eyebrow="ACCOUNT · PERSONAL"
-        title="账号设置"
-        description="管理你的个人资料、登录密码和当前设备偏好。"
+        title={t('账号设置')}
+        description={t('管理你的个人资料、登录密码和当前设备偏好。')}
       />
 
       <div className="account-settings-grid">
@@ -148,8 +150,8 @@ export function AccountSettings({
             <header>
               <UserRound size={17} />
               <div>
-                <h2>个人资料</h2>
-                <p>这些信息只属于当前登录账户</p>
+                <h2>{t('个人资料')}</h2>
+                <p>{t('这些信息只属于当前登录账户')}</p>
               </div>
             </header>
             <div className="account-identity">
@@ -161,25 +163,25 @@ export function AccountSettings({
             </div>
             <dl className="settings-list account-summary-list">
               <div>
-                <dt><AtSign size={15} />登录邮箱</dt>
+                <dt><AtSign size={15} />{t('登录邮箱')}</dt>
                 <dd>{user.email}</dd>
               </div>
               <div>
-                <dt><ShieldCheck size={15} />账户角色</dt>
+                <dt><ShieldCheck size={15} />{t('账户角色')}</dt>
                 <dd>{roleLabel(user.role)}</dd>
               </div>
               {user.role === 'temporary' && (
                 <div>
-                  <dt><Clock3 size={15} />账号有效至</dt>
+                  <dt><Clock3 size={15} />{t('账号有效至')}</dt>
                   <dd>{user.temporaryExpiresAt
                     ? formatDate(user.temporaryExpiresAt)
-                    : '未设置自动到期时间'}</dd>
+                    : t('未设置自动到期时间')}</dd>
                 </div>
               )}
             </dl>
             <form className="account-form" onSubmit={saveProfile}>
               <label className="account-field">
-                <span>显示名称</span>
+                <span>{t('显示名称')}</span>
                 <input
                   autoComplete="name"
                   value={displayName}
@@ -192,14 +194,14 @@ export function AccountSettings({
                 />
               </label>
               {profileError && <Feedback type="error">{profileError}</Feedback>}
-              {profileSaved && <Feedback type="success">个人资料已保存。</Feedback>}
+              {profileSaved && <Feedback type="success">{t('个人资料已保存。')}</Feedback>}
               <button
                 className="button button--primary"
                 type="submit"
                 disabled={profileBusy || !profileChanged}
               >
                 {profileBusy && <LoaderCircle className="spin" size={16} />}
-                保存资料
+                {t('保存资料')}
               </button>
             </form>
           </section>
@@ -208,16 +210,23 @@ export function AccountSettings({
             <header>
               <MonitorCog size={17} />
               <div>
-                <h2>外观</h2>
-                <p>主题偏好保存在当前浏览器</p>
+                <h2>{t('外观与语言')}</h2>
+                <p>{t('偏好保存在当前浏览器')}</p>
               </div>
             </header>
             <div className="account-preference">
               <div>
-                <strong>界面主题</strong>
-                <span>在浅色和深色模式之间切换</span>
+                <strong>{t('界面主题')}</strong>
+                <span>{t('在浅色和深色模式之间切换')}</span>
               </div>
               <ThemeToggle labeled />
+            </div>
+            <div className="account-preference">
+              <div>
+                <strong>{t('界面语言')}</strong>
+                <span>{t('选择 OmniMail 的显示语言')}</span>
+              </div>
+              <LanguageToggle labeled />
             </div>
           </section>
         </div>
@@ -227,13 +236,13 @@ export function AccountSettings({
             <header>
               <KeyRound size={17} />
               <div>
-                <h2>修改密码</h2>
-                <p>需要先验证当前登录密码</p>
+                <h2>{t('修改密码')}</h2>
+                <p>{t('需要先验证当前登录密码')}</p>
               </div>
             </header>
             <form className="account-form account-password-form" onSubmit={savePassword}>
               <label className="account-field">
-                <span>当前密码</span>
+                <span>{t('当前密码')}</span>
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -243,7 +252,7 @@ export function AccountSettings({
                 />
               </label>
               <label className="account-field">
-                <span>新密码</span>
+                <span>{t('新密码')}</span>
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -254,12 +263,12 @@ export function AccountSettings({
                   }}
                   minLength={10}
                   maxLength={128}
-                  placeholder="至少 10 个字符"
+                  placeholder={t('至少 10 个字符')}
                   required
                 />
               </label>
               <label className="account-field">
-                <span>确认新密码</span>
+                <span>{t('确认新密码')}</span>
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -271,10 +280,10 @@ export function AccountSettings({
                 />
               </label>
               {passwordError && <Feedback type="error">{passwordError}</Feedback>}
-              {passwordSaved && <Feedback type="success">密码已经更新。</Feedback>}
+              {passwordSaved && <Feedback type="success">{t('密码已经更新。')}</Feedback>}
               <button className="button button--primary" type="submit" disabled={passwordBusy}>
                 {passwordBusy && <LoaderCircle className="spin" size={16} />}
-                更新密码
+                {t('更新密码')}
               </button>
             </form>
           </section>
@@ -283,8 +292,8 @@ export function AccountSettings({
             <header>
               <LogOut size={17} />
               <div>
-                <h2>当前会话</h2>
-                <p>安全退出这台设备上的 OmniMail</p>
+                <h2>{t('当前会话')}</h2>
+                <p>{t('安全退出这台设备上的 OmniMail')}</p>
               </div>
             </header>
             <button
@@ -293,7 +302,7 @@ export function AccountSettings({
               onClick={() => void onLogout()}
             >
               <LogOut size={16} />
-              退出登录
+              {t('退出登录')}
             </button>
           </section>
 
@@ -302,13 +311,13 @@ export function AccountSettings({
               <header>
                 <Trash2 size={17} />
                 <div>
-                  <h2>删除临时账号</h2>
-                  <p>立即结束账号访问，但保留邮箱数据</p>
+                  <h2>{t('删除临时账号')}</h2>
+                  <p>{t('立即结束账号访问，但保留邮箱数据')}</p>
                 </div>
               </header>
               <div className="account-danger-note">
                 <Mail size={17} />
-                <p><strong>邮箱不会随账号删除</strong><span>收件地址、已有邮件和附件会继续保留，删除账号后将无法再登录查看。</span></p>
+                <p><strong>{t('邮箱不会随账号删除')}</strong><span>{t('收件地址、已有邮件和附件会继续保留，删除账号后将无法再登录查看。')}</span></p>
               </div>
               <button
                 className="button account-delete-trigger"
@@ -316,7 +325,7 @@ export function AccountSettings({
                 onClick={() => setDeleteOpen(true)}
               >
                 <Trash2 size={16} />
-                删除我的临时账号
+                {t('删除我的临时账号')}
               </button>
             </section>
           )}
@@ -338,17 +347,17 @@ export function AccountSettings({
               <span><TriangleAlert size={21} /></span>
               <div>
                 <p className="eyebrow">DELETE TEMPORARY ACCOUNT</p>
-                <h2 id="account-delete-title">确认删除临时账号</h2>
-                <p id="account-delete-description">这会立即退出当前设备，并永久关闭该账号的登录能力。</p>
+                <h2 id="account-delete-title">{t('确认删除临时账号')}</h2>
+                <p id="account-delete-description">{t('这会立即退出当前设备，并永久关闭该账号的登录能力。')}</p>
               </div>
             </header>
             <form onSubmit={(event) => void deleteAccount(event)}>
               <div className="account-delete-risks">
-                <p><Trash2 size={16} /><span><strong>账号无法恢复</strong><small>当前账号及其所有登录会话会立即失效。</small></span></p>
-                <p><Mail size={16} /><span><strong>邮箱继续保留</strong><small>邮箱地址、邮件和附件不会随账号一起删除。</small></span></p>
+                <p><Trash2 size={16} /><span><strong>{t('账号无法恢复')}</strong><small>{t('当前账号及其所有登录会话会立即失效。')}</small></span></p>
+                <p><Mail size={16} /><span><strong>{t('邮箱继续保留')}</strong><small>{t('邮箱地址、邮件和附件不会随账号一起删除。')}</small></span></p>
               </div>
               <label className="account-field">
-                <span>输入当前密码确认</span>
+                <span>{t('输入当前密码确认')}</span>
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -362,11 +371,11 @@ export function AccountSettings({
               {deleteError && <Feedback type="error">{deleteError}</Feedback>}
               <footer>
                 <button className="button button--secondary" type="button" disabled={deleteBusy} onClick={closeDeleteDialog}>
-                  取消
+                  {t('取消')}
                 </button>
                 <button className="button account-delete-confirm" type="submit" disabled={deleteBusy || !deletePassword}>
                   {deleteBusy ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}
-                  {deleteBusy ? '正在删除…' : '确认删除账号'}
+                  {t(deleteBusy ? '正在删除…' : '确认删除账号')}
                 </button>
               </footer>
             </form>

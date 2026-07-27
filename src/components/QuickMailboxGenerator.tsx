@@ -12,6 +12,7 @@ import {
   type MailboxAddress,
   type ManagedDomain,
 } from '../lib/api'
+import { t } from '../lib/i18n'
 
 interface Props {
   domains: ManagedDomain[]
@@ -25,7 +26,7 @@ function randomLocalPart(): string {
 }
 
 function message(error: unknown): string {
-  return error instanceof Error ? error.message : '无法生成邮箱，请稍后重试。'
+  return t(error instanceof Error ? error.message : '无法生成邮箱，请稍后重试。')
 }
 
 export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
@@ -90,10 +91,10 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
       <button
         className="icon-button"
         type="button"
-        aria-label="快速生成邮箱"
+        aria-label={t('快速生成邮箱')}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={unavailable ? '暂无创建邮箱的权限或可用域名' : '快速生成邮箱'}
+        title={t(unavailable ? '暂无创建邮箱的权限或可用域名' : '快速生成邮箱')}
         disabled={unavailable}
         onClick={() => {
           setError('')
@@ -108,12 +109,12 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
           <header>
             <div>
               <small>QUICK MAILBOX</small>
-              <strong id="quick-mailbox-title">快速生成邮箱</strong>
+              <strong id="quick-mailbox-title">{t('快速生成邮箱')}</strong>
             </div>
             <button
               className="icon-button icon-button--small"
               type="button"
-              aria-label="关闭快速生成邮箱"
+              aria-label={t('关闭快速生成邮箱')}
               disabled={busy}
               onClick={() => setOpen(false)}
             >
@@ -122,8 +123,8 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
           </header>
 
           <div className="quick-mailbox__content">
-            <p>选择域名后缀，系统会生成一个未占用的随机邮箱地址。</p>
-            <div className="quick-mailbox__domains" role="radiogroup" aria-label="邮箱域名后缀">
+            <p>{t('选择域名后缀，系统会生成一个未占用的随机邮箱地址。')}</p>
+            <div className="quick-mailbox__domains" role="radiogroup" aria-label={t('邮箱域名后缀')}>
               {enabledDomains.map((item) => (
                 <button
                   className={domain === item.name ? 'is-selected' : ''}
@@ -141,8 +142,8 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
               ))}
             </div>
             <div className="quick-mailbox__preview">
-              <span>生成格式</span>
-              <strong>omni-随机字符@{domain}</strong>
+              <span>{t('生成格式')}</span>
+              <strong>omni-{t('随机字符')}@{domain}</strong>
             </div>
             {error && <p className="quick-mailbox__error" role="alert">{error}</p>}
             <button
@@ -152,7 +153,7 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
               onClick={() => void generate()}
             >
               {busy ? <LoaderCircle className="spin" size={16} /> : <MailPlus size={16} />}
-              {busy ? '正在生成…' : '一键生成邮箱'}
+              {t(busy ? '正在生成…' : '一键生成邮箱')}
             </button>
           </div>
         </section>

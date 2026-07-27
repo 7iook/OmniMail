@@ -4,6 +4,7 @@ import type {
   MailboxAddress,
   MailboxScope,
 } from '../lib/api'
+import { t } from '../lib/i18n'
 import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
 interface Props {
@@ -51,8 +52,8 @@ export function MailboxHeaderActions({
         className="icon-button"
         type="button"
         onClick={() => void copy()}
-        aria-label={`复制当前邮箱${address ? ` ${address}` : ''}`}
-        title={address ? `复制 ${address}` : '暂无可复制邮箱'}
+        aria-label={`${t('复制当前邮箱')}${address ? ` ${address}` : ''}`}
+        title={address ? `${t('复制当前邮箱')} ${address}` : t('暂无可复制邮箱')}
         disabled={!address}
       >
         <Copy size={17} />
@@ -62,7 +63,7 @@ export function MailboxHeaderActions({
         disabled={!canGenerate}
         onCreated={onMailboxCreated}
       />
-      <button className="icon-button" type="button" onClick={onRefresh} aria-label="刷新邮件" title="刷新">
+      <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} title={t('刷新')}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>
     </div>

@@ -150,7 +150,12 @@
   padding-top: 16px;
 }
 
-.account-preference > div {
+.account-preference + .account-preference {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.account-preference > div:first-child {
   display: grid;
   gap: 3px;
 }

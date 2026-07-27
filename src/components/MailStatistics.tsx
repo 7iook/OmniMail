@@ -11,15 +11,16 @@ import {
 } from 'lucide-react'
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { api, type MailStatistics as StatisticsData } from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
 
 type RangeDays = StatisticsData['days']
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '无法读取邮件统计。'
+  return t(error instanceof Error ? error.message : '无法读取邮件统计。')
 }
 
 function formatDay(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale(), {
     month: 'numeric',
     day: 'numeric',
     timeZone: 'UTC',
@@ -52,8 +53,8 @@ function TrendChart({ data }: { data: StatisticsData }) {
   return (
     <div className="statistics-trend-chart">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby="mail-trend-title mail-trend-desc">
-        <title id="mail-trend-title">最近 {data.days} 天收件趋势</title>
-        <desc id="mail-trend-desc">每天收到的邮件数量，最高单日 {peak} 封。</desc>
+        <title id="mail-trend-title">{t('最近 {days} 天收件趋势', { days: data.days })}</title>
+        <desc id="mail-trend-desc">{t('每天收到的邮件数量，最高单日 {peak} 封。', { peak })}</desc>
         {yTicks.map((tick) => {
           const y = plot.top + innerHeight - (tick / peak) * innerHeight
           return (
@@ -67,7 +68,7 @@ function TrendChart({ data }: { data: StatisticsData }) {
         <path className="statistics-line" d={line} />
         {points.map((point) => (
           <circle className="statistics-point" cx={point.x} cy={point.y} r="4" key={point.day}>
-            <title>{formatDay(point.day)}：{point.count} 封</title>
+            <title>{t('{date}：{count} 封', { date: formatDay(point.day), count: point.count })}</title>
           </circle>
         ))}
         {labelIndexes.map((index) => (
@@ -92,7 +93,7 @@ function SourceDomains({ data }: { data: StatisticsData }) {
     <section className="admin-card statistics-source-card">
       <header>
         <Globe2 size={17} />
-        <div><h2>来源域名</h2><p>近 {data.days} 天发件域名分布</p></div>
+        <div><h2>{t('来源域名')}</h2><p>{t('近 {days} 天发件域名分布', { days: data.days })}</p></div>
       </header>
       {data.sourceDomains.length ? (
         <div className="statistics-source-list">
@@ -111,7 +112,7 @@ function SourceDomains({ data }: { data: StatisticsData }) {
             )
           })}
         </div>
-      ) : <p className="admin-empty">这个时间范围内还没有收到邮件。</p>}
+      ) : <p className="admin-empty">{t('这个时间范围内还没有收到邮件。')}</p>}
     </section>
   )
 }
@@ -121,7 +122,7 @@ function TopSenders({ data }: { data: StatisticsData }) {
     <section className="admin-card statistics-sender-card">
       <header>
         <AtSign size={17} />
-        <div><h2>高频发件人</h2><p>近 {data.days} 天具体发件地址</p></div>
+        <div><h2>{t('高频发件人')}</h2><p>{t('近 {days} 天具体发件地址', { days: data.days })}</p></div>
       </header>
       {data.topSenders.length ? (
         <div className="statistics-sender-list">
@@ -129,11 +130,11 @@ function TopSenders({ data }: { data: StatisticsData }) {
             <div key={sender.address}>
               <span>{index + 1}</span>
               <p><strong>{sender.name || sender.address}</strong>{sender.name && <small>{sender.address}</small>}</p>
-              <b>{sender.count} 封</b>
+              <b>{t('{count} 封', { count: sender.count })}</b>
             </div>
           ))}
         </div>
-      ) : <p className="admin-empty">这个时间范围内还没有发件人数据。</p>}
+      ) : <p className="admin-empty">{t('这个时间范围内还没有发件人数据。')}</p>}
     </section>
   )
 }
@@ -164,14 +165,14 @@ export function MailStatistics() {
   }, [days])
 
   const cards = useMemo(() => data ? [
-    { label: '累计收件', value: data.summary.totalReceived, Icon: Inbox },
-    { label: `近 ${data.days} 天`, value: data.summary.periodReceived, Icon: CalendarDays },
-    { label: '今日收件', value: data.summary.todayReceived, Icon: Clock3 },
-    { label: '独立发件人', value: data.summary.uniqueSenders, Icon: Users },
+    { label: t('累计收件'), value: data.summary.totalReceived, Icon: Inbox },
+    { label: t('近 {days} 天', { days: data.days }), value: data.summary.periodReceived, Icon: CalendarDays },
+    { label: t('今日收件'), value: data.summary.todayReceived, Icon: Clock3 },
+    { label: t('独立发件人'), value: data.summary.uniqueSenders, Icon: Users },
   ] : [], [data])
 
   if (!data && loading) {
-    return <div className="statistics-loading" role="status"><LoaderCircle className="spin" size={20} />正在统计全站邮件…</div>
+    return <div className="statistics-loading" role="status"><LoaderCircle className="spin" size={20} />{t('正在统计全站邮件…')}</div>
   }
   if (!data) {
     return <p className="statistics-error" role="alert"><AlertCircle size={17} />{error}</p>
@@ -180,8 +181,8 @@ export function MailStatistics() {
   return (
     <>
       <div className="statistics-range-row">
-        <div><TrendingUp size={16} /><span>统计范围</span></div>
-        <div className="statistics-range" role="radiogroup" aria-label="统计时间范围">
+        <div><TrendingUp size={16} /><span>{t('统计范围')}</span></div>
+        <div className="statistics-range" role="radiogroup" aria-label={t('统计时间范围')}>
           {([7, 30, 90] as const).map((range) => (
             <button
               className={days === range ? 'is-selected' : ''}
@@ -191,14 +192,14 @@ export function MailStatistics() {
               onClick={() => setDays(range)}
               key={range}
             >
-              {range} 天
+              {t('{days} 天', { days: range })}
             </button>
           ))}
         </div>
-        {loading && <LoaderCircle className="spin" size={16} aria-label="正在更新统计" />}
+        {loading && <LoaderCircle className="spin" size={16} aria-label={t('正在更新统计')} />}
       </div>
       {error && <p className="statistics-error" role="alert"><AlertCircle size={17} />{error}</p>}
-      <section className="admin-count-grid statistics-count-grid" aria-label="全站收件概况">
+      <section className="admin-count-grid statistics-count-grid" aria-label={t('全站收件概况')}>
         {cards.map(({ label, value, Icon }) => (
           <article key={label}><span><Icon size={18} /></span><strong>{value}</strong><small>{label}</small></article>
         ))}
@@ -206,7 +207,7 @@ export function MailStatistics() {
       <section className="admin-card statistics-trend-card">
         <header>
           <TrendingUp size={17} />
-          <div><h2>收件趋势</h2><p>按 UTC 自然日统计全站收到的邮件</p></div>
+          <div><h2>{t('收件趋势')}</h2><p>{t('按 UTC 自然日统计全站收到的邮件')}</p></div>
         </header>
         <TrendChart data={data} />
       </section>

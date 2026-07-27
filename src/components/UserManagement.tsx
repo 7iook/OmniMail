@@ -24,6 +24,7 @@ import {
   type PageInfo,
   type User,
 } from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
 import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
 import { TemporaryInvitePanel } from './TemporaryInvitePanel'
@@ -50,7 +51,7 @@ function policyFor(user: AdminUser): ManagedUserPolicy {
 }
 
 function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -125,7 +126,7 @@ function RoleSelect({
         onClick={() => setOpen((current) => !current)}
       >
         <selected.Icon size={16} />
-        <span>{selected.label}</span>
+        <span>{t(selected.label)}</span>
         <ChevronDown size={16} />
       </button>
       {open && (
@@ -143,7 +144,7 @@ function RoleSelect({
               }}
             >
               <span className="user-role-select__icon"><Icon size={16} /></span>
-              <span><strong>{label}</strong><small>{description}</small></span>
+              <span><strong>{t(label)}</strong><small>{t(description)}</small></span>
               {optionValue === value && <Check size={16} />}
             </button>
           ))}
@@ -169,7 +170,7 @@ function PolicyFields({
   return (
     <div className="user-policy-fields">
       <label>
-        <span>账户角色</span>
+        <span>{t('账户角色')}</span>
         <RoleSelect
           value={value.role}
           allowAdmin={allowAdmin}
@@ -185,7 +186,7 @@ function PolicyFields({
       </label>
 
       <label>
-        <span>邮箱数量上限</span>
+        <span>{t('邮箱数量上限')}</span>
         <input
           type="number"
           min="0"
@@ -197,11 +198,11 @@ function PolicyFields({
             mailboxLimit: Math.max(0, Math.min(100, Number(event.target.value))),
           })}
         />
-        <small>范围 0–100；已经创建的邮箱不会被自动删除。</small>
+        <small>{t('范围 0–100；已经创建的邮箱不会被自动删除。')}</small>
       </label>
 
       <label className="policy-toggle">
-        <span><MailPlus size={17} /><span><strong>创建与管理邮箱</strong><small>{value.role === 'admin' ? '管理员默认拥有此权限' : '允许添加、启用和停用自己的收件地址'}</small></span></span>
+        <span><MailPlus size={17} /><span><strong>{t('创建与管理邮箱')}</strong><small>{t(value.role === 'admin' ? '管理员默认拥有此权限' : '允许添加、启用和停用自己的收件地址')}</small></span></span>
         <input
           type="checkbox"
           checked={value.role === 'admin' || value.canCreateMailboxes}
@@ -211,7 +212,7 @@ function PolicyFields({
       </label>
 
       <label className="policy-toggle">
-        <span><Send size={17} /><span><strong>使用 Resend 回信</strong><small>仍需 Worker 已配置 Resend 服务</small></span></span>
+        <span><Send size={17} /><span><strong>{t('使用 Resend 回信')}</strong><small>{t('仍需 Worker 已配置 Resend 服务')}</small></span></span>
         <input
           type="checkbox"
           checked={value.canReply}
@@ -222,7 +223,7 @@ function PolicyFields({
 
       {showStatus && (
         <label className="policy-toggle policy-toggle--danger">
-          <span><Ban size={17} /><span><strong>封禁账户</strong><small>保存后立即注销该用户的所有会话</small></span></span>
+          <span><Ban size={17} /><span><strong>{t('封禁账户')}</strong><small>{t('保存后立即注销该用户的所有会话')}</small></span></span>
           <input
             type="checkbox"
             checked={value.status === 'disabled'}
@@ -274,7 +275,7 @@ export function UserManagement({
       setPage(result.page)
       setTotals(result.totals)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '无法读取用户列表。')
+      setError(t(loadError instanceof Error ? loadError.message : '无法读取用户列表。'))
     } finally {
       setLoading(false)
       setLoadingMore(false)
@@ -332,7 +333,7 @@ export function UserManagement({
     if (
       selected.status === 'active'
       && policy.status === 'disabled'
-      && !window.confirm(`确认封禁 ${selected.email}？该账户会立即退出登录。`)
+      && !window.confirm(t('确认封禁 {email}？该账户会立即退出登录。', { email: selected.email }))
     ) return
 
     setSaving(true)
@@ -349,9 +350,9 @@ export function UserManagement({
       }
       setSelected(result.user)
       setPolicy(policyFor(result.user))
-      setNotice(result.user.status === 'disabled' ? '账户已封禁' : '权限设置已保存')
+      setNotice(t(result.user.status === 'disabled' ? '账户已封禁' : '权限设置已保存'))
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '无法保存用户设置。')
+      setError(t(saveError instanceof Error ? saveError.message : '无法保存用户设置。'))
     } finally {
       setSaving(false)
     }
@@ -369,10 +370,10 @@ export function UserManagement({
         active: current.active + 1,
         disabled: current.disabled,
       }))
-      setNotice('用户已创建，可以使用邮箱密码登录')
+      setNotice(t('用户已创建，可以使用邮箱密码登录'))
       closePanel()
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : '无法创建用户。')
+      setError(t(createError instanceof Error ? createError.message : '无法创建用户。'))
     } finally {
       setSaving(false)
     }
@@ -383,51 +384,51 @@ export function UserManagement({
       <AdminPageHeader
         icon={Users}
         eyebrow="ADMIN · ACCOUNTS"
-        title="用户管理"
-        description="控制登录状态、角色、邮箱额度和可使用的邮件能力。"
+        title={t('用户管理')}
+        description={t('控制登录状态、角色、邮箱额度和可使用的邮件能力。')}
         className="user-management__header"
         actions={<div className="user-header-actions">
           <button className="button button--secondary user-invite-button" type="button" onClick={() => setInviteOpen(true)}>
             <Link2 size={16} />
-            临时邀请
+            {t('临时邀请')}
           </button>
           <button className="button button--primary user-add-button" type="button" onClick={openCreate}>
             <UserPlus size={16} />
-            新增用户
+            {t('新增用户')}
           </button>
         </div>}
       />
 
-      <section className="user-summary" aria-label="用户概况">
-        <div><Users size={16} /><span><strong>{totals.total}</strong><small>全部账户</small></span></div>
-        <div><ShieldCheck size={16} /><span><strong>{totals.active}</strong><small>正常使用</small></span></div>
-        <div><Ban size={16} /><span><strong>{totals.disabled}</strong><small>已经封禁</small></span></div>
+      <section className="user-summary" aria-label={t('用户概况')}>
+        <div><Users size={16} /><span><strong>{totals.total}</strong><small>{t('全部账户')}</small></span></div>
+        <div><ShieldCheck size={16} /><span><strong>{totals.active}</strong><small>{t('正常使用')}</small></span></div>
+        <div><Ban size={16} /><span><strong>{totals.disabled}</strong><small>{t('已经封禁')}</small></span></div>
       </section>
 
       <section className="user-directory">
         <header>
           <div>
-            <h2>账户列表</h2>
-            <p>主管理员身份由 Worker 配置保护。</p>
+            <h2>{t('账户列表')}</h2>
+            <p>{t('主管理员身份由 Worker 配置保护。')}</p>
           </div>
           <label className="user-search">
             <Search size={16} />
-            <span className="sr-only">搜索用户</span>
+            <span className="sr-only">{t('搜索用户')}</span>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索名称、邮箱或角色"
+              placeholder={t('搜索名称、邮箱或角色')}
               type="search"
             />
           </label>
         </header>
 
         {loading ? (
-          <div className="user-list-state">正在读取用户…</div>
+          <div className="user-list-state">{t('正在读取用户…')}</div>
         ) : filtered.length ? (
           <div className="managed-user-list">
             <div className="user-list-heading" aria-hidden="true">
-              <span>用户</span><span>角色</span><span>邮箱额度</span><span>权限</span><span>状态</span><span />
+              <span>{t('用户')}</span><span>{t('角色')}</span><span>{t('邮箱额度')}</span><span>{t('权限')}</span><span>{t('状态')}</span><span />
             </div>
             {filtered.map((user) => (
               <button className="managed-user-row" type="button" key={user.id} onClick={() => openUser(user)}>
@@ -438,15 +439,15 @@ export function UserManagement({
                 <span className={`role-pill role-pill--${user.role}`}>{roleLabel(user.role)}</span>
                 <span className="user-mailbox-usage">
                   <strong>{user.mailboxCount}</strong>
-                  <small>/ {user.role === 'super_admin' ? '不限' : user.mailboxLimit}</small>
+                  <small>/ {user.role === 'super_admin' ? t('不限') : user.mailboxLimit}</small>
                 </span>
                 <span className="user-capabilities">
-                  {user.canCreateMailboxes && <span title="可管理邮箱"><MailPlus size={14} /></span>}
-                  {user.canReply && <span title="可回信"><Send size={14} /></span>}
-                  {!user.canCreateMailboxes && !user.canReply && <small>基础权限</small>}
+                  {user.canCreateMailboxes && <span title={t('可管理邮箱')}><MailPlus size={14} /></span>}
+                  {user.canReply && <span title={t('可回信')}><Send size={14} /></span>}
+                  {!user.canCreateMailboxes && !user.canReply && <small>{t('基础权限')}</small>}
                 </span>
                 <span className={`user-status ${user.status === 'active' ? 'is-active' : ''}`}>
-                  <span aria-hidden="true" />{user.status === 'active' ? '正常' : '已封禁'}
+                  <span aria-hidden="true" />{t(user.status === 'active' ? '正常' : '已封禁')}
                 </span>
                 <ChevronRight size={16} />
               </button>
@@ -458,12 +459,12 @@ export function UserManagement({
                 disabled={loadingMore}
                 onClick={() => page.nextCursor && void loadUsers(page.nextCursor)}
               >
-                {loadingMore ? '正在加载…' : '加载更多用户'}
+                {t(loadingMore ? '正在加载…' : '加载更多用户')}
               </button>
             )}
           </div>
         ) : (
-          <div className="user-list-state">没有符合条件的用户。</div>
+          <div className="user-list-state">{t('没有符合条件的用户。')}</div>
         )}
       </section>
 
@@ -475,10 +476,10 @@ export function UserManagement({
             <header>
               <div>
                 <p className="eyebrow">{creating ? 'NEW ACCOUNT' : 'ACCOUNT POLICY'}</p>
-                <h2 id="user-panel-title">{creating ? '新增用户' : selected?.displayName}</h2>
-                <p>{creating ? '创建可使用邮箱密码登录的账户。' : selected?.email}</p>
+                <h2 id="user-panel-title">{creating ? t('新增用户') : selected?.displayName}</h2>
+                <p>{creating ? t('创建可使用邮箱密码登录的账户。') : selected?.email}</p>
               </div>
-              <button className="icon-button" type="button" onClick={closePanel} aria-label="关闭">
+              <button className="icon-button" type="button" onClick={closePanel} aria-label={t('关闭')}>
                 <X size={17} />
               </button>
             </header>
@@ -488,9 +489,9 @@ export function UserManagement({
             {creating ? (
               <form onSubmit={(event) => void createUser(event)}>
                 <div className="user-create-fields">
-                  <label><span>显示名称</span><input required maxLength={60} value={createDraft.displayName} onChange={(event) => setCreateDraft({ ...createDraft, displayName: event.target.value })} /></label>
-                  <label><span>登录邮箱</span><input required type="email" value={createDraft.email} onChange={(event) => setCreateDraft({ ...createDraft, email: event.target.value })} /></label>
-                  <label><span>初始密码</span><input required type="password" minLength={10} maxLength={128} value={createDraft.password} onChange={(event) => setCreateDraft({ ...createDraft, password: event.target.value })} /></label>
+                  <label><span>{t('显示名称')}</span><input required maxLength={60} value={createDraft.displayName} onChange={(event) => setCreateDraft({ ...createDraft, displayName: event.target.value })} /></label>
+                  <label><span>{t('登录邮箱')}</span><input required type="email" value={createDraft.email} onChange={(event) => setCreateDraft({ ...createDraft, email: event.target.value })} /></label>
+                  <label><span>{t('初始密码')}</span><input required type="password" minLength={10} maxLength={128} value={createDraft.password} onChange={(event) => setCreateDraft({ ...createDraft, password: event.target.value })} /></label>
                 </div>
                 <PolicyFields
                   value={createDraft}
@@ -499,22 +500,22 @@ export function UserManagement({
                   showStatus={false}
                 />
                 <button className="button button--primary user-panel-submit" type="submit" disabled={saving}>
-                  <UserPlus size={16} />{saving ? '正在创建…' : '创建用户'}
+                  <UserPlus size={16} />{t(saving ? '正在创建…' : '创建用户')}
                 </button>
               </form>
             ) : policy && selected ? (
               <form onSubmit={(event) => void savePolicy(event)}>
                 <div className="user-panel-meta">
-                  <span><UserRound size={15} />创建于 {formatDate(selected.createdAt)}</span>
-                  <span><MailPlus size={15} />已使用 {selected.mailboxCount} 个邮箱</span>
-                  {selected.role === 'temporary' && <span><Clock3 size={15} />临时用户</span>}
+                  <span><UserRound size={15} />{t('创建于 {date}', { date: formatDate(selected.createdAt) })}</span>
+                  <span><MailPlus size={15} />{t('已使用 {count} 个邮箱', { count: selected.mailboxCount })}</span>
+                  {selected.role === 'temporary' && <span><Clock3 size={15} />{t('临时用户')}</span>}
                 </div>
                 {protectedTarget && (
                   <p className="user-protected-note">
                     <ShieldCheck size={16} />
                     {selected.role === 'super_admin'
-                      ? '主管理员由 Worker 配置保护，不能在网页端降级或封禁。'
-                      : '为了避免权限升级或自我锁定，当前管理员不能修改这个账户。'}
+                      ? t('主管理员由 Worker 配置保护，不能在网页端降级或封禁。')
+                      : t('为了避免权限升级或自我锁定，当前管理员不能修改这个账户。')}
                   </p>
                 )}
                 <PolicyFields
@@ -526,7 +527,7 @@ export function UserManagement({
                 />
                 {!protectedTarget && (
                   <button className="button button--primary user-panel-submit" type="submit" disabled={saving}>
-                    <ShieldCheck size={16} />{saving ? '正在保存…' : '保存权限'}
+                    <ShieldCheck size={16} />{t(saving ? '正在保存…' : '保存权限')}
                   </button>
                 )}
               </form>

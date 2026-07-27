@@ -23,6 +23,7 @@ import {
   type MailboxAddress,
   type MailboxScope,
 } from '../lib/api'
+import { t } from '../lib/i18n'
 
 interface Props {
   mailboxes: MailboxAddress[]
@@ -34,7 +35,7 @@ interface Props {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '操作失败，请重试。'
+  return t(error instanceof Error ? error.message : '操作失败，请重试。')
 }
 
 function scopeMatches(scope: MailboxScope, type: MailboxScope['type'], value = ''): boolean {
@@ -74,17 +75,17 @@ function MailboxDomainSelect({
       <button
         className="mailbox-domain-select__trigger"
         type="button"
-        aria-label="邮箱域名"
+        aria-label={t('邮箱域名')}
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{value || '暂无可用域名'}</span>
+        <span>{value || t('暂无可用域名')}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div className="mailbox-domain-select__menu" role="listbox" aria-label="邮箱域名">
+        <div className="mailbox-domain-select__menu" role="listbox" aria-label={t('邮箱域名')}>
           {domains.map((domain) => (
             <button
               className={domain.name === value ? 'is-selected' : ''}
@@ -142,7 +143,7 @@ export function MailboxSwitcher({
     }
     return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right))
   }, [activeMailboxes])
-  const scopeLabel = scope.type === 'all' ? '所有邮箱' : scope.value
+  const scopeLabel = scope.type === 'all' ? t('所有邮箱') : scope.value
 
   useEffect(() => {
     if (enabledDomains.some((domain) => domain.name === domainName)) return
@@ -197,7 +198,7 @@ export function MailboxSwitcher({
       const result = await api.addMailbox(nextAddress)
       await onMailboxesChanged()
       setLocalPart('')
-      setNotice('邮箱地址已启用')
+      setNotice(t('邮箱地址已启用'))
       onScopeChange({ type: 'mailbox', value: result.mailbox.address })
     } catch (addError) {
       setError(errorMessage(addError))
@@ -216,7 +217,7 @@ export function MailboxSwitcher({
       if (mailbox.isActive && scope.type === 'mailbox' && scope.value === mailbox.address) {
         onScopeChange({ type: 'all' })
       }
-      setNotice(mailbox.isActive ? '邮箱地址已停用' : '邮箱地址已启用')
+      setNotice(t(mailbox.isActive ? '邮箱地址已停用' : '邮箱地址已启用'))
     } catch (toggleError) {
       setError(errorMessage(toggleError))
     } finally {
@@ -234,7 +235,7 @@ export function MailboxSwitcher({
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        <span>当前邮箱</span>
+        <span>{t('当前邮箱')}</span>
         <strong>{scopeLabel}</strong>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -266,7 +267,7 @@ export function MailboxSwitcher({
                     setError('')
                     setNotice('')
                   }}
-                  aria-label="返回邮箱选择"
+                  aria-label={t('返回邮箱选择')}
                 >
                   <ArrowLeft size={17} />
                 </button>
@@ -274,14 +275,14 @@ export function MailboxSwitcher({
               <div>
                 <small>{managing ? 'SETTINGS' : 'MAILBOX SCOPE'}</small>
                 <h2 id="mailbox-switcher-title">
-                  {managing ? '管理邮箱地址' : '选择查看范围'}
+                  {t(managing ? '管理邮箱地址' : '选择查看范围')}
                 </h2>
               </div>
               <button
                 className="icon-button icon-button--small"
                 type="button"
                 onClick={close}
-                aria-label="关闭邮箱选择"
+                aria-label={t('关闭邮箱选择')}
               >
                 <X size={17} />
               </button>
@@ -290,7 +291,7 @@ export function MailboxSwitcher({
             {managing ? (
               <div className="mailbox-manager">
                 <form className="mailbox-add-form" onSubmit={add}>
-                  <label htmlFor="new-mailbox-local-part">新增邮箱地址</label>
+                  <label htmlFor="new-mailbox-local-part">{t('新增邮箱地址')}</label>
                   <div>
                     <AtSign size={16} />
                     <input
@@ -317,14 +318,14 @@ export function MailboxSwitcher({
                       {busyAddress === `${localPart.trim().toLowerCase()}@${domainName}`
                         ? <LoaderCircle className="spin" size={15} />
                         : <Plus size={15} />}
-                      添加
+                      {t('添加')}
                     </button>
                   </div>
                 </form>
                 <p className="mailbox-manager-note">
-                  {enabledDomains.length
+                  {t(enabledDomains.length
                     ? '只能在系统设置中已启用的域名下创建邮箱。'
-                    : '系统尚未启用可创建邮箱的域名，请联系管理员。'}
+                    : '系统尚未启用可创建邮箱的域名，请联系管理员。')}
                 </p>
 
                 <div className="managed-mailboxes">
@@ -334,9 +335,9 @@ export function MailboxSwitcher({
                       <div>
                         <strong>{mailbox.address}</strong>
                         <small>
-                          {mailbox.isPrimary
+                          {t(mailbox.isPrimary
                             ? '主邮箱 · 始终启用'
-                            : mailbox.isActive ? '正在接收邮件' : '已停止接收新邮件'}
+                            : mailbox.isActive ? '正在接收邮件' : '已停止接收新邮件')}
                         </small>
                       </div>
                       <button
@@ -348,7 +349,7 @@ export function MailboxSwitcher({
                         {busyAddress === mailbox.address && (
                           <LoaderCircle className="spin" size={14} />
                         )}
-                        {mailbox.isActive ? '停用' : '启用'}
+                        {t(mailbox.isActive ? '停用' : '启用')}
                       </button>
                     </div>
                   ))}
@@ -364,8 +365,8 @@ export function MailboxSwitcher({
                 >
                   <span className="scope-icon"><Inbox size={17} /></span>
                   <span>
-                    <strong>所有邮箱</strong>
-                    <small>{activeMailboxes.length} 个启用地址</small>
+                    <strong>{t('所有邮箱')}</strong>
+                    <small>{t('{count} 个启用地址', { count: activeMailboxes.length })}</small>
                   </span>
                   {scopeMatches(scope, 'all') && <Check size={16} />}
                 </button>
@@ -381,7 +382,7 @@ export function MailboxSwitcher({
                       <span className="scope-icon"><Globe2 size={17} /></span>
                       <span>
                         <strong>{domain}</strong>
-                        <small>{addresses.length} 个邮箱地址</small>
+                        <small>{t('{count} 个邮箱地址', { count: addresses.length })}</small>
                       </span>
                       {scopeMatches(scope, 'domain', domain) && <Check size={16} />}
                     </button>
@@ -398,7 +399,7 @@ export function MailboxSwitcher({
                         >
                           <AtSign size={15} />
                           <span>{mailbox.address}</span>
-                          {mailbox.isPrimary && <small>主邮箱</small>}
+                          {mailbox.isPrimary && <small>{t('主邮箱')}</small>}
                           {scopeMatches(scope, 'mailbox', mailbox.address) && <Check size={15} />}
                         </button>
                       ))}
@@ -424,7 +425,7 @@ export function MailboxSwitcher({
                   }}
                 >
                   <Settings2 size={16} />
-                  管理邮箱地址
+                  {t('管理邮箱地址')}
                 </button>
               </footer>
             )}

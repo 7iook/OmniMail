@@ -267,12 +267,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     })
   } catch (error) {
     if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
-      throw new ApiError('连接超时，请检查网络后重试。', 408)
+      throw new ApiError(t('连接超时，请检查网络后重试。'), 408)
     }
     throw error
   }
   const data = await response.json().catch(() => ({})) as { error?: string }
-  if (!response.ok) throw new ApiError(data.error || `请求失败（${response.status}）`, response.status)
+  if (!response.ok) {
+    throw new ApiError(
+      data.error ? t(data.error) : t('请求失败（{status}）', { status: response.status }),
+      response.status,
+    )
+  }
   return data as T
 }
 
@@ -482,3 +487,4 @@ export const api = {
   ),
   rawUrl: (messageId: string) => `${API_ORIGIN}/api/messages/${messageId}/raw`,
 }
+import { t } from './i18n'

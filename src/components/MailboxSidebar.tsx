@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import { type Folder, type MailCounts, type User } from '../lib/api'
+import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
 import { Brand, ThemeToggle } from './AuthPages'
 
@@ -40,7 +41,7 @@ const adminItems: Array<{
 ]
 
 export function folderLabel(folder: Folder): string {
-  return folders.find((item) => item.id === folder)?.label || '收件箱'
+  return t(folders.find((item) => item.id === folder)?.label || '收件箱')
 }
 
 export function MailboxSidebar({
@@ -65,7 +66,7 @@ export function MailboxSidebar({
   return (
     <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`}>
       <div className="sidebar-brand"><Brand /></div>
-      <nav className="folder-nav" aria-label="邮箱文件夹">
+      <nav className="folder-nav" aria-label={t('邮箱文件夹')}>
         {folders.map((item) => {
           const Icon = item.icon
           const count = counts[item.count]
@@ -82,7 +83,7 @@ export function MailboxSidebar({
                   ? 'currentColor'
                   : 'none'}
               />
-              <span>{item.label}</span>
+              <span>{t(item.label)}</span>
               {count > 0 && <small>{count > 99 ? '99+' : count}</small>}
             </button>
           )
@@ -90,7 +91,7 @@ export function MailboxSidebar({
       </nav>
 
       {showAdmin && (
-        <nav className="admin-nav" aria-label="管理员功能">
+        <nav className="admin-nav" aria-label={t('管理员功能')}>
           {adminItems.map((item) => {
             const Icon = item.icon
             return (
@@ -101,21 +102,21 @@ export function MailboxSidebar({
                 onClick={() => onAdminViewChange(item.id)}
               >
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </button>
             )
           })}
         </nav>
       )}
 
-      <nav className="account-nav" aria-label="个人账户">
+      <nav className="account-nav" aria-label={t('个人账户')}>
         <button
           className={adminView === 'account' ? 'is-active' : ''}
           type="button"
           onClick={() => onAdminViewChange('account')}
         >
           <UserCog size={18} />
-          <span>账号设置</span>
+          <span>{t('账号设置')}</span>
         </button>
       </nav>
 
@@ -133,8 +134,8 @@ export function MailboxSidebar({
           className="icon-button icon-button--small"
           type="button"
           onClick={() => void onLogout()}
-          aria-label="退出登录"
-          title="退出登录"
+          aria-label={t('退出登录')}
+          title={t('退出登录')}
         >
           <LogOut size={16} />
         </button>

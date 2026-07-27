@@ -1,4 +1,5 @@
 import type { UserRole } from './api'
+import { t } from './i18n'
 
 export function isAdminRole(role: UserRole): boolean {
   return role === 'super_admin' || role === 'admin'
@@ -11,5 +12,5 @@ export function roleLabel(role: UserRole): string {
     user: '普通用户',
     temporary: '临时用户',
   }
-  return labels[role]
+  return t(labels[role])
 }
