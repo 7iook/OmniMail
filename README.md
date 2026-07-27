@@ -176,7 +176,7 @@ Import a repository**，选择你的 OmniMail 仓库：
 
 | 项目 | 值 |
 | --- | --- |
-| Project name | `omnimail-core` |
+| Project name | `omni-mail` |
 | Production branch | `main` |
 | Root directory | `/` |
 | Build command | `npm run build` |
@@ -235,7 +235,7 @@ mail.example.com
 2. 确认 Cloudflare 生成的 MX、SPF 和 DKIM 记录。
 3. 创建 Catch-all 规则。
 4. Action 选择 **Send to a Worker**。
-5. Worker 选择 `omnimail-core`。
+5. Worker 选择 `omni-mail`。
 
 OmniMail 只接受数据库中已经创建并启用的完整邮箱地址。其他 Catch-all 地址会在
 SMTP 阶段返回 `Mailbox unavailable`，不会被写入 R2 或 D1。
