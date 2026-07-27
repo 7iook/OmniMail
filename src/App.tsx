@@ -41,6 +41,7 @@ import {
 import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
 import { useAutoRefresh } from './lib/useAutoRefresh'
+import { openingSplashDelay } from './lib/initialSplash'
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
@@ -533,7 +534,7 @@ export function App() {
     let active = true
     setLoading(true)
     setConnectionError('')
-    Promise.all([api.config(), api.session()])
+    Promise.all([api.config(), api.session(), openingSplashDelay(loadVersion > 0)])
       .then(([nextConfig, session]) => {
         if (!active) return
         setConfig(nextConfig)

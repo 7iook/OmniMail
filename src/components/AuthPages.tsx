@@ -85,10 +85,16 @@ export function ThemeToggle({ labeled = false }: { labeled?: boolean }) {
 
 export function PageLoader() {
   return (
-    <div className="page-loader" role="status">
-      <span className="brand-mark"><Mail size={19} /></span>
-      <LoaderCircle className="spin" size={22} />
-      <span>正在打开 OmniMail</span>
+    <div className="page-loader" role="status" aria-label="正在打开 OmniMail">
+      <div className="opening-splash" aria-hidden="true">
+        <span className="opening-splash__mark"><Mail size={31} /></span>
+        <span className="opening-splash__copy">
+          <strong>OmniMail</strong>
+          <small>YOUR DOMAINS · ONE INBOX</small>
+        </span>
+        <span className="opening-splash__track"><span /></span>
+      </div>
+      <span className="sr-only">正在打开 OmniMail</span>
     </div>
   )
 }

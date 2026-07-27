@@ -303,21 +303,6 @@ textarea:focus-visible {
   min-width: 90px;
 }
 
-.page-loader {
-  display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
-  align-items: center;
-  justify-content: center;
-  gap: 13px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.page-loader .brand-mark {
-  margin-right: 10px;
-}
-
 .center-page,
 .auth-page {
   min-height: 100vh;
