@@ -22,7 +22,7 @@ export function LanguageToggle({ labeled = false }: { labeled?: boolean }) {
           type="button"
           role="radio"
           aria-checked={locale === choice.value}
-          title={t(choice.label)}
+          data-tooltip={t(choice.label)}
           key={choice.value}
           onClick={() => setLocale(choice.value)}
         >
@@ -43,7 +43,7 @@ export function LanguageQuickToggle() {
       className="language-quick-toggle"
       type="button"
       aria-label={t('切换为 {language}', { language: t(nextLabel) })}
-      title={t('切换为 {language}', { language: t(nextLabel) })}
+      data-tooltip={t('切换为 {language}', { language: t(nextLabel) })}
       onClick={() => setLocale(nextLocale)}
     >
       <Languages size={14} aria-hidden="true" />

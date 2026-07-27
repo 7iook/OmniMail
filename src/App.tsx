@@ -122,7 +122,7 @@ function MessageList({
             type="button"
             onClick={() => onStar(message)}
             aria-label={t(message.isStarred ? '取消星标' : '添加星标')}
-            title={t(message.isStarred ? '取消星标' : '添加星标')}
+            data-tooltip={t(message.isStarred ? '取消星标' : '添加星标')}
           >
             <Star size={16} fill={message.isStarred ? 'currentColor' : 'none'} />
           </button>

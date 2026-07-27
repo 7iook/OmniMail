@@ -137,7 +137,7 @@ export function MailboxSidebar({
           type="button"
           onClick={() => void onLogout()}
           aria-label={t('退出登录')}
-          title={t('退出登录')}
+          data-tooltip={t('退出登录')}
         >
           <LogOut size={16} />
         </button>

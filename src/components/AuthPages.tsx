@@ -73,7 +73,7 @@ export function ThemeToggle({ labeled = false }: { labeled?: boolean }) {
           role="radio"
           aria-checked={preference === value}
           aria-label={t('{theme}主题', { theme: t(label) })}
-          title={t(label)}
+          data-tooltip={t(label)}
           key={value}
           onClick={() => setThemePreference(value)}
         >
@@ -374,7 +374,7 @@ function AuthModal({
               ? t('创建普通账户')
               : t('登录 {appName}', { appName })}</h2>
           </div>
-          <button type="button" aria-label={t('关闭')} title={t('关闭')} onClick={onClose}>
+          <button type="button" aria-label={t('关闭')} data-tooltip={t('关闭')} onClick={onClose}>
             <X size={19} />
           </button>
         </header>

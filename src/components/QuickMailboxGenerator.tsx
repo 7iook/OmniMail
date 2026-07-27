@@ -94,7 +94,7 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
         aria-label={t('快速生成邮箱')}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={t(unavailable ? '暂无创建邮箱的权限或可用域名' : '快速生成邮箱')}
+        data-tooltip={t(unavailable ? '暂无创建邮箱的权限或可用域名' : '快速生成邮箱')}
         disabled={unavailable}
         onClick={() => {
           setError('')

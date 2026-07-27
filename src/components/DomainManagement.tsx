@@ -154,7 +154,7 @@ export function DomainManagement({
                 type="button"
                 disabled={Boolean(busy)}
                 onClick={() => setPendingDelete(domain)}
-                title={t('删除域名配置')}
+                data-tooltip={t('删除域名配置')}
               >
                 {deleting
                   ? <LoaderCircle className="spin" size={14} />

@@ -75,7 +75,7 @@ export function DelayedScrollbar({
         type="button"
         aria-label={t('回到顶部')}
         aria-hidden={!showScrollTop}
-        title={t('回到顶部')}
+        data-tooltip={t('回到顶部')}
         tabIndex={showScrollTop ? 0 : -1}
         onClick={scrollToTop}
       >

@@ -1,9 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { TooltipLayer } from './components/TooltipLayer'
 import './styles.css'
 import './styles/splash.css'
 import './styles/language.css'
+import './styles/tooltip.css'
 import './styles/auth-landing.css'
 import './styles/admin-workspace.css'
 import './styles/statistics.css'
@@ -25,5 +27,6 @@ import './styles/deployment-wizard.css'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <TooltipLayer />
   </StrictMode>,
 )

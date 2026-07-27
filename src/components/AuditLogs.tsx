@@ -322,7 +322,7 @@ export function AuditLogs() {
                     <span><strong>{actorName(log)}</strong><small>{log.actor?.email || t(log.actor ? '无登录邮箱' : '未建立会话')}</small></span>
                   </span>
                   <span className="audit-target">
-                    <strong title={log.targetId || undefined}>{targetName(log)}</strong>
+                    <strong data-tooltip={log.targetId || undefined}>{targetName(log)}</strong>
                     <small>{[log.target?.email, detailText(log)].filter(Boolean).join(' · ') || t('无附加信息')}</small>
                   </span>
                   <code>{log.ip}</code>

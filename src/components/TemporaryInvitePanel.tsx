@@ -340,7 +340,7 @@ export function TemporaryInvitePanel({
                       accountLifetimeHours: Number(value),
                     })}
                   />
-                  <small title={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
+                  <small data-tooltip={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
                     {t('注册后计时；删账号、留邮箱。')}
                   </small>
                 </div>
@@ -474,7 +474,7 @@ export function TemporaryInvitePanel({
                   {invites.map((invite) => (
                     <article className="invite-row" key={invite.id}>
                       <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
-                      <span title={t('账号注册后可用 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}><Clock3 size={15} />{formatDate(invite.expiresAt)} · {t('账号 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</span>
+                      <span data-tooltip={t('账号注册后可用 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}><Clock3 size={15} />{formatDate(invite.expiresAt)} · {t('账号 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</span>
                       <span><ShieldCheck size={15} />{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</span>
                       <span className={`invite-state invite-state--${invite.state}`}>{t(stateLabels[invite.state])}</span>
                       {invite.state === 'active' && (

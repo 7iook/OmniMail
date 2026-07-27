@@ -442,8 +442,8 @@ export function UserManagement({
                   <small>/ {user.role === 'super_admin' ? t('不限') : user.mailboxLimit}</small>
                 </span>
                 <span className="user-capabilities">
-                  {user.canCreateMailboxes && <span title={t('可管理邮箱')}><MailPlus size={14} /></span>}
-                  {user.canReply && <span title={t('可回信')}><Send size={14} /></span>}
+                  {user.canCreateMailboxes && <span data-tooltip={t('可管理邮箱')}><MailPlus size={14} /></span>}
+                  {user.canReply && <span data-tooltip={t('可回信')}><Send size={14} /></span>}
                   {!user.canCreateMailboxes && !user.canReply && <small>{t('基础权限')}</small>}
                 </span>
                 <span className={`user-status ${user.status === 'active' ? 'is-active' : ''}`}>

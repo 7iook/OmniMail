@@ -53,7 +53,7 @@ export function MailboxHeaderActions({
         type="button"
         onClick={() => void copy()}
         aria-label={`${t('复制当前邮箱')}${address ? ` ${address}` : ''}`}
-        title={address ? `${t('复制当前邮箱')} ${address}` : t('暂无可复制邮箱')}
+        data-tooltip={address ? `${t('复制当前邮箱')} ${address}` : t('暂无可复制邮箱')}
         disabled={!address}
       >
         <Copy size={17} />
@@ -63,7 +63,7 @@ export function MailboxHeaderActions({
         disabled={!canGenerate}
         onCreated={onMailboxCreated}
       />
-      <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} title={t('刷新')}>
+      <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>
     </div>
