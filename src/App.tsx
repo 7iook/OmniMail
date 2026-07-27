@@ -5,7 +5,6 @@ import {
   Inbox,
   LoaderCircle,
   Paperclip,
-  RefreshCw,
   Search,
   Star,
   X,
@@ -21,7 +20,6 @@ import {
   PageLoader,
   PublicLanding,
   SetupPage,
-  ThemeToggle,
 } from './components/AuthPages'
 import { AdminWorkspace } from './components/AdminWorkspace'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
@@ -32,6 +30,7 @@ import {
   MailboxSidebar,
 } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
+import { MailboxHeaderActions } from './components/MailboxHeaderActions'
 import { MessageReader } from './components/MessageReader'
 import { TemporaryInvitePage } from './components/TemporaryInvitePage'
 import {
@@ -51,7 +50,6 @@ import {
 import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
 import { useAutoRefresh } from './lib/useAutoRefresh'
-
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
@@ -452,12 +450,17 @@ function Mailbox({
             />
             <h1>{folderLabel(folder)}</h1>
           </div>
-          <div className="list-header__actions">
-            <ThemeToggle />
-            <button className="icon-button" type="button" onClick={() => void loadMessages(true)} aria-label="刷新邮件" title="刷新">
-              <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
-            </button>
-          </div>
+          <MailboxHeaderActions
+            mailboxes={mailboxes}
+            scope={scope}
+            refreshing={refreshing}
+            onRefresh={() => void loadMessages(true)}
+            onCopied={(address) => {
+              setError('')
+              setNotice(`已复制：${address}`)
+            }}
+            onCopyError={() => setError('无法访问剪贴板，请手动复制邮箱地址。')}
+          />
         </header>
         <label className="search-field">
           <Search size={17} />
