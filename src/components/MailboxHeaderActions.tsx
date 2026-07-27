@@ -1,23 +1,33 @@
 import { Copy, RefreshCw } from 'lucide-react'
-import type { MailboxAddress, MailboxScope } from '../lib/api'
-import { ThemeToggle } from './AuthPages'
+import type {
+  ManagedDomain,
+  MailboxAddress,
+  MailboxScope,
+} from '../lib/api'
+import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
 interface Props {
   mailboxes: MailboxAddress[]
+  domains: ManagedDomain[]
   scope: MailboxScope
+  canGenerate: boolean
   refreshing: boolean
   onRefresh: () => void
   onCopied: (address: string) => void
   onCopyError: () => void
+  onMailboxCreated: (mailbox: MailboxAddress) => Promise<void>
 }
 
 export function MailboxHeaderActions({
   mailboxes,
+  domains,
   scope,
+  canGenerate,
   refreshing,
   onRefresh,
   onCopied,
   onCopyError,
+  onMailboxCreated,
 }: Props) {
   const address = scope.type === 'mailbox'
     ? scope.value
@@ -47,7 +57,11 @@ export function MailboxHeaderActions({
       >
         <Copy size={17} />
       </button>
-      <ThemeToggle />
+      <QuickMailboxGenerator
+        domains={domains}
+        disabled={!canGenerate}
+        onCreated={onMailboxCreated}
+      />
       <button className="icon-button" type="button" onClick={onRefresh} aria-label="刷新邮件" title="刷新">
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>

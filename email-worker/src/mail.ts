@@ -103,7 +103,8 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
     if (duplicate) return
   }
 
-  await env.MAIL_BUCKET.put(rawKey, message.raw, {
+  const raw = await new Response(message.raw).arrayBuffer()
+  await env.MAIL_BUCKET.put(rawKey, raw, {
     httpMetadata: { contentType: 'message/rfc822' },
   })
 

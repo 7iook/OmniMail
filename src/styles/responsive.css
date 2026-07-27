@@ -53,6 +53,30 @@
     padding-inline: 0;
   }
 
+  .sidebar-theme {
+    width: 78px;
+    justify-content: center;
+    margin-inline: -10px;
+    padding-inline: 0;
+  }
+
+  .sidebar-theme .theme-selector {
+    grid-auto-flow: column;
+    gap: 0;
+    padding: 2px;
+  }
+
+  .sidebar-theme .theme-selector button {
+    width: 24px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .sidebar-theme .theme-selector svg {
+    width: 13px;
+    height: 13px;
+  }
+
   .reader-content {
     padding-inline: 28px;
   }
@@ -170,6 +194,10 @@
   }
 
   .mail-sidebar .sidebar-account {
+    display: none;
+  }
+
+  .mail-sidebar .sidebar-theme {
     display: none;
   }
 
@@ -331,20 +359,6 @@
 
   .reply-composer textarea {
     min-height: 160px;
-  }
-}
-
-@container (max-width: 390px) {
-  .list-header {
-    min-height: 166px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-
-  .list-header__actions {
-    align-self: flex-end;
   }
 }
 

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { type Folder, type MailCounts, type User } from '../lib/api'
 import { isAdminRole, roleLabel } from '../lib/roles'
-import { Brand } from './AuthPages'
+import { Brand, ThemeToggle } from './AuthPages'
 
 export type AdminView = 'statistics' | 'users' | 'logs' | 'settings' | 'account'
 
@@ -119,6 +119,9 @@ export function MailboxSidebar({
         </button>
       </nav>
 
+      <div className="sidebar-theme">
+        <ThemeToggle />
+      </div>
       <div className="sidebar-account">
         <span className="account-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>
         <div>

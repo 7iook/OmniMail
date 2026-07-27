@@ -9,12 +9,7 @@ import {
   Star,
   X,
 } from 'lucide-react'
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useState,
-} from 'react'
+import { useCallback, useDeferredValue, useEffect, useState } from 'react'
 import {
   ConnectionError,
   PageLoader,
@@ -24,11 +19,7 @@ import {
 import { AdminWorkspace } from './components/AdminWorkspace'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
 import { DeploymentWizard } from './components/DeploymentWizard'
-import {
-  type AdminView,
-  folderLabel,
-  MailboxSidebar,
-} from './components/MailboxSidebar'
+import { type AdminView, folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
 import { MessageReader } from './components/MessageReader'
@@ -452,7 +443,9 @@ function Mailbox({
           </div>
           <MailboxHeaderActions
             mailboxes={mailboxes}
+            domains={domains}
             scope={scope}
+            canGenerate={isAdminRole(user.role) || user.canCreateMailboxes}
             refreshing={refreshing}
             onRefresh={() => void loadMessages(true)}
             onCopied={(address) => {
@@ -460,6 +453,11 @@ function Mailbox({
               setNotice(`已复制：${address}`)
             }}
             onCopyError={() => setError('无法访问剪贴板，请手动复制邮箱地址。')}
+            onMailboxCreated={async (mailbox) => {
+              await loadMailboxData()
+              changeScope({ type: 'mailbox', value: mailbox.address })
+              setNotice(`已生成：${mailbox.address}`)
+            }}
           />
         </header>
         <label className="search-field">
