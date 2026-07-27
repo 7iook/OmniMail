@@ -17,6 +17,7 @@ import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
+import { syncSuperAdminIdentity } from './super-admin-sync'
 import { mailRefreshInterval, remoteImagesEnabled, updateMailRefreshInterval, updateRemoteImagesSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
@@ -77,44 +78,6 @@ function configuredSuperAdminEmail(env: Env): string {
   return validEmail(email) ? email : ''
 }
 
-let superAdminSync: { email: string; promise: Promise<void> } | undefined
-
-async function syncSuperAdminIdentity(env: Env): Promise<void> {
-  const email = configuredSuperAdminEmail(env)
-  if (!email) return
-  if (superAdminSync?.email === email) return superAdminSync.promise
-
-  const promise = (async () => {
-    if (!await setupComplete(env.DB)) return
-    const target = await env.DB.prepare(
-      'SELECT id FROM users WHERE email = ?',
-    ).bind(email).first<{ id: string }>()
-    if (target) {
-      await env.DB.prepare(
-        "UPDATE users SET role = 'admin', updated_at = unixepoch() WHERE role = 'super_admin' AND id != ?",
-      ).bind(target.id).run()
-      return
-    }
-
-    const current = await env.DB.prepare(
-      `SELECT id FROM users
-        WHERE role IN ('super_admin', 'admin')
-        ORDER BY CASE role WHEN 'super_admin' THEN 0 ELSE 1 END, created_at
-        LIMIT 1`,
-    ).first<{ id: string }>()
-    if (current) {
-      await env.DB.prepare(
-        'UPDATE users SET email = ?, updated_at = unixepoch() WHERE id = ?',
-      ).bind(email, current.id).run()
-    }
-  })().catch((error) => {
-    superAdminSync = undefined
-    throw error
-  })
-  superAdminSync = { email, promise }
-  return promise
-}
-
 app.use('*', async (context, next) => {
   const requestOrigin = context.req.header('Origin')
   const originAllowed = isAllowedOrigin(
@@ -149,7 +112,7 @@ app.use('*', async (context, next) => {
 
 app.use('/api/*', async (context, next) => {
   await ensureSchema(context.env.DB)
-  await syncSuperAdminIdentity(context.env)
+  await syncSuperAdminIdentity(context.env, configuredSuperAdminEmail(context.env))
   if (PUBLIC_PATHS.has(context.req.path) || context.req.path.startsWith('/api/invitations/')) {
     await next()
     return

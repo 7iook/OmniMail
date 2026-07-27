@@ -1,20 +1,28 @@
 import { publicSetupRequirements } from './deployment-check'
 import {
-  externalRegistrationEnabled,
-  registrationDomainPolicy,
+  parseRegistrationDomains,
+  type RegistrationDomainPolicy,
 } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
 import {
-  mailRefreshInterval,
-  remoteImagesEnabled,
+  parseMailRefreshInterval,
 } from './system-settings'
 import type { Env } from './types'
 
-async function setupComplete(db: D1Database): Promise<boolean> {
-  const setting = await db.prepare(
-    "SELECT value FROM settings WHERE key = 'setup_complete'",
-  ).first<{ value: string }>()
-  return setting?.value === '1'
+type Setting = { key: string; value: string }
+
+function domainPolicy(settings: Map<string, string>): RegistrationDomainPolicy {
+  const mode = settings.get('registration_domain_policy_mode') === 'allowlist'
+    ? 'allowlist'
+    : 'blocklist'
+  try {
+    const domains = parseRegistrationDomains(
+      JSON.parse(settings.get('registration_blocked_domains') || '[]'),
+    ) ?? []
+    return { mode, domains }
+  } catch {
+    return { mode, domains: [] }
+  }
 }
 
 function superAdminEmail(env: Env): string {
@@ -23,30 +31,30 @@ function superAdminEmail(env: Env): string {
 }
 
 export async function publicConfig(env: Env) {
-  const [
-    initialized,
-    registrationEnabled,
-    domainPolicy,
-    refreshInterval,
-    allowRemoteImages,
-  ] = await Promise.all([
-    setupComplete(env.DB),
-    externalRegistrationEnabled(env.DB),
-    registrationDomainPolicy(env.DB),
-    mailRefreshInterval(env.DB),
-    remoteImagesEnabled(env.DB),
-  ])
+  const { results } = await env.DB.prepare(
+    `SELECT key, value FROM settings WHERE key IN (
+      'setup_complete',
+      'external_registration_enabled',
+      'registration_domain_policy_mode',
+      'registration_blocked_domains',
+      'mail_refresh_interval',
+      'remote_images_enabled'
+    )`,
+  ).all<Setting>()
+  const settings = new Map(results.map((row) => [row.key, row.value]))
 
   return {
     appName: env.APP_NAME || 'OmniMail',
-    setupComplete: initialized,
+    setupComplete: settings.get('setup_complete') === '1',
     replyEnabled: Boolean(env.RESEND_API_KEY),
-    registrationEnabled,
-    registrationDomainPolicy: domainPolicy,
+    registrationEnabled: settings.get('external_registration_enabled') === '1',
+    registrationDomainPolicy: domainPolicy(settings),
     registrationProtectionReady: registrationProtectionReady(env),
     turnstileSiteKey: env.TURNSTILE_SITE_KEY?.trim() || '',
-    mailRefreshInterval: refreshInterval,
-    remoteImagesEnabled: allowRemoteImages,
+    mailRefreshInterval: parseMailRefreshInterval(
+      Number(settings.get('mail_refresh_interval')),
+    ) ?? 30,
+    remoteImagesEnabled: settings.get('remote_images_enabled') === '1',
     superAdminEmail: superAdminEmail(env),
     setupRequirements: publicSetupRequirements(env),
   }
