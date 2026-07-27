@@ -107,7 +107,9 @@
 
 .sidebar-theme {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 6px;
   margin-top: auto;
   padding: 13px 10px 7px;
 }

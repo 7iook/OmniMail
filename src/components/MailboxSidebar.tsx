@@ -14,6 +14,7 @@ import { type Folder, type MailCounts, type User } from '../lib/api'
 import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
 import { Brand, ThemeToggle } from './AuthPages'
+import { LanguageQuickToggle } from './LanguageToggle'
 
 export type AdminView = 'statistics' | 'users' | 'logs' | 'settings' | 'account'
 
@@ -122,6 +123,7 @@ export function MailboxSidebar({
 
       <div className="sidebar-theme">
         <ThemeToggle />
+        <LanguageQuickToggle />
       </div>
       <div className="sidebar-account">
         <span className="account-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>

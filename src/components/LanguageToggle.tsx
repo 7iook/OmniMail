@@ -32,3 +32,22 @@ export function LanguageToggle({ labeled = false }: { labeled?: boolean }) {
     </div>
   )
 }
+
+export function LanguageQuickToggle() {
+  const locale = useLocale()
+  const nextLocale: Locale = locale === 'zh-CN' ? 'en-US' : 'zh-CN'
+  const nextLabel = nextLocale === 'zh-CN' ? '简体中文' : 'English'
+
+  return (
+    <button
+      className="language-quick-toggle"
+      type="button"
+      aria-label={t('切换为 {language}', { language: t(nextLabel) })}
+      title={t('切换为 {language}', { language: t(nextLabel) })}
+      onClick={() => setLocale(nextLocale)}
+    >
+      <Languages size={14} aria-hidden="true" />
+      <span>{nextLocale === 'zh-CN' ? '中' : 'EN'}</span>
+    </button>
+  )
+}

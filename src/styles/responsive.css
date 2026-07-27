@@ -55,9 +55,16 @@
 
   .sidebar-theme {
     width: 78px;
+    flex-direction: column;
     justify-content: center;
+    gap: 5px;
     margin-inline: -10px;
     padding-inline: 0;
+  }
+
+  .sidebar-theme .language-quick-toggle {
+    width: 46px;
+    height: 32px;
   }
 
   .sidebar-theme .theme-selector {

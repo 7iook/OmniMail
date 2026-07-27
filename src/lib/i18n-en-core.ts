@@ -13,6 +13,7 @@ export const enCore: Record<string, string> = {
   '{theme}主题': '{theme} theme',
   '简体中文': 'Simplified Chinese',
   'English': 'English',
+  '切换为 {language}': 'Switch to {language}',
   '界面语言': 'Interface language',
   'D1 数据库': 'D1 database',
   'R2 邮件存储': 'R2 mail storage',
