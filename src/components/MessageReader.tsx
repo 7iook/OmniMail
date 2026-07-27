@@ -158,7 +158,17 @@ export function MessageReader({
   useEffect(() => setReplying(false), [message?.id])
 
   if (loading) {
-    return <div className="reader-state" role="status"><LoaderCircle className="spin" size={23} />正在打开邮件</div>
+    return (
+      <div className="reader-state reader-state--loading" role="status" aria-live="polite">
+        <span className="reader-loading-visual" aria-hidden="true">
+          <span className="reader-loading-mail"><Mail size={23} /></span>
+        </span>
+        <span className="reader-loading-copy">
+          <strong>正在打开邮件</strong>
+          <small>安全读取邮件内容</small>
+        </span>
+      </div>
+    )
   }
   if (!message) {
     return (
