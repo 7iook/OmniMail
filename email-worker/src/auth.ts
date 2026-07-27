@@ -1,7 +1,7 @@
 import type { SessionUser, UserRow } from './types'
 
 const PASSWORD_ALGORITHM = 'PBKDF2'
-const PASSWORD_ITERATIONS = 210_000
+const PASSWORD_ITERATIONS = 100_000
 const PASSWORD_HASH_BYTES = 32
 const SESSION_SECONDS = 7 * 24 * 60 * 60
 

@@ -11,7 +11,7 @@ import {
 describe('password security', () => {
   it('hashes and verifies a password without storing the original', async () => {
     const encoded = await hashPassword('a sufficiently long password')
-    expect(encoded).toMatch(/^pbkdf2-sha256\$210000\$/)
+    expect(encoded).toMatch(/^pbkdf2-sha256\$100000\$/)
     expect(encoded).not.toContain('sufficiently')
     await expect(verifyPassword('a sufficiently long password', encoded)).resolves.toBe(true)
     await expect(verifyPassword('the wrong password', encoded)).resolves.toBe(false)
