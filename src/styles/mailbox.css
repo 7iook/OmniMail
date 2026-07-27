@@ -101,15 +101,15 @@
   align-items: center;
   gap: 10px;
   margin-top: 0;
-  padding: 8px 10px 5px;
+  padding: 10px 10px 5px;
+  border-top: 1px solid var(--line);
 }
 
 .sidebar-theme {
   display: flex;
   justify-content: flex-end;
   margin-top: auto;
-  padding: 13px 10px 8px;
-  border-top: 1px solid var(--line);
+  padding: 13px 10px 7px;
 }
 
 .account-avatar,
