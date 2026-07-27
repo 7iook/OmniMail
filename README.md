@@ -17,7 +17,7 @@
   <a href="./LICENSE">
     <img src="https://img.shields.io/github/license/mibgb65-cloud/OmniMail?style=flat" alt="MIT License">
   </a>
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white" alt="Node.js 20+">
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22+">
   <img src="https://img.shields.io/badge/Cloudflare-Worker%20%2B%20Static%20Assets-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Worker with Static Assets">
   <img src="https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white" alt="TypeScript 7.0">
 </p>
@@ -141,7 +141,7 @@ flowchart LR
 
 - Cloudflare 账户，以及已托管在 Cloudflare DNS 的域名
 - GitHub 账户
-- Node.js 20+（仅本地开发需要）
+- Node.js 22+（仅本地开发需要）
 - Resend 账户（可选，仅用于回复）
 
 > [!TIP]
