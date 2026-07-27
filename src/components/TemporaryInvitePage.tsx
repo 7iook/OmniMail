@@ -13,6 +13,7 @@ import {
 import { type FormEvent, useEffect, useState } from 'react'
 import { api, type TemporaryInvite, type User } from '../lib/api'
 import { Brand, ThemeToggle } from './AuthPages'
+import { TurnstileWidget } from './TurnstileWidget'
 
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -35,10 +36,12 @@ function formatDuration(hours: number): string {
 export function TemporaryInvitePage({
   token,
   appName,
+  turnstileSiteKey,
   onAuthenticated,
 }: {
   token: string
   appName: string
+  turnstileSiteKey: string
   onAuthenticated: (user: User) => void
 }) {
   const [invite, setInvite] = useState<TemporaryInvite | null>(null)
@@ -50,6 +53,8 @@ export function TemporaryInvitePage({
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -80,6 +85,10 @@ export function TemporaryInvitePage({
       setError('两次输入的密码不一致。')
       return
     }
+    if (invite.multiUse && !turnstileToken) {
+      setError('请先完成人机验证。')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -87,6 +96,7 @@ export function TemporaryInvitePage({
         displayName,
         localPart: invite.addressMode === 'self_selected' ? localPart : undefined,
         password,
+        turnstileToken: invite.multiUse ? turnstileToken : undefined,
       })
       setRegisteredEmail(result.email)
       try {
@@ -98,6 +108,10 @@ export function TemporaryInvitePage({
       }
     } catch (registerError) {
       setError(errorMessage(registerError))
+      if (invite.multiUse) {
+        setTurnstileToken('')
+        setTurnstileAttempt((attempt) => attempt + 1)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -231,8 +245,26 @@ export function TemporaryInvitePage({
                   />
                 </label>
 
+                {invite.multiUse && (
+                  turnstileSiteKey ? (
+                    <TurnstileWidget
+                      key={turnstileAttempt}
+                      siteKey={turnstileSiteKey}
+                      action="temporary-invite"
+                      onTokenChange={setTurnstileToken}
+                    />
+                  ) : (
+                    <p className="form-error" role="alert">
+                      <AlertCircle size={16} />管理员尚未配置邀请安全验证。
+                    </p>
+                  )
+                )}
                 {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
-                <button className="button button--primary" type="submit" disabled={submitting}>
+                <button
+                  className="button button--primary"
+                  type="submit"
+                  disabled={submitting || (invite.multiUse && !turnstileToken)}
+                >
                   {submitting && <LoaderCircle className="spin" size={17} />}
                   {submitting ? '正在创建账号…' : '创建账号并进入邮箱'}
                 </button>

@@ -4,8 +4,49 @@ export interface AppConfig {
   appName: string
   setupComplete: boolean
   replyEnabled: boolean
+  registrationEnabled: boolean
+  registrationDomainPolicy: RegistrationDomainPolicy
+  registrationProtectionReady: boolean
+  turnstileSiteKey: string
+  mailRefreshInterval: MailRefreshInterval
   superAdminEmail: string
+  setupRequirements: SetupRequirements
 }
+
+export interface SetupRequirements {
+  databaseReady: boolean
+  storageReady: boolean
+  queueReady: boolean
+  superAdminReady: boolean
+  setupTokenReady: boolean
+}
+
+export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
+
+export interface DeploymentCheckItem {
+  id: string
+  group: 'core' | 'security' | 'mail'
+  label: string
+  state: DeploymentCheckState
+  required: boolean
+  detail: string
+  action: string
+}
+
+export interface DeploymentCheck {
+  generatedAt: number
+  ready: boolean
+  checks: DeploymentCheckItem[]
+}
+
+export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'
+
+export interface RegistrationDomainPolicy {
+  mode: RegistrationDomainPolicyMode
+  domains: string[]
+}
+
+export type MailRefreshInterval = 0 | 5 | 10 | 30 | 60 | 120
 
 export type UserRole = 'super_admin' | 'admin' | 'user' | 'temporary'
 
@@ -240,7 +281,40 @@ export const api = {
       body: jsonBody({ email, password }),
     })
   ),
+  register: (input: {
+    email: string
+    displayName: string
+    password: string
+    turnstileToken: string
+  }) => (
+    request<{ user: User }>('/api/register', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  ),
   logout: () => request<{ ok: true }>('/api/logout', { method: 'POST' }),
+  deploymentCheck: () => request<DeploymentCheck>('/api/admin/deployment-check'),
+  updateRegistrationSetting: (enabled: boolean) => (
+    request<{ registrationEnabled: boolean }>('/api/admin/settings/registration', {
+      method: 'PATCH',
+      body: jsonBody({ enabled }),
+    })
+  ),
+  updateRegistrationDomainPolicy: (policy: RegistrationDomainPolicy) => (
+    request<{ registrationDomainPolicy: RegistrationDomainPolicy }>(
+      '/api/admin/settings/registration-domains',
+      {
+        method: 'PATCH',
+        body: jsonBody(policy),
+      },
+    )
+  ),
+  updateMailRefreshInterval: (interval: MailRefreshInterval) => (
+    request<{ mailRefreshInterval: MailRefreshInterval }>('/api/admin/settings/mail-refresh', {
+      method: 'PATCH',
+      body: jsonBody({ interval }),
+    })
+  ),
   updateAccount: (input: {
     displayName?: string
     currentPassword?: string
@@ -333,7 +407,12 @@ export const api = {
   ),
   registerTemporaryInvite: (
     token: string,
-    input: { displayName: string; localPart?: string; password: string },
+    input: {
+      displayName: string
+      localPart?: string
+      password: string
+      turnstileToken?: string
+    },
   ) => request<{ email: string }>(`/api/invitations/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: jsonBody(input),

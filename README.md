@@ -134,6 +134,8 @@ git push -u origin main
 | `APP_ORIGINS` | Text | 是 | `https://mail.example.com` |
 | `APP_NAME` | Text | 否 | `OmniMail` |
 | `COOKIE_SECURE` | Text | 否 | `true`，生产默认即为 true |
+| `TURNSTILE_SITE_KEY` | Text | 开放注册或多人邀请时 | Turnstile 公开 Site Key |
+| `TURNSTILE_SECRET_KEY` | Secret | 开放注册或多人邀请时 | Turnstile 私密 Secret Key |
 | `RESEND_API_KEY` | Secret | 回复时 | `re_...` |
 | `RESEND_FROM` | Text | 否 | `OmniMail <reply@example.com>` |
 
@@ -141,6 +143,20 @@ git push -u origin main
 `SUPER_ADMIN_EMAIL` 是登录身份，不要求属于 Cloudflare Email Routing 域名。
 如果以后修改它，OmniMail 会把现有主管理员账号迁移到新邮箱，继续使用原密码；
 收件邮箱地址和历史邮件不会改变。
+
+如需开放外部注册或创建多人注册链接，先在 Cloudflare Dashboard → Turnstile 中创建一个 Widget，
+把 Pages 正式域名（例如 `mail.example.com`）加入允许的 Hostname。公开 Site Key
+写入 `TURNSTILE_SITE_KEY` Text 变量，Secret Key 写入
+`TURNSTILE_SECRET_KEY` Secret。两项都配置后，管理员才能在“系统设置 → 外部注册”
+中打开开关。请勿把生产 Secret Key 写入仓库。
+
+管理员还可以在同一区域选择邮箱后缀规则：
+
+- 禁止列表：拒绝列表内的后缀，允许其他邮箱注册；列表可以留空。
+- 允许列表：只允许列表内的后缀注册，并且至少需要填写一个后缀。
+
+例如填写 `qq.com` 会同时匹配 `qq.com` 及其子域名。规则只影响之后的公开注册，
+不会停用或删除已有账户。
 
 在 Worker 的 **Settings → Domains & Routes** 添加：
 
@@ -192,6 +208,19 @@ OmniMail 并不会保存所有 Catch-all 邮件。只有 D1 中已启用的邮�
 页面会只读显示 Worker 中的 `SUPER_ADMIN_EMAIL`。完成后该地址成为主管理员登录
 账户，但不会自动成为收件地址。登录后先在“系统设置 → 域名管理”添加收件域名，
 再从“当前邮箱 → 管理邮箱地址”创建第一个邮箱，该地址会自动成为主收件地址。
+
+首次运行页会先检查 D1、R2、邮件队列、主管理员邮箱和初始化令牌是否就绪。
+创建主管理员后会自动打开三步部署向导，检查核心资源、身份安全和邮件服务。
+之后可以从“系统设置 → 主管理员 → 部署初始化向导”重新运行。自检只读取配置状态，
+不会向网页返回 `SETUP_TOKEN`、Resend Key、Turnstile Secret 或其他密钥内容；
+Cloudflare Email Routing 仍需按照上一节人工确认。
+
+未登录时会先进入 OmniMail 公开主页，登录与注册均在悬浮弹窗中完成。外部注册默认
+关闭；管理员可在“系统设置 → 外部注册”中启用。外部注册只会创建普通用户，默认
+邮箱额度为 1，但不自动创建邮箱，也不授予创建邮箱或 Resend 回信权限。管理员仍可
+在用户管理中单独调整这些权限。关闭开关只阻止新注册，不影响已有账户。注册请求
+必须通过 Turnstile 服务端校验，并受到每 IP 每小时 3 次、每天 10 次以及每登录
+邮箱每小时 3 次的限制。
 
 ## 多域名与多邮箱
 
@@ -247,7 +276,7 @@ Routing。OmniMail 负责地址授权与邮件归类，不会代替 Cloudflare �
 
 - 单次使用：首个用户成功注册后链接立即失效，适合单独发送给一个人。
 - 多人注册：仅适用于用户自选邮箱，同一个链接在有效期内可供多人分别注册，第一版
-  不另设人数上限。
+  不另设人数上限。每次注册都必须通过 Turnstile 服务端验证。
 - 链接有效期只控制何时还能注册；链接到期或被撤销不会影响已创建的账号和邮箱。
 - 临时账号有效期从每位用户注册成功时分别开始计算。到期后账号自动停用、会话失效，
   但邮箱地址、已有邮件和附件继续保留。
@@ -257,6 +286,11 @@ Routing。OmniMail 负责地址授权与邮件归类，不会代替 Cloudflare �
 
 邀请令牌的明文只在创建成功时显示一次，D1 仅保存 SHA-256 摘要；邀请历史可以查看
 域名、有效期、使用次数和状态，但不能重新获取原链接。若链接丢失，可撤销后重新生成。
+单次邀请不显示验证码，但注册接口会同时按来源 IP 和邀请令牌限速；超限后返回
+`429`，且不会创建账号。
+
+管理员还可以在“系统设置 → 邮件自动刷新”中选择 5、10、30、60、120 秒或关闭
+自动刷新。该设置写入 D1 并对所有用户生效；页面处于浏览器后台时会暂停轮询。
 
 ## 5. 配置 Resend 回复
 
@@ -320,6 +354,7 @@ npx wrangler deploy -c email-worker/wrangler.jsonc --dry-run
 - 浏览器会话仅通过 `HttpOnly + Secure + SameSite=Lax` Cookie 传递。
 - 桌面设备使用 15 分钟 Access Token 与 30 天轮换 Refresh Token，D1 只保存摘要。
 - 登录失败按 IP 与邮箱组合限速。
+- 外部注册强制验证 Turnstile，并按 IP 与邮箱双重限速。
 - 重要操作写入 D1 审计日志；密码、Token、Secret 和 Cookie 不进入日志详情。
 - 主管理员身份由 Worker 的 `SUPER_ADMIN_EMAIL` 决定，网页端不能修改。
 - 用户封禁后会立即清除该用户全部服务端会话，邮箱和历史邮件不会删除。
@@ -329,7 +364,8 @@ npx wrangler deploy -c email-worker/wrangler.jsonc --dry-run
 - R2 Bucket 不应设置为公开；附件必须通过鉴权 API 下载。
 - HTML 邮件在无脚本、无表单、无远程网络权限的 sandbox iframe 中显示。
 - 远程图片默认阻止，避免追踪像素泄露读信状态。
-- `SETUP_TOKEN`、`RESEND_API_KEY` 只能放在 Cloudflare Secrets，不能提交 Git。
+- `SETUP_TOKEN`、`TURNSTILE_SECRET_KEY`、`RESEND_API_KEY` 只能放在
+  Cloudflare Secrets，不能提交 Git。
 
 ## License
 

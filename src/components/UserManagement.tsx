@@ -238,7 +238,13 @@ function PolicyFields({
   )
 }
 
-export function UserManagement({ currentUser }: { currentUser: User }) {
+export function UserManagement({
+  currentUser,
+  registrationProtectionReady,
+}: {
+  currentUser: User
+  registrationProtectionReady: boolean
+}) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [totals, setTotals] = useState<AdminUserTotals>({ total: 0, active: 0, disabled: 0 })
   const [page, setPage] = useState<PageInfo>({ hasMore: false, nextCursor: null, limit: 50 })
@@ -529,7 +535,12 @@ export function UserManagement({ currentUser }: { currentUser: User }) {
         </div>
       )}
 
-      {inviteOpen && <TemporaryInvitePanel onClose={() => setInviteOpen(false)} />}
+      {inviteOpen && (
+        <TemporaryInvitePanel
+          registrationProtectionReady={registrationProtectionReady}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
 
       {notice && (
         <button className="user-notice" type="button" onClick={() => setNotice('')}>

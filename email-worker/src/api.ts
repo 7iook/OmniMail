@@ -2,16 +2,20 @@ import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { applySuperAdminRole, createSessionToken, deleteSession, hashPassword, secretsEqual, sessionFromUser, sessionMaxAge, sessionUser, storeSession, validatePassword } from './auth'
 import { attachmentDisposition, clientIp, normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
-import { deleteTemporaryAccount, expireTemporaryAccounts, updateAccount } from './account-api'
+import { deleteTemporaryAccount, updateAccount } from './account-api'
 import { listAuditLogs } from './audit-log-api'
 import { writeAudit } from './audit'
 import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-api'
+import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { listMessages, messageSummary } from './message-list-api'
 import { authenticatePassword } from './password-login'
+import { externalRegistrationEnabled, registerExternalUser, registrationDomainPolicy, updateExternalRegistration, updateRegistrationDomainPolicy } from './registration-api'
+import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
+import { mailRefreshInterval, updateMailRefreshInterval } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
@@ -23,6 +27,7 @@ const PUBLIC_PATHS = new Set([
   '/api/config',
   '/api/setup',
   '/api/login',
+  '/api/register',
   '/api/session',
   '/api/auth/token',
   '/api/auth/token/refresh',
@@ -186,7 +191,13 @@ app.get('/api/config', async (context) => context.json({
   appName: context.env.APP_NAME || 'OmniMail',
   setupComplete: await setupComplete(context.env.DB),
   replyEnabled: Boolean(context.env.RESEND_API_KEY),
+  registrationEnabled: await externalRegistrationEnabled(context.env.DB),
+  registrationDomainPolicy: await registrationDomainPolicy(context.env.DB),
+  registrationProtectionReady: registrationProtectionReady(context.env),
+  turnstileSiteKey: context.env.TURNSTILE_SITE_KEY?.trim() || '',
+  mailRefreshInterval: await mailRefreshInterval(context.env.DB),
   superAdminEmail: configuredSuperAdminEmail(context.env),
+  setupRequirements: publicSetupRequirements(context.env),
 }))
 
 app.post('/api/setup', async (context) => {
@@ -290,13 +301,14 @@ app.post('/api/login', async (context) => {
   })
 })
 
+app.post('/api/register', async (context) => {
+  const result = await registerExternalUser(context.env, context.req.raw, clientIp(context.req.raw.headers))
+  if (result.sessionToken) setSessionCookie(context, context.env, result.sessionToken)
+  return result.response
+})
 app.post('/api/auth/token', (context) => issueDeviceToken(context.env, context.req.raw))
-app.post('/api/auth/token/refresh', (context) => (
-  refreshDeviceToken(context.env, context.req.raw)
-))
-app.post('/api/auth/token/revoke', (context) => (
-  revokeRefreshToken(context.env, context.req.raw)
-))
+app.post('/api/auth/token/refresh', (context) => refreshDeviceToken(context.env, context.req.raw))
+app.post('/api/auth/token/revoke', (context) => revokeRefreshToken(context.env, context.req.raw))
 
 app.get('/api/session', async (context) => {
   const authorization = bearerToken(context.req.header('Authorization'))
@@ -367,6 +379,7 @@ app.post('/api/admin/invites', (context) => createTemporaryInvite(context.env, c
 app.patch('/api/admin/invites/:id/revoke', (context) => revokeTemporaryInvite(context.env, context.get('user'), context.req.param('id'), clientIp(context.req.raw.headers)))
 app.get('/api/admin/statistics', (context) => mailStatistics(context.env, context.get('user'), context.req.raw))
 app.get('/api/admin/audit-logs', (context) => listAuditLogs(context.env, context.get('user'), context.req.raw))
+app.get('/api/admin/deployment-check', (context) => deploymentCheck(context.env, context.get('user')))
 app.get('/api/admin/users', (context) => listManagedUsers(
   context.env,
   context.get('user'),
@@ -380,6 +393,9 @@ app.post('/api/admin/users', (context) => createManagedUser(
   context.req.raw,
   clientIp(context.req.raw.headers),
 ))
+app.patch('/api/admin/settings/registration', (context) => updateExternalRegistration(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/users/:id', (context) => updateManagedUser(
   context.env,
   context.get('user'),
@@ -577,16 +593,5 @@ app.onError((error, context) => {
 })
 
 app.notFound((context) => context.json({ error: '接口不存在。' }, 404))
-
-export async function cleanup(env: Env): Promise<void> {
-  await ensureSchema(env.DB)
-  const now = Math.floor(Date.now() / 1000)
-  await expireTemporaryAccounts(env, now)
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now),
-    env.DB.prepare('DELETE FROM device_sessions WHERE refresh_expires_at <= ?').bind(now),
-    env.DB.prepare('DELETE FROM login_attempts WHERE window_started_at < ?').bind(now - 24 * 60 * 60),
-  ])
-}
 
 export const fetchApi = app.fetch

@@ -86,6 +86,14 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   window_started_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS registration_attempts (
+  key_hash TEXT PRIMARY KEY,
+  attempts INTEGER NOT NULL,
+  window_started_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_registration_attempts_window
+  ON registration_attempts(window_started_at);
+
 CREATE TABLE IF NOT EXISTS mailboxes (
   address TEXT PRIMARY KEY COLLATE NOCASE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -302,6 +310,20 @@ async function ensureDeviceSessions(db: D1Database): Promise<void> {
   ).run()
 }
 
+async function ensureRegistrationAttempts(db: D1Database): Promise<void> {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS registration_attempts (
+      key_hash TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL,
+      window_started_at INTEGER NOT NULL
+    )`,
+  ).run()
+  await db.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_registration_attempts_window
+     ON registration_attempts(window_started_at)`,
+  ).run()
+}
+
 export function ensureSchema(db: D1Database): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -321,6 +343,7 @@ export function ensureSchema(db: D1Database): Promise<void> {
       await ensureDomains(db)
       await ensureTemporaryInvites(db)
       await ensureDeviceSessions(db)
+      await ensureRegistrationAttempts(db)
       await db.prepare(
         `CREATE INDEX IF NOT EXISTS idx_messages_direction_received
          ON messages(direction, received_at DESC)`,

@@ -123,9 +123,9 @@
   pointer-events: none;
 }
 
-.admin-scroll-shell::before {
+.admin-workspace__header::before {
   position: fixed;
-  z-index: 20;
+  z-index: 0;
   top: 0;
   right: 0;
   left: 230px;
@@ -209,7 +209,7 @@
   pointer-events: none;
 }
 
-.admin-scroll-shell.has-sticky-admin-header::before {
+.admin-workspace__header.is-stuck::before {
   border-color: color-mix(in srgb, var(--line) 82%, transparent);
   background: color-mix(in srgb, var(--surface) 78%, transparent);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
@@ -499,7 +499,7 @@
 }
 
 @media (max-width: 1120px) {
-  .admin-scroll-shell::before {
+  .admin-workspace__header::before {
     left: 78px;
   }
 }
@@ -532,7 +532,7 @@
     height: 46px;
   }
 
-  .admin-scroll-shell::before {
+  .admin-workspace__header::before {
     left: 0;
   }
 
@@ -583,7 +583,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .admin-workspace__header,
-  .admin-scroll-shell::before,
+  .admin-workspace__header::before,
   .admin-workspace__heading,
   .admin-workspace__icon,
   .admin-workspace__header h1,

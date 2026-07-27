@@ -7,6 +7,104 @@ OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认�
 下面示例中的 API 地址使用 `https://api-mail.example.com`，请替换为实际
 Worker 自定义域名。
 
+## 公开配置与注册
+
+未登录客户端可以读取公开运行配置：
+
+```http
+GET /api/config
+```
+
+响应中的 `registrationEnabled` 表示管理员是否允许外部注册。开关关闭时，
+`POST /api/register` 返回 `403`。`registrationProtectionReady` 表示 Worker
+是否已经配置完整的 Turnstile 公钥和密钥，`turnstileSiteKey` 是前端渲染组件时
+使用的公开 Site Key。`mailRefreshInterval` 是管理员设置的收件箱自动刷新秒数，
+值为 `0`、`5`、`10`、`30`、`60` 或 `120`，其中 `0` 表示关闭自动刷新。
+`registrationDomainPolicy` 包含公开注册邮箱规则模式和后缀数组。`blocklist`
+表示拒绝列表内的后缀，`allowlist` 表示只允许列表内的后缀。
+`setupRequirements` 只返回 D1、R2、Queue、主管理员邮箱和 `SETUP_TOKEN`
+是否已经配置的布尔值，不会返回变量或 Secret 的内容。
+
+```http
+POST /api/register
+Content-Type: application/json
+
+{
+  "displayName": "Example User",
+  "email": "user@example.com",
+  "password": "at-least-10-characters",
+  "turnstileToken": "token-from-turnstile-widget"
+}
+```
+
+Worker 会将令牌、来源 IP、`action=register` 和 Pages Hostname 发送到 Cloudflare
+Siteverify 验证。令牌只能使用一次，验证失败后客户端必须重新生成。注册成功后
+创建普通用户并返回 `201`，浏览器同时获得登录 Cookie。新用户默认
+邮箱额度为 1，但没有创建邮箱或 Resend 回信权限，也不会自动获得收件地址。
+管理员可通过以下接口修改开关：
+
+```http
+PATCH /api/admin/settings/registration
+Authorization: Bearer om_at_...
+Content-Type: application/json
+
+{ "enabled": true }
+```
+
+该接口仅管理员可用，并会写入操作日志。Turnstile 未配置完整时，开启请求返回
+`409`。关闭开关不会删除或停用已有账户。
+
+管理员可更新公开注册邮箱后缀允许/禁止规则：
+
+```http
+PATCH /api/admin/settings/registration-domains
+Authorization: Bearer om_at_...
+Content-Type: application/json
+
+{
+  "mode": "blocklist",
+  "domains": ["qq.com", "163.com"]
+}
+```
+
+后缀会转为小写、去重并按域名排序，最多设置 100 个。`qq.com` 同时匹配
+`user@qq.com` 和 `user@mail.qq.com`，但不会匹配 `user@notqq.com`。禁止列表
+可以为空；允许列表至少需要一个后缀，避免误操作后锁死全部公开注册。
+
+注册限制为同一 IP 每小时 3 次、每天 10 次，同一登录邮箱每小时 3 次。超过限制
+返回 `429`，并通过 `Retry-After` 响应头提供建议等待秒数。Turnstile 不可用时
+Worker 采用失败关闭策略并返回 `503`，不会绕过验证继续创建账户。
+
+管理员可更新所有用户使用的自动刷新间隔：
+
+```http
+PATCH /api/admin/settings/mail-refresh
+Authorization: Bearer om_at_...
+Content-Type: application/json
+
+{ "interval": 30 }
+```
+
+## 邀请注册安全
+
+单次邀请的注册请求按来源 IP 和邀请令牌分别限速，超限返回 `429` 和
+`Retry-After`。多人注册链接要求 Worker 已配置 Turnstile，并在注册时提交
+专用的 `action=temporary-invite` 令牌：
+
+```http
+POST /api/invitations/{inviteToken}
+Content-Type: application/json
+
+{
+  "displayName": "Temporary User",
+  "localPart": "guest",
+  "password": "at-least-10-characters",
+  "turnstileToken": "token-from-turnstile-widget"
+}
+```
+
+单次邀请可以省略 `turnstileToken`；多人邀请缺少或未通过验证时不会创建账户。
+
 ## 获取设备令牌
 
 ```http
@@ -173,10 +271,26 @@ Authorization: Bearer om_at_...
 cookie 的字段。登录失败日志只记录邮箱、来源 IP、客户端类型和失败原因，不记录
 提交的密码。
 
+## 部署自检
+
+管理员可以重新检查 Worker 资源绑定、生产来源、安全设置与邮件服务：
+
+```http
+GET /api/admin/deployment-check
+Authorization: Bearer om_at_...
+```
+
+响应按 `core`、`security`、`mail` 分组，每项状态为 `ready`、`missing`、
+`warning` 或 `manual`。该接口只返回配置状态、数量和修复说明，不返回环境变量值、
+API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker 直接读取，
+因此始终标记为需要管理员人工确认。
+
 ## 常用资源
 
 | 方法与路径 | 说明 |
 | --- | --- |
+| `GET /api/config` | 公开运行配置与外部注册状态 |
+| `POST /api/register` | 外部注册普通用户 |
 | `GET /api/session` | 查询当前 Cookie 或 Bearer 会话 |
 | `GET /api/mailboxes` | 当前用户邮箱列表 |
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
@@ -187,8 +301,12 @@ cookie 的字段。登录失败日志只记录邮箱、来源 IP、客户端类�
 | `POST /api/messages/{id}/reply` | 使用 Resend 回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
+| `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员临时邀请列表 |
+| `PATCH /api/admin/settings/registration` | 管理员开启或关闭外部注册 |
+| `PATCH /api/admin/settings/registration-domains` | 管理员设置注册邮箱允许/禁止规则 |
+| `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |
 
 附件和原始邮件接口同样支持 Bearer Token。桌面端下载文件时需要通过 HTTP
 客户端设置 `Authorization` 请求头，不能把 Token 拼接到 URL 查询参数中。

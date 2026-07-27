@@ -17,13 +17,15 @@ import {
   useState,
 } from 'react'
 import {
-  AuthPage,
   ConnectionError,
   PageLoader,
+  PublicLanding,
+  SetupPage,
   ThemeToggle,
 } from './components/AuthPages'
 import { AdminWorkspace } from './components/AdminWorkspace'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
+import { DeploymentWizard } from './components/DeploymentWizard'
 import {
   type AdminView,
   folderLabel,
@@ -47,6 +49,8 @@ import {
   type User,
 } from './lib/api'
 import { isAdminRole } from './lib/roles'
+import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
+import { useAutoRefresh } from './lib/useAutoRefresh'
 
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
@@ -171,11 +175,13 @@ function MessageList({
 function Mailbox({
   user,
   config,
+  onConfigChange,
   onUserChange,
   onLogout,
 }: {
   user: User
   config: AppConfig
+  onConfigChange: (config: AppConfig) => void
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
@@ -197,6 +203,14 @@ function Mailbox({
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(
+    () => deploymentGuideUnseen(user),
+  )
+
+  function closeDeploymentWizard() {
+    markDeploymentGuideSeen()
+    setDeploymentWizardOpen(false)
+  }
 
   const loadMailboxes = useCallback(async () => {
     try {
@@ -296,6 +310,8 @@ function Mailbox({
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
+
+  useAutoRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView)
 
   useEffect(() => {
     if (!notice) return
@@ -412,8 +428,10 @@ function Mailbox({
             mailboxes={mailboxes}
             domains={domains}
             onDomainsChanged={loadDomains}
+            onConfigChange={onConfigChange}
             onUserChange={onUserChange}
             onLogout={onLogout}
+            onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
           />
         </DelayedScrollbar>
       ) : (
@@ -489,6 +507,7 @@ function Mailbox({
         </>
       )}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
+      <DeploymentWizard open={deploymentWizardOpen} onClose={closeDeploymentWizard} />
     </div>
   )
 }
@@ -543,10 +562,9 @@ export function App() {
   }
   if (!config.setupComplete) {
     return (
-      <AuthPage
-        mode="setup"
-        appName={config.appName}
+      <SetupPage
         superAdminEmail={config.superAdminEmail}
+        requirements={config.setupRequirements}
         onAuthenticated={(nextUser) => {
           setUser(nextUser)
           setConfig({ ...config, setupComplete: true })
@@ -559,10 +577,21 @@ export function App() {
       <TemporaryInvitePage
         token={inviteToken}
         appName={config.appName}
+        turnstileSiteKey={config.turnstileSiteKey}
         onAuthenticated={setUser}
       />
     )
   }
-  if (!user) return <AuthPage mode="login" appName={config.appName} onAuthenticated={setUser} />
-  return <Mailbox user={user} config={config} onUserChange={setUser} onLogout={logout} />
+  if (!user) {
+    return (
+      <PublicLanding
+        appName={config.appName}
+        registrationEnabled={config.registrationEnabled && config.registrationProtectionReady}
+        registrationDomainPolicy={config.registrationDomainPolicy}
+        turnstileSiteKey={config.turnstileSiteKey}
+        onAuthenticated={setUser}
+      />
+    )
+  }
+  return <Mailbox user={user} config={config} onConfigChange={setConfig} onUserChange={setUser} onLogout={logout} />
 }

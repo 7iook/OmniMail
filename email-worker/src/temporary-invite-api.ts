@@ -6,6 +6,11 @@ import {
 } from './auth'
 import { normalizeEmail, validEmail } from './api-helpers'
 import { pageResult, parsePageRequest } from './pagination'
+import {
+  consumeTemporaryInviteRateLimit,
+  registrationProtectionReady,
+  verifyRegistrationTurnstile,
+} from './registration-security'
 import type { Env, SessionUser } from './types'
 
 interface InviteRow {
@@ -39,8 +44,8 @@ interface InvitePolicyInput {
 
 export type InviteState = 'active' | 'expired' | 'used' | 'revoked' | 'domain_disabled'
 
-function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status })
+function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+  return Response.json(body, { status, headers })
 }
 
 function isAdministrator(user: SessionUser): boolean {
@@ -194,6 +199,9 @@ export async function createTemporaryInvite(
   ) {
     return json({ error: '邀请配置无效。' }, 400)
   }
+  if (body.multiUse && !registrationProtectionReady(env)) {
+    return json({ error: '请先配置 Turnstile，再创建多人注册链接。' }, 409)
+  }
   const allowedDomain = await env.DB.prepare(
     'SELECT name FROM domains WHERE name = ? AND is_active = 1',
   ).bind(domain).first<{ name: string }>()
@@ -252,6 +260,7 @@ export async function createTemporaryInvite(
     addressMode,
     assignedAddress,
     accountLifetimeHours,
+    multiUse: body.multiUse,
   })
   const created = await env.DB.prepare(
     `${INVITE_SELECT} WHERE i.id = ?`,
@@ -311,10 +320,12 @@ export async function registerTemporaryInvite(
     displayName?: string
     localPart?: string
     password?: string
+    turnstileToken?: string
   }>().catch(() => ({} as {
     displayName?: string
     localPart?: string
     password?: string
+    turnstileToken?: string
   }))
   const displayName = (body.displayName || '').trim()
   const address = invite.address_mode === 'assigned'
@@ -333,6 +344,39 @@ export async function registerTemporaryInvite(
   }
   const passwordError = validatePassword(password)
   if (passwordError) return json({ error: passwordError }, 400)
+
+  if (invite.max_uses === 1) {
+    const rate = await consumeTemporaryInviteRateLimit(env.DB, ip, invite.id, now)
+    if (!rate.allowed) {
+      await audit(env, null, 'temporary_invite.register_failed', invite.id, ip, {
+        reason: 'rate_limited',
+      })
+      return json(
+        { error: '邀请注册尝试过多，请稍后再试。' },
+        429,
+        { 'Retry-After': String(rate.retryAfter) },
+      )
+    }
+  } else {
+    if (!registrationProtectionReady(env)) {
+      return json({ error: '邀请安全验证尚未配置，请联系管理员。' }, 503)
+    }
+    const turnstile = await verifyRegistrationTurnstile(
+      env,
+      body.turnstileToken || '',
+      ip,
+      'temporary-invite',
+    )
+    if (turnstile !== 'valid') {
+      await audit(env, null, 'temporary_invite.register_failed', invite.id, ip, {
+        reason: turnstile === 'unavailable' ? 'turnstile_unavailable' : 'turnstile_invalid',
+      })
+      return json(
+        { error: turnstile === 'unavailable' ? '人机验证服务暂时不可用，请重试。' : '人机验证未通过，请重试。' },
+        turnstile === 'unavailable' ? 503 : 400,
+      )
+    }
+  }
 
   const occupied = await env.DB.prepare(
     `SELECT 1 AS occupied FROM users WHERE email = ?

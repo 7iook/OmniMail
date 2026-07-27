@@ -47,6 +47,8 @@ const actionLabels: Record<string, string> = {
   'setup.complete': '完成系统初始化',
   'auth.login': '网页登录成功',
   'auth.login_failed': '登录失败',
+  'auth.register': '外部注册账户',
+  'auth.register_failed': '外部注册失败',
   'auth.logout': '退出登录',
   'auth.token.issue': '客户端登录成功',
   'auth.token.revoke': '客户端退出',
@@ -66,8 +68,12 @@ const actionLabels: Record<string, string> = {
   'temporary_invite.create': '创建临时邀请',
   'temporary_invite.revoke': '撤销临时邀请',
   'temporary_invite.register': '通过邀请注册',
+  'temporary_invite.register_failed': '邀请注册被拦截',
   'message.reply': '回复邮件',
   'message.delete': '永久删除邮件',
+  'system.registration.update': '修改外部注册设置',
+  'system.registration_domains.update': '修改注册邮箱限制',
+  'system.mail_refresh.update': '修改邮件自动刷新',
 }
 
 const categoryLabels: Record<string, string> = {

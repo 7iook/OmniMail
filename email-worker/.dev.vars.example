@@ -1,6 +1,8 @@
 # Copy to .dev.vars for `npm run dev:worker`.
 SETUP_TOKEN=replace-with-a-long-random-value
 SUPER_ADMIN_EMAIL=owner@example.com
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 APP_ORIGINS=http://localhost:5173
 COOKIE_SECURE=false
 APP_NAME=OmniMail

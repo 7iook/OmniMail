@@ -13,6 +13,8 @@ export interface Env {
   SETUP_TOKEN?: string
   RESEND_API_KEY?: string
   RESEND_FROM?: string
+  TURNSTILE_SITE_KEY?: string
+  TURNSTILE_SECRET_KEY?: string
 }
 
 export type UserRole = 'super_admin' | 'admin' | 'user' | 'temporary'

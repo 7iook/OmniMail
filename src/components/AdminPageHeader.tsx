@@ -33,7 +33,6 @@ export function AdminPageHeader({
       const rootTop = entry.rootBounds?.top ?? 0
       const pastTop = entry.boundingClientRect.top <= rootTop
       const next = !entry.isIntersecting && pastTop
-      scrollRoot.classList.toggle('has-sticky-admin-header', next)
       setStuck(next)
     }, {
       root: scrollRoot,
@@ -42,7 +41,6 @@ export function AdminPageHeader({
     observer.observe(marker)
     return () => {
       observer.disconnect()
-      scrollRoot.classList.remove('has-sticky-admin-header')
     }
   }, [])
 

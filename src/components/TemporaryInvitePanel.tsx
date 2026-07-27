@@ -131,7 +131,13 @@ function InviteSelect({
   )
 }
 
-export function TemporaryInvitePanel({ onClose }: { onClose: () => void }) {
+export function TemporaryInvitePanel({
+  registrationProtectionReady,
+  onClose,
+}: {
+  registrationProtectionReady: boolean
+  onClose: () => void
+}) {
   const [domains, setDomains] = useState<ManagedDomain[]>([])
   const [invites, setInvites] = useState<TemporaryInvite[]>([])
   const [page, setPage] = useState<PageInfo>({ hasMore: false, nextCursor: null, limit: 30 })
@@ -371,14 +377,20 @@ export function TemporaryInvitePanel({ onClose }: { onClose: () => void }) {
                   <span><strong>单次使用</strong><small>{draft.addressMode === 'assigned' ? '固定邮箱只能分配给一个临时用户。' : '首个用户成功注册后，链接立即失效。'}</small></span>
                 </label>
                 {draft.addressMode === 'self_selected' && (
-                  <label className={draft.multiUse ? 'is-selected' : ''}>
+                  <label className={`${draft.multiUse ? 'is-selected' : ''} ${!registrationProtectionReady ? 'is-disabled' : ''}`}>
                     <input
                       type="radio"
                       name="invite-mode"
                       checked={draft.multiUse}
+                      disabled={!registrationProtectionReady}
                       onChange={() => setDraft({ ...draft, multiUse: true })}
                     />
-                    <span><strong>多人注册</strong><small>有效期内可由多人各自注册。转发方便，但暴露风险更高。</small></span>
+                    <span>
+                      <strong>多人注册</strong>
+                      <small>{registrationProtectionReady
+                        ? '有效期内可多人注册，每次注册都需要通过 Turnstile。'
+                        : '配置 Turnstile 后才能创建多人注册链接。'}</small>
+                    </span>
                   </label>
                 )}
               </fieldset>
