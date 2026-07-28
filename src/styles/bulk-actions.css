@@ -141,6 +141,15 @@
   background: var(--surface-muted);
 }
 
+.message-list.is-drag-selecting,
+.message-list.is-drag-selecting * {
+  user-select: none;
+}
+
+.message-list.is-drag-selecting .message-row__main {
+  cursor: crosshair;
+}
+
 .message-list.is-bulk-mode .message-row__main {
   padding-left: 46px;
 }

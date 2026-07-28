@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { dragAcrossMessageRows } from './drag-selection'
 
 const user = {
   id: 'user-1',
@@ -57,6 +58,7 @@ type MockState = {
   authorized: boolean
   createdInviteRole: 'user' | 'temporary' | null
   unassignedMailEnabled: boolean
+  messages: Array<typeof message>
 }
 
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
@@ -72,6 +74,7 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     authorized: true,
     createdInviteRole: null,
     unassignedMailEnabled: false,
+    messages: [message],
   }
 }
 
@@ -146,7 +149,11 @@ async function mockApp(page: Page, state = mockState()) {
       }
       return json(route, {
         unchanged: false, version: state.version,
-        messages: state.messageVisible ? [{ ...message, subject: state.subject }] : [],
+        messages: state.messageVisible
+          ? state.messages.map((item, index) => (
+              index === 0 ? { ...item, subject: state.subject } : item
+            ))
+          : [],
         counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
@@ -336,6 +343,22 @@ test('users can apply a bulk action to selected messages', async ({ page }) => {
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
 
+test('dragging across message rows quickly selects and deselects a range', async ({ page }) => {
+  const state = mockState()
+  state.messages = [
+    message,
+    { ...message, id: 'message-2', subject: 'Second message', senderName: 'Second Sender' },
+    { ...message, id: 'message-3', subject: 'Third message', senderName: 'Third Sender' },
+  ]
+  await mockApp(page, state)
+  await page.goto('/')
+  await dragAcrossMessageRows(page, 0, 2)
+  await expect(page.locator('.message-row.is-checked')).toHaveCount(3)
+  await expect(page.getByRole('heading', { name: '选择一封邮件' })).toBeVisible()
+  await dragAcrossMessageRows(page, 0, 1)
+  await expect(page.locator('.message-row.is-checked')).toHaveCount(1)
+  await expect(page.locator('.message-row.is-checked')).toContainText('Third message')
+})
 test('single-message deletion requires confirmation', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
   await mockApp(page)
