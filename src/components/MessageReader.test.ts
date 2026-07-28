@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emailImageSources, normalizeContentId, safeEmailHref } from './MessageReader'
+import { EMAIL_FRAME_SANDBOX, emailImageSources, normalizeContentId, safeEmailHref } from './MessageReader'
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
@@ -12,6 +12,11 @@ describe('email remote image policy', () => {
 })
 
 describe('email content safety', () => {
+  it('keeps scripts disabled so noscript email bodies remain visible', () => {
+    expect(EMAIL_FRAME_SANDBOX).toBe('allow-same-origin')
+    expect(EMAIL_FRAME_SANDBOX).not.toContain('allow-scripts')
+  })
+
   it('normalizes content IDs used by inline images', () => {
     expect(normalizeContentId('cid:%3Cclaude-logo%40mail%3E')).toBe('claude-logo@mail')
     expect(normalizeContentId('<claude-logo@mail>')).toBe('claude-logo@mail')

@@ -46,6 +46,8 @@ export function emailImageSources(remoteImagesEnabled: boolean): string {
   return remoteImagesEnabled ? 'data: cid: https:' : 'data: cid:'
 }
 
+export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
+
 export function normalizeContentId(value: string): string {
   let normalized = value.trim().replace(/^cid:/i, '')
   try {
@@ -75,8 +77,7 @@ function buildEmailDocument(
   remoteImagesEnabled: boolean,
   inlineImageSources: ReadonlyMap<string, string>,
 ): string {
-  const scriptNonce = crypto.randomUUID().replaceAll('-', '')
-  const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled)}; script-src 'nonce-${scriptNonce}'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
+  const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled)}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
   const document = new DOMParser().parseFromString(html, 'text/html')
   document.querySelectorAll('script, iframe, object, embed, form, base, meta[http-equiv]').forEach((node) => node.remove())
   document.querySelectorAll('*').forEach((node) => {
@@ -103,14 +104,6 @@ function buildEmailDocument(
     link.removeAttribute('target')
     link.removeAttribute('rel')
   })
-  const linkBridge = `<script nonce="${scriptNonce}">
-    document.addEventListener('click', function (event) {
-      var target = event.target instanceof Element ? event.target.closest('a[data-omnimail-href]') : null;
-      if (!target) return;
-      event.preventDefault();
-      window.parent.postMessage({ type: 'omnimail:external-link', href: target.getAttribute('data-omnimail-href') }, '*');
-    });
-  </script>`
   const head = `
     <meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="${policy}">
@@ -123,8 +116,7 @@ function buildEmailDocument(
       table { max-width: 100% !important; }
       pre { white-space: pre-wrap; }
       a { color: #1d1d1f; text-decoration: underline; }
-    </style>
-    ${linkBridge}`
+    </style>`
   return `<!doctype html><html><head>${head}${document.head.innerHTML}</head><body>${document.body.innerHTML}</body></html>`
 }
 
@@ -358,24 +350,21 @@ export function MessageReader({
   const [externalLink, setExternalLink] = useState<string | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const closeExternalLink = useCallback(() => setExternalLink(null), [])
+  const handleEmailLinkClick = useCallback((event: Event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest<HTMLAnchorElement>('a[data-omnimail-href]')
+      : null
+    if (!target) return
+    const href = safeEmailHref(target.dataset.omnimailHref ?? '')
+    if (!href) return
+    event.preventDefault()
+    setExternalLink(href)
+  }, [])
 
   useEffect(() => {
     setReplying(false)
     setExternalLink(null)
   }, [message?.id])
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent<unknown>) => {
-      if (event.source !== frameRef.current?.contentWindow) return
-      const data = event.data
-      if (!data || typeof data !== 'object') return
-      const payload = data as { type?: unknown; href?: unknown }
-      if (payload.type !== 'omnimail:external-link' || typeof payload.href !== 'string') return
-      const href = safeEmailHref(payload.href)
-      if (href) setExternalLink(href)
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
   useEffect(() => {
     const controller = new AbortController()
     const inlineAttachments = message?.attachments.filter((attachment) => (
@@ -490,9 +479,12 @@ export function MessageReader({
           <iframe
             ref={frameRef}
             className="email-frame"
-            sandbox="allow-scripts"
+            sandbox={EMAIL_FRAME_SANDBOX}
             srcDoc={emailDocument}
             title={t('邮件正文：{subject}', { subject: message.subject })}
+            onLoad={(event) => {
+              event.currentTarget.contentDocument?.addEventListener('click', handleEmailLinkClick)
+            }}
           />
         ) : (
           <div className="plain-body">{message.text || t('这封邮件没有可显示的正文。')}</div>
