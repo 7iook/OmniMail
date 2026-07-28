@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 
 const TOOLTIP_ID = 'omnimail-tooltip'
+const TOOLTIP_EXIT_MS = 170
 
 type TooltipTarget = {
   element: HTMLElement
@@ -63,6 +64,7 @@ export function TooltipLayer() {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unmountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const describedTargetRef = useRef<{
     element: HTMLElement
     previous: string | null
@@ -92,10 +94,15 @@ export function TooltipLayer() {
     const close = (delay = 0) => {
       clearTimer(showTimerRef)
       clearTimer(hideTimerRef)
+      clearTimer(unmountTimerRef)
       hideTimerRef.current = setTimeout(() => {
         restoreDescription()
-        setReady(false)
-        setTarget(null)
+        flushSync(() => setReady(false))
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        unmountTimerRef.current = setTimeout(
+          () => setTarget(null),
+          reducedMotion ? 0 : TOOLTIP_EXIT_MS,
+        )
       }, delay)
     }
 
@@ -104,6 +111,7 @@ export function TooltipLayer() {
       if (!content) return
       clearTimer(showTimerRef)
       clearTimer(hideTimerRef)
+      clearTimer(unmountTimerRef)
       showTimerRef.current = setTimeout(() => {
         restoreDescription()
         const previous = element.getAttribute('aria-describedby')
@@ -170,6 +178,7 @@ export function TooltipLayer() {
     return () => {
       clearTimer(showTimerRef)
       clearTimer(hideTimerRef)
+      clearTimer(unmountTimerRef)
       restoreDescription()
       document.removeEventListener('pointerover', onPointerOver)
       document.removeEventListener('pointerout', onPointerOut)
@@ -203,6 +212,8 @@ export function TooltipLayer() {
       id={TOOLTIP_ID}
       className={`omni-tooltip ${ready ? 'is-visible' : ''}`}
       role="tooltip"
+      aria-hidden={!ready}
+      data-state={ready ? 'open' : 'closing'}
       data-side={position.side}
       style={{ left: position.left, top: position.top }}
     >

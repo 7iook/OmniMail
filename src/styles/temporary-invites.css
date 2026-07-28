@@ -1,6 +1,11 @@
-.invite-panel {
-  width: min(100%, 760px);
-  max-height: min(92vh, 900px);
+.invite-workspace {
+  width: var(--admin-content-width);
+  overflow: hidden;
+  margin-inline: auto;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .invite-loading,
@@ -16,7 +21,10 @@
 
 .invite-form {
   display: grid;
+  width: min(100%, 1080px);
   gap: 18px;
+  margin-inline: auto;
+  padding: 22px;
 }
 
 .invite-form-grid {
@@ -297,8 +305,9 @@
 
 .created-invite {
   display: grid;
+  width: min(calc(100% - 44px), 1036px);
   gap: 11px;
-  margin: 0 22px 22px;
+  margin: 0 auto 22px;
   padding: 14px;
   border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
   border-radius: 13px;
@@ -402,7 +411,7 @@
 
 .invite-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.25fr) minmax(150px, 1fr) minmax(160px, 1.2fr) auto auto;
+  grid-template-columns: minmax(150px, 1.25fr) minmax(max-content, 1fr) minmax(160px, 1.2fr) auto auto;
   align-items: center;
   gap: 11px;
   min-height: 62px;
@@ -425,6 +434,10 @@
 .invite-row > span > svg {
   flex: 0 0 auto;
   color: var(--text-tertiary);
+}
+
+.invite-expiry {
+  white-space: nowrap;
 }
 
 .invite-domain > span {
@@ -493,24 +506,7 @@
   background: var(--danger-soft);
 }
 
-@media (max-width: 760px) {
-  .invite-panel {
-    max-height: 94dvh;
-  }
-
-  .invite-form-grid,
-  .invite-mode {
-    grid-template-columns: 1fr;
-  }
-
-  .invite-mode legend {
-    grid-column: auto;
-  }
-
-  .invite-permissions {
-    grid-template-columns: minmax(0, 1fr) 100px;
-  }
-
+@media (max-width: 900px) {
   .invite-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 10px;
@@ -528,6 +524,21 @@
   }
 }
 
+@media (max-width: 760px) {
+  .invite-form-grid,
+  .invite-mode {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-mode legend {
+    grid-column: auto;
+  }
+
+  .invite-permissions {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+}
+
 @media (max-width: 480px) {
   .invite-permissions {
     grid-template-columns: 1fr;
@@ -538,7 +549,7 @@
   }
 
   .created-invite {
-    margin-inline: 16px;
+    width: calc(100% - 32px);
   }
 
   .created-invite label {

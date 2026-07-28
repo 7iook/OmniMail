@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Clock3,
   HardDrive,
-  Link2,
   MailPlus,
   Search,
   Send,
@@ -28,7 +27,6 @@ import {
 import { getLocale, t } from '../lib/i18n'
 import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
-import { TemporaryInvitePanel } from './TemporaryInvitePanel'
 
 const initialCreate: CreateManagedUser = {
   email: '',
@@ -268,10 +266,8 @@ function PolicyFields({
 
 export function UserManagement({
   currentUser,
-  registrationProtectionReady,
 }: {
   currentUser: User
-  registrationProtectionReady: boolean
 }) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [totals, setTotals] = useState<AdminUserTotals>({ total: 0, active: 0, disabled: 0 })
@@ -286,7 +282,6 @@ export function UserManagement({
   const [policy, setPolicy] = useState<ManagedUserPolicy | null>(null)
   const [createDraft, setCreateDraft] = useState<CreateManagedUser>(initialCreate)
   const [creating, setCreating] = useState(false)
-  const [inviteOpen, setInviteOpen] = useState(false)
 
   async function loadUsers(cursor?: string) {
     if (cursor) setLoadingMore(true)
@@ -415,10 +410,6 @@ export function UserManagement({
         description={t('控制登录状态、角色、邮箱额度和可使用的邮件能力。')}
         className="user-management__header"
         actions={<div className="user-header-actions">
-          <button className="button button--secondary user-invite-button" type="button" onClick={() => setInviteOpen(true)}>
-            <Link2 size={16} />
-            {t('临时邀请')}
-          </button>
           <button className="button button--primary user-add-button" type="button" onClick={openCreate}>
             <UserPlus size={16} />
             {t('新增用户')}
@@ -566,13 +557,6 @@ export function UserManagement({
             ) : null}
           </section>
         </div>
-      )}
-
-      {inviteOpen && (
-        <TemporaryInvitePanel
-          registrationProtectionReady={registrationProtectionReady}
-          onClose={() => setInviteOpen(false)}
-        />
       )}
 
       {notice && (

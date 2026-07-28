@@ -96,7 +96,13 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/domains') return json(route, { domains: [
       { name: 'example.com', isActive: true, mailboxCount: 1, createdAt: 1, updatedAt: 1 },
     ] })
-    if (path === '/api/messages/message-1') return json(route, {
+    if (path === '/api/messages/message-1' && request.method() === 'PATCH') {
+      const input = request.postDataJSON() as { folder?: string }
+      if (input.folder === 'trash') state.messageVisible = false
+      state.version += 1
+      return json(route, { ok: true })
+    }
+    if (path === '/api/messages/message-1' && request.method() === 'GET') return json(route, {
       message: {
         ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
         cc: [], text: 'Visit https://example.com',
@@ -114,7 +120,7 @@ async function mockApp(page: Page, state = mockState()) {
     })
     if (path === '/api/messages/bulk' && request.method() === 'PATCH') {
       const input = request.postDataJSON() as { ids: string[]; action: string }
-      if (input.action === 'trash') state.messageVisible = false
+      if (input.action === 'trash' || input.action === 'delete') state.messageVisible = false
       state.version += 1
       return json(route, { ok: true, updatedCount: input.ids.length })
     }
@@ -165,6 +171,29 @@ async function mockApp(page: Page, state = mockState()) {
       state.failed = false
       return json(route, { ok: true })
     }
+    if (path === '/api/admin/invites' && request.method() === 'GET') {
+      return json(route, {
+        invites: [{
+          id: 'invite-1',
+          domain: 'example.com',
+          expiresAt: Math.floor(Date.now() / 1000) + 86400,
+          multiUse: false,
+          useCount: 0,
+          addressMode: 'self_selected',
+          assignedAddress: null,
+          accountLifetimeHours: 24,
+          mailboxLimit: 1,
+          canCreateMailboxes: false,
+          canReply: false,
+          createdAt: Math.floor(Date.now() / 1000),
+          state: 'active',
+        }],
+        page: { hasMore: false, nextCursor: null, limit: 30 },
+      })
+    }
+    if (path === '/api/admin/invites/invite-1/revoke' && request.method() === 'PATCH') {
+      return json(route, { ok: true })
+    }
     return json(route, { error: `Unhandled test route: ${request.method()} ${path}` }, 500)
   })
   return state
@@ -196,14 +225,54 @@ test('email links open the safety dialog instead of navigating the iframe', asyn
 test('users can apply a bulk action to selected messages', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
+  await expect(page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' })).toHaveCount(0)
+  await page.getByRole('button', { name: '批量操作' }).click()
   await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
   await page.getByRole('button', { name: '移入垃圾箱' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toContainText('您可以在自动清理前恢复')
+  await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused()
+  await dialog.getByRole('button', { name: '取消' }).click()
+  await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
+  await page.getByRole('button', { name: '移入垃圾箱' }).click()
+  await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
   await expect(page.getByText('这里还是空的')).toBeVisible()
+})
+
+test('single-message deletion requires confirmation', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 })
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByText('Welcome to OmniMail').click()
+  await page.getByRole('button', { name: '移入垃圾箱' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog.getByRole('heading')).toHaveText('将这封邮件移入垃圾箱？')
+  expect(await page.evaluate(() => (
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  ))).toBe(true)
+  await dialog.getByRole('button', { name: '取消' }).click()
+  await expect(page.getByRole('heading', { name: 'Welcome to OmniMail' })).toBeVisible()
+  await page.getByRole('button', { name: '移入垃圾箱' }).click()
+  await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
+  await expect(page.getByText('这里还是空的')).toBeVisible()
+})
+
+test('permanent bulk deletion explains that it cannot be undone', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '垃圾箱' }).click()
+  await page.getByRole('button', { name: '批量操作' }).click()
+  await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
+  await page.getByRole('button', { name: '永久删除所选邮件' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toContainText('此操作无法撤销')
+  await expect(dialog.getByRole('button', { name: '永久删除' })).toBeVisible()
 })
 
 test('bulk controls remain usable at common responsive widths', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
+  await page.getByRole('button', { name: '批量操作' }).click()
   await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
@@ -237,6 +306,40 @@ test('long subjects wrap to two stable lines without horizontal overflow', async
   await expect(page.locator('.message-row__main')).toHaveAttribute('data-tooltip', subject)
 })
 
+test('tooltips finish their exit animation before unmounting', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '刷新邮件' }).hover()
+  const tooltip = page.locator('.omni-tooltip')
+  await expect(tooltip).toHaveAttribute('data-state', 'open')
+  await page.evaluate(() => {
+    const events: string[] = []
+    ;(window as typeof window & { __tooltipExitEvents?: string[] }).__tooltipExitEvents = events
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type === 'attributes' && record.target instanceof HTMLElement) {
+          events.push(record.target.dataset.state || '')
+        }
+        if (record.type === 'childList' && [...record.removedNodes].some((node) => (
+          node instanceof Element && node.matches('.omni-tooltip')
+        ))) {
+          events.push('removed')
+        }
+      }
+    }).observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-state'],
+      childList: true,
+      subtree: true,
+    })
+  })
+  await page.locator('.search-field').hover()
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __tooltipExitEvents?: string[] }).__tooltipExitEvents
+  ))).toEqual(['closing', 'removed'])
+})
+
 test('related messages are available as a conversation thread', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -268,4 +371,23 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await expect(page.getByText('Broken MIME')).toBeVisible()
   await page.getByRole('button', { name: '重新处理' }).click()
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()
+})
+
+test('invitation lifecycle has a dedicated responsive admin page', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '邀请' }).click()
+  await expect(page.getByRole('heading', { name: '邀请管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '最近邀请' })).toBeVisible()
+  const expiry = page.locator('.invite-expiry')
+  await expect(expiry).toHaveCSS('white-space', 'nowrap')
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.getByText('已撤销')).toBeVisible()
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    ))).toBe(true)
+  }
 })

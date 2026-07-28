@@ -1,0 +1,313 @@
+import type { PlatformUsage } from './platformUsage'
+
+export type Folder = 'inbox' | 'starred' | 'sent' | 'trash'
+
+export interface AppConfig {
+  appName: string
+  setupComplete: boolean
+  replyEnabled: boolean
+  registrationEnabled: boolean
+  registrationDomainPolicy: RegistrationDomainPolicy
+  registrationProtectionReady: boolean
+  turnstileSiteKey: string
+  mailRefreshInterval: MailRefreshInterval
+  remoteImagesEnabled: boolean
+  superAdminEmail: string
+  setupRequirements: SetupRequirements
+}
+
+export interface SetupRequirements {
+  databaseReady: boolean
+  storageReady: boolean
+  queueReady: boolean
+  superAdminReady: boolean
+  setupTokenReady: boolean
+}
+
+export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
+
+export interface DeploymentCheckItem {
+  id: string
+  group: 'core' | 'security' | 'mail'
+  label: string
+  state: DeploymentCheckState
+  required: boolean
+  detail: string
+  action: string
+}
+
+export interface DeploymentCheck {
+  generatedAt: number
+  ready: boolean
+  checks: DeploymentCheckItem[]
+}
+
+export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'
+
+export interface RegistrationDomainPolicy {
+  mode: RegistrationDomainPolicyMode
+  domains: string[]
+}
+
+export type MailRefreshInterval = 0 | 5 | 10 | 30 | 60 | 120
+
+export type UserRole = 'super_admin' | 'admin' | 'user' | 'temporary'
+
+export interface User {
+  id: string
+  email: string
+  displayName: string
+  role: UserRole
+  mailboxLimit: number
+  storageQuotaBytes: number
+  storageUsedBytes: number
+  canCreateMailboxes: boolean
+  canReply: boolean
+  temporaryExpiresAt: number | null
+}
+
+export type AccountStatus = 'active' | 'disabled'
+
+export interface AdminUser extends User {
+  status: AccountStatus
+  mailboxCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ManagedUserPolicy {
+  role: Exclude<UserRole, 'super_admin'>
+  status: AccountStatus
+  mailboxLimit: number
+  storageQuotaMiB: number
+  canCreateMailboxes: boolean
+  canReply: boolean
+}
+
+export interface CreateManagedUser extends ManagedUserPolicy {
+  email: string
+  displayName: string
+  password: string
+}
+
+export interface StoragePolicy {
+  backupEnabled: boolean
+  backupReady: boolean
+  backupMissing: string[]
+  backupRetention: {
+    dailyDays: 30
+    weeklyDays: 84
+    monthlyDays: 365
+    mailDays: 90
+  }
+  trashRetentionDays: number
+  temporaryDataRetentionDays: number
+  auditRetentionDays: number
+  failedMessageRetentionDays: number
+  defaultUserQuotaMiB: number
+  defaultTemporaryQuotaMiB: number
+  lastBackup: {
+    id: string
+    trigger: 'scheduled' | 'manual' | 'enable'
+    status: 'running' | 'succeeded' | 'failed'
+    objectKey: string | null
+    size: number
+    error: string | null
+    startedAt: number
+    completedAt: number | null
+  } | null
+}
+
+export interface MailCounts {
+  unread: number
+  starred: number
+  sent: number
+  trash: number
+}
+
+export interface PageInfo {
+  hasMore: boolean
+  nextCursor: string | null
+  limit: number
+}
+
+export interface AdminUserTotals {
+  total: number
+  active: number
+  disabled: number
+}
+
+export type AuditDays = 1 | 7 | 30 | 90
+export type AuditCategory =
+  | 'all'
+  | 'auth'
+  | 'account'
+  | 'user'
+  | 'mailbox'
+  | 'domain'
+  | 'invitation'
+  | 'message'
+  | 'system'
+
+export interface AuditLog {
+  id: number
+  actor: {
+    id: string
+    email: string | null
+    displayName: string | null
+    role: UserRole | null
+  } | null
+  action: string
+  targetId: string | null
+  target: {
+    id: string | null
+    email: string | null
+    displayName: string | null
+  } | null
+  ip: string
+  detail: Record<string, unknown>
+  createdAt: number
+}
+
+export interface AuditSummary {
+  total: number
+  loginSuccess: number
+  loginFailed: number
+}
+
+export interface MailStatistics {
+  days: 7 | 30 | 90
+  generatedAt: number
+  summary: {
+    totalReceived: number
+    periodReceived: number
+    todayReceived: number
+    uniqueSenders: number
+  }
+  daily: Array<{ day: number; count: number }>
+  sourceDomains: Array<{ domain: string; count: number }>
+  topSenders: Array<{ address: string; name: string | null; count: number }>
+  platform: PlatformUsage
+  storage: {
+    messageCount: number
+    usedBytes: number
+    attachmentCount: number
+    attachmentBytes: number
+    trashCount: number
+    trashBytes: number
+    failedCount: number
+    failedBytes: number
+    userCount: number
+    quotaBytes: number; quotaUsedBytes: number
+    unlimitedUsers: number
+    byUser: Array<{
+      id: string; email: string; displayName: string
+      role: UserRole
+      mailboxCount: number; messageCount: number
+      usedBytes: number; quotaBytes: number
+    }>
+    byMailbox: Array<{
+      address: string; userEmail: string
+      messageCount: number; usedBytes: number
+    }>
+  }
+}
+
+export type MailCleanupFilter = {
+  scope: 'all' | 'user' | 'mailbox'
+  scopeValue: string
+  category: 'trash' | 'failed' | 'incoming' | 'sent' | 'all'
+  olderThanDays: number
+}
+
+export type MailCleanupPreview = {
+  messageCount: number; bytes: number; attachmentCount: number; cutoff: number
+}
+
+export interface MailboxAddress {
+  address: string
+  domain: string
+  isPrimary: boolean
+  isActive: boolean
+}
+
+export interface ManagedDomain {
+  name: string
+  isActive: boolean
+  mailboxCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type InviteState = 'active' | 'expired' | 'used' | 'revoked' | 'domain_disabled'
+
+export interface TemporaryInvite {
+  id: string
+  domain: string
+  expiresAt: number
+  multiUse: boolean
+  useCount: number
+  addressMode: 'assigned' | 'self_selected'
+  assignedAddress: string | null
+  accountLifetimeHours: number
+  mailboxLimit: number
+  canCreateMailboxes: boolean
+  canReply: boolean
+  createdAt: number
+  state: InviteState
+}
+
+export interface CreateTemporaryInvite {
+  domain: string
+  expiresInHours: number
+  accountLifetimeHours: number
+  multiUse: boolean
+  addressMode: 'assigned' | 'self_selected'
+  assignedLocalPart: string
+  mailboxLimit: number
+  canCreateMailboxes: boolean
+  canReply: boolean
+}
+
+export type MailboxScope =
+  | { type: 'all' }
+  | { type: 'domain'; value: string }
+  | { type: 'mailbox'; value: string }
+
+export interface MessageSummary {
+  id: string
+  mailboxAddress: string
+  direction: 'incoming' | 'outgoing'
+  status: 'processing' | 'ready' | 'failed' | 'sent'
+  folder: 'inbox' | 'sent' | 'trash'
+  senderName: string
+  senderAddress: string
+  recipients: string[]
+  subject: string
+  preview: string
+  date: number
+  attachmentCount: number
+  isRead: boolean
+  isStarred: boolean
+  processingError: string | null
+  purgeAfter: number | null
+}
+
+export interface Attachment {
+  id: string
+  filename: string
+  contentType: string
+  size: number
+  contentId: string | null
+  disposition: string
+}
+
+export interface MessageDetail extends MessageSummary {
+  messageId: string | null
+  inReplyTo: string | null
+  references: string | null
+  cc: string[]
+  text: string
+  html: string
+  attachments: Attachment[]
+}

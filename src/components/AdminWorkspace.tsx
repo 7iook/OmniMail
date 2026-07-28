@@ -15,6 +15,7 @@ import { AccountSettings } from './AccountSettings'
 import { AdminPageHeader } from './AdminPageHeader'
 import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
+import { InvitationManagement } from './InvitationManagement'
 import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
 import { StoragePolicySettings } from './StoragePolicySettings'
@@ -146,9 +147,11 @@ export function AdminWorkspace({
   }
 
   if (view === 'users') {
+    return <UserManagement currentUser={user} />
+  }
+  if (view === 'invites') {
     return (
-      <UserManagement
-        currentUser={user}
+      <InvitationManagement
         registrationProtectionReady={config.registrationProtectionReady}
       />
     )

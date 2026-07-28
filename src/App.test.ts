@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldQuietRefreshFolder } from './App'
+import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
 
 describe('folder selection', () => {
   it('quietly refreshes when the active folder is selected again', () => {

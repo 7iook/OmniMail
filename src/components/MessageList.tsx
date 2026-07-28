@@ -3,6 +3,7 @@ import {
   AtSign,
   CheckCheck,
   Inbox,
+  ListChecks,
   LoaderCircle,
   Mail,
   MailOpen,
@@ -11,8 +12,9 @@ import {
   Star,
   StarOff,
   Trash2,
+  X,
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Folder, MessageSummary, PageInfo } from '../lib/api'
 import type { BulkMessageAction } from '../lib/messageActions'
 import { t } from '../lib/i18n'
@@ -33,7 +35,16 @@ function SelectionCheckbox({
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = indeterminate
   }, [indeterminate])
-  return <input ref={ref} type="checkbox" checked={checked} aria-label={label} onChange={onChange} />
+  return (
+    <input
+      ref={ref}
+      className="selection-checkbox"
+      type="checkbox"
+      checked={checked}
+      aria-label={label}
+      onChange={onChange}
+    />
+  )
 }
 
 function BulkToolbar({
@@ -43,6 +54,7 @@ function BulkToolbar({
   loading,
   onSelectAll,
   onAction,
+  onCancel,
 }: {
   folder: Folder
   messages: MessageSummary[]
@@ -50,6 +62,7 @@ function BulkToolbar({
   loading: boolean
   onSelectAll: () => void
   onAction: (action: BulkMessageAction) => void
+  onCancel: () => void
 }) {
   const selectable = messages.slice(0, 50)
   const allSelected = selectable.length > 0
@@ -79,16 +92,20 @@ function BulkToolbar({
         />
         <span>{someSelected
           ? t('已选择 {count} 封', { count: selectedIds.size })
-          : t('批量选择')}</span>
+          : t('全选')}</span>
       </label>
-      {someSelected && <div>
-        {actions.map(([action, label, Icon]) => (
+      <div>
+        {someSelected && actions.map(([action, label, Icon]) => (
           <button key={action} type="button" disabled={loading}
             aria-label={label} data-tooltip={label} onClick={() => onAction(action)}>
             {loading ? <LoaderCircle className="spin" size={15} /> : <Icon size={15} />}
           </button>
         ))}
-      </div>}
+        <button type="button" disabled={loading} aria-label={t('退出批量操作')}
+          data-tooltip={t('退出批量操作')} onClick={onCancel}>
+          <X size={15} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -126,6 +143,15 @@ export function MessageList({
   onStar: (message: MessageSummary) => void
   onLoadMore: () => void
 }) {
+  const [bulkMode, setBulkMode] = useState(false)
+
+  function closeBulkMode() {
+    messages
+      .filter((message) => selectedIds.has(message.id))
+      .forEach(onToggleSelection)
+    setBulkMode(false)
+  }
+
   if (loading) {
     return <div className="list-state" role="status">
       <LoaderCircle className="spin" size={21} /><span>{t('正在读取邮件')}</span>
@@ -138,20 +164,32 @@ export function MessageList({
     </div>
   }
 
-  return <div className="message-list" role="listbox" aria-label={t('邮件列表')}>
-    <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
-      loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction} />
+  return <div className={`message-list${bulkMode ? ' is-bulk-mode' : ''}`} role="listbox" aria-label={t('邮件列表')}>
+    {bulkMode ? (
+      <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
+        loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction}
+        onCancel={closeBulkMode} />
+    ) : (
+      <div className="bulk-toolbar bulk-toolbar--idle">
+        <button className="bulk-mode-trigger" type="button" onClick={() => setBulkMode(true)}>
+          <ListChecks size={15} />{t('批量操作')}
+        </button>
+      </div>
+    )}
     {messages.map((message) => (
       <article
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
         key={message.id} role="option" aria-selected={selectedId === message.id}
       >
-        <span className="message-row__check">
-          <SelectionCheckbox checked={selectedIds.has(message.id)}
-            label={t('选择邮件：{subject}', { subject: message.subject })}
-            onChange={() => onToggleSelection(message)} />
-        </span>
-        <button className="message-row__main" type="button" onClick={() => onSelect(message)}
+        {bulkMode && (
+          <span className="message-row__check">
+            <SelectionCheckbox checked={selectedIds.has(message.id)}
+              label={t('选择邮件：{subject}', { subject: message.subject })}
+              onChange={() => onToggleSelection(message)} />
+          </span>
+        )}
+        <button className="message-row__main" type="button"
+          onClick={() => bulkMode ? onToggleSelection(message) : onSelect(message)}
           data-tooltip={message.subject.length > 40 ? message.subject : undefined}>
           <span className="message-row__top">
             <strong>{senderLabel(message)}</strong>

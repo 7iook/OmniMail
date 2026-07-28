@@ -12,6 +12,9 @@ export const enInvites: Record<string, string> = {
   '确认撤销 {target} 的邀请链接？已注册的账号不会删除。':
     'Revoke the invitation for {target}? Registered accounts will not be deleted.',
   '临时用户邀请': 'Temporary user invitation',
+  '邀请管理': 'Invitation management',
+  '创建临时访问链接，并跟踪使用、过期与撤销状态。':
+    'Create temporary access links and track their use, expiry, and revocation.',
   '选择由管理员固定邮箱，或让访问者在指定域名下自选邮箱。':
     'Assign a fixed mailbox or let visitors choose an address under a specified domain.',
   '正在读取邀请设置…': 'Loading invitation settings…',

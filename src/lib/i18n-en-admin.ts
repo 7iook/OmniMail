@@ -1,4 +1,5 @@
 export const enAdmin: Record<string, string> = {
+  '正在打开管理页面…': 'Opening administration…',
   '5 秒': '5 sec',
   '10 秒': '10 sec',
   '30 秒': '30 sec',

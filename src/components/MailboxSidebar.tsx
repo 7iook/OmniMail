@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Inbox,
+  Link2,
   LogOut,
   ScrollText,
   Send,
@@ -16,7 +17,7 @@ import { isAdminRole, roleLabel } from '../lib/roles'
 import { Brand, ThemeToggle } from './AuthPages'
 import { LanguageQuickToggle } from './LanguageToggle'
 
-export type AdminView = 'statistics' | 'users' | 'logs' | 'settings' | 'account'
+export type AdminView = 'statistics' | 'users' | 'invites' | 'logs' | 'settings' | 'account'
 
 const folders: Array<{
   id: Folder
@@ -37,6 +38,7 @@ const adminItems: Array<{
 }> = [
   { id: 'statistics', label: '统计', icon: BarChart3 },
   { id: 'users', label: '用户', icon: Users },
+  { id: 'invites', label: '邀请', icon: Link2 },
   { id: 'logs', label: '操作日志', icon: ScrollText },
   { id: 'settings', label: '系统设置', icon: Settings2 },
 ]

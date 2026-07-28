@@ -12,7 +12,6 @@ import {
   Send,
   ShieldCheck,
   UserRoundPlus,
-  X,
 } from 'lucide-react'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -23,6 +22,7 @@ import {
   type TemporaryInvite,
 } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
+import { AdminPageHeader } from './AdminPageHeader'
 
 const initialDraft: CreateTemporaryInvite = {
   domain: '',
@@ -134,12 +134,10 @@ function InviteSelect({
   )
 }
 
-export function TemporaryInvitePanel({
+export function InvitationManagement({
   registrationProtectionReady,
-  onClose,
 }: {
   registrationProtectionReady: boolean
-  onClose: () => void
 }) {
   const [domains, setDomains] = useState<ManagedDomain[]>([])
   const [invites, setInvites] = useState<TemporaryInvite[]>([])
@@ -238,21 +236,14 @@ export function TemporaryInvitePanel({
   }
 
   return (
-    <div className="user-panel-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
-    }}>
-      <section className="user-panel invite-panel" role="dialog" aria-modal="true" aria-labelledby="invite-panel-title">
-        <header>
-          <div>
-            <p className="eyebrow">TEMPORARY ACCESS</p>
-            <h2 id="invite-panel-title">{t('临时用户邀请')}</h2>
-            <p>{t('选择由管理员固定邮箱，或让访问者在指定域名下自选邮箱。')}</p>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label={t('关闭')}>
-            <X size={17} />
-          </button>
-        </header>
-
+    <main className="admin-workspace invitation-management">
+      <AdminPageHeader
+        icon={UserRoundPlus}
+        eyebrow="ADMIN · INVITATIONS"
+        title={t('邀请管理')}
+        description={t('创建临时访问链接，并跟踪使用、过期与撤销状态。')}
+      />
+      <section className="invite-workspace" aria-label={t('邀请管理')}>
         {loading ? (
           <div className="invite-loading"><LoaderCircle className="spin" size={18} />{t('正在读取邀请设置…')}</div>
         ) : (
@@ -474,7 +465,7 @@ export function TemporaryInvitePanel({
                   {invites.map((invite) => (
                     <article className="invite-row" key={invite.id}>
                       <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
-                      <span data-tooltip={t('账号注册后可用 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}><Clock3 size={15} />{formatDate(invite.expiresAt)} · {t('账号 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</span>
+                      <span className="invite-expiry" data-tooltip={t('账号注册后可用 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}><Clock3 size={15} />{formatDate(invite.expiresAt)} · {t('账号 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</span>
                       <span><ShieldCheck size={15} />{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</span>
                       <span className={`invite-state invite-state--${invite.state}`}>{t(stateLabels[invite.state])}</span>
                       {invite.state === 'active' && (
@@ -499,6 +490,6 @@ export function TemporaryInvitePanel({
           </>
         )}
       </section>
-    </div>
+    </main>
   )
 }

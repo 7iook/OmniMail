@@ -148,8 +148,8 @@
 
   .admin-nav {
     display: grid;
-    flex: 4;
-    grid-template-columns: repeat(4, 1fr);
+    flex: 5;
+    grid-template-columns: repeat(5, 1fr);
     gap: 3px;
     margin: 0;
     padding: 0;

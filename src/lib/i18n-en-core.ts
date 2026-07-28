@@ -109,6 +109,9 @@ export const enCore: Record<string, string> = {
   '选择当前已加载邮件': 'Select currently loaded messages',
   '已选择 {count} 封': '{count} selected',
   '批量选择': 'Bulk select',
+  '批量操作': 'Bulk actions',
+  '退出批量操作': 'Exit bulk actions',
+  '全选': 'Select all',
   '恢复所选邮件': 'Restore selected messages',
   '永久删除所选邮件': 'Permanently delete selected messages',
   '标记为已读': 'Mark as read',
@@ -155,6 +158,22 @@ export const enCore: Record<string, string> = {
   '恢复': 'Restore',
   '永久删除': 'Delete permanently',
   '移入垃圾箱': 'Move to Trash',
+  '永久删除这封邮件？': 'Permanently delete this message?',
+  '永久删除所选的 {count} 封邮件？':
+    'Permanently delete the selected {count} messages?',
+  '将这封邮件移入垃圾箱？': 'Move this message to Trash?',
+  '将所选的 {count} 封邮件移入垃圾箱？':
+    'Move the selected {count} messages to Trash?',
+  '邮件正文、原始邮件和附件都会被永久删除，此操作无法撤销。':
+    'The message body, original email, and attachments will be permanently deleted. This cannot be undone.',
+  '邮件会保留在垃圾箱中，您可以在自动清理前恢复。':
+    'The messages will remain in Trash and can be restored before automatic cleanup.',
+  '删除后无法恢复': 'Deletion cannot be undone',
+  '之后仍可恢复': 'You can restore this later',
+  '请确认这些邮件和附件已经不再需要。':
+    'Confirm that these messages and attachments are no longer needed.',
+  '您可以前往垃圾箱恢复，或稍后永久删除。':
+    'Restore them from Trash or permanently delete them later.',
   '无主题': 'No subject',
   '发送至 {address}': 'Delivered to {address}',
   '邮件会话': 'Message conversation',

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { applySuperAdminRole, createSessionToken, deleteSession, hashPassword, secretsEqual, sessionFromUser, sessionMaxAge, sessionUser, storeSession, validatePassword } from './auth'
-import { attachmentDisposition, clientIp, normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
+import { clientIp, normalizeEmail, validEmail } from './api-helpers'
 import { deleteTemporaryAccount, updateAccount } from './account-api'
 import { previewAdminMailCleanup, runAdminMailCleanup } from './admin-mail-cleanup'
 import { listAuditLogs } from './audit-log-api'
@@ -11,9 +11,8 @@ import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
-import { listMessages, messageSummary } from './message-list-api'
-import { listMessageThread } from './message-thread'
-import { permanentlyDeleteMessage } from './message-storage'
+import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, updateMessage } from './message-detail-api'
+import { listMessages } from './message-list-api'
 import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
@@ -23,13 +22,13 @@ import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
-import { retentionValues, startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
+import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
 import { mailRefreshInterval, remoteImagesEnabled, updateMailRefreshInterval, updateRemoteImagesSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
-import type { AttachmentRow, Env, MessageRow, SessionUser, StoredBody } from './types'
+import type { Env, SessionUser } from './types'
 
 const SESSION_COOKIE = 'omnimail_session'
 const PUBLIC_PATHS = new Set([
@@ -428,149 +427,29 @@ app.patch('/api/messages/bulk', (context) => bulkUpdateMessages(
   context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers),
 ))
 
-async function ownedMessage(env: Env, userId: string, messageId: string): Promise<MessageRow | null> {
-  return env.DB.prepare(
-    `SELECT m.*
-       FROM messages m
-       JOIN mailboxes mb ON mb.address = m.mailbox_address
-      WHERE m.id = ? AND mb.user_id = ?`,
-  ).bind(messageId, userId).first<MessageRow>()
-}
-
-app.get('/api/messages/:id', async (context) => {
-  const user = context.get('user')
-  const message = await ownedMessage(context.env, user.id, context.req.param('id'))
-  if (!message) return context.json({ error: '邮件不存在。' }, 404)
-
-  let body: StoredBody = { text: '', html: '' }
-  if (message.body_key) {
-    const object = await context.env.MAIL_BUCKET.get(message.body_key)
-    if (object) body = await object.json<StoredBody>()
-  }
-  const { results: attachments } = await context.env.DB.prepare(
-    `SELECT id, message_id, filename, content_type, size, r2_key, content_id, disposition
-       FROM attachments WHERE message_id = ? ORDER BY id`,
-  ).bind(message.id).all<AttachmentRow>()
-  const thread = await listMessageThread(context.env, user, message)
-
-  return context.json({
-    message: {
-      ...messageSummary(message),
-      messageId: message.message_id,
-      inReplyTo: message.in_reply_to,
-      references: message.references_header,
-      cc: safeJsonArray(message.cc_json),
-      text: body.text,
-      html: body.html,
-      attachments: attachments.map((attachment) => ({
-        id: attachment.id,
-        filename: attachment.filename,
-        contentType: attachment.content_type,
-        size: attachment.size,
-        contentId: attachment.content_id,
-        disposition: attachment.disposition,
-      })),
-    },
-    thread,
-  })
-})
-
-app.patch('/api/messages/:id', async (context) => {
-  const user = context.get('user')
-  const message = await ownedMessage(context.env, user.id, context.req.param('id'))
-  if (!message) return context.json({ error: '邮件不存在。' }, 404)
-  const body = await context.req.json<{
-    isRead?: boolean
-    isStarred?: boolean
-    folder?: 'inbox' | 'sent' | 'trash'
-  }>().catch(() => ({} as {
-    isRead?: boolean
-    isStarred?: boolean
-    folder?: 'inbox' | 'sent' | 'trash'
-  }))
-  const allowedFolder = body.folder && ['inbox', 'sent', 'trash'].includes(body.folder)
-    ? body.folder
-    : message.folder
-  const now = Math.floor(Date.now() / 1000)
-  const movingToTrash = allowedFolder === 'trash'
-  const trashDays = movingToTrash
-    ? (await retentionValues(context.env.DB)).trashRetentionDays
-    : 0
-  const trashedAt = movingToTrash ? message.trashed_at ?? now : null
-  const purgeAfter = movingToTrash ? trashedAt! + trashDays * 24 * 60 * 60 : null
-
-  await context.env.DB.prepare(
-    `UPDATE messages
-        SET is_read = ?, is_starred = ?, folder = ?,
-            trashed_at = ?, purge_after = ?, updated_at = unixepoch()
-      WHERE id = ?`,
-  ).bind(
-    typeof body.isRead === 'boolean' ? Number(body.isRead) : message.is_read,
-    typeof body.isStarred === 'boolean' ? Number(body.isStarred) : message.is_starred,
-    allowedFolder,
-    trashedAt,
-    purgeAfter,
-    message.id,
-  ).run()
-  return context.json({ ok: true })
-})
-
-app.delete('/api/messages/:id', async (context) => {
-  const user = context.get('user')
-  const message = await ownedMessage(context.env, user.id, context.req.param('id'))
-  if (!message) return context.json({ error: '邮件不存在。' }, 404)
-  if (message.folder !== 'trash') {
-    return context.json({ error: '请先将邮件移入垃圾箱。' }, 409)
-  }
-
-  await permanentlyDeleteMessage(context.env, user.id, message)
-  await writeAudit(context.env, user.id, 'message.delete', message.id, clientIp(context.req.raw.headers))
-  return context.json({ ok: true })
-})
-
-app.get('/api/messages/:messageId/attachments/:attachmentId', async (context) => {
-  const user = context.get('user')
-  const row = await context.env.DB.prepare(
-    `SELECT a.id, a.message_id, a.filename, a.content_type, a.size, a.r2_key, a.content_id, a.disposition
-       FROM attachments a
-       JOIN messages m ON m.id = a.message_id
-       JOIN mailboxes mb ON mb.address = m.mailbox_address
-      WHERE a.id = ? AND a.message_id = ? AND mb.user_id = ?`,
-  ).bind(
-    context.req.param('attachmentId'),
+app.get('/api/messages/:id', (context) => getMessageDetail(
+  context.env, context.get('user'), context.req.param('id'),
+))
+app.patch('/api/messages/:id', (context) => updateMessage(
+  context.env, context.get('user'), context.req.param('id'), context.req.raw,
+))
+app.delete('/api/messages/:id', (context) => deleteMessage(
+  context.env,
+  context.get('user'),
+  context.req.param('id'),
+  clientIp(context.req.raw.headers),
+))
+app.get('/api/messages/:messageId/attachments/:attachmentId', (context) => (
+  getMessageAttachment(
+    context.env,
+    context.get('user'),
     context.req.param('messageId'),
-    user.id,
-  ).first<AttachmentRow>()
-  if (!row) return context.json({ error: '附件不存在。' }, 404)
-
-  const object = await context.env.MAIL_BUCKET.get(row.r2_key)
-  if (!object) return context.json({ error: '附件文件不存在。' }, 404)
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': row.content_type || 'application/octet-stream',
-      'Content-Length': String(row.size),
-      'Content-Disposition': attachmentDisposition(row.filename),
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  })
-})
-
-app.get('/api/messages/:id/raw', async (context) => {
-  const user = context.get('user')
-  const message = await ownedMessage(context.env, user.id, context.req.param('id'))
-  if (!message?.raw_key) return context.json({ error: '原始邮件不存在。' }, 404)
-  const object = await context.env.MAIL_BUCKET.get(message.raw_key)
-  if (!object) return context.json({ error: '原始邮件不存在。' }, 404)
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': 'message/rfc822',
-      'Content-Disposition': attachmentDisposition(`${message.subject || 'message'}.eml`),
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  })
-})
+    context.req.param('attachmentId'),
+  )
+))
+app.get('/api/messages/:id/raw', (context) => getRawMessage(
+  context.env, context.get('user'), context.req.param('id'),
+))
 
 app.post('/api/messages/:id/reply', async (context) => {
   const body = await context.req.json<{

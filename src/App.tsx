@@ -1,22 +1,11 @@
-import {
-  AlertCircle,
-  Check,
-  Search,
-  X,
-} from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useState } from 'react'
-import {
-  ConnectionError,
-  PageLoader,
-  PublicLanding,
-  SetupPage,
-} from './components/AuthPages'
-import { AdminWorkspace } from './components/AdminWorkspace'
+import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useState } from 'react'
+import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
-import { DeploymentWizard } from './components/DeploymentWizard'
 import { type AdminView, folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
+import { MailDeleteDialog } from './components/MailDeleteDialog'
 import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
 import { TemporaryInvitePage } from './components/TemporaryInvitePage'
@@ -40,16 +29,17 @@ import { useAutoRefresh } from './lib/useAutoRefresh'
 import { openingSplashDelay } from './lib/initialSplash'
 import { t, useLocale } from './lib/i18n'
 import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
+import { errorMessage } from './lib/errorMessage'
+import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
+
+const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
+const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
+
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
-export function shouldQuietRefreshFolder(current: Folder, next: Folder, query: string) {
-  return current === next && query.trim() === ''
-}
-
-function errorMessage(error: unknown): string {
-  return t(error instanceof Error ? error.message : '发生了未知错误。')
-}
+type PendingMailDelete = { kind: 'single'; message: MessageDetail }
+  | { kind: 'bulk'; action: 'trash' | 'delete'; ids: string[] }
 
 function Mailbox({
   user,
@@ -86,6 +76,7 @@ function Mailbox({
   const [bulkLoading, setBulkLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(
     () => deploymentGuideUnseen(user),
   )
@@ -266,13 +257,7 @@ function Mailbox({
       : new Set(selectable.map((message) => message.id)))
   }
 
-  async function runBulkAction(action: BulkMessageAction) {
-    const ids = [...selectedMessageIds]
-    if (!ids.length) return
-    if (action === 'delete' && !window.confirm(t(
-      '永久删除所选的 {count} 封邮件及其附件？此操作无法撤销。',
-      { count: ids.length },
-    ))) return
+  async function applyBulkAction(action: BulkMessageAction, ids: string[]) {
     setBulkLoading(true)
     setError('')
     try {
@@ -292,20 +277,43 @@ function Mailbox({
     }
   }
 
-  async function trashSelected() {
-    if (!detail) return
-    if (detail.folder === 'trash') {
-      if (!window.confirm(t('永久删除这封邮件及其附件？此操作无法撤销。'))) return
-      await api.deleteMessage(detail.id)
+  async function runBulkAction(action: BulkMessageAction) {
+    const ids = [...selectedMessageIds]
+    if (!ids.length) return
+    if (action === 'trash' || action === 'delete') {
+      setPendingMailDelete({ kind: 'bulk', action, ids })
+      return
+    }
+    await applyBulkAction(action, ids)
+  }
+
+  async function applySingleDelete(message: MessageDetail) {
+    if (message.folder === 'trash') {
+      await api.deleteMessage(message.id)
       setNotice(t('邮件已永久删除'))
     } else {
-      await api.updateMessage(detail.id, { folder: 'trash' })
+      await api.updateMessage(message.id, { folder: 'trash' })
       setNotice(t('邮件已移入垃圾箱'))
     }
     setSelectedId(null)
     setDetail(null)
     setThread([])
     await loadMessages(true)
+  }
+
+  function trashSelected() {
+    if (detail) setPendingMailDelete({ kind: 'single', message: detail })
+  }
+
+  async function confirmMailDelete() {
+    const pending = pendingMailDelete
+    if (!pending) return
+    setPendingMailDelete(null)
+    if (pending.kind === 'single') {
+      await applySingleDelete(pending.message)
+    } else {
+      await applyBulkAction(pending.action, pending.ids)
+    }
   }
 
   async function restoreSelected() {
@@ -368,19 +376,27 @@ function Mailbox({
 
       {adminView ? (
         <DelayedScrollbar className="admin-scroll-shell" resetKey={adminView}>
-          <AdminWorkspace
-            key={adminView}
-            view={adminView}
-            user={user}
-            config={config}
-            mailboxes={mailboxes}
-            domains={domains}
-            onDomainsChanged={loadDomains}
-            onConfigChange={onConfigChange}
-            onUserChange={onUserChange}
-            onLogout={onLogout}
-            onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
-          />
+          <Suspense fallback={(
+            <main className="admin-workspace">
+              <div className="statistics-loading" role="status">
+                <LoaderCircle className="spin" size={20} />{t('正在打开管理页面…')}
+              </div>
+            </main>
+          )}>
+            <AdminWorkspace
+              key={adminView}
+              view={adminView}
+              user={user}
+              config={config}
+              mailboxes={mailboxes}
+              domains={domains}
+              onDomainsChanged={loadDomains}
+              onConfigChange={onConfigChange}
+              onUserChange={onUserChange}
+              onLogout={onLogout}
+              onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
+            />
+          </Suspense>
         </DelayedScrollbar>
       ) : (
         <>
@@ -476,8 +492,22 @@ function Mailbox({
       </main>
         </>
       )}
+      {pendingMailDelete && (
+        <MailDeleteDialog
+          count={pendingMailDelete.kind === 'single' ? 1 : pendingMailDelete.ids.length}
+          permanent={pendingMailDelete.kind === 'single'
+            ? pendingMailDelete.message.folder === 'trash'
+            : pendingMailDelete.action === 'delete'}
+          onCancel={() => setPendingMailDelete(null)}
+          onConfirm={() => void confirmMailDelete()}
+        />
+      )}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
-      <DeploymentWizard open={deploymentWizardOpen} onClose={closeDeploymentWizard} />
+      {deploymentWizardOpen && (
+        <Suspense fallback={null}>
+          <DeploymentWizard open onClose={closeDeploymentWizard} />
+        </Suspense>
+      )}
     </div>
   )
 }
