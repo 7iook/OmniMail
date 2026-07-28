@@ -188,10 +188,11 @@ export function AccountSettings({
               </div>
               <div className="account-storage-summary">
                 <dt><HardDrive size={15} />{t('存储空间')}</dt>
-                <dd>
-                  {formatBytes(user.storageUsedBytes)} / {user.storageQuotaBytes === 0
+                <dd className="account-storage-usage">
+                  <strong>{formatBytes(user.storageUsedBytes)}</strong>
+                  <span>/ {user.storageQuotaBytes === 0
                     ? t('不限')
-                    : formatBytes(user.storageQuotaBytes)}
+                    : formatBytes(user.storageQuotaBytes)}</span>
                 </dd>
                 {user.storageQuotaBytes > 0 && (
                   <span

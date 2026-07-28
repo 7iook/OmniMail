@@ -56,20 +56,53 @@
 }
 
 .account-summary-list {
-  margin-bottom: 17px;
+  gap: 0;
+  margin: 18px 0 21px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
 }
 
-.account-storage-summary {
-  grid-template-rows: auto auto;
+.account-summary-list > div {
+  min-height: 54px;
+  column-gap: 18px;
+}
+
+.account-summary-list > div:last-child {
+  border-bottom: 0;
+}
+
+.account-summary-list > .account-storage-summary {
+  min-height: 76px;
+  grid-template-rows: auto 6px;
+  row-gap: 10px;
+  padding-block: 9px 12px;
+}
+
+.account-storage-usage {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.account-storage-usage strong {
+  font-size: 13px;
+}
+
+.account-storage-usage span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .account-storage-summary > span {
   grid-column: 1 / -1;
-  height: 5px;
-  margin-bottom: 8px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--surface-muted);
+  background: var(--line-strong);
 }
 
 .account-storage-summary > span > span {
@@ -345,6 +378,25 @@
 }
 
 @media (max-width: 440px) {
+  .account-summary-list {
+    padding-inline: 12px;
+  }
+
+  .account-summary-list > div {
+    min-height: 0;
+    padding-block: 11px;
+  }
+
+  .account-summary-list > .account-storage-summary {
+    grid-template-rows: auto auto 6px;
+    row-gap: 7px;
+    padding-block: 11px 13px;
+  }
+
+  .account-storage-usage {
+    justify-content: flex-start;
+  }
+
   .account-preference {
     align-items: stretch;
     flex-direction: column;

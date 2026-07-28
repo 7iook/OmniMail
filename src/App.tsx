@@ -47,6 +47,10 @@ import { formatMessageDate, senderLabel } from './lib/mailFormatting'
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
+export function shouldQuietRefreshFolder(current: Folder, next: Folder, query: string) {
+  return current === next && query.trim() === ''
+}
+
 function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '发生了未知错误。')
 }
@@ -352,12 +356,17 @@ function Mailbox({
   }
 
   function changeFolder(next: Folder) {
-    setListLoading(true)
+    const shouldQuietRefresh = shouldQuietRefreshFolder(folder, next, query)
     setAdminView(null)
-    setFolder(next)
     setSelectedId(null)
     setDetail(null)
     setQuery('')
+    if (shouldQuietRefresh) {
+      void loadMessages(true)
+      return
+    }
+    setListLoading(true)
+    setFolder(next)
   }
 
   function changeScope(next: MailboxScope) {
