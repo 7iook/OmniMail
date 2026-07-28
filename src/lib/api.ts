@@ -567,7 +567,7 @@ export const api = {
     if (version !== undefined) search.set('version', String(version))
     return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(`/api/messages?${search}`)
   },
-  message: (id: string) => request<{ message: MessageDetail }>(`/api/messages/${id}`),
+  message: (id: string) => request<{ message: MessageDetail; thread: MessageSummary[] }>(`/api/messages/${id}`),
   updateMessage: (
     id: string,
     input: { isRead?: boolean; isStarred?: boolean; folder?: 'inbox' | 'sent' | 'trash' },

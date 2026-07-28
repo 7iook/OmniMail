@@ -187,6 +187,83 @@
   margin: 0 auto 36px;
 }
 
+.message-thread {
+  max-width: 920px;
+  margin: -17px auto 24px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-muted);
+}
+
+.message-thread > header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 3px 8px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.message-thread > div {
+  display: grid;
+  gap: 4px;
+}
+
+.message-thread button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.message-thread button:hover,
+.message-thread button.is-current {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.message-thread button.is-current {
+  color: var(--text);
+}
+
+.message-thread button > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.message-thread button strong,
+.message-thread button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-thread button strong {
+  font-size: 11px;
+}
+
+.message-thread button small,
+.message-thread button time {
+  color: var(--text-tertiary);
+  font-size: 9px;
+}
+
+.message-thread button time {
+  white-space: nowrap;
+}
+
 .message-heading h1 {
   margin-bottom: 27px;
   overflow-wrap: anywhere;

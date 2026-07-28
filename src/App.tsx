@@ -1,12 +1,7 @@
 import {
   AlertCircle,
-  AtSign,
   Check,
-  Inbox,
-  LoaderCircle,
-  Paperclip,
   Search,
-  Star,
   X,
 } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useState } from 'react'
@@ -22,6 +17,7 @@ import { DeploymentWizard } from './components/DeploymentWizard'
 import { type AdminView, folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
+import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
 import { TemporaryInvitePage } from './components/TemporaryInvitePage'
 import {
@@ -43,7 +39,7 @@ import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deployment
 import { useAutoRefresh } from './lib/useAutoRefresh'
 import { openingSplashDelay } from './lib/initialSplash'
 import { t, useLocale } from './lib/i18n'
-import { formatMessageDate, senderLabel } from './lib/mailFormatting'
+import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 
@@ -53,98 +49,6 @@ export function shouldQuietRefreshFolder(current: Folder, next: Folder, query: s
 
 function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '发生了未知错误。')
-}
-
-function MessageList({
-  messages,
-  selectedId,
-  loading,
-  showMailbox,
-  page,
-  loadingMore,
-  onSelect,
-  onStar,
-  onLoadMore,
-}: {
-  messages: MessageSummary[]
-  selectedId: string | null
-  loading: boolean
-  showMailbox: boolean
-  page: PageInfo
-  loadingMore: boolean
-  onSelect: (message: MessageSummary) => void
-  onStar: (message: MessageSummary) => void
-  onLoadMore: () => void
-}) {
-  if (loading) {
-    return (
-      <div className="list-state" role="status">
-        <LoaderCircle className="spin" size={21} />
-        <span>{t('正在读取邮件')}</span>
-      </div>
-    )
-  }
-  if (!messages.length) {
-    return (
-      <div className="list-state list-state--empty">
-        <span className="empty-symbol"><Inbox size={24} /></span>
-        <strong>{t('这里还是空的')}</strong>
-        <span>{t('新邮件到达后会出现在这里。')}</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="message-list" role="listbox" aria-label={t('邮件列表')}>
-      {messages.map((message) => (
-        <article
-          className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''}`}
-          key={message.id}
-          role="option"
-          aria-selected={selectedId === message.id}
-        >
-          <button className="message-row__main" type="button" onClick={() => onSelect(message)}>
-            <span className="message-row__top">
-              <strong>{senderLabel(message)}</strong>
-              <time dateTime={new Date(message.date).toISOString()}>{formatMessageDate(message.date)}</time>
-            </span>
-            <span className="message-row__subject">
-              {message.status === 'processing' && <LoaderCircle className="spin" size={13} />}
-              {message.status === 'failed' && <AlertCircle size={13} />}
-              {message.subject}
-            </span>
-            <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
-            {showMailbox && (
-              <span className="mailbox-hint"><AtSign size={12} />{message.mailboxAddress}</span>
-            )}
-            {message.attachmentCount > 0 && (
-              <span className="attachment-hint"><Paperclip size={12} /> {message.attachmentCount}</span>
-            )}
-          </button>
-          <button
-            className={`row-star ${message.isStarred ? 'is-active' : ''}`}
-            type="button"
-            onClick={() => onStar(message)}
-            aria-label={t(message.isStarred ? '取消星标' : '添加星标')}
-            data-tooltip={t(message.isStarred ? '取消星标' : '添加星标')}
-          >
-            <Star size={16} fill={message.isStarred ? 'currentColor' : 'none'} />
-          </button>
-        </article>
-      ))}
-      {page.hasMore && (
-        <button
-          className="button button--secondary message-load-more"
-          type="button"
-          disabled={loadingMore}
-          onClick={onLoadMore}
-        >
-          {loadingMore && <LoaderCircle className="spin" size={15} />}
-          {t(loadingMore ? '正在加载…' : '加载更多邮件')}
-        </button>
-      )}
-    </div>
-  )
 }
 
 function Mailbox({
@@ -165,6 +69,7 @@ function Mailbox({
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query.trim())
   const [messages, setMessages] = useState<MessageSummary[]>([])
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set())
   const [messageVersion, setMessageVersion] = useState<number>()
   const [messagePage, setMessagePage] = useState<PageInfo>(emptyPage)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
@@ -173,10 +78,12 @@ function Mailbox({
   const [counts, setCounts] = useState<MailCounts>(emptyCounts)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<MessageDetail | null>(null)
+  const [thread, setThread] = useState<MessageSummary[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(
@@ -237,11 +144,15 @@ function Mailbox({
       if (result.unchanged) return false
       setMessageVersion(result.version)
       setMessages(result.messages)
+      setSelectedMessageIds((current) => new Set(
+        [...current].filter((id) => result.messages.some((message) => message.id === id)),
+      ))
       setMessagePage(result.page)
       setCounts(result.counts)
       if (selectedId && !result.messages.some((message) => message.id === selectedId)) {
         setSelectedId(null)
         setDetail(null)
+        setThread([])
       }
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.status === 401) {
@@ -285,6 +196,7 @@ function Mailbox({
   }
 
   useEffect(() => {
+    setSelectedMessageIds(new Set())
     void loadMessages()
   }, [folder, deferredQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -307,6 +219,7 @@ function Mailbox({
     try {
       const result = await api.message(message.id)
       setDetail(result.message)
+      setThread(result.thread ?? [result.message])
       if (!message.isRead) {
         await api.updateMessage(message.id, { isRead: true })
         setMessages((items) => items.map((item) => (
@@ -320,6 +233,7 @@ function Mailbox({
     } catch (loadError) {
       setError(errorMessage(loadError))
       setDetail(null)
+      setThread([])
     } finally {
       setDetailLoading(false)
     }
@@ -335,6 +249,49 @@ function Mailbox({
     await loadMessages(true)
   }
 
+  function toggleMessageSelection(message: MessageSummary) {
+    setSelectedMessageIds((current) => {
+      const next = new Set(current)
+      if (next.has(message.id)) next.delete(message.id)
+      else if (next.size < 50) next.add(message.id)
+      return next
+    })
+  }
+
+  function selectAllLoadedMessages() {
+    const selectable = messages.slice(0, 50)
+    const allSelected = selectable.every((message) => selectedMessageIds.has(message.id))
+    setSelectedMessageIds(allSelected
+      ? new Set()
+      : new Set(selectable.map((message) => message.id)))
+  }
+
+  async function runBulkAction(action: BulkMessageAction) {
+    const ids = [...selectedMessageIds]
+    if (!ids.length) return
+    if (action === 'delete' && !window.confirm(t(
+      '永久删除所选的 {count} 封邮件及其附件？此操作无法撤销。',
+      { count: ids.length },
+    ))) return
+    setBulkLoading(true)
+    setError('')
+    try {
+      const result = await bulkMessages(ids, action)
+      setSelectedMessageIds(new Set())
+      if (selectedId && ids.includes(selectedId)) {
+        setSelectedId(null)
+        setDetail(null)
+        setThread([])
+      }
+      setNotice(t('已更新 {count} 封邮件', { count: result.updatedCount }))
+      await loadMessages(true)
+    } catch (bulkError) {
+      setError(errorMessage(bulkError))
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   async function trashSelected() {
     if (!detail) return
     if (detail.folder === 'trash') {
@@ -347,6 +304,7 @@ function Mailbox({
     }
     setSelectedId(null)
     setDetail(null)
+    setThread([])
     await loadMessages(true)
   }
 
@@ -357,6 +315,7 @@ function Mailbox({
     })
     setSelectedId(null)
     setDetail(null)
+    setThread([])
     setNotice(t('邮件已恢复'))
     await loadMessages(true)
   }
@@ -366,6 +325,7 @@ function Mailbox({
     setAdminView(null)
     setSelectedId(null)
     setDetail(null)
+    setThread([])
     setQuery('')
     if (shouldQuietRefresh) {
       void loadMessages(true)
@@ -380,6 +340,7 @@ function Mailbox({
     setScope(next)
     setSelectedId(null)
     setDetail(null)
+    setThread([])
     setQuery('')
   }
 
@@ -389,6 +350,7 @@ function Mailbox({
     setScope({ type: 'all' })
     setSelectedId(null)
     setDetail(null)
+    setThread([])
     setQuery('')
   }
 
@@ -472,13 +434,19 @@ function Mailbox({
         </label>
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
         <MessageList
+          folder={folder}
           messages={messages}
           selectedId={selectedId}
+          selectedIds={selectedMessageIds}
           loading={listLoading}
+          bulkLoading={bulkLoading}
           showMailbox={scope.type !== 'mailbox'}
           page={messagePage}
           loadingMore={loadingMore}
           onSelect={(message) => void selectMessage(message)}
+          onToggleSelection={toggleMessageSelection}
+          onSelectAll={selectAllLoadedMessages}
+          onBulkAction={(action) => void runBulkAction(action)}
           onStar={(message) => void toggleStar(message)}
           onLoadMore={() => void loadMoreMessages()}
         />
@@ -488,11 +456,13 @@ function Mailbox({
         <MessageReader
           message={detail}
           loading={detailLoading}
+          thread={thread}
           replyEnabled={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
           remoteImagesEnabled={config.remoteImagesEnabled}
           onBack={() => {
             setSelectedId(null)
             setDetail(null)
+            setThread([])
           }}
           onStar={() => detail && void toggleStar(detail)}
           onTrash={() => void trashSelected()}
@@ -501,6 +471,7 @@ function Mailbox({
             setNotice(t('回复已发送'))
             void loadMessages(true)
           }}
+          onSelectThread={(message) => void selectMessage(message)}
         />
       </main>
         </>

@@ -32,12 +32,46 @@ const message = {
   purgeAfter: null,
 }
 
+const reply = {
+  ...message,
+  id: 'reply-1',
+  direction: 'outgoing',
+  status: 'sent',
+  folder: 'sent',
+  senderName: 'Owner',
+  senderAddress: 'inbox@example.com',
+  recipients: ['sender@example.net'],
+  preview: 'Thanks from OmniMail.',
+  date: message.date + 1000,
+}
+
+type MockState = {
+  messageRequests: number
+  conditionalRequests: number
+  failed: boolean
+  version: number
+  messageVisible: boolean
+  refreshInterval: number
+  subject: string
+}
+
+function mockState(refreshInterval = 30, subject = message.subject): MockState {
+  return {
+    messageRequests: 0,
+    conditionalRequests: 0,
+    failed: true,
+    version: 1,
+    messageVisible: true,
+    refreshInterval,
+    subject,
+  }
+}
+
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function mockApp(page: Page) {
-  const state = { messageRequests: 0, failed: true }
+async function mockApp(page: Page, state = mockState()) {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
@@ -50,7 +84,7 @@ async function mockApp(page: Page) {
     if (path === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,
       registrationEnabled: false, registrationDomainPolicy: { mode: 'blocklist', domains: [] },
-      registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: 30,
+      registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: state.refreshInterval,
       remoteImagesEnabled: false, superAdminEmail: user.email,
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
@@ -62,18 +96,38 @@ async function mockApp(page: Page) {
     if (path === '/api/domains') return json(route, { domains: [
       { name: 'example.com', isActive: true, mailboxCount: 1, createdAt: 1, updatedAt: 1 },
     ] })
-    if (path === '/api/messages/message-1') return json(route, { message: {
-      ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
-      cc: [], text: 'Visit https://example.com',
-      html: '<p><a href="https://example.com/account">Visit account</a></p>', attachments: [],
-    } })
+    if (path === '/api/messages/message-1') return json(route, {
+      message: {
+        ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
+        cc: [], text: 'Visit https://example.com',
+        html: '<p><a href="https://example.com/account">Visit account</a></p>', attachments: [],
+      },
+      thread: [message, reply],
+    })
+    if (path === '/api/messages/reply-1') return json(route, {
+      message: {
+        ...reply, messageId: null, inReplyTo: '<message-1@example.net>',
+        references: '<message-1@example.net>', cc: [], text: 'Thanks from OmniMail.',
+        html: '', attachments: [],
+      },
+      thread: [message, reply],
+    })
+    if (path === '/api/messages/bulk' && request.method() === 'PATCH') {
+      const input = request.postDataJSON() as { ids: string[]; action: string }
+      if (input.action === 'trash') state.messageVisible = false
+      state.version += 1
+      return json(route, { ok: true, updatedCount: input.ids.length })
+    }
     if (path === '/api/messages') {
       state.messageRequests += 1
-      if (url.searchParams.get('version') === '1') {
-        return json(route, { unchanged: true, version: 1 })
+      const requestedVersion = url.searchParams.get('version')
+      if (requestedVersion !== null) state.conditionalRequests += 1
+      if (requestedVersion === String(state.version)) {
+        return json(route, { unchanged: true, version: state.version })
       }
       return json(route, {
-        unchanged: false, version: 1, messages: [message],
+        unchanged: false, version: state.version,
+        messages: state.messageVisible ? [{ ...message, subject: state.subject }] : [],
         counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
@@ -137,6 +191,73 @@ test('email links open the safety dialog instead of navigating the iframe', asyn
   await expect(dialog).toContainText('example.com')
   await expect(dialog.getByRole('button', { name: '复制链接' })).toBeVisible()
   await expect(page).toHaveURL('http://127.0.0.1:4173/')
+})
+
+test('users can apply a bulk action to selected messages', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
+  await page.getByRole('button', { name: '移入垃圾箱' }).click()
+  await expect(page.getByText('这里还是空的')).toBeVisible()
+})
+
+test('bulk controls remain usable at common responsive widths', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible()
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    ))).toBe(true)
+  }
+})
+
+test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {
+  const subject = 'Secure link to log in to Claude.ai | 2026-07-28 09:52:24'
+  await page.setViewportSize({ width: 375, height: 900 })
+  await mockApp(page, mockState(30, subject))
+  await page.goto('/')
+  const title = page.locator('.message-row__subject-text')
+  await expect(title).toHaveText(subject)
+  const metrics = await title.evaluate((element) => {
+    const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
+    return {
+      height: element.getBoundingClientRect().height,
+      lineHeight,
+      scrollHeight: element.scrollHeight,
+      pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    }
+  })
+  expect(metrics.height).toBeGreaterThan(metrics.lineHeight * 1.5)
+  expect(metrics.height).toBeLessThanOrEqual(metrics.lineHeight * 2.1)
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.height + 1)
+  expect(metrics.pageOverflow).toBe(false)
+  await expect(page.locator('.message-row__main')).toHaveAttribute('data-tooltip', subject)
+})
+
+test('related messages are available as a conversation thread', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByText('Welcome to OmniMail').click()
+  await expect(page.getByText('会话中 2 封邮件')).toBeVisible()
+  await page.getByRole('button', { name: /发给 sender@example.net/ }).click()
+  await expect(page.locator('.plain-body')).toHaveText('Thanks from OmniMail.')
+})
+
+test('visible tabs share one automatic refresh leader', async ({ page, context }) => {
+  const state = mockState(5)
+  await mockApp(page, state)
+  const secondPage = await context.newPage()
+  await mockApp(secondPage, state)
+  await Promise.all([page.goto('/'), secondPage.goto('/')])
+  await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
+  await expect(secondPage.getByText('Welcome to OmniMail')).toBeVisible()
+  await secondPage.waitForTimeout(800)
+  const before = state.conditionalRequests
+  await secondPage.waitForTimeout(5200)
+  expect(state.conditionalRequests - before).toBe(1)
 })
 
 test('administrators can review usage estimates and retry failed mail', async ({ page }) => {

@@ -19,8 +19,9 @@ import {
 } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { api, type MessageDetail } from '../lib/api'
+import { api, type MessageDetail, type MessageSummary } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
+import { MessageThread } from './MessageThread'
 
 function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '发生了未知错误。')
@@ -358,21 +359,25 @@ export function MessageReader({
   loading,
   replyEnabled,
   remoteImagesEnabled,
+  thread,
   onBack,
   onStar,
   onTrash,
   onRestore,
   onReplySent,
+  onSelectThread,
 }: {
   message: MessageDetail | null
   loading: boolean
   replyEnabled: boolean
   remoteImagesEnabled: boolean
+  thread: MessageSummary[]
   onBack: () => void
   onStar: () => void
   onTrash: () => void
   onRestore: () => void
   onReplySent: () => void
+  onSelectThread: (message: MessageSummary) => void
 }) {
   const [replying, setReplying] = useState(false)
   const [inlineImageSources, setInlineImageSources] = useState<ReadonlyMap<string, string>>(new Map())
@@ -497,6 +502,7 @@ export function MessageReader({
             <time dateTime={new Date(message.date).toISOString()}>{formatFullDate(message.date)}</time>
           </div>
         </header>
+        <MessageThread currentId={message.id} messages={thread} onSelect={onSelectThread} />
 
         {message.folder === 'trash' && message.purgeAfter && (
           <p className="trash-retention-notice">

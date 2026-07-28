@@ -261,6 +261,80 @@
   animation: list-content-enter 220ms ease both;
 }
 
+.bulk-toolbar {
+  position: sticky;
+  z-index: 6;
+  top: 0;
+  display: flex;
+  min-height: 45px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.bulk-toolbar.is-active {
+  background: color-mix(in srgb, var(--surface-muted) 94%, transparent);
+}
+
+.bulk-toolbar > label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.bulk-toolbar input,
+.message-row__check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.bulk-toolbar > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.bulk-toolbar button {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.bulk-toolbar button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.bulk-toolbar button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
 .list-state {
   animation: list-content-enter 220ms ease both;
 }
@@ -292,6 +366,10 @@
   background: var(--surface-muted);
 }
 
+.message-row.is-checked {
+  background: var(--surface-muted);
+}
+
 .message-row.is-selected::before {
   position: absolute;
   top: 18px;
@@ -308,12 +386,21 @@
   width: 100%;
   min-width: 0;
   gap: 4px;
-  padding: 17px 42px 17px 20px;
+  padding: 17px 42px 17px 46px;
   border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
   text-align: left;
+}
+
+.message-row__check {
+  position: absolute;
+  z-index: 3;
+  top: 18px;
+  left: 16px;
+  display: grid;
+  place-items: center;
 }
 
 .message-row__top {
@@ -348,13 +435,21 @@
 .message-row__subject {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: 5px;
-  overflow: hidden;
   font-size: 13px;
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.message-row__subject-text {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .message-row.is-unread .message-row__subject {
@@ -363,6 +458,7 @@
 
 .message-row__subject svg {
   flex: 0 0 auto;
+  margin-top: 2px;
   color: var(--warning);
 }
 

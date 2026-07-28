@@ -10,7 +10,9 @@ import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
+import { bulkUpdateMessages } from './message-bulk-api'
 import { listMessages, messageSummary } from './message-list-api'
+import { listMessageThread } from './message-thread'
 import { permanentlyDeleteMessage } from './message-storage'
 import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
@@ -422,6 +424,9 @@ app.patch('/api/mailboxes/:address', (context) => (
 app.get('/api/messages', (context) => (
   listMessages(context.env, context.get('user'), context.req.raw)
 ))
+app.patch('/api/messages/bulk', (context) => bulkUpdateMessages(
+  context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers),
+))
 
 async function ownedMessage(env: Env, userId: string, messageId: string): Promise<MessageRow | null> {
   return env.DB.prepare(
@@ -446,6 +451,7 @@ app.get('/api/messages/:id', async (context) => {
     `SELECT id, message_id, filename, content_type, size, r2_key, content_id, disposition
        FROM attachments WHERE message_id = ? ORDER BY id`,
   ).bind(message.id).all<AttachmentRow>()
+  const thread = await listMessageThread(context.env, user, message)
 
   return context.json({
     message: {
@@ -465,6 +471,7 @@ app.get('/api/messages/:id', async (context) => {
         disposition: attachment.disposition,
       })),
     },
+    thread,
   })
 })
 

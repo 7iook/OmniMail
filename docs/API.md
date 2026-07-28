@@ -258,6 +258,38 @@ Authorization: Bearer om_at_...
 - `nextCursor` 为 `null` 或 `hasMore` 为 `false` 时已经到达最后一页。
 - 排序使用“时间 + 唯一 ID”，新邮件到达时不会导致已读取页面重复或跳项。
 
+### 条件同步
+
+首次邮件列表响应包含 `version` 和 `unchanged: false`。后续轮询可以传回版本：
+
+```http
+GET /api/messages?folder=inbox&limit=30&version=42
+```
+
+列表未变化时只返回 `{ "unchanged": true, "version": 42 }`，不会再次执行列表和
+计数扫描。浏览器端还会在同源标签页之间协调轮询，同一时刻只保留一个可见页面
+主动刷新。
+
+### 批量邮件操作
+
+```http
+PATCH /api/messages/bulk
+Content-Type: application/json
+
+{
+  "ids": ["message-id-1", "message-id-2"],
+  "action": "read"
+}
+```
+
+`action` 支持 `read`、`unread`、`star`、`unstar`、`trash`、`restore` 和
+`delete`。单次最多 50 封，只会处理当前用户拥有的邮件；`delete` 只永久删除已经
+位于垃圾箱中的邮件。
+
+`GET /api/messages/{id}` 除 `message` 外还返回按时间排序的 `thread` 摘要数组。
+会话只依据 `Message-ID`、`In-Reply-To` 和 `References` 关联，不会用相同主题
+猜测关系。
+
 分页接口：
 
 | 接口 | 数组字段 | 权限 |
@@ -310,6 +342,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/messages` | 邮件列表、筛选与分页 |
 | `GET /api/messages/{id}` | 邮件正文和附件元数据 |
 | `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
+| `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
 | `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 使用 Resend 回复 |

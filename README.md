@@ -64,10 +64,11 @@ Serverless Webmail：
 - Cloudflare Email Routing + Catch-all 收件
 - Cloudflare Queue 异步解析，避免阻塞收件事件
 - 收件箱、星标、已发送和垃圾箱
+- 标准邮件头驱动的会话线程视图与最多 50 封批量操作
 - HTML / 纯文本正文查看
 - 私有附件与原始 `.eml` 下载
 - 按域名、邮箱地址、发件人和主题筛选
-- 稳定游标分页与可配置自动刷新
+- 稳定游标分页、自适应自动刷新与跨标签页轮询合并
 - Resend 线程内回复及幂等发送
 
 ### 多域名与用户
@@ -353,6 +354,7 @@ npm run dev
 npm run check:lines
 npm run check
 npm test
+npm run test:e2e
 npm run build
 npx wrangler deploy --dry-run
 ```
@@ -400,7 +402,7 @@ Wrangler 构建产物不计入限制。
 
 - 稳定并版本化 `/api/v1`
 - 桌面客户端与增量同步
-- 邮件全文搜索、通知与批量操作
+- 邮件全文搜索与新邮件通知
 - 可视化备份浏览、下载与恢复演练
 - 更细粒度的 Token Scope 与管理策略
 
