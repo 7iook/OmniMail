@@ -27,6 +27,7 @@ import {
 import { getLocale, t } from '../lib/i18n'
 import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
+import { UserBanDialog } from './UserBanDialog'
 
 const initialCreate: CreateManagedUser = {
   email: '',
@@ -282,6 +283,7 @@ export function UserManagement({
   const [policy, setPolicy] = useState<ManagedUserPolicy | null>(null)
   const [createDraft, setCreateDraft] = useState<CreateManagedUser>(initialCreate)
   const [creating, setCreating] = useState(false)
+  const [confirmingBan, setConfirmingBan] = useState(false)
 
   async function loadUsers(cursor?: string) {
     if (cursor) setLoadingMore(true)
@@ -331,6 +333,7 @@ export function UserManagement({
     setSelected(user)
     setPolicy(policyFor(user))
     setCreating(false)
+    setConfirmingBan(false)
     setError('')
   }
 
@@ -346,18 +349,25 @@ export function UserManagement({
     setSelected(null)
     setPolicy(null)
     setCreating(false)
+    setConfirmingBan(false)
     setError('')
   }
 
-  async function savePolicy(event: FormEvent) {
+  function savePolicy(event: FormEvent) {
     event.preventDefault()
     if (!selected || !policy || protectedTarget) return
     if (
       selected.status === 'active'
       && policy.status === 'disabled'
-      && !window.confirm(t('确认封禁 {email}？该账户会立即退出登录。', { email: selected.email }))
-    ) return
+    ) {
+      setConfirmingBan(true)
+      return
+    }
+    void persistPolicy()
+  }
 
+  async function persistPolicy() {
+    if (!selected || !policy || protectedTarget) return
     setSaving(true)
     setError('')
     try {
@@ -557,6 +567,17 @@ export function UserManagement({
             ) : null}
           </section>
         </div>
+      )}
+
+      {confirmingBan && selected && (
+        <UserBanDialog
+          email={selected.email}
+          onCancel={() => setConfirmingBan(false)}
+          onConfirm={() => {
+            setConfirmingBan(false)
+            void persistPolicy()
+          }}
+        />
       )}
 
       {notice && (

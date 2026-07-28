@@ -305,6 +305,10 @@
   font-size: 13px;
 }
 
+.user-ban-dialog h2 {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .user-list-heading,
   .managed-user-row {

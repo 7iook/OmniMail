@@ -53,6 +53,7 @@ type MockState = {
   messageVisible: boolean
   refreshInterval: number
   subject: string
+  adminUserStatus: 'active' | 'disabled'
 }
 
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
@@ -64,6 +65,7 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     messageVisible: true,
     refreshInterval,
     subject,
+    adminUserStatus: 'active',
   }
 }
 
@@ -170,6 +172,61 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/admin/failed-messages/failed-1/retry' && request.method() === 'POST') {
       state.failed = false
       return json(route, { ok: true })
+    }
+    if (path === '/api/admin/users' && request.method() === 'GET') {
+      return json(route, {
+        users: [{
+          id: 'managed-user-1',
+          email: 'test11@snipxn.com',
+          displayName: 'Test User',
+          role: 'user',
+          status: state.adminUserStatus,
+          mailboxLimit: 1,
+          mailboxCount: 1,
+          storageQuotaBytes: 1024 ** 3,
+          storageUsedBytes: 2048,
+          canCreateMailboxes: false,
+          canReply: false,
+          temporaryExpiresAt: null,
+          createdAt: 1_700_000_000,
+          updatedAt: 1_700_000_000,
+        }],
+        totals: {
+          total: 1,
+          active: state.adminUserStatus === 'active' ? 1 : 0,
+          disabled: state.adminUserStatus === 'disabled' ? 1 : 0,
+        },
+        page: { hasMore: false, nextCursor: null, limit: 50 },
+      })
+    }
+    if (path === '/api/admin/users/managed-user-1' && request.method() === 'PATCH') {
+      const input = request.postDataJSON() as {
+        status: 'active' | 'disabled'
+        role: 'admin' | 'user' | 'temporary'
+        mailboxLimit: number
+        storageQuotaMiB: number
+        canCreateMailboxes: boolean
+        canReply: boolean
+      }
+      state.adminUserStatus = input.status
+      return json(route, {
+        user: {
+          id: 'managed-user-1',
+          email: 'test11@snipxn.com',
+          displayName: 'Test User',
+          role: input.role,
+          status: input.status,
+          mailboxLimit: input.mailboxLimit,
+          mailboxCount: 1,
+          storageQuotaBytes: input.storageQuotaMiB * 1024 ** 2,
+          storageUsedBytes: 2048,
+          canCreateMailboxes: input.canCreateMailboxes,
+          canReply: input.canReply,
+          temporaryExpiresAt: null,
+          createdAt: 1_700_000_000,
+          updatedAt: 1_700_000_001,
+        },
+      })
     }
     if (path === '/api/admin/invites' && request.method() === 'GET') {
       return json(route, {
@@ -371,6 +428,30 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await expect(page.getByText('Broken MIME')).toBeVisible()
   await page.getByRole('button', { name: '重新处理' }).click()
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()
+})
+
+test('disabling a user uses the in-app safety dialog', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 })
+  await mockApp(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: '用户' }).click()
+  await page.getByRole('button', { name: /Test User/ }).click()
+  await page.getByRole('checkbox', { name: /封禁账户/ }).check()
+  await page.getByRole('button', { name: '保存权限' }).click()
+
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog.getByRole('heading')).toHaveText('封禁 test11@snipxn.com？')
+  await expect(dialog).toContainText('所有现有会话都将失效')
+  await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused()
+  expect(await page.evaluate(() => (
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  ))).toBe(true)
+
+  await dialog.getByRole('button', { name: '取消' }).click()
+  await expect(dialog).toHaveCount(0)
+  await page.getByRole('button', { name: '保存权限' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认封禁' }).click()
+  await expect(page.getByText('账户已封禁')).toBeVisible()
 })
 
 test('invitation lifecycle has a dedicated responsive admin page', async ({ page }) => {

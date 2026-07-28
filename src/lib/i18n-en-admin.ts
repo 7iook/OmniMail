@@ -240,8 +240,13 @@ export const enAdmin: Record<string, string> = {
   '保存后立即注销该用户的所有会话':
     'Saving immediately invalidates all sessions for this user',
   '无法读取用户列表。': 'Could not load the user list.',
-  '确认封禁 {email}？该账户会立即退出登录。':
-    'Disable {email}? The account will be signed out immediately.',
+  '封禁 {email}？': 'Disable {email}?',
+  '该账户会立即退出登录，所有现有会话都将失效。':
+    'The account will be signed out immediately and all existing sessions will become invalid.',
+  '立即生效': 'Takes effect immediately',
+  '用户之后无法继续访问邮箱，管理员可随时重新启用账户。':
+    'The user will no longer be able to access mail. An administrator can re-enable the account at any time.',
+  '确认封禁': 'Disable account',
   '账户已封禁': 'Account disabled',
   '权限设置已保存': 'Access settings saved',
   '无法保存用户设置。': 'Could not save user settings.',
