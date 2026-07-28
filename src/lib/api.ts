@@ -486,6 +486,9 @@ export const api = {
   attachmentUrl: (messageId: string, attachmentId: string) => (
     `${API_ORIGIN}/api/messages/${messageId}/attachments/${attachmentId}`
   ),
+  remoteImageUrl: (source: string) => (
+    `${API_ORIGIN}/api/remote-images?url=${encodeURIComponent(source)}`
+  ),
   rawUrl: (messageId: string) => `${API_ORIGIN}/api/messages/${messageId}/raw`,
 }
 import { t } from './i18n'

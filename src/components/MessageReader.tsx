@@ -72,6 +72,26 @@ export function safeEmailHref(value: string): string | null {
   }
 }
 
+export function emailLinkHref(target: EventTarget | null): string | null {
+  if (!target || typeof (target as Element).closest !== 'function') return null
+  const link = (target as Element).closest<HTMLAnchorElement>('a[data-omnimail-href]')
+  return link ? safeEmailHref(link.dataset.omnimailHref ?? '') : null
+}
+
+export function shouldProxyRemoteImage(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:'
+      && url.hostname === 'claude.ai'
+      && url.port === ''
+      && url.username === ''
+      && url.password === ''
+      && url.pathname === '/images/claude_logo_full.png'
+  } catch {
+    return false
+  }
+}
+
 function buildEmailDocument(
   html: string,
   remoteImagesEnabled: boolean,
@@ -89,9 +109,14 @@ function buildEmailDocument(
   })
   document.querySelectorAll('img[src]').forEach((image) => {
     const source = image.getAttribute('src') ?? ''
-    if (!/^cid:/i.test(source)) return
-    const replacement = inlineImageSources.get(normalizeContentId(source))
-    if (replacement) image.setAttribute('src', replacement)
+    if (/^cid:/i.test(source)) {
+      const replacement = inlineImageSources.get(normalizeContentId(source))
+      if (replacement) image.setAttribute('src', replacement)
+      return
+    }
+    if (remoteImagesEnabled && shouldProxyRemoteImage(source)) {
+      image.setAttribute('src', api.remoteImageUrl(source))
+    }
   })
   document.querySelectorAll('a[href]').forEach((link) => {
     const href = safeEmailHref(link.getAttribute('href') ?? '')
@@ -99,8 +124,10 @@ function buildEmailDocument(
       link.removeAttribute('href')
       return
     }
-    link.setAttribute('href', '#')
+    link.removeAttribute('href')
     link.setAttribute('data-omnimail-href', href)
+    link.setAttribute('role', 'link')
+    link.setAttribute('tabindex', '0')
     link.removeAttribute('target')
     link.removeAttribute('rel')
   })
@@ -116,6 +143,7 @@ function buildEmailDocument(
       table { max-width: 100% !important; }
       pre { white-space: pre-wrap; }
       a { color: #1d1d1f; text-decoration: underline; }
+      a[data-omnimail-href] { cursor: pointer; }
     </style>`
   return `<!doctype html><html><head>${head}${document.head.innerHTML}</head><body>${document.body.innerHTML}</body></html>`
 }
@@ -351,11 +379,14 @@ export function MessageReader({
   const frameRef = useRef<HTMLIFrameElement>(null)
   const closeExternalLink = useCallback(() => setExternalLink(null), [])
   const handleEmailLinkClick = useCallback((event: Event) => {
-    const target = event.target instanceof Element
-      ? event.target.closest<HTMLAnchorElement>('a[data-omnimail-href]')
-      : null
-    if (!target) return
-    const href = safeEmailHref(target.dataset.omnimailHref ?? '')
+    const href = emailLinkHref(event.target)
+    if (!href) return
+    event.preventDefault()
+    setExternalLink(href)
+  }, [])
+  const handleEmailLinkKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key !== 'Enter') return
+    const href = emailLinkHref(event.target)
     if (!href) return
     event.preventDefault()
     setExternalLink(href)
@@ -484,6 +515,7 @@ export function MessageReader({
             title={t('邮件正文：{subject}', { subject: message.subject })}
             onLoad={(event) => {
               event.currentTarget.contentDocument?.addEventListener('click', handleEmailLinkClick)
+              event.currentTarget.contentDocument?.addEventListener('keydown', handleEmailLinkKeyDown)
             }}
           />
         ) : (
