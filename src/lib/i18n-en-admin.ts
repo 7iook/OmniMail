@@ -421,6 +421,9 @@ export const enAdmin: Record<string, string> = {
   '当前会话': 'Current session',
   '安全退出这台设备上的 OmniMail': 'Sign out of OmniMail on this device',
   '退出登录': 'Sign out',
+  '注销账号': 'Delete account',
+  '注销我的账号': 'Delete my account',
+  '确认注销账号': 'Confirm account deletion',
   '删除临时账号': 'Delete temporary account',
   '立即结束账号访问，但保留邮箱数据': 'End account access now while keeping mailbox data',
   '邮箱不会随账号删除': 'Mailboxes are not deleted with the account',
@@ -428,8 +431,8 @@ export const enAdmin: Record<string, string> = {
     'Addresses, messages, and attachments remain, but you will no longer be able to sign in and view them.',
   '删除我的临时账号': 'Delete my temporary account',
   '确认删除临时账号': 'Confirm temporary account deletion',
-  '这会立即退出当前设备，并永久关闭该账号的登录能力。':
-    'This signs out the current device and permanently disables login for this account.',
+  '这会立即退出所有设备，并永久关闭该账号的登录能力。':
+    'This signs out every device and permanently disables login for this account.',
   '账号无法恢复': 'The account cannot be restored',
   '当前账号及其所有登录会话会立即失效。':
     'This account and all of its sessions become invalid immediately.',
@@ -437,7 +440,9 @@ export const enAdmin: Record<string, string> = {
   '邮箱地址、邮件和附件不会随账号一起删除。':
     'Mailbox addresses, messages, and attachments are not deleted with the account.',
   '输入当前密码确认': 'Enter your current password to confirm',
+  '输入当前登录邮箱确认': 'Enter your login email to confirm',
   '取消': 'Cancel',
+  '正在注销…': 'Deleting…',
   '正在删除…': 'Deleting…',
   '确认删除账号': 'Delete account',
   '无法更新备份与存储策略。': 'Could not update backup and storage policy.',
@@ -466,7 +471,7 @@ export const enAdmin: Record<string, string> = {
   '上次备份失败': 'Last backup failed',
   '尚无备份记录': 'No backup record yet',
   '垃圾箱保留': 'Trash retention',
-  '临时账号删除后保留': 'Deleted temporary account retention',
+  '已注销账号数据保留': 'Deleted account data retention',
   '失败邮件保留': 'Failed message retention',
   '操作日志保留': 'Audit log retention',
   '普通用户默认配额': 'Default user quota',
@@ -483,7 +488,7 @@ export const enAdmin: Record<string, string> = {
     'This message will be permanently deleted automatically on {date}.',
   '修改备份与存储策略': 'Backup and storage policy updated',
   '手动启动备份': 'Manual backup started',
-  '清理临时账号数据': 'Temporary account data purged',
+  '清理已注销账号数据': 'Deleted account data purged',
   '立即结束账号访问，数据稍后按保留策略清理':
     'End account access now; data is cleaned up later according to retention policy',
   '数据不会立即删除': 'Data is not deleted immediately',

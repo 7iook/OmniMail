@@ -7,6 +7,11 @@ interface AccountUpdateInput {
   newPassword?: unknown
 }
 
+interface AccountDeleteInput {
+  currentPassword?: unknown
+  confirmationEmail?: unknown
+}
+
 export interface AccountUpdate {
   displayName?: string
   currentPassword?: string
@@ -16,6 +21,10 @@ export interface AccountUpdate {
 type ValidationResult =
   | { value: AccountUpdate }
   | { error: string }
+
+type DeleteValidationResult =
+  | { currentPassword?: string }
+  | { error: string; status: 400 | 403 }
 
 function json(body: unknown, status = 200): Response {
   return Response.json(body, { status })
@@ -49,6 +58,28 @@ export function validateAccountUpdate(input: AccountUpdateInput): ValidationResu
     return { error: '没有需要保存的账户更改。' }
   }
   return { value }
+}
+
+export function validateAccountDeletion(
+  user: Pick<SessionUser, 'email' | 'role'>,
+  input: AccountDeleteInput,
+): DeleteValidationResult {
+  if (user.role !== 'user' && user.role !== 'temporary') {
+    return { error: '只有普通用户和临时用户可以自行注销账号。', status: 403 }
+  }
+  if (user.role === 'user') {
+    if (
+      typeof input.confirmationEmail !== 'string'
+      || input.confirmationEmail.trim().toLowerCase() !== user.email.toLowerCase()
+    ) return { error: '请输入当前登录邮箱以确认注销。', status: 400 }
+    return {}
+  }
+  if (
+    typeof input.currentPassword !== 'string'
+    || !input.currentPassword
+    || input.currentPassword.length > 128
+  ) return { error: '请输入当前密码以确认删除。', status: 400 }
+  return { currentPassword: input.currentPassword }
 }
 
 async function audit(
@@ -114,28 +145,24 @@ export async function updateAccount(
   })
 }
 
-export async function deleteTemporaryAccount(
+export async function deleteAccount(
   env: Env,
   user: SessionUser,
   request: Request,
   ip: string,
 ): Promise<Response> {
-  if (user.role !== 'temporary') {
-    return json({ error: '只有临时用户可以自行删除账号。' }, 403)
-  }
-  const body = await request.json<{ currentPassword?: unknown }>()
-    .catch(() => ({} as { currentPassword?: unknown }))
-  if (
-    typeof body.currentPassword !== 'string'
-    || !body.currentPassword
-    || body.currentPassword.length > 128
-  ) return json({ error: '请输入当前密码以确认删除。' }, 400)
+  const body = await request.json<AccountDeleteInput>()
+    .catch(() => ({} as AccountDeleteInput))
+  const validation = validateAccountDeletion(user, body)
+  if ('error' in validation) return json({ error: validation.error }, validation.status)
 
-  const stored = await env.DB.prepare(
-    'SELECT password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
-  ).bind(user.id).first<{ password_hash: string }>()
-  if (!stored || !await verifyPassword(body.currentPassword, stored.password_hash)) {
-    return json({ error: '当前密码不正确。' }, 403)
+  if (validation.currentPassword) {
+    const stored = await env.DB.prepare(
+      'SELECT password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
+    ).bind(user.id).first<{ password_hash: string }>()
+    if (!stored || !await verifyPassword(validation.currentPassword, stored.password_hash)) {
+      return json({ error: '当前密码不正确。' }, 403)
+    }
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -152,7 +179,7 @@ export async function deleteTemporaryAccount(
     env.DB.prepare(
       `UPDATE users
           SET status = 'disabled', deleted_at = ?, updated_at = ?
-        WHERE id = ? AND role = 'temporary' AND deleted_at IS NULL`,
+        WHERE id = ? AND role IN ('user', 'temporary') AND deleted_at IS NULL`,
     ).bind(now, now, user.id),
   ])
   return json({ ok: true })

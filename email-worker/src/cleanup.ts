@@ -40,13 +40,13 @@ async function purgeMessages(
   }
 }
 
-async function purgeTemporaryAccountData(
+async function purgeDeletedAccountData(
   env: Env,
   cutoff: number,
 ): Promise<void> {
   const { results: users } = await env.DB.prepare(
     `SELECT id FROM users
-      WHERE role = 'temporary' AND deleted_at IS NOT NULL AND deleted_at <= ?
+      WHERE role IN ('user', 'temporary') AND deleted_at IS NOT NULL AND deleted_at <= ?
       ORDER BY deleted_at, id
       LIMIT 5`,
   ).bind(cutoff).all<{ id: string }>()
@@ -100,7 +100,7 @@ export async function cleanup(env: Env): Promise<void> {
     "m.status = 'failed' AND m.updated_at <= ?",
     now - policy.failedMessageRetentionDays * 24 * 60 * 60,
   )
-  await purgeTemporaryAccountData(
+  await purgeDeletedAccountData(
     env,
     now - policy.temporaryDataRetentionDays * 24 * 60 * 60,
   )

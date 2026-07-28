@@ -81,7 +81,7 @@ export function AccountSettings({
   const [passwordError, setPasswordError] = useState('')
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
@@ -131,7 +131,9 @@ export function AccountSettings({
     setDeleteBusy(true)
     setDeleteError('')
     try {
-      await api.deleteAccount(deletePassword)
+      await api.deleteAccount(user.role === 'user'
+        ? { confirmationEmail: deleteConfirmation }
+        : { currentPassword: deleteConfirmation })
       window.location.reload()
     } catch (error) {
       setDeleteError(errorMessage(error))
@@ -142,11 +144,13 @@ export function AccountSettings({
   function closeDeleteDialog() {
     if (deleteBusy) return
     setDeleteOpen(false)
-    setDeletePassword('')
+    setDeleteConfirmation('')
     setDeleteError('')
   }
 
   const profileChanged = displayName.trim() !== user.displayName
+  const canDeleteAccount = user.role === 'user' || user.role === 'temporary'
+  const regularAccount = user.role === 'user'
   const storagePercent = user.storageQuotaBytes > 0
     ? Math.min(100, (user.storageUsedBytes / user.storageQuotaBytes) * 100)
     : 0
@@ -343,12 +347,12 @@ export function AccountSettings({
             </button>
           </section>
 
-          {user.role === 'temporary' && (
+          {canDeleteAccount && (
             <section className="admin-card account-card account-danger-card">
               <header>
                 <Trash2 size={17} />
                 <div>
-                  <h2>{t('删除临时账号')}</h2>
+                  <h2>{t(regularAccount ? '注销账号' : '删除临时账号')}</h2>
                   <p>{t('立即结束账号访问，数据稍后按保留策略清理')}</p>
                 </div>
               </header>
@@ -362,7 +366,7 @@ export function AccountSettings({
                 onClick={() => setDeleteOpen(true)}
               >
                 <Trash2 size={16} />
-                {t('删除我的临时账号')}
+                {t(regularAccount ? '注销我的账号' : '删除我的临时账号')}
               </button>
             </section>
           )}
@@ -383,9 +387,9 @@ export function AccountSettings({
             <header>
               <span><TriangleAlert size={21} /></span>
               <div>
-                <p className="eyebrow">DELETE TEMPORARY ACCOUNT</p>
-                <h2 id="account-delete-title">{t('确认删除临时账号')}</h2>
-                <p id="account-delete-description">{t('这会立即退出当前设备，并永久关闭该账号的登录能力。')}</p>
+                <p className="eyebrow">{regularAccount ? 'DELETE ACCOUNT' : 'DELETE TEMPORARY ACCOUNT'}</p>
+                <h2 id="account-delete-title">{t(regularAccount ? '确认注销账号' : '确认删除临时账号')}</h2>
+                <p id="account-delete-description">{t('这会立即退出所有设备，并永久关闭该账号的登录能力。')}</p>
               </div>
             </header>
             <form onSubmit={(event) => void deleteAccount(event)}>
@@ -394,14 +398,15 @@ export function AccountSettings({
                 <p><Mail size={16} /><span><strong>{t('数据进入保留期')}</strong><small>{t('邮箱地址、邮件和附件会在管理员设置的保留期结束后清理。')}</small></span></p>
               </div>
               <label className="account-field">
-                <span>{t('输入当前密码确认')}</span>
+                <span>{t(regularAccount ? '输入当前登录邮箱确认' : '输入当前密码确认')}</span>
                 <input
-                  type="password"
-                  autoComplete="current-password"
+                  type={regularAccount ? 'email' : 'password'}
+                  autoComplete={regularAccount ? 'email' : 'current-password'}
                   autoFocus
-                  value={deletePassword}
-                  onChange={(event) => setDeletePassword(event.target.value)}
-                  maxLength={128}
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  placeholder={regularAccount ? user.email : undefined}
+                  maxLength={regularAccount ? 254 : 128}
                   required
                 />
               </label>
@@ -410,9 +415,9 @@ export function AccountSettings({
                 <button className="button button--secondary" type="button" disabled={deleteBusy} onClick={closeDeleteDialog}>
                   {t('取消')}
                 </button>
-                <button className="button account-delete-confirm" type="submit" disabled={deleteBusy || !deletePassword}>
+                <button className="button account-delete-confirm" type="submit" disabled={deleteBusy || !deleteConfirmation}>
                   {deleteBusy ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}
-                  {t(deleteBusy ? '正在删除…' : '确认删除账号')}
+                  {t(deleteBusy ? '正在注销…' : regularAccount ? '确认注销账号' : '确认删除账号')}
                 </button>
               </footer>
             </form>

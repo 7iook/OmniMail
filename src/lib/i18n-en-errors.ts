@@ -149,6 +149,10 @@ export const enErrors: Record<string, string> = {
   '刷新令牌已失效，请重新登录。':
     'The refresh token has expired. Sign in again.',
   '不能修改这个账户。': 'This account cannot be modified.',
+  '只有普通用户和临时用户可以自行注销账号。':
+    'Only regular and temporary users can delete their own accounts.',
+  '请输入当前登录邮箱以确认注销。':
+    'Enter your current login email to confirm account deletion.',
   '创建失败，这个登录邮箱可能已经存在。':
     'Creation failed. This login email may already exist.',
   '用户不存在。': 'The user does not exist.',

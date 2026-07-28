@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { applySuperAdminRole, createSessionToken, deleteSession, hashPassword, secretsEqual, sessionFromUser, sessionMaxAge, sessionUser, storeSession, validatePassword } from './auth'
 import { clientIp, normalizeEmail, validEmail } from './api-helpers'
-import { deleteTemporaryAccount, updateAccount } from './account-api'
+import { deleteAccount, updateAccount } from './account-api'
 import { previewAdminMailCleanup, runAdminMailCleanup } from './admin-mail-cleanup'
 import { listAuditLogs } from './audit-log-api'
 import { writeAudit } from './audit'
@@ -375,7 +375,7 @@ app.delete('/api/auth/devices/:id', (context) => revokeDevice(
 ))
 app.patch('/api/account', (context) => updateAccount(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.delete('/api/account', async (context) => {
-  const response = await deleteTemporaryAccount(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers))
+  const response = await deleteAccount(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers))
   if (response.ok) clearSessionCookie(context, context.env)
   return response
 })

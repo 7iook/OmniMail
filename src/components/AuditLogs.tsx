@@ -55,7 +55,7 @@ const actionLabels: Record<string, string> = {
   'auth.token.revoke': '客户端退出',
   'auth.device.revoke': '撤销客户端设备',
   'account.update': '修改账号资料',
-  'account.delete': '删除临时账号',
+  'account.delete': '注销账号',
   'account.expire': '临时账号到期',
   'user.create': '创建用户',
   'user.update': '修改用户权限',
@@ -89,7 +89,7 @@ const actionLabels: Record<string, string> = {
   'system.unassigned_mail.update': '修改无人收件设置',
   'system.storage_policy.update': '修改备份与存储策略',
   'system.backup.start': '手动启动备份',
-  'account.purge': '清理临时账号数据',
+  'account.purge': '清理已注销账号数据',
 }
 
 const categoryLabels: Record<string, string> = {

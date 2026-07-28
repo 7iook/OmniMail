@@ -207,7 +207,7 @@ export function StoragePolicySettings() {
                   onChange={(event) => update('trashRetentionDays', Number(event.target.value))} />{t('天')}</span>
               </label>
               <label>
-                <span>{t('临时账号删除后保留')}</span>
+                <span>{t('已注销账号数据保留')}</span>
                 <span><input type="number" min={1} max={90} value={policy.temporaryDataRetentionDays}
                   onChange={(event) => update('temporaryDataRetentionDays', Number(event.target.value))} />{t('天')}</span>
               </label>

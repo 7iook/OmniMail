@@ -165,9 +165,12 @@ export const api = {
     method: 'PATCH',
     body: jsonBody(input),
   }),
-  deleteAccount: (currentPassword: string) => request<{ ok: true }>('/api/account', {
+  deleteAccount: (input: {
+    currentPassword?: string
+    confirmationEmail?: string
+  }) => request<{ ok: true }>('/api/account', {
     method: 'DELETE',
-    body: jsonBody({ currentPassword }),
+    body: jsonBody(input),
   }),
   mailStatistics: (days: 7 | 30 | 90) => request<MailStatistics>(
     `/api/admin/statistics?days=${days}`,

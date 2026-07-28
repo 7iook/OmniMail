@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateAccountUpdate } from './account-api'
+import { validateAccountDeletion, validateAccountUpdate } from './account-api'
 
 describe('account update validation', () => {
   it('normalizes a display name update', () => {
@@ -24,5 +24,28 @@ describe('account update validation', () => {
     })).toEqual({
       error: '密码至少需要 10 个字符。',
     })
+  })
+})
+
+describe('account deletion validation', () => {
+  it('allows regular users to confirm with their login email', () => {
+    expect(validateAccountDeletion(
+      { email: 'user@example.com', role: 'user' },
+      { confirmationEmail: ' USER@example.com ' },
+    )).toEqual({})
+  })
+
+  it('keeps password confirmation for temporary users', () => {
+    expect(validateAccountDeletion(
+      { email: 'temp@example.com', role: 'temporary' },
+      { currentPassword: 'temporary-password' },
+    )).toEqual({ currentPassword: 'temporary-password' })
+  })
+
+  it('prevents administrators from deleting their own account', () => {
+    expect(validateAccountDeletion(
+      { email: 'admin@example.com', role: 'admin' },
+      { confirmationEmail: 'admin@example.com' },
+    )).toMatchObject({ status: 403 })
   })
 })
