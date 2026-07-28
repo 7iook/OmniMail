@@ -27,6 +27,7 @@ import {
 import { getLocale, t } from '../lib/i18n'
 import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
+import { TemporaryUserExpiry } from './TemporaryUserExpiry'
 import { UserBanDialog } from './UserBanDialog'
 
 const initialCreate: CreateManagedUser = {
@@ -464,7 +465,12 @@ export function UserManagement({
                   <span className="managed-user-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>
                   <span><strong>{user.displayName}</strong><small>{user.email}</small></span>
                 </span>
-                <span className={`role-pill role-pill--${user.role}`}>{roleLabel(user.role)}</span>
+                <span className="user-role-details">
+                  <span className={`role-pill role-pill--${user.role}`}>{roleLabel(user.role)}</span>
+                  {user.role === 'temporary' && (
+                    <TemporaryUserExpiry expiresAt={user.temporaryExpiresAt} />
+                  )}
+                </span>
                 <span className="user-mailbox-usage">
                   <strong>{user.mailboxCount} / {user.role === 'super_admin' ? t('不限') : user.mailboxLimit}</strong>
                   <small>
@@ -541,7 +547,9 @@ export function UserManagement({
                   <span><UserRound size={15} />{t('创建于 {date}', { date: formatDate(selected.createdAt) })}</span>
                   <span><MailPlus size={15} />{t('已使用 {count} 个邮箱', { count: selected.mailboxCount })}</span>
                   <span><HardDrive size={15} />{formatBytes(selected.storageUsedBytes)} / {selected.storageQuotaBytes === 0 ? t('不限') : formatBytes(selected.storageQuotaBytes)}</span>
-                  {selected.role === 'temporary' && <span><Clock3 size={15} />{t('临时用户')}</span>}
+                  {selected.role === 'temporary' && (
+                    <TemporaryUserExpiry expiresAt={selected.temporaryExpiresAt} />
+                  )}
                 </div>
                 {protectedTarget && (
                   <p className="user-protected-note">

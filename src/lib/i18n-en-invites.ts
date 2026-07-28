@@ -9,15 +9,28 @@ export const enInvites: Record<string, string> = {
   '请选择': 'Select',
   '浏览器没有允许复制，请手动选择邀请链接。':
     'The browser denied clipboard access. Select and copy the invitation link manually.',
-  '确认撤销 {target} 的邀请链接？已注册的账号不会删除。':
-    'Revoke the invitation for {target}? Registered accounts will not be deleted.',
+  '撤销 {target} 的邀请？': 'Revoke the invitation for {target}?',
+  '撤销后，该链接不能再用于注册。已经创建的账号不会受到影响。':
+    'The link can no longer be used to register. Existing accounts are not affected.',
+  '停止后续注册': 'Stops future registrations',
+  '此操作只会停用邀请链接，不会删除已经注册的账号或邮箱。':
+    'This only disables the invitation link. It does not delete registered accounts or mailboxes.',
+  '确认撤销': 'Revoke invitation',
   '临时用户邀请': 'Temporary user invitation',
   '邀请管理': 'Invitation management',
   '创建临时访问链接，并跟踪使用、过期与撤销状态。':
     'Create temporary access links and track their use, expiry, and revocation.',
+  '邀请概况': 'Invitation summary',
+  '邀请记录': 'Invitation records',
+  '可用邀请': 'Active invitations',
+  '已完成注册': 'Registrations completed',
+  '已失效': 'Unavailable',
   '选择由管理员固定邮箱，或让访问者在指定域名下自选邮箱。':
     'Assign a fixed mailbox or let visitors choose an address under a specified domain.',
   '正在读取邀请设置…': 'Loading invitation settings…',
+  '邮箱与有效期': 'Mailbox and expiry',
+  '确定邮箱分配方式，并分别设置链接和账号的有效时间。':
+    'Choose how the mailbox is assigned and set separate lifetimes for the link and account.',
   '邮箱分配方式': 'Mailbox assignment',
   '管理员指定邮箱': 'Administrator-assigned mailbox',
   '提前固定完整地址；用户注册后直接使用，不能自行新增或更改。':
@@ -63,6 +76,12 @@ export const enInvites: Record<string, string> = {
   '允许使用 Resend 回信': 'Allow replies with Resend',
   'Worker 仍需配置有效的 Resend 服务':
     'The Worker must also have a valid Resend configuration',
+  '使用与权限': 'Usage and permissions',
+  '控制链接使用人数，以及注册后可以使用的邮箱能力。':
+    'Control how many people can use the link and which mailbox capabilities they receive.',
+  '链接仅显示一次': 'The link is shown once',
+  '生成后请立即复制并通过安全渠道发送。':
+    'Copy it immediately after creation and send it through a secure channel.',
   '生成邀请链接': 'Create invitation link',
   '邀请链接已生成': 'Invitation link created',
   '出于安全考虑，关闭窗口后将无法再次查看完整链接。':
@@ -78,6 +97,8 @@ export const enInvites: Record<string, string> = {
   '管理员指定 · 单次使用': 'Administrator assigned · Single use',
   '用户自选 · 已注册 {count} 人': 'User selected · {count} registered',
   '用户自选 · 单次使用': 'User selected · Single use',
+  '链接截止': 'Link expires',
+  '账号有效期': 'Account lifetime',
   '账号注册后可用 {duration}': 'Account lasts {duration} after registration',
   '账号 {duration}': 'Account {duration}',
   '最多 {count} 个邮箱': 'Up to {count} mailboxes',

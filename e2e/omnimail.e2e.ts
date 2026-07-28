@@ -185,7 +185,7 @@ async function mockApp(page: Page, state = mockState()) {
           id: 'managed-user-1',
           email: 'test11@snipxn.com',
           displayName: 'Test User',
-          role: 'user',
+          role: 'temporary',
           status: state.adminUserStatus,
           mailboxLimit: 1,
           mailboxCount: 1,
@@ -193,7 +193,7 @@ async function mockApp(page: Page, state = mockState()) {
           storageUsedBytes: 2048,
           canCreateMailboxes: false,
           canReply: false,
-          temporaryExpiresAt: null,
+          temporaryExpiresAt: Math.floor(Date.now() / 1000) + 25 * 60 * 60,
           createdAt: 1_700_000_000,
           updatedAt: 1_700_000_000,
         }],
@@ -228,7 +228,7 @@ async function mockApp(page: Page, state = mockState()) {
           storageUsedBytes: 2048,
           canCreateMailboxes: input.canCreateMailboxes,
           canReply: input.canReply,
-          temporaryExpiresAt: null,
+          temporaryExpiresAt: Math.floor(Date.now() / 1000) + 25 * 60 * 60,
           createdAt: 1_700_000_000,
           updatedAt: 1_700_000_001,
         },
@@ -420,10 +420,14 @@ test('visible tabs share one automatic refresh leader', async ({ page, context }
   await Promise.all([page.goto('/'), secondPage.goto('/')])
   await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
   await expect(secondPage.getByText('Welcome to OmniMail')).toBeVisible()
+  await secondPage.bringToFront()
+  await expect.poll(() => secondPage.evaluate(() => document.visibilityState)).toBe('visible')
   await secondPage.waitForTimeout(800)
   const before = state.conditionalRequests
-  await secondPage.waitForTimeout(5200)
-  expect(state.conditionalRequests - before).toBe(1)
+  await expect.poll(
+    () => state.conditionalRequests - before,
+    { timeout: 9000 },
+  ).toBe(1)
 })
 
 test('administrators can review usage estimates and retry failed mail', async ({ page }) => {
@@ -473,7 +477,9 @@ test('disabling a user uses the in-app safety dialog', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
   await page.getByRole('button', { name: '用户' }).click()
+  await expect(page.locator('.managed-user-list .temporary-user-expiry')).toContainText('剩余 1 天 1 小时')
   await page.getByRole('button', { name: /Test User/ }).click()
+  await expect(page.locator('.user-panel .temporary-user-expiry')).toContainText('剩余 1 天 1 小时')
   await page.getByRole('checkbox', { name: /封禁账户/ }).check()
   await page.getByRole('button', { name: '保存权限' }).click()
 
@@ -497,11 +503,16 @@ test('invitation lifecycle has a dedicated responsive admin page', async ({ page
   await page.goto('/')
   await page.getByRole('button', { name: '邀请' }).click()
   await expect(page.getByRole('heading', { name: '邀请管理' })).toBeVisible()
+  await expect(page.getByLabel('邀请概况')).toContainText('邀请记录')
   await expect(page.getByRole('heading', { name: '最近邀请' })).toBeVisible()
+  await expect(page.locator('.invite-card')).toHaveCount(1)
   const expiry = page.locator('.invite-expiry')
   await expect(expiry).toHaveCSS('white-space', 'nowrap')
-  page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '撤销' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toContainText('已经创建的账号不会受到影响')
+  await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused()
+  await dialog.getByRole('button', { name: '确认撤销' }).click()
   await expect(page.getByText('已撤销')).toBeVisible()
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })

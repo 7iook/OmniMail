@@ -52,6 +52,13 @@ export const enAdmin: Record<string, string> = {
   '已启用': 'Enabled',
   '普通用户': 'User',
   '临时用户': 'Temporary user',
+  '未设置到期时间': 'No expiry set',
+  '账号已过期': 'Account expired',
+  '剩余 {count} 分钟': '{count} minutes remaining',
+  '剩余 {count} 小时': '{count} hours remaining',
+  '剩余 {count} 天': '{count} days remaining',
+  '剩余 {days} 天 {hours} 小时': '{days} days {hours} hours remaining',
+  '到期时间：{date}': 'Expires: {date}',
   '按用户配置': 'Per-user settings',
   '外部注册': 'Public registration',
   '控制未登录访客是否可以创建普通账户':

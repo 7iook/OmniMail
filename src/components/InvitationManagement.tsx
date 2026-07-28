@@ -23,6 +23,7 @@ import {
 } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
 import { AdminPageHeader } from './AdminPageHeader'
+import { DangerConfirmDialog } from './DangerConfirmDialog'
 
 const initialDraft: CreateTemporaryInvite = {
   domain: '',
@@ -149,11 +150,20 @@ export function InvitationManagement({
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [pendingRevoke, setPendingRevoke] = useState<TemporaryInvite | null>(null)
 
   const activeDomains = useMemo(
     () => domains.filter((domain) => domain.isActive),
     [domains],
   )
+  const inviteSummary = useMemo(() => ({
+    total: invites.length,
+    active: invites.filter((invite) => invite.state === 'active').length,
+    used: invites.filter((invite) => invite.state === 'used').length,
+    unavailable: invites.filter((invite) => (
+      ['expired', 'revoked', 'domain_disabled'].includes(invite.state)
+    )).length,
+  }), [invites])
 
   useEffect(() => {
     let active = true
@@ -222,8 +232,6 @@ export function InvitationManagement({
   }
 
   async function revoke(invite: TemporaryInvite) {
-    const target = invite.assignedAddress || invite.domain
-    if (!window.confirm(t('确认撤销 {target} 的邀请链接？已注册的账号不会删除。', { target }))) return
     setError('')
     try {
       await api.revokeTemporaryInvite(invite.id)
@@ -243,6 +251,12 @@ export function InvitationManagement({
         title={t('邀请管理')}
         description={t('创建临时访问链接，并跟踪使用、过期与撤销状态。')}
       />
+      <section className="invite-summary" aria-label={t('邀请概况')}>
+        <div><Link2 size={17} /><span><strong>{inviteSummary.total}{page.hasMore ? '+' : ''}</strong><small>{t('邀请记录')}</small></span></div>
+        <div><ShieldCheck size={17} /><span><strong>{inviteSummary.active}</strong><small>{t('可用邀请')}</small></span></div>
+        <div><UserRoundPlus size={17} /><span><strong>{inviteSummary.used}</strong><small>{t('已完成注册')}</small></span></div>
+        <div><Clock3 size={17} /><span><strong>{inviteSummary.unavailable}</strong><small>{t('已失效')}</small></span></div>
+      </section>
       <section className="invite-workspace" aria-label={t('邀请管理')}>
         {loading ? (
           <div className="invite-loading"><LoaderCircle className="spin" size={18} />{t('正在读取邀请设置…')}</div>
@@ -250,194 +264,209 @@ export function InvitationManagement({
           <>
             {error && <p className="user-panel-error" role="alert"><AlertCircle size={16} />{error}</p>}
             <form className="invite-form" onSubmit={(event) => void createInvite(event)}>
-              <fieldset className="invite-mode invite-address-mode">
-                <legend>{t('邮箱分配方式')}</legend>
-                <label className={draft.addressMode === 'assigned' ? 'is-selected' : ''}>
-                  <input
-                    type="radio"
-                    name="address-mode"
-                    checked={draft.addressMode === 'assigned'}
-                    onChange={() => setDraft({
-                      ...draft,
-                      addressMode: 'assigned',
-                      multiUse: false,
-                      mailboxLimit: 1,
-                      canCreateMailboxes: false,
-                    })}
-                  />
-                  <span><strong>{t('管理员指定邮箱')}</strong><small>{t('提前固定完整地址；用户注册后直接使用，不能自行新增或更改。')}</small></span>
-                </label>
-                <label className={draft.addressMode === 'self_selected' ? 'is-selected' : ''}>
-                  <input
-                    type="radio"
-                    name="address-mode"
-                    checked={draft.addressMode === 'self_selected'}
-                    onChange={() => setDraft({ ...draft, addressMode: 'self_selected' })}
-                  />
-                  <span><strong>{t('用户自选邮箱')}</strong><small>{t('管理员固定域名后缀，用户注册时填写尚未使用的邮箱前缀。')}</small></span>
-                </label>
-              </fieldset>
-
-              <div className="invite-form-grid">
-                <div className="invite-field">
-                  <span>{t('指定邮箱域名')}</span>
-                  <InviteSelect
-                    value={draft.domain}
-                    label={t('指定邮箱域名')}
-                    disabled={!activeDomains.length}
-                    options={activeDomains.map((domain) => ({
-                      value: domain.name,
-                      label: domain.name,
-                    }))}
-                    onChange={(domain) => setDraft({ ...draft, domain })}
-                  />
-                  <small>{t(draft.addressMode === 'assigned' ? '该域名将与下方前缀组成固定邮箱。' : '用户只能填写 @ 前面的邮箱名称。')}</small>
-                </div>
-                <div className="invite-field">
-                  <span>{t('链接有效时间')}</span>
-                  <InviteSelect
-                    value={String(draft.expiresInHours)}
-                    label={t('链接有效时间')}
-                    options={[
-                      { value: '1', label: t('1 小时') },
-                      { value: '6', label: t('6 小时') },
-                      { value: '24', label: t('24 小时') },
-                      { value: '72', label: t('3 天') },
-                      { value: '168', label: t('7 天') },
-                      { value: '720', label: t('30 天') },
-                    ]}
-                    onChange={(value) => setDraft({
-                      ...draft,
-                      expiresInHours: Number(value),
-                    })}
-                  />
-                  <small>{t('只控制这个链接可以注册到什么时候。')}</small>
-                </div>
-                <div className="invite-field">
-                  <span>{t('临时账号有效时间')}</span>
-                  <InviteSelect
-                    value={String(draft.accountLifetimeHours)}
-                    label={t('临时账号有效时间')}
-                    options={[
-                      { value: '1', label: t('1 小时') },
-                      { value: '6', label: t('6 小时') },
-                      { value: '24', label: t('24 小时') },
-                      { value: '72', label: t('3 天') },
-                      { value: '168', label: t('7 天') },
-                      { value: '720', label: t('30 天') },
-                    ]}
-                    onChange={(value) => setDraft({
-                      ...draft,
-                      accountLifetimeHours: Number(value),
-                    })}
-                  />
-                  <small data-tooltip={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
-                    {t('注册后计时；删账号、留邮箱。')}
-                  </small>
-                </div>
-              </div>
-
-              {draft.addressMode === 'assigned' && (
-                <label className="invite-admin-address">
-                  <span>{t('管理员指定邮箱')}</span>
-                  <span>
-                    <AtSign size={16} />
+              <section className="invite-form-section">
+                <header className="invite-form-section__header">
+                  <span><Globe2 size={18} /></span>
+                  <div><h2>{t('邮箱与有效期')}</h2><p>{t('确定邮箱分配方式，并分别设置链接和账号的有效时间。')}</p></div>
+                </header>
+                <fieldset className="invite-mode invite-address-mode">
+                  <legend>{t('邮箱分配方式')}</legend>
+                  <label className={draft.addressMode === 'assigned' ? 'is-selected' : ''}>
                     <input
-                      value={draft.assignedLocalPart}
-                      onChange={(event) => setDraft({
+                      type="radio"
+                      name="address-mode"
+                      checked={draft.addressMode === 'assigned'}
+                      onChange={() => setDraft({
                         ...draft,
-                        assignedLocalPart: event.target.value.toLowerCase(),
+                        addressMode: 'assigned',
+                        multiUse: false,
+                        mailboxLimit: 1,
+                        canCreateMailboxes: false,
                       })}
-                      maxLength={64}
-                      placeholder="temporary-user"
-                      pattern="[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
-                      required
                     />
-                    <strong>@{draft.domain || t('请选择域名')}</strong>
-                  </span>
-                  <small>{t('地址会立即为这个邀请预留，注册后成为固定的登录邮箱和收件地址。')}</small>
-                </label>
-              )}
+                    <span><strong>{t('管理员指定邮箱')}</strong><small>{t('提前固定完整地址；用户注册后直接使用，不能自行新增或更改。')}</small></span>
+                  </label>
+                  <label className={draft.addressMode === 'self_selected' ? 'is-selected' : ''}>
+                    <input
+                      type="radio"
+                      name="address-mode"
+                      checked={draft.addressMode === 'self_selected'}
+                      onChange={() => setDraft({ ...draft, addressMode: 'self_selected' })}
+                    />
+                    <span><strong>{t('用户自选邮箱')}</strong><small>{t('管理员固定域名后缀，用户注册时填写尚未使用的邮箱前缀。')}</small></span>
+                  </label>
+                </fieldset>
 
-              <fieldset className={`invite-mode ${draft.addressMode === 'assigned' ? 'invite-mode--single' : ''}`}>
-                <legend>{t('链接使用方式')}</legend>
-                <label className={!draft.multiUse ? 'is-selected' : ''}>
-                  <input
-                    type="radio"
-                    name="invite-mode"
-                    checked={!draft.multiUse}
-                    onChange={() => setDraft({ ...draft, multiUse: false })}
-                  />
-                  <span><strong>{t('单次使用')}</strong><small>{t(draft.addressMode === 'assigned' ? '固定邮箱只能分配给一个临时用户。' : '首个用户成功注册后，链接立即失效。')}</small></span>
-                </label>
-                {draft.addressMode === 'self_selected' && (
-                  <label className={`${draft.multiUse ? 'is-selected' : ''} ${!registrationProtectionReady ? 'is-disabled' : ''}`}>
+                <div className="invite-form-grid">
+                  <div className="invite-field">
+                    <span>{t('指定邮箱域名')}</span>
+                    <InviteSelect
+                      value={draft.domain}
+                      label={t('指定邮箱域名')}
+                      disabled={!activeDomains.length}
+                      options={activeDomains.map((domain) => ({
+                        value: domain.name,
+                        label: domain.name,
+                      }))}
+                      onChange={(domain) => setDraft({ ...draft, domain })}
+                    />
+                    <small>{t(draft.addressMode === 'assigned' ? '该域名将与下方前缀组成固定邮箱。' : '用户只能填写 @ 前面的邮箱名称。')}</small>
+                  </div>
+                  <div className="invite-field">
+                    <span>{t('链接有效时间')}</span>
+                    <InviteSelect
+                      value={String(draft.expiresInHours)}
+                      label={t('链接有效时间')}
+                      options={[
+                        { value: '1', label: t('1 小时') },
+                        { value: '6', label: t('6 小时') },
+                        { value: '24', label: t('24 小时') },
+                        { value: '72', label: t('3 天') },
+                        { value: '168', label: t('7 天') },
+                        { value: '720', label: t('30 天') },
+                      ]}
+                      onChange={(value) => setDraft({
+                        ...draft,
+                        expiresInHours: Number(value),
+                      })}
+                    />
+                    <small>{t('只控制这个链接可以注册到什么时候。')}</small>
+                  </div>
+                  <div className="invite-field">
+                    <span>{t('临时账号有效时间')}</span>
+                    <InviteSelect
+                      value={String(draft.accountLifetimeHours)}
+                      label={t('临时账号有效时间')}
+                      options={[
+                        { value: '1', label: t('1 小时') },
+                        { value: '6', label: t('6 小时') },
+                        { value: '24', label: t('24 小时') },
+                        { value: '72', label: t('3 天') },
+                        { value: '168', label: t('7 天') },
+                        { value: '720', label: t('30 天') },
+                      ]}
+                      onChange={(value) => setDraft({
+                        ...draft,
+                        accountLifetimeHours: Number(value),
+                      })}
+                    />
+                    <small data-tooltip={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
+                      {t('注册后计时；删账号、留邮箱。')}
+                    </small>
+                  </div>
+                </div>
+
+                {draft.addressMode === 'assigned' && (
+                  <label className="invite-admin-address">
+                    <span>{t('管理员指定邮箱')}</span>
+                    <span>
+                      <AtSign size={16} />
+                      <input
+                        value={draft.assignedLocalPart}
+                        onChange={(event) => setDraft({
+                          ...draft,
+                          assignedLocalPart: event.target.value.toLowerCase(),
+                        })}
+                        maxLength={64}
+                        placeholder="temporary-user"
+                        pattern="[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
+                        required
+                      />
+                      <strong>@{draft.domain || t('请选择域名')}</strong>
+                    </span>
+                    <small>{t('地址会立即为这个邀请预留，注册后成为固定的登录邮箱和收件地址。')}</small>
+                  </label>
+                )}
+              </section>
+
+              <section className="invite-form-section">
+                <header className="invite-form-section__header">
+                  <span><ShieldCheck size={18} /></span>
+                  <div><h2>{t('使用与权限')}</h2><p>{t('控制链接使用人数，以及注册后可以使用的邮箱能力。')}</p></div>
+                </header>
+                <fieldset className={`invite-mode ${draft.addressMode === 'assigned' ? 'invite-mode--single' : ''}`}>
+                  <legend>{t('链接使用方式')}</legend>
+                  <label className={!draft.multiUse ? 'is-selected' : ''}>
                     <input
                       type="radio"
                       name="invite-mode"
-                      checked={draft.multiUse}
-                      disabled={!registrationProtectionReady}
-                      onChange={() => setDraft({ ...draft, multiUse: true })}
+                      checked={!draft.multiUse}
+                      onChange={() => setDraft({ ...draft, multiUse: false })}
                     />
-                    <span>
-                      <strong>{t('多人注册')}</strong>
-                      <small>{t(registrationProtectionReady
-                        ? '有效期内可多人注册，每次注册都需要通过 Turnstile。'
-                        : '配置 Turnstile 后才能创建多人注册链接。')}</small>
-                    </span>
+                    <span><strong>{t('单次使用')}</strong><small>{t(draft.addressMode === 'assigned' ? '固定邮箱只能分配给一个临时用户。' : '首个用户成功注册后，链接立即失效。')}</small></span>
                   </label>
-                )}
-              </fieldset>
-
-              <div className="invite-permissions">
-                {draft.addressMode === 'self_selected' && (
-                  <>
-                    <label className="policy-toggle">
-                      <span><MailPlus size={17} /><span><strong>{t('允许继续添加邮箱')}</strong><small>{t('注册时创建的首个邮箱不受此开关影响')}</small></span></span>
+                  {draft.addressMode === 'self_selected' && (
+                    <label className={`${draft.multiUse ? 'is-selected' : ''} ${!registrationProtectionReady ? 'is-disabled' : ''}`}>
                       <input
-                        type="checkbox"
-                        checked={draft.canCreateMailboxes}
-                        onChange={(event) => setDraft({
-                          ...draft,
-                          canCreateMailboxes: event.target.checked,
-                          mailboxLimit: event.target.checked ? Math.max(2, draft.mailboxLimit) : 1,
-                        })}
+                        type="radio"
+                        name="invite-mode"
+                        checked={draft.multiUse}
+                        disabled={!registrationProtectionReady}
+                        onChange={() => setDraft({ ...draft, multiUse: true })}
                       />
+                      <span>
+                        <strong>{t('多人注册')}</strong>
+                        <small>{t(registrationProtectionReady
+                          ? '有效期内可多人注册，每次注册都需要通过 Turnstile。'
+                          : '配置 Turnstile 后才能创建多人注册链接。')}</small>
+                      </span>
                     </label>
-                    <label className="invite-limit">
-                      <span>{t('邮箱总数上限')}</span>
-                      <input
-                        type="number"
-                        min={draft.canCreateMailboxes ? 2 : 1}
-                        max={100}
-                        disabled={!draft.canCreateMailboxes}
-                        value={draft.mailboxLimit}
-                        onChange={(event) => setDraft({
-                          ...draft,
-                          mailboxLimit: Math.max(2, Math.min(100, Number(event.target.value))),
-                        })}
-                      />
-                    </label>
-                  </>
-                )}
-                <label className="policy-toggle">
-                  <span><Send size={17} /><span><strong>{t('允许使用 Resend 回信')}</strong><small>{t('Worker 仍需配置有效的 Resend 服务')}</small></span></span>
-                  <input
-                    type="checkbox"
-                    checked={draft.canReply}
-                    onChange={(event) => setDraft({ ...draft, canReply: event.target.checked })}
-                  />
-                </label>
-              </div>
+                  )}
+                </fieldset>
 
-              <button
-                className="button button--primary invite-create-button"
-                type="submit"
-                disabled={saving || !draft.domain || (draft.addressMode === 'assigned' && !draft.assignedLocalPart.trim())}
-              >
-                {saving ? <LoaderCircle className="spin" size={17} /> : <Link2 size={17} />}
-                {t(saving ? '正在生成…' : '生成邀请链接')}
-              </button>
+                <div className="invite-permissions">
+                  {draft.addressMode === 'self_selected' && (
+                    <>
+                      <label className="policy-toggle">
+                        <span><MailPlus size={17} /><span><strong>{t('允许继续添加邮箱')}</strong><small>{t('注册时创建的首个邮箱不受此开关影响')}</small></span></span>
+                        <input
+                          type="checkbox"
+                          checked={draft.canCreateMailboxes}
+                          onChange={(event) => setDraft({
+                            ...draft,
+                            canCreateMailboxes: event.target.checked,
+                            mailboxLimit: event.target.checked ? Math.max(2, draft.mailboxLimit) : 1,
+                          })}
+                        />
+                      </label>
+                      <label className="invite-limit">
+                        <span>{t('邮箱总数上限')}</span>
+                        <input
+                          type="number"
+                          min={draft.canCreateMailboxes ? 2 : 1}
+                          max={100}
+                          disabled={!draft.canCreateMailboxes}
+                          value={draft.mailboxLimit}
+                          onChange={(event) => setDraft({
+                            ...draft,
+                            mailboxLimit: Math.max(2, Math.min(100, Number(event.target.value))),
+                          })}
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label className="policy-toggle">
+                    <span><Send size={17} /><span><strong>{t('允许使用 Resend 回信')}</strong><small>{t('Worker 仍需配置有效的 Resend 服务')}</small></span></span>
+                    <input
+                      type="checkbox"
+                      checked={draft.canReply}
+                      onChange={(event) => setDraft({ ...draft, canReply: event.target.checked })}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <footer className="invite-form-footer">
+                <div><Link2 size={17} /><span><strong>{t('链接仅显示一次')}</strong><small>{t('生成后请立即复制并通过安全渠道发送。')}</small></span></div>
+                <button
+                  className="button button--primary invite-create-button"
+                  type="submit"
+                  disabled={saving || !draft.domain || (draft.addressMode === 'assigned' && !draft.assignedLocalPart.trim())}
+                >
+                  {saving ? <LoaderCircle className="spin" size={17} /> : <Link2 size={17} />}
+                  {t(saving ? '正在生成…' : '生成邀请链接')}
+                </button>
+              </footer>
             </form>
 
             {createdLink && (
@@ -463,14 +492,22 @@ export function InvitationManagement({
               ) : (
                 <div className="invite-list">
                   {invites.map((invite) => (
-                    <article className="invite-row" key={invite.id}>
-                      <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
-                      <span className="invite-expiry" data-tooltip={t('账号注册后可用 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}><Clock3 size={15} />{formatDate(invite.expiresAt)} · {t('账号 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</span>
-                      <span><ShieldCheck size={15} />{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</span>
-                      <span className={`invite-state invite-state--${invite.state}`}>{t(stateLabels[invite.state])}</span>
-                      {invite.state === 'active' && (
-                        <button type="button" onClick={() => void revoke(invite)}>{t('撤销')}</button>
-                      )}
+                    <article className="invite-card" key={invite.id}>
+                      <header>
+                        <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
+                        <span className={`invite-state invite-state--${invite.state}`}>{t(stateLabels[invite.state])}</span>
+                      </header>
+                      <dl className="invite-card__details">
+                        <div><dt><Clock3 size={14} />{t('链接截止')}</dt><dd className="invite-expiry">{formatDate(invite.expiresAt)}</dd></div>
+                        <div><dt><UserRoundPlus size={14} />{t('账号有效期')}</dt><dd>{formatDuration(invite.accountLifetimeHours)}</dd></div>
+                        <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</dd></div>
+                      </dl>
+                      <footer>
+                        <span>{t('创建于 {date}', { date: formatDate(invite.createdAt) })}</span>
+                        {invite.state === 'active' && (
+                          <button type="button" onClick={() => setPendingRevoke(invite)}>{t('撤销')}</button>
+                        )}
+                      </footer>
                     </article>
                   ))}
                   {page.hasMore && (
@@ -490,6 +527,25 @@ export function InvitationManagement({
           </>
         )}
       </section>
+      {pendingRevoke && (
+        <DangerConfirmDialog
+          icon={Link2}
+          eyebrow="REVOKE INVITATION"
+          title={t('撤销 {target} 的邀请？', {
+            target: pendingRevoke.assignedAddress || pendingRevoke.domain,
+          })}
+          description={t('撤销后，该链接不能再用于注册。已经创建的账号不会受到影响。')}
+          impactTitle={t('停止后续注册')}
+          impactDescription={t('此操作只会停用邀请链接，不会删除已经注册的账号或邮箱。')}
+          confirmLabel={t('确认撤销')}
+          onCancel={() => setPendingRevoke(null)}
+          onConfirm={() => {
+            const invite = pendingRevoke
+            setPendingRevoke(null)
+            void revoke(invite)
+          }}
+        />
+      )}
     </main>
   )
 }

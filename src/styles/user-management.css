@@ -240,6 +240,35 @@
   color: var(--warning);
 }
 
+.user-role-details {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  justify-items: start;
+  gap: 5px;
+}
+
+.temporary-user-expiry {
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  align-items: center;
+  gap: 4px;
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.temporary-user-expiry.is-expired {
+  color: var(--danger);
+}
+
+.temporary-user-expiry > svg {
+  flex: 0 0 auto;
+}
+
 .user-mailbox-usage {
   display: grid;
   gap: 2px;
@@ -305,7 +334,7 @@
   font-size: 13px;
 }
 
-.user-ban-dialog h2 {
+.admin-danger-dialog h2 {
   overflow-wrap: anywhere;
 }
 
