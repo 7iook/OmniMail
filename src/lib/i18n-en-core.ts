@@ -148,6 +148,18 @@ export const enCore: Record<string, string> = {
   '解析失败：{error}': 'Parsing failed: {error}',
   '未知错误': 'Unknown error',
   '邮件正文：{subject}': 'Message body: {subject}',
+  '即将离开 OmniMail': 'You are leaving OmniMail',
+  '您将要访问外部网站。请先确认目标域名可信，并留意钓鱼或仿冒页面。':
+    'You are about to visit an external website. Confirm that you trust the destination and watch for phishing or impersonation.',
+  '目标域名': 'Destination domain',
+  '完整链接': 'Full link',
+  '复制链接': 'Copy link',
+  '链接已复制': 'Link copied',
+  '无法访问剪贴板，请手动复制链接。':
+    'Clipboard access is unavailable. Copy the link manually.',
+  '外部页面不受 OmniMail 控制，请勿在可疑页面输入密码、验证码或其他敏感信息。':
+    'External pages are not controlled by OmniMail. Do not enter passwords, verification codes, or other sensitive information on a suspicious page.',
+  '继续访问': 'Continue',
   '这封邮件没有可显示的正文。': 'This message has no displayable body.',
   '附件': 'Attachments',
   '下载原始邮件': 'Download original message',

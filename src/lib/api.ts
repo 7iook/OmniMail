@@ -229,6 +229,7 @@ export interface Attachment {
   filename: string
   contentType: string
   size: number
+  contentId: string | null
   disposition: string
 }
 

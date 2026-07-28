@@ -419,6 +419,7 @@ app.get('/api/messages/:id', async (context) => {
         filename: attachment.filename,
         contentType: attachment.content_type,
         size: attachment.size,
+        contentId: attachment.content_id,
         disposition: attachment.disposition,
       })),
     },
