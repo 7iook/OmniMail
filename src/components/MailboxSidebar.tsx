@@ -67,6 +67,10 @@ export function MailboxSidebar({
   return (
     <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`}>
       <div className="sidebar-brand"><Brand /></div>
+      <div className="sidebar-theme">
+        <ThemeToggle />
+        <LanguageQuickToggle />
+      </div>
       <nav className="folder-nav" aria-label={t('邮箱文件夹')}>
         {folders.map((item) => {
           const Icon = item.icon
@@ -121,10 +125,6 @@ export function MailboxSidebar({
         </button>
       </nav>
 
-      <div className="sidebar-theme">
-        <ThemeToggle />
-        <LanguageQuickToggle />
-      </div>
       <div className="sidebar-account">
         <span className="account-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>
         <div>
