@@ -72,6 +72,7 @@ export interface MessageRow {
   references_header: string | null
   sender_name: string | null
   sender_address: string
+  delivered_to: string | null
   recipients_json: string
   cc_json: string
   subject: string

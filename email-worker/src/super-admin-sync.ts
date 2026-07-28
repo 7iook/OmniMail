@@ -14,6 +14,7 @@ async function syncIdentity(env: Env, email: string): Promise<void> {
   const target = await env.DB.prepare(
     'SELECT id FROM users WHERE email = ?',
   ).bind(email).first<{ id: string }>()
+  let ownerId = target?.id
   if (target) {
     await env.DB.prepare(
       "UPDATE users SET role = 'admin', updated_at = unixepoch() WHERE role = 'super_admin' AND id != ?",
@@ -26,9 +27,16 @@ async function syncIdentity(env: Env, email: string): Promise<void> {
         LIMIT 1`,
     ).first<{ id: string }>()
     if (!current) return
+    ownerId = current.id
     await env.DB.prepare(
       'UPDATE users SET email = ?, updated_at = unixepoch() WHERE id = ?',
     ).bind(email, current.id).run()
+  }
+
+  if (ownerId) {
+    await env.DB.prepare(
+      'UPDATE mailboxes SET user_id = ? WHERE is_hidden = 1 AND user_id != ?',
+    ).bind(ownerId, ownerId).run()
   }
 
   await env.DB.prepare(

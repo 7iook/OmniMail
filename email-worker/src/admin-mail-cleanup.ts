@@ -75,7 +75,7 @@ function filterSql(filter: MailCleanupFilter, now: number) {
     conditions.push('LOWER(u.email) = ?')
     bindings.push(filter.scopeValue)
   } else if (filter.scope === 'mailbox') {
-    conditions.push('m.mailbox_address = ?')
+    conditions.push('COALESCE(m.delivered_to, m.mailbox_address) = ?')
     bindings.push(filter.scopeValue)
   }
   if (filter.category === 'trash') conditions.push("m.folder = 'trash'")

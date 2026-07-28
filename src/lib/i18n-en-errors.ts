@@ -57,8 +57,8 @@ export const enErrors: Record<string, string> = {
   '这个邮箱地址已经启用。': 'This mailbox address is already enabled.',
   '这个邮箱地址已属于其他账户。':
     'This mailbox address belongs to another account.',
-  '这个邮箱地址已由临时用户邀请预留。':
-    'This mailbox address is reserved by a temporary user invitation.',
+  '这个邮箱地址已由用户邀请预留。':
+    'This mailbox address is reserved by a user invitation.',
   '这个域名尚未在系统设置中启用。':
     'This domain is not enabled in System settings.',
   '主邮箱不能停用。': 'The primary mailbox cannot be disabled.',
@@ -93,11 +93,16 @@ export const enErrors: Record<string, string> = {
   '无法创建回复。': 'Could not create the reply.',
   '无效的请求标识。': 'The request identifier is invalid.',
   '这封邮件无法回复。': 'This message cannot be replied to.',
+  '无人收件邮件不能直接回复。':
+    'Unassigned mail cannot be replied to directly.',
   '只有管理员可以查看全站统计。':
     'Only administrators can view site-wide statistics.',
   '远程图片设置无效。': 'The remote image setting is invalid.',
   '只有管理员可以修改远程图片设置。':
     'Only administrators can change remote image settings.',
+  '只有管理员可以修改无人收件设置。':
+    'Only administrators can change unassigned mail settings.',
+  '无人收件设置无效。': 'The unassigned mail setting is invalid.',
   '只有管理员可以修改自动刷新设置。':
     'Only administrators can change auto-refresh settings.',
   '自动刷新档位无效。': 'The auto-refresh interval is invalid.',

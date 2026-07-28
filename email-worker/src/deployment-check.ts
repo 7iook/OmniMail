@@ -68,7 +68,7 @@ async function databaseState(env: Env): Promise<{
     const row = await env.DB.prepare(
       `SELECT
         (SELECT COUNT(*) FROM domains) AS domains,
-        (SELECT COUNT(*) FROM mailboxes) AS mailboxes,
+        (SELECT COUNT(*) FROM mailboxes WHERE is_hidden = 0) AS mailboxes,
         (SELECT value FROM settings WHERE key = 'setup_complete') AS setup_complete`,
     ).first<{ domains: number; mailboxes: number; setup_complete: string | null }>()
     return {

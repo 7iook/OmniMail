@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS temporary_invites (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   domain_name TEXT NOT NULL REFERENCES domains(name) ON DELETE RESTRICT,
+  account_role TEXT NOT NULL DEFAULT 'temporary'
+    CHECK (account_role IN ('user', 'temporary')),
   expires_at INTEGER NOT NULL,
   max_uses INTEGER NOT NULL DEFAULT 1 CHECK (max_uses IN (0, 1)),
   use_count INTEGER NOT NULL DEFAULT 0,
@@ -102,6 +104,7 @@ CREATE TABLE IF NOT EXISTS mailboxes (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+  is_hidden INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1)),
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_mailboxes_user ON mailboxes(user_id);
@@ -117,6 +120,7 @@ CREATE TABLE IF NOT EXISTS messages (
   references_header TEXT,
   sender_name TEXT,
   sender_address TEXT NOT NULL,
+  delivered_to TEXT COLLATE NOCASE,
   recipients_json TEXT NOT NULL DEFAULT '[]',
   cc_json TEXT NOT NULL DEFAULT '[]',
   subject TEXT NOT NULL DEFAULT '',
@@ -197,7 +201,31 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28-operations-v1'
+const SCHEMA_VERSION = '2026-07-28-unassigned-mail-v1'
+
+async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
+  const mailboxColumns = await db.prepare(
+    'PRAGMA table_info(mailboxes)',
+  ).all<{ name: string }>()
+  if (!mailboxColumns.results.some((column) => column.name === 'is_hidden')) {
+    await db.prepare(
+      `ALTER TABLE mailboxes ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0
+       CHECK (is_hidden IN (0, 1))`,
+    ).run()
+  }
+  const messageColumns = await db.prepare(
+    'PRAGMA table_info(messages)',
+  ).all<{ name: string }>()
+  if (!messageColumns.results.some((column) => column.name === 'delivered_to')) {
+    await db.prepare(
+      'ALTER TABLE messages ADD COLUMN delivered_to TEXT COLLATE NOCASE',
+    ).run()
+  }
+  await db.prepare(
+    `INSERT OR IGNORE INTO settings (key, value)
+     VALUES ('unassigned_mail_enabled', '0')`,
+  ).run()
+}
 
 async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
@@ -265,7 +293,8 @@ async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
         SET mailbox_limit = MAX(
               mailbox_limit,
               CASE WHEN role IN ('super_admin', 'admin') THEN 20 ELSE 1 END,
-              (SELECT COUNT(*) FROM mailboxes WHERE user_id = users.id)
+              (SELECT COUNT(*) FROM mailboxes
+                WHERE user_id = users.id AND is_hidden = 0)
             ),
             can_create_mailboxes = CASE WHEN role IN ('super_admin', 'admin') THEN 1 ELSE 0 END,
             can_reply = CASE WHEN role IN ('super_admin', 'admin') THEN 1 ELSE 0 END`,
@@ -395,6 +424,8 @@ async function ensureTemporaryInvites(db: D1Database): Promise<void> {
       id TEXT PRIMARY KEY,
       token_hash TEXT NOT NULL UNIQUE,
       domain_name TEXT NOT NULL REFERENCES domains(name) ON DELETE RESTRICT,
+      account_role TEXT NOT NULL DEFAULT 'temporary'
+        CHECK (account_role IN ('user', 'temporary')),
       expires_at INTEGER NOT NULL,
       max_uses INTEGER NOT NULL DEFAULT 1 CHECK (max_uses IN (0, 1)),
       use_count INTEGER NOT NULL DEFAULT 0,
@@ -415,6 +446,12 @@ async function ensureTemporaryInvites(db: D1Database): Promise<void> {
     'PRAGMA table_info(temporary_invites)',
   ).all<{ name: string }>()
   const columns = new Set(results.map((column) => column.name))
+  if (!columns.has('account_role')) {
+    await db.prepare(
+      `ALTER TABLE temporary_invites ADD COLUMN account_role TEXT NOT NULL
+       DEFAULT 'temporary' CHECK (account_role IN ('user', 'temporary'))`,
+    ).run()
+  }
   if (!columns.has('address_mode')) {
     await db.prepare(
       `ALTER TABLE temporary_invites ADD COLUMN address_mode TEXT NOT NULL
@@ -495,8 +532,10 @@ export function ensureSchema(db: D1Database): Promise<void> {
           .map((statement) => db.prepare(statement))
         await db.batch(statements)
       } else {
+        await ensureUnassignedMailColumns(db)
         await ensureUserPolicyColumns(db)
       }
+      if (!exists) await ensureUnassignedMailColumns(db)
       await ensureMessageStorageColumns(db)
       await ensureMailStateVersions(db)
       await ensureBackupRuns(db)

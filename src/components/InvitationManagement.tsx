@@ -27,6 +27,7 @@ import { DangerConfirmDialog } from './DangerConfirmDialog'
 
 const initialDraft: CreateTemporaryInvite = {
   domain: '',
+  accountRole: 'temporary',
   expiresInHours: 24,
   accountLifetimeHours: 24,
   multiUse: false,
@@ -249,7 +250,7 @@ export function InvitationManagement({
         icon={UserRoundPlus}
         eyebrow="ADMIN · INVITATIONS"
         title={t('邀请管理')}
-        description={t('创建临时访问链接，并跟踪使用、过期与撤销状态。')}
+        description={t('创建普通或临时用户邀请，并跟踪使用、过期与撤销状态。')}
       />
       <section className="invite-summary" aria-label={t('邀请概况')}>
         <div><Link2 size={17} /><span><strong>{inviteSummary.total}{page.hasMore ? '+' : ''}</strong><small>{t('邀请记录')}</small></span></div>
@@ -269,6 +270,27 @@ export function InvitationManagement({
                   <span><Globe2 size={18} /></span>
                   <div><h2>{t('邮箱与有效期')}</h2><p>{t('确定邮箱分配方式，并分别设置链接和账号的有效时间。')}</p></div>
                 </header>
+                <fieldset className="invite-mode">
+                  <legend>{t('邀请账号类型')}</legend>
+                  <label className={draft.accountRole === 'user' ? 'is-selected' : ''}>
+                    <input
+                      type="radio"
+                      name="account-role"
+                      checked={draft.accountRole === 'user'}
+                      onChange={() => setDraft({ ...draft, accountRole: 'user' })}
+                    />
+                    <span><strong>{t('普通用户')}</strong><small>{t('账号长期有效，使用普通用户默认存储配额。')}</small></span>
+                  </label>
+                  <label className={draft.accountRole === 'temporary' ? 'is-selected' : ''}>
+                    <input
+                      type="radio"
+                      name="account-role"
+                      checked={draft.accountRole === 'temporary'}
+                      onChange={() => setDraft({ ...draft, accountRole: 'temporary' })}
+                    />
+                    <span><strong>{t('临时用户')}</strong><small>{t('账号按设定时间到期，使用临时用户默认存储配额。')}</small></span>
+                  </label>
+                </fieldset>
                 <fieldset className="invite-mode invite-address-mode">
                   <legend>{t('邮箱分配方式')}</legend>
                   <label className={draft.addressMode === 'assigned' ? 'is-selected' : ''}>
@@ -332,28 +354,30 @@ export function InvitationManagement({
                     />
                     <small>{t('只控制这个链接可以注册到什么时候。')}</small>
                   </div>
-                  <div className="invite-field">
-                    <span>{t('临时账号有效时间')}</span>
-                    <InviteSelect
-                      value={String(draft.accountLifetimeHours)}
-                      label={t('临时账号有效时间')}
-                      options={[
-                        { value: '1', label: t('1 小时') },
-                        { value: '6', label: t('6 小时') },
-                        { value: '24', label: t('24 小时') },
-                        { value: '72', label: t('3 天') },
-                        { value: '168', label: t('7 天') },
-                        { value: '720', label: t('30 天') },
-                      ]}
-                      onChange={(value) => setDraft({
-                        ...draft,
-                        accountLifetimeHours: Number(value),
-                      })}
-                    />
-                    <small data-tooltip={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
-                      {t('注册后计时；删账号、留邮箱。')}
-                    </small>
-                  </div>
+                  {draft.accountRole === 'temporary' && (
+                    <div className="invite-field">
+                      <span>{t('临时账号有效时间')}</span>
+                      <InviteSelect
+                        value={String(draft.accountLifetimeHours)}
+                        label={t('临时账号有效时间')}
+                        options={[
+                          { value: '1', label: t('1 小时') },
+                          { value: '6', label: t('6 小时') },
+                          { value: '24', label: t('24 小时') },
+                          { value: '72', label: t('3 天') },
+                          { value: '168', label: t('7 天') },
+                          { value: '720', label: t('30 天') },
+                        ]}
+                        onChange={(value) => setDraft({
+                          ...draft,
+                          accountLifetimeHours: Number(value),
+                        })}
+                      />
+                      <small data-tooltip={t('从注册成功起计算；账号到期删除，邮箱保留。')}>
+                        {t('注册后计时；删账号、留邮箱。')}
+                      </small>
+                    </div>
+                  )}
                 </div>
 
                 {draft.addressMode === 'assigned' && (
@@ -393,7 +417,7 @@ export function InvitationManagement({
                       checked={!draft.multiUse}
                       onChange={() => setDraft({ ...draft, multiUse: false })}
                     />
-                    <span><strong>{t('单次使用')}</strong><small>{t(draft.addressMode === 'assigned' ? '固定邮箱只能分配给一个临时用户。' : '首个用户成功注册后，链接立即失效。')}</small></span>
+                    <span><strong>{t('单次使用')}</strong><small>{t(draft.addressMode === 'assigned' ? '固定邮箱只能分配给一个用户。' : '首个用户成功注册后，链接立即失效。')}</small></span>
                   </label>
                   {draft.addressMode === 'self_selected' && (
                     <label className={`${draft.multiUse ? 'is-selected' : ''} ${!registrationProtectionReady ? 'is-disabled' : ''}`}>
@@ -488,18 +512,18 @@ export function InvitationManagement({
                 <span>{t('{count} 条', { count: invites.length })}</span>
               </header>
               {!invites.length ? (
-                <div className="invite-empty"><UserRoundPlus size={21} />{t('还没有临时用户邀请。')}</div>
+                <div className="invite-empty"><UserRoundPlus size={21} />{t('还没有用户邀请。')}</div>
               ) : (
                 <div className="invite-list">
                   {invites.map((invite) => (
                     <article className="invite-card" key={invite.id}>
                       <header>
-                        <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
+                        <span className="invite-domain"><Globe2 size={16} /><span><strong>{invite.assignedAddress || invite.domain}</strong><small>{t(invite.accountRole === 'user' ? '普通用户' : '临时用户')} · {invite.addressMode === 'assigned' ? t('管理员指定 · 单次使用') : invite.multiUse ? t('用户自选 · 已注册 {count} 人', { count: invite.useCount }) : t('用户自选 · 单次使用')}</small></span></span>
                         <span className={`invite-state invite-state--${invite.state}`}>{t(stateLabels[invite.state])}</span>
                       </header>
                       <dl className="invite-card__details">
                         <div><dt><Clock3 size={14} />{t('链接截止')}</dt><dd className="invite-expiry">{formatDate(invite.expiresAt)}</dd></div>
-                        <div><dt><UserRoundPlus size={14} />{t('账号有效期')}</dt><dd>{formatDuration(invite.accountLifetimeHours)}</dd></div>
+                        <div><dt><UserRoundPlus size={14} />{t('账号有效期')}</dt><dd>{invite.accountLifetimeHours === null ? t('长期有效') : formatDuration(invite.accountLifetimeHours)}</dd></div>
                         <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</dd></div>
                       </dl>
                       <footer>

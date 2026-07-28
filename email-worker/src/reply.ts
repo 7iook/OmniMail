@@ -67,6 +67,9 @@ export async function sendReply(
 
   const original = await ownedMessage(env, user.id, messageId)
   if (!original) return json({ error: '邮件不存在。' }, 404)
+  if (original.delivered_to) {
+    return json({ error: '无人收件邮件不能直接回复。' }, 409)
+  }
   if (original.direction !== 'incoming' || !validEmail(original.sender_address)) {
     return json({ error: '这封邮件无法回复。' }, 409)
   }

@@ -55,6 +55,8 @@ type MockState = {
   subject: string
   adminUserStatus: 'active' | 'disabled'
   authorized: boolean
+  createdInviteRole: 'user' | 'temporary' | null
+  unassignedMailEnabled: boolean
 }
 
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
@@ -68,6 +70,8 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     subject,
     adminUserStatus: 'active',
     authorized: true,
+    createdInviteRole: null,
+    unassignedMailEnabled: false,
   }
 }
 
@@ -89,7 +93,8 @@ async function mockApp(page: Page, state = mockState()) {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,
       registrationEnabled: false, registrationDomainPolicy: { mode: 'blocklist', domains: [] },
       registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: state.refreshInterval,
-      remoteImagesEnabled: false, superAdminEmail: user.email,
+      remoteImagesEnabled: false, unassignedMailEnabled: state.unassignedMailEnabled,
+      superAdminEmail: user.email,
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
     })
@@ -179,6 +184,11 @@ async function mockApp(page: Page, state = mockState()) {
       state.failed = false
       return json(route, { ok: true })
     }
+    if (path === '/api/admin/settings/unassigned-mail' && request.method() === 'PATCH') {
+      const input = request.postDataJSON() as { enabled: boolean }
+      state.unassignedMailEnabled = input.enabled
+      return json(route, { unassignedMailEnabled: input.enabled })
+    }
     if (path === '/api/admin/users' && request.method() === 'GET') {
       return json(route, {
         users: [{
@@ -239,6 +249,7 @@ async function mockApp(page: Page, state = mockState()) {
         invites: [{
           id: 'invite-1',
           domain: 'example.com',
+          accountRole: 'temporary',
           expiresAt: Math.floor(Date.now() / 1000) + 86400,
           multiUse: false,
           useCount: 0,
@@ -253,6 +264,29 @@ async function mockApp(page: Page, state = mockState()) {
         }],
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
+    }
+    if (path === '/api/admin/invites' && request.method() === 'POST') {
+      const input = request.postDataJSON() as { accountRole: 'user' | 'temporary' }
+      state.createdInviteRole = input.accountRole
+      return json(route, {
+        invite: {
+          id: 'invite-2',
+          domain: 'example.com',
+          accountRole: input.accountRole,
+          expiresAt: Math.floor(Date.now() / 1000) + 86400,
+          multiUse: false,
+          useCount: 0,
+          addressMode: 'self_selected',
+          assignedAddress: null,
+          accountLifetimeHours: input.accountRole === 'temporary' ? 24 : null,
+          mailboxLimit: 1,
+          canCreateMailboxes: false,
+          canReply: false,
+          createdAt: Math.floor(Date.now() / 1000),
+          state: 'active',
+        },
+        token: 'regular-invite-token',
+      }, 201)
     }
     if (path === '/api/admin/invites/invite-1/revoke' && request.method() === 'PATCH') {
       return json(route, { ok: true })
@@ -520,4 +554,24 @@ test('invitation lifecycle has a dedicated responsive admin page', async ({ page
       document.documentElement.scrollWidth <= document.documentElement.clientWidth
     ))).toBe(true)
   }
+})
+
+test('administrators can generate regular user invitation links', async ({ page }) => {
+  const state = await mockApp(page)
+  await page.goto('/admin/invites')
+  await page.getByRole('radio', { name: /^普通用户/ }).click()
+  await expect(page.getByLabel('临时账号有效时间')).toHaveCount(0)
+  await page.getByRole('button', { name: '生成邀请链接' }).click()
+  await expect.poll(() => state.createdInviteRole).toBe('user')
+  await expect(page.getByLabel('新邀请链接')).toHaveValue(/invite=regular-invite-token/)
+  await expect(page.locator('.invite-card').first()).toContainText('普通用户')
+  await expect(page.locator('.invite-card').first()).toContainText('长期有效')
+})
+
+test('administrators can enable unassigned mail from system settings', async ({ page }) => {
+  const state = await mockApp(page)
+  await page.goto('/admin/settings')
+  await page.getByRole('checkbox', { name: '开启无人收件' }).click()
+  await expect.poll(() => state.unassignedMailEnabled).toBe(true)
+  await expect(page.getByText('无人收件已开启')).toBeVisible()
 })

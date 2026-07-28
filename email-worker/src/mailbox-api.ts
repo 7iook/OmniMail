@@ -45,7 +45,7 @@ export async function listMailboxes(env: Env, user: SessionUser): Promise<Respon
   const { results } = await env.DB.prepare(
     `SELECT address, is_primary, is_active
        FROM mailboxes
-      WHERE user_id = ?
+      WHERE user_id = ? AND is_hidden = 0
       ORDER BY is_active DESC, is_primary DESC, address`,
   ).bind(user.id).all<MailboxRow>()
   return json({ mailboxes: results.map(mailboxJson) })
@@ -84,12 +84,12 @@ export async function addMailbox(
         LIMIT 1`,
     ).bind(address).first<{ reserved: number }>()
     if (reservation) {
-      return json({ error: '这个邮箱地址已由临时用户邀请预留。' }, 409)
+      return json({ error: '这个邮箱地址已由用户邀请预留。' }, 409)
     }
   }
 
   const mailboxCount = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM mailboxes WHERE user_id = ?',
+    'SELECT COUNT(*) AS count FROM mailboxes WHERE user_id = ? AND is_hidden = 0',
   ).bind(user.id).first<{ count: number }>()
   const isPrimary = existing?.is_primary || Number((mailboxCount?.count ?? 0) === 0)
   if (!existing && user.role !== 'super_admin' && (mailboxCount?.count ?? 0) >= user.mailboxLimit) {

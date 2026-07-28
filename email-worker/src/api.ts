@@ -24,7 +24,7 @@ import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
 import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
-import { mailRefreshInterval, remoteImagesEnabled, updateMailRefreshInterval, updateRemoteImagesSetting } from './system-settings'
+import { updateMailRefreshInterval, updateRemoteImagesSetting, updateUnassignedMailSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
@@ -369,6 +369,7 @@ app.patch('/api/admin/settings/registration', (context) => updateExternalRegistr
 app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/unassigned-mail', (context) => updateUnassignedMailSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.get('/api/admin/settings/storage', async (context) => {
   const user = context.get('user')
   if (user.role !== 'super_admin' && user.role !== 'admin') {

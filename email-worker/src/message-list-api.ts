@@ -11,6 +11,7 @@ type SummaryFields = Pick<
   | 'folder'
   | 'sender_name'
   | 'sender_address'
+  | 'delivered_to'
   | 'recipients_json'
   | 'subject'
   | 'preview'
@@ -35,7 +36,7 @@ export function parseSyncVersion(value: string | null): number | null | undefine
 export function messageSummary(row: SummaryFields) {
   return {
     id: row.id,
-    mailboxAddress: row.mailbox_address,
+    mailboxAddress: row.delivered_to || row.mailbox_address,
     direction: row.direction,
     status: row.status,
     folder: row.folder,
@@ -85,11 +86,14 @@ export async function listMessages(
     if (!validEmail(mailbox)) {
       return Response.json({ error: '邮箱筛选条件无效。' }, { status: 400 })
     }
-    scopeConditions.push('m.mailbox_address = ?')
+    scopeConditions.push('COALESCE(m.delivered_to, m.mailbox_address) = ?')
     scopeBindings.push(mailbox)
   } else if (domain) {
     scopeConditions.push(
-      "substr(lower(m.mailbox_address), instr(m.mailbox_address, '@') + 1) = ?",
+      `substr(
+        lower(COALESCE(m.delivered_to, m.mailbox_address)),
+        instr(COALESCE(m.delivered_to, m.mailbox_address), '@') + 1
+      ) = ?`,
     )
     scopeBindings.push(domain)
   }
@@ -136,7 +140,8 @@ export async function listMessages(
   const { results } = await env.DB.prepare(
     `SELECT
        m.id, m.mailbox_address, m.direction, m.status, m.folder,
-       m.sender_name, m.sender_address, m.recipients_json, m.subject, m.preview,
+       m.sender_name, m.sender_address, m.delivered_to, m.recipients_json,
+       m.subject, m.preview,
        m.received_at, m.sent_at, m.attachment_count, m.is_read, m.is_starred,
        m.processing_error, m.purge_after, m.created_at,
        COALESCE(m.received_at, m.sent_at, m.created_at) AS sort_time

@@ -148,8 +148,8 @@ export function TemporaryInvitePage({
           <header className="invite-public-header">
             <span className="auth-symbol"><UserRoundPlus size={27} /></span>
             <div>
-              <p className="eyebrow">TEMPORARY ACCOUNT</p>
-              <h1>{t('创建临时邮箱账号')}</h1>
+              <p className="eyebrow">{invite.accountRole === 'temporary' ? 'TEMPORARY ACCOUNT' : 'REGULAR ACCOUNT'}</p>
+              <h1>{t(invite.accountRole === 'temporary' ? '创建临时邮箱账号' : '创建普通邮箱账号')}</h1>
               <p>{invite.addressMode === 'assigned'
                 ? t('管理员已经为你分配好邮箱，设置密码后即可进入 {appName}。', { appName })
                 : t('管理员邀请你加入 {appName}，请自行选择一个尚未使用的邮箱名称。', { appName })}</p>
@@ -162,11 +162,15 @@ export function TemporaryInvitePage({
                 ? <div><AtSign size={17} /><span><small>{t('管理员指定邮箱')}</small><strong>{invite.assignedAddress}</strong></span></div>
                 : <div><Globe2 size={17} /><span><small>{t('管理员指定域名')}</small><strong>{invite.domain}</strong></span></div>}
               <div><Clock3 size={17} /><span><small>{t('注册链接有效至')}</small><strong>{formatDate(invite.expiresAt)}</strong></span></div>
-              <div><Clock3 size={17} /><span><small>{t('临时账号有效时间')}</small><strong>{t('注册成功后 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</strong></span></div>
+              {invite.accountRole === 'temporary' && invite.accountLifetimeHours !== null && (
+                <div><Clock3 size={17} /><span><small>{t('临时账号有效时间')}</small><strong>{t('注册成功后 {duration}', { duration: formatDuration(invite.accountLifetimeHours) })}</strong></span></div>
+              )}
               <div><ShieldCheck size={17} /><span><small>{t('链接类型')}</small><strong>{t(invite.multiUse ? '多人注册链接' : '单次使用链接')}</strong></span></div>
               <div><MailPlus size={17} /><span><small>{t('邮箱权限')}</small><strong>{invite.addressMode === 'assigned' ? t('固定邮箱，不能自行新增或更改') : invite.canCreateMailboxes ? t('最多创建 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅使用注册时创建的邮箱')}</strong></span></div>
               <div><Send size={17} /><span><small>{t('回信权限')}</small><strong>{t(invite.canReply ? '可以通过 Resend 回信' : '仅接收与查看邮件')}</strong></span></div>
-              <p><Check size={16} />{t('链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。')}</p>
+              <p><Check size={16} />{t(invite.accountRole === 'temporary'
+                ? '链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。'
+                : '链接到期只停止注册；已经创建的普通用户账号会长期有效。')}</p>
             </aside>
 
             {registeredEmail ? (

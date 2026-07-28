@@ -19,6 +19,7 @@ GET /api/config
 `POST /api/register` 返回 `403`。`registrationProtectionReady` 表示 Worker
 是否已经配置完整的 Turnstile 公钥和密钥，`turnstileSiteKey` 是前端渲染组件时
 使用的公开 Site Key。`mailRefreshInterval` 是管理员设置的收件箱自动刷新秒数，
+`unassignedMailEnabled` 表示是否将未知收件地址的邮件交给主管理员，
 值为 `0`、`5`、`10`、`30`、`60` 或 `120`，其中 `0` 表示关闭自动刷新。
 `registrationDomainPolicy` 包含公开注册邮箱规则模式和后缀数组。`blocklist`
 表示拒绝列表内的后缀，`allowlist` 表示只允许列表内的后缀。
@@ -98,18 +99,50 @@ Content-Type: application/json
 该设置通过 `GET /api/config` 的 `remoteImagesEnabled` 字段返回。关闭时邮件阅读器
 仍允许 `data:` 与 `cid:` 图片，但不会向远程图片服务器发起请求。
 
+管理员可开启或关闭无人收件：
+
+```http
+PATCH /api/admin/settings/unassigned-mail
+Authorization: Bearer om_at_...
+Content-Type: application/json
+
+{ "enabled": true }
+```
+
+开启后，已启用管理域名下尚未创建邮箱地址的邮件会进入主管理员收件箱，并显示
+原始收件地址。关闭时继续在收件阶段拒绝；关闭开关不会删除已经接收的邮件。
+
 ## 邀请注册安全
 
 单次邀请的注册请求按来源 IP 和邀请令牌分别限速，超限返回 `429` 和
 `Retry-After`。多人注册链接要求 Worker 已配置 Turnstile，并在注册时提交
-专用的 `action=temporary-invite` 令牌：
+专用的 `action=temporary-invite` 令牌。管理员创建邀请时可通过
+`accountRole` 选择 `user`（长期有效的普通用户）或 `temporary`（限时临时用户）：
+
+```http
+POST /api/admin/invites
+Content-Type: application/json
+
+{
+  "accountRole": "user",
+  "domain": "example.com",
+  "expiresInHours": 24,
+  "multiUse": false,
+  "addressMode": "self_selected",
+  "mailboxLimit": 1,
+  "canCreateMailboxes": false,
+  "canReply": false
+}
+```
+
+邀请注册请求如下：
 
 ```http
 POST /api/invitations/{inviteToken}
 Content-Type: application/json
 
 {
-  "displayName": "Temporary User",
+  "displayName": "Invited User",
   "localPart": "guest",
   "password": "at-least-10-characters",
   "turnstileToken": "token-from-turnstile-widget"
@@ -217,7 +250,7 @@ Authorization: Bearer om_at_...
 
 ## 游标分页
 
-邮件、管理员用户列表和临时邀请列表支持游标分页：
+邮件、管理员用户列表和邀请列表支持游标分页：
 
 ```http
 GET /api/messages?folder=inbox&limit=30
@@ -352,7 +385,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/users` | 管理员用户列表 |
-| `GET /api/admin/invites` | 管理员临时邀请列表 |
+| `GET /api/admin/invites` | 管理员邀请列表 |
 | `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |
 | `PATCH /api/admin/settings/storage` | 更新备份开关、保留期和默认配额 |
 | `POST /api/admin/backups` | 手动启动一次备份 |
@@ -360,6 +393,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `PATCH /api/admin/settings/registration-domains` | 管理员设置注册邮箱允许/禁止规则 |
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |
 | `PATCH /api/admin/settings/remote-images` | 管理员设置邮件远程图片默认策略 |
+| `PATCH /api/admin/settings/unassigned-mail` | 管理员开启或关闭无人收件 |
 
 附件和原始邮件接口同样支持 Bearer Token。桌面端下载文件时需要通过 HTTP
 客户端设置 `Authorization` 请求头，不能把 Token 拼接到 URL 查询参数中。

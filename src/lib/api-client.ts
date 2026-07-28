@@ -128,6 +128,12 @@ export const api = {
       body: jsonBody({ enabled }),
     })
   ),
+  updateUnassignedMailSetting: (enabled: boolean) => (
+    request<{ unassignedMailEnabled: boolean }>('/api/admin/settings/unassigned-mail', {
+      method: 'PATCH',
+      body: jsonBody({ enabled }),
+    })
+  ),
   storagePolicy: () => request<{ storagePolicy: StoragePolicy }>(
     '/api/admin/settings/storage',
   ),

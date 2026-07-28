@@ -204,7 +204,7 @@ export function DomainManagement({
             <p className="domain-delete-lead">{t('请先确认删除后的影响。这个操作只删除 OmniMail 中的域名管理配置。')}</p>
             <div className="domain-delete-risks">
               <p><Mail size={17} /><span><strong>{t('{count} 个已有邮箱会保留', { count: pendingDelete.mailboxCount })}</strong><small>{t('邮箱地址、历史邮件和附件不会被删除，并且仍可继续查看。')}</small></span></p>
-              <p><Link2 size={17} /><span><strong>{t('相关邀请链接会失效')}</strong><small>{t('使用该域名且尚未注册的临时邀请将无法继续使用。')}</small></span></p>
+              <p><Link2 size={17} /><span><strong>{t('相关邀请链接会失效')}</strong><small>{t('使用该域名且尚未注册的邀请将无法继续使用。')}</small></span></p>
               <p><Globe2 size={17} /><span><strong>{t('不会修改 Cloudflare DNS')}</strong><small>{t('Email Routing、MX 和其他 DNS 记录需要在 Cloudflare 中单独管理。')}</small></span></p>
             </div>
             <footer>

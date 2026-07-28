@@ -5,6 +5,7 @@ export type MailRefreshInterval = 0 | 5 | 10 | 30 | 60 | 120
 
 const REFRESH_SETTING = 'mail_refresh_interval'
 const REMOTE_IMAGES_SETTING = 'remote_images_enabled'
+const UNASSIGNED_MAIL_SETTING = 'unassigned_mail_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -23,6 +24,10 @@ export function parseMailRefreshInterval(value: unknown): MailRefreshInterval | 
 }
 
 export function parseRemoteImagesEnabled(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
+export function parseUnassignedMailEnabled(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
@@ -84,4 +89,27 @@ export async function updateRemoteImagesSetting(
   ).bind(REMOTE_IMAGES_SETTING, enabled ? '1' : '0').run()
   await writeAudit(env, actor.id, 'system.remote_images.update', null, ip, { enabled })
   return json({ remoteImagesEnabled: enabled })
+}
+
+export async function updateUnassignedMailSetting(
+  env: Env,
+  actor: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  if (!isAdministrator(actor)) {
+    return json({ error: '只有管理员可以修改无人收件设置。' }, 403)
+  }
+  const body = await request.json<{ enabled?: unknown }>()
+    .catch(() => ({} as { enabled?: unknown }))
+  const enabled = parseUnassignedMailEnabled(body.enabled)
+  if (enabled === null) {
+    return json({ error: '无人收件设置无效。' }, 400)
+  }
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+  ).bind(UNASSIGNED_MAIL_SETTING, enabled ? '1' : '0').run()
+  await writeAudit(env, actor.id, 'system.unassigned_mail.update', null, ip, { enabled })
+  return json({ unassignedMailEnabled: enabled })
 }

@@ -150,10 +150,6 @@ export const enCore: Record<string, string> = {
   '正在打开邮件': 'Opening message',
   '安全读取邮件内容': 'Loading message securely',
   '选择一封邮件': 'Select a message',
-  '邮件内容会安全地显示在这里，HTTPS 远程图片按系统设置加载。':
-    'Message content will appear securely here. HTTPS remote images follow the system setting.',
-  '邮件内容会安全地显示在这里，远程图片默认被阻止。':
-    'Message content will appear securely here. Remote images are blocked by default.',
   '返回邮件列表': 'Back to message list',
   '恢复': 'Restore',
   '永久删除': 'Delete permanently',

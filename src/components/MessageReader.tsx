@@ -252,9 +252,6 @@ export function MessageReader({
       <div className="reader-state reader-state--empty">
         <span className="reader-empty-symbol"><Mail size={29} /></span>
         <h2>{t('选择一封邮件')}</h2>
-        <p>{t(remoteImagesEnabled
-          ? '邮件内容会安全地显示在这里，HTTPS 远程图片按系统设置加载。'
-          : '邮件内容会安全地显示在这里，远程图片默认被阻止。')}</p>
       </div>
     )
   }

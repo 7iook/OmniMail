@@ -113,7 +113,7 @@ async function findUser(env: Env, id: string): Promise<AdminUserRow | null> {
   return env.DB.prepare(
     `SELECT u.*, COUNT(m.address) AS mailbox_count
        FROM users u
-       LEFT JOIN mailboxes m ON m.user_id = u.id
+       LEFT JOIN mailboxes m ON m.user_id = u.id AND m.is_hidden = 0
       WHERE u.id = ? AND u.deleted_at IS NULL
       GROUP BY u.id`,
   ).bind(id).first<AdminUserRow>()
@@ -161,7 +161,7 @@ export async function listManagedUsers(
                 ELSE 3
               END AS sort_role
          FROM users u
-         LEFT JOIN mailboxes m ON m.user_id = u.id
+         LEFT JOIN mailboxes m ON m.user_id = u.id AND m.is_hidden = 0
         WHERE u.deleted_at IS NULL
         GROUP BY u.id
      ) ranked

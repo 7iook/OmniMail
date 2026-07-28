@@ -18,6 +18,7 @@ interface InviteRow {
   id: string
   domain_name: string
   domain_active: number
+  account_role: 'user' | 'temporary'
   expires_at: number
   max_uses: number
   use_count: number
@@ -33,6 +34,7 @@ interface InviteRow {
 
 interface InvitePolicyInput {
   domain?: unknown
+  accountRole?: unknown
   expiresInHours?: unknown
   accountLifetimeHours?: unknown
   multiUse?: unknown
@@ -78,16 +80,32 @@ export function temporaryAddress(localPart: string, domain: string): string {
   return validEmail(address) ? address : ''
 }
 
+export function parseInviteAccountRole(value: unknown): 'user' | 'temporary' | null {
+  if (value === undefined) return 'temporary'
+  return value === 'user' || value === 'temporary' ? value : null
+}
+
+export function inviteAccountExpiresAt(
+  role: 'user' | 'temporary',
+  now: number,
+  lifetimeHours: number,
+): number | null {
+  return role === 'temporary' ? now + lifetimeHours * 60 * 60 : null
+}
+
 function inviteJson(row: InviteRow, now: number) {
   return {
     id: row.id,
     domain: row.domain_name,
+    accountRole: row.account_role,
     expiresAt: row.expires_at,
     multiUse: row.max_uses === 0,
     useCount: row.use_count,
     addressMode: row.address_mode,
     assignedAddress: row.assigned_address,
-    accountLifetimeHours: row.account_lifetime_hours,
+    accountLifetimeHours: row.account_role === 'temporary'
+      ? row.account_lifetime_hours
+      : null,
     mailboxLimit: row.mailbox_limit,
     canCreateMailboxes: Boolean(row.can_create_mailboxes),
     canReply: Boolean(row.can_reply),
@@ -97,7 +115,7 @@ function inviteJson(row: InviteRow, now: number) {
 }
 
 const INVITE_SELECT = `
-  SELECT i.id, i.domain_name, i.expires_at, i.max_uses, i.use_count,
+  SELECT i.id, i.domain_name, i.account_role, i.expires_at, i.max_uses, i.use_count,
          i.address_mode, i.assigned_address,
          i.account_lifetime_hours,
          i.mailbox_limit, i.can_create_mailboxes, i.can_reply,
@@ -177,12 +195,16 @@ export async function createTemporaryInvite(
   const body = await request.json<InvitePolicyInput>()
     .catch(() => ({} as InvitePolicyInput))
   const domain = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
+  const accountRole = parseInviteAccountRole(body.accountRole)
   const expiresInHours = Number(body.expiresInHours)
-  const accountLifetimeHours = Number(body.accountLifetimeHours)
+  const accountLifetimeHours = accountRole === 'temporary'
+    ? Number(body.accountLifetimeHours)
+    : 24
   const mailboxLimit = Number(body.mailboxLimit)
   const addressMode = body.addressMode
   if (
     !domain
+    || !accountRole
     || !Number.isInteger(expiresInHours)
     || expiresInHours < 1
     || expiresInHours > 720
@@ -238,14 +260,15 @@ export async function createTemporaryInvite(
   const effectiveLimit = canCreateMailboxes ? mailboxLimit : 1
   await env.DB.prepare(
     `INSERT INTO temporary_invites (
-      id, token_hash, domain_name, expires_at, max_uses, address_mode,
+      id, token_hash, domain_name, account_role, expires_at, max_uses, address_mode,
       assigned_address, account_lifetime_hours, mailbox_limit,
       can_create_mailboxes, can_reply, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id,
     await sha256(token),
     domain,
+    accountRole,
     now + expiresInHours * 60 * 60,
     body.multiUse ? 0 : 1,
     addressMode,
@@ -258,6 +281,7 @@ export async function createTemporaryInvite(
   ).run()
   await audit(env, user.id, 'temporary_invite.create', id, ip, {
     domain,
+    accountRole,
     addressMode,
     assignedAddress,
     accountLifetimeHours,
@@ -406,24 +430,31 @@ export async function registerTemporaryInvite(
   }
 
   const userId = crypto.randomUUID()
-  const storageQuotaBytes = await defaultQuotaBytes(env.DB, 'temporary')
+  const accountRole = invite.account_role
+  const accountExpiresAt = inviteAccountExpiresAt(
+    accountRole,
+    now,
+    invite.account_lifetime_hours,
+  )
+  const storageQuotaBytes = await defaultQuotaBytes(env.DB, accountRole)
   try {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO users (
           id, email, display_name, password_hash, role, status, mailbox_limit,
           storage_quota_bytes, can_create_mailboxes, can_reply, temporary_expires_at
-        ) VALUES (?, ?, ?, ?, 'temporary', 'active', ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
       ).bind(
         userId,
         address,
         displayName,
         passwordHash,
+        accountRole,
         invite.mailbox_limit,
         storageQuotaBytes,
         invite.can_create_mailboxes,
         invite.can_reply,
-        now + invite.account_lifetime_hours * 60 * 60,
+        accountExpiresAt,
       ),
       env.DB.prepare(
         `INSERT INTO mailboxes (address, user_id, is_primary, is_active)
@@ -439,7 +470,8 @@ export async function registerTemporaryInvite(
 
   await audit(env, userId, 'temporary_invite.register', invite.id, ip, {
     address,
-    temporaryExpiresAt: now + invite.account_lifetime_hours * 60 * 60,
+    accountRole,
+    temporaryExpiresAt: accountExpiresAt,
   })
   return json({ email: address }, 201)
 }

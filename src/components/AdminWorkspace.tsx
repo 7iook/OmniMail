@@ -76,6 +76,8 @@ export function AdminWorkspace({
   const [refreshError, setRefreshError] = useState('')
   const [remoteImagesSaving, setRemoteImagesSaving] = useState(false)
   const [remoteImagesError, setRemoteImagesError] = useState('')
+  const [unassignedMailSaving, setUnassignedMailSaving] = useState(false)
+  const [unassignedMailError, setUnassignedMailError] = useState('')
 
   async function toggleRegistration() {
     setRegistrationSaving(true)
@@ -114,6 +116,19 @@ export function AdminWorkspace({
       setRemoteImagesError(t(error instanceof Error ? error.message : '无法更新远程图片设置。'))
     } finally {
       setRemoteImagesSaving(false)
+    }
+  }
+
+  async function toggleUnassignedMail() {
+    setUnassignedMailSaving(true)
+    setUnassignedMailError('')
+    try {
+      const result = await api.updateUnassignedMailSetting(!config.unassignedMailEnabled)
+      onConfigChange({ ...config, unassignedMailEnabled: result.unassignedMailEnabled })
+    } catch (error) {
+      setUnassignedMailError(t(error instanceof Error ? error.message : '无法更新无人收件设置。'))
+    } finally {
+      setUnassignedMailSaving(false)
     }
   }
 
@@ -288,6 +303,42 @@ export function AdminWorkspace({
             </p>
           )}
           <p className="admin-note">{t('开启后可能向图片服务器暴露访问时间和网络信息；邮件脚本、表单与嵌入页面仍会被阻止。')}</p>
+        </section>
+
+        <section className="admin-card admin-card--settings">
+          <header>
+            <Mail size={17} />
+            <div>
+              <h2>{t('无人收件')}</h2>
+              <p>{t('接收尚未创建邮箱地址的邮件')}</p>
+            </div>
+          </header>
+          <label className="policy-toggle">
+            <span>
+              {unassignedMailSaving
+                ? <LoaderCircle className="spin" size={17} />
+                : <Mail size={17} />}
+              <span>
+                <strong>{t(config.unassignedMailEnabled ? '无人收件已开启' : '拒收未分配邮件')}</strong>
+                <small>{t(config.unassignedMailEnabled
+                  ? '已管理域名的未分配邮件会进入主管理员收件箱'
+                  : '未创建邮箱地址的邮件会在收件阶段被拒绝')}</small>
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={config.unassignedMailEnabled}
+              disabled={unassignedMailSaving}
+              aria-label={t('开启无人收件')}
+              onChange={() => void toggleUnassignedMail()}
+            />
+          </label>
+          {unassignedMailError && (
+            <p className="inline-error" role="alert">
+              <AlertCircle size={15} />{unassignedMailError}
+            </p>
+          )}
+          <p className="admin-note">{t('仅主管理员可以查看无人收件邮件；邮件列表会显示原始收件地址。关闭开关不会删除已经收到的邮件。')}</p>
         </section>
 
         <section className="admin-card admin-card--settings">

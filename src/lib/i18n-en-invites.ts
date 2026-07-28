@@ -18,8 +18,8 @@ export const enInvites: Record<string, string> = {
   '确认撤销': 'Revoke invitation',
   '临时用户邀请': 'Temporary user invitation',
   '邀请管理': 'Invitation management',
-  '创建临时访问链接，并跟踪使用、过期与撤销状态。':
-    'Create temporary access links and track their use, expiry, and revocation.',
+  '创建普通或临时用户邀请，并跟踪使用、过期与撤销状态。':
+    'Invite regular or temporary users and track usage, expiry, and revocation.',
   '邀请概况': 'Invitation summary',
   '邀请记录': 'Invitation records',
   '可用邀请': 'Active invitations',
@@ -32,6 +32,13 @@ export const enInvites: Record<string, string> = {
   '确定邮箱分配方式，并分别设置链接和账号的有效时间。':
     'Choose how the mailbox is assigned and set separate lifetimes for the link and account.',
   '邮箱分配方式': 'Mailbox assignment',
+  '邀请账号类型': 'Invited account type',
+  '普通用户': 'Regular user',
+  '账号长期有效，使用普通用户默认存储配额。':
+    'The account remains active and uses the default regular-user storage quota.',
+  '临时用户': 'Temporary user',
+  '账号按设定时间到期，使用临时用户默认存储配额。':
+    'The account expires as configured and uses the default temporary-user storage quota.',
   '管理员指定邮箱': 'Administrator-assigned mailbox',
   '提前固定完整地址；用户注册后直接使用，不能自行新增或更改。':
     'Reserve a complete address in advance. The user receives it after registration and cannot change it.',
@@ -60,8 +67,8 @@ export const enInvites: Record<string, string> = {
     'The address is reserved immediately and becomes the fixed login and receiving address after registration.',
   '链接使用方式': 'Link usage',
   '单次使用': 'Single use',
-  '固定邮箱只能分配给一个临时用户。':
-    'A fixed mailbox can only be assigned to one temporary user.',
+  '固定邮箱只能分配给一个用户。':
+    'A fixed mailbox can only be assigned to one user.',
   '首个用户成功注册后，链接立即失效。':
     'The link expires after the first successful registration.',
   '多人注册': 'Multiple registrations',
@@ -93,12 +100,13 @@ export const enInvites: Record<string, string> = {
   '历史记录仅显示状态，不保存可复制的明文链接。':
     'History shows status only and does not retain copyable plain-text links.',
   '{count} 条': '{count} entries',
-  '还没有临时用户邀请。': 'No temporary user invitations yet.',
+  '还没有用户邀请。': 'No user invitations yet.',
   '管理员指定 · 单次使用': 'Administrator assigned · Single use',
   '用户自选 · 已注册 {count} 人': 'User selected · {count} registered',
   '用户自选 · 单次使用': 'User selected · Single use',
   '链接截止': 'Link expires',
   '账号有效期': 'Account lifetime',
+  '长期有效': 'No expiry',
   '账号注册后可用 {duration}': 'Account lasts {duration} after registration',
   '账号 {duration}': 'Account {duration}',
   '最多 {count} 个邮箱': 'Up to {count} mailboxes',
@@ -113,6 +121,7 @@ export const enInvites: Record<string, string> = {
   '邀请链接不存在或已经失效。': 'The invitation link does not exist or has expired.',
   '返回 {appName} 登录页': 'Return to {appName} sign in',
   '创建临时邮箱账号': 'Create a temporary mailbox account',
+  '创建普通邮箱账号': 'Create a regular mailbox account',
   '管理员已经为你分配好邮箱，设置密码后即可进入 {appName}。':
     'An administrator has assigned your mailbox. Set a password to enter {appName}.',
   '管理员邀请你加入 {appName}，请自行选择一个尚未使用的邮箱名称。':
@@ -133,6 +142,8 @@ export const enInvites: Record<string, string> = {
   '仅接收与查看邮件': 'Receive and view messages only',
   '链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。':
     'Link expiry stops new registrations. Account expiry deletes the account, while mailboxes and existing messages remain.',
+  '链接到期只停止注册；已经创建的普通用户账号会长期有效。':
+    'Link expiry stops new registrations. Regular user accounts already created do not expire.',
   '账号已经创建': 'Account created',
   '前往登录': 'Go to sign in',
   '该邮箱会成为固定的登录账号和收件地址，注册后不能自行更改。':

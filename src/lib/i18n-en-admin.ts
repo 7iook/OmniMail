@@ -9,6 +9,7 @@ export const enAdmin: Record<string, string> = {
   '无法更新注册设置。': 'Could not update registration settings.',
   '无法更新自动刷新设置。': 'Could not update auto-refresh settings.',
   '无法更新远程图片设置。': 'Could not update remote image settings.',
+  '无法更新无人收件设置。': 'Could not update unassigned mail settings.',
   '允许列表至少需要填写一个邮箱后缀。':
     'The allow list must contain at least one email domain.',
   '无法保存邮箱后缀限制。': 'Could not save the email domain policy.',
@@ -46,6 +47,18 @@ export const enAdmin: Record<string, string> = {
   '默认加载邮件中的远程图片': 'Load remote images in messages by default',
   '开启后可能向图片服务器暴露访问时间和网络信息；邮件脚本、表单与嵌入页面仍会被阻止。':
     'Enabling this may expose access time and network information to image servers. Scripts, forms, and embedded pages remain blocked.',
+  '无人收件': 'Unassigned mail',
+  '接收尚未创建邮箱地址的邮件':
+    'Receive messages sent to mailbox addresses that have not been created',
+  '无人收件已开启': 'Unassigned mail is enabled',
+  '拒收未分配邮件': 'Reject unassigned mail',
+  '已管理域名的未分配邮件会进入主管理员收件箱':
+    'Unassigned messages for managed domains go to the owner inbox',
+  '未创建邮箱地址的邮件会在收件阶段被拒绝':
+    'Messages for mailbox addresses that do not exist are rejected',
+  '开启无人收件': 'Enable unassigned mail',
+  '仅主管理员可以查看无人收件邮件；邮件列表会显示原始收件地址。关闭开关不会删除已经收到的邮件。':
+    'Only the owner can view unassigned mail. The message list shows the original recipient, and disabling this setting does not delete messages already received.',
   '账户类型': 'Account types',
   '权限模型已经预留': 'Permission model is available',
   '管理员': 'Administrator',
@@ -119,8 +132,8 @@ export const enAdmin: Record<string, string> = {
   '邮箱地址、历史邮件和附件不会被删除，并且仍可继续查看。':
     'Mailbox addresses, message history, and attachments are not deleted and remain viewable.',
   '相关邀请链接会失效': 'Related invitation links will stop working',
-  '使用该域名且尚未注册的临时邀请将无法继续使用。':
-    'Unused temporary invitations for this domain can no longer be used.',
+  '使用该域名且尚未注册的邀请将无法继续使用。':
+    'Unused invitations for this domain can no longer be used.',
   '不会修改 Cloudflare DNS': 'Cloudflare DNS is not changed',
   'Email Routing、MX 和其他 DNS 记录需要在 Cloudflare 中单独管理。':
     'Manage Email Routing, MX, and other DNS records separately in Cloudflare.',
@@ -180,8 +193,8 @@ export const enAdmin: Record<string, string> = {
   '启用域名': 'Domain enabled',
   '停用域名': 'Domain disabled',
   '删除域名': 'Domain deleted',
-  '创建临时邀请': 'Temporary invitation created',
-  '撤销临时邀请': 'Temporary invitation revoked',
+  '创建邀请': 'Invitation created',
+  '撤销邀请': 'Invitation revoked',
   '通过邀请注册': 'Registered with invitation',
   '邀请注册被拦截': 'Invitation registration blocked',
   '回复邮件': 'Message replied to',
@@ -197,6 +210,9 @@ export const enAdmin: Record<string, string> = {
   '修改注册邮箱限制': 'Registration email policy updated',
   '修改邮件自动刷新': 'Mail auto-refresh updated',
   '修改远程图片策略': 'Remote image policy updated',
+  '修改无人收件设置': 'Unassigned mail setting updated',
+  '已开启': 'Enabled',
+  '已关闭': 'Disabled',
   '其他': 'Other',
   '网页端': 'Web',
   '客户端': 'Client',

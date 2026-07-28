@@ -9,6 +9,8 @@ type ParsedAddress = {
   name?: string
 }
 
+const UNASSIGNED_MAILBOX = '__unassigned__@omnimail.invalid'
+
 function normalizeAddress(value: string): string {
   return value.trim().toLowerCase()
 }
@@ -76,29 +78,63 @@ function referenceValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-async function mailboxForRecipient(
-  db: D1Database,
+export async function mailboxForRecipient(
+  env: Env,
   recipient: string,
-): Promise<{ address: string; userId: string } | null> {
+): Promise<{ address: string; userId: string; deliveredTo: string | null } | null> {
   const exact = normalizeAddress(recipient)
   const base = baseMailboxAddress(recipient)
-  const row = await db.prepare(
+  const row = await env.DB.prepare(
     `SELECT mb.address, mb.user_id
        FROM mailboxes mb
        JOIN users u ON u.id = mb.user_id
       WHERE mb.is_active = 1
+        AND mb.is_hidden = 0
         AND mb.address IN (?, ?)
         AND u.status = 'active'
         AND u.deleted_at IS NULL
       ORDER BY CASE WHEN mb.address = ? THEN 0 ELSE 1 END
       LIMIT 1`,
   ).bind(exact, base, exact).first<{ address: string; user_id: string }>()
-  return row ? { address: row.address, userId: row.user_id } : null
+  if (row) return { address: row.address, userId: row.user_id, deliveredTo: null }
+
+  const at = exact.lastIndexOf('@')
+  const domain = at > 0 ? exact.slice(at + 1) : ''
+  const ownerEmail = normalizeAddress(env.SUPER_ADMIN_EMAIL || '')
+  if (!domain || !ownerEmail) return null
+  const catchAllOwner = await env.DB.prepare(
+    `SELECT u.id
+       FROM users u
+      WHERE u.email = ?
+        AND u.status = 'active'
+        AND u.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM domains d WHERE d.name = ? AND d.is_active = 1
+        )
+        AND EXISTS (
+          SELECT 1 FROM settings s
+           WHERE s.key = 'unassigned_mail_enabled' AND s.value = '1'
+        )`,
+  ).bind(ownerEmail, domain).first<{ id: string }>()
+  if (!catchAllOwner) return null
+  await env.DB.prepare(
+    `INSERT INTO mailboxes (
+       address, user_id, is_primary, is_active, is_hidden
+     ) VALUES (?, ?, 0, 1, 1)
+     ON CONFLICT(address) DO UPDATE SET
+       user_id = excluded.user_id, is_active = 1
+     WHERE mailboxes.is_hidden = 1`,
+  ).bind(UNASSIGNED_MAILBOX, catchAllOwner.id).run()
+  return {
+    address: UNASSIGNED_MAILBOX,
+    userId: catchAllOwner.id,
+    deliveredTo: exact,
+  }
 }
 
 export async function receiveEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   await ensureSchema(env.DB)
-  const mailbox = await mailboxForRecipient(env.DB, message.to)
+  const mailbox = await mailboxForRecipient(env, message.to)
   if (!mailbox) {
     message.setReject('Mailbox unavailable')
     return
@@ -134,13 +170,15 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
     const insertResult = await env.DB.prepare(
       `INSERT OR IGNORE INTO messages (
         id, mailbox_address, direction, status, folder, message_id,
-        sender_address, recipients_json, subject, received_at, raw_key, size, quota_bytes
-      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sender_address, delivered_to, recipients_json, subject, received_at,
+        raw_key, size, quota_bytes
+      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       mailbox.address,
       incomingMessageId,
       normalizeAddress(message.from),
+      mailbox.deliveredTo,
       JSON.stringify([normalizeAddress(message.to)]),
       subject,
       now,

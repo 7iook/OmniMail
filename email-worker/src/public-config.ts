@@ -38,7 +38,8 @@ export async function publicConfig(env: Env) {
       'registration_domain_policy_mode',
       'registration_blocked_domains',
       'mail_refresh_interval',
-      'remote_images_enabled'
+      'remote_images_enabled',
+      'unassigned_mail_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -55,6 +56,7 @@ export async function publicConfig(env: Env) {
       Number(settings.get('mail_refresh_interval')),
     ) ?? 30,
     remoteImagesEnabled: settings.get('remote_images_enabled') === '1',
+    unassignedMailEnabled: settings.get('unassigned_mail_enabled') === '1',
     superAdminEmail: superAdminEmail(env),
     setupRequirements: publicSetupRequirements(env),
   }

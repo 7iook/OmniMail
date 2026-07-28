@@ -12,6 +12,7 @@ export interface AppConfig {
   turnstileSiteKey: string
   mailRefreshInterval: MailRefreshInterval
   remoteImagesEnabled: boolean
+  unassignedMailEnabled: boolean
   superAdminEmail: string
   setupRequirements: SetupRequirements
 }
@@ -244,12 +245,13 @@ export type InviteState = 'active' | 'expired' | 'used' | 'revoked' | 'domain_di
 export interface TemporaryInvite {
   id: string
   domain: string
+  accountRole: 'user' | 'temporary'
   expiresAt: number
   multiUse: boolean
   useCount: number
   addressMode: 'assigned' | 'self_selected'
   assignedAddress: string | null
-  accountLifetimeHours: number
+  accountLifetimeHours: number | null
   mailboxLimit: number
   canCreateMailboxes: boolean
   canReply: boolean
@@ -259,6 +261,7 @@ export interface TemporaryInvite {
 
 export interface CreateTemporaryInvite {
   domain: string
+  accountRole: 'user' | 'temporary'
   expiresInHours: number
   accountLifetimeHours: number
   multiUse: boolean

@@ -198,7 +198,8 @@ export async function mailStatistics(
     ),
     env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.role,
-              COUNT(DISTINCT mb.address) AS mailbox_count,
+              COUNT(DISTINCT CASE WHEN mb.is_hidden = 0 THEN mb.address END)
+                AS mailbox_count,
               COUNT(m.id) AS message_count,
               u.storage_used_bytes AS used_bytes,
               u.storage_quota_bytes AS quota_bytes
@@ -210,14 +211,16 @@ export async function mailStatistics(
         LIMIT 8`,
     ),
     env.DB.prepare(
-      `SELECT mb.address, u.email AS user_email,
+      `SELECT COALESCE(m.delivered_to, mb.address) AS address,
+              u.email AS user_email,
               COUNT(m.id) AS message_count,
               COALESCE(SUM(m.quota_bytes), 0) AS used_bytes
          FROM mailboxes mb
          JOIN users u ON u.id = mb.user_id
          LEFT JOIN messages m ON m.mailbox_address = mb.address
-        GROUP BY mb.address
-        ORDER BY used_bytes DESC, mb.address
+        WHERE mb.is_hidden = 0 OR m.id IS NOT NULL
+        GROUP BY COALESCE(m.delivered_to, mb.address), u.email
+        ORDER BY used_bytes DESC, address
         LIMIT 8`,
     ),
     env.DB.prepare(
