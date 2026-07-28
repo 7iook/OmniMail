@@ -185,6 +185,40 @@ export interface MailStatistics {
   daily: Array<{ day: number; count: number }>
   sourceDomains: Array<{ domain: string; count: number }>
   topSenders: Array<{ address: string; name: string | null; count: number }>
+  storage: {
+    messageCount: number
+    usedBytes: number
+    attachmentCount: number
+    attachmentBytes: number
+    trashCount: number
+    trashBytes: number
+    failedCount: number
+    failedBytes: number
+    userCount: number
+    quotaBytes: number; quotaUsedBytes: number
+    unlimitedUsers: number
+    byUser: Array<{
+      id: string; email: string; displayName: string
+      role: UserRole
+      mailboxCount: number; messageCount: number
+      usedBytes: number; quotaBytes: number
+    }>
+    byMailbox: Array<{
+      address: string; userEmail: string
+      messageCount: number; usedBytes: number
+    }>
+  }
+}
+
+export type MailCleanupFilter = {
+  scope: 'all' | 'user' | 'mailbox'
+  scopeValue: string
+  category: 'trash' | 'failed' | 'incoming' | 'sent' | 'all'
+  olderThanDays: number
+}
+
+export type MailCleanupPreview = {
+  messageCount: number; bytes: number; attachmentCount: number; cutoff: number
 }
 
 export interface MailboxAddress {
@@ -404,6 +438,27 @@ export const api = {
   mailStatistics: (days: 7 | 30 | 90) => request<MailStatistics>(
     `/api/admin/statistics?days=${days}`,
   ),
+  previewMailCleanup: (filter: MailCleanupFilter) => {
+    const search = new URLSearchParams({
+      scope: filter.scope,
+      scopeValue: filter.scopeValue,
+      category: filter.category,
+      olderThanDays: String(filter.olderThanDays),
+    })
+    return request<{
+      filter: MailCleanupFilter
+      preview: MailCleanupPreview
+      batchLimit: number
+    }>(`/api/admin/mail-cleanup/preview?${search}`)
+  },
+  runMailCleanup: (filter: MailCleanupFilter, expectedCount: number) => request<{
+    deletedCount: number
+    deletedBytes: number
+    remainingCount: number
+  }>('/api/admin/mail-cleanup', {
+    method: 'POST',
+    body: jsonBody({ ...filter, expectedCount, confirm: true }),
+  }),
   auditLogs: (input: {
     days: AuditDays
     category: AuditCategory

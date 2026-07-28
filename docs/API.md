@@ -314,6 +314,8 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 使用 Resend 回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
+| `GET /api/admin/mail-cleanup/preview` | 按范围、类型和邮件时间预估清理影响 |
+| `POST /api/admin/mail-cleanup` | 经数量复核后每批永久清理最多 50 封邮件 |
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/users` | 管理员用户列表 |

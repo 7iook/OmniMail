@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { applySuperAdminRole, createSessionToken, deleteSession, hashPassword, secretsEqual, sessionFromUser, sessionMaxAge, sessionUser, storeSession, validatePassword } from './auth'
 import { attachmentDisposition, clientIp, normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
 import { deleteTemporaryAccount, updateAccount } from './account-api'
+import { previewAdminMailCleanup, runAdminMailCleanup } from './admin-mail-cleanup'
 import { listAuditLogs } from './audit-log-api'
 import { writeAudit } from './audit'
 import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-api'
@@ -332,6 +333,17 @@ app.get('/api/admin/invites', (context) => listTemporaryInvites(
 app.post('/api/admin/invites', (context) => createTemporaryInvite(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/invites/:id/revoke', (context) => revokeTemporaryInvite(context.env, context.get('user'), context.req.param('id'), clientIp(context.req.raw.headers)))
 app.get('/api/admin/statistics', (context) => mailStatistics(context.env, context.get('user'), context.req.raw))
+app.get('/api/admin/mail-cleanup/preview', (context) => previewAdminMailCleanup(
+  context.env,
+  context.get('user'),
+  context.req.raw,
+))
+app.post('/api/admin/mail-cleanup', (context) => runAdminMailCleanup(
+  context.env,
+  context.get('user'),
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+))
 app.get('/api/admin/audit-logs', (context) => listAuditLogs(context.env, context.get('user'), context.req.raw))
 app.get('/api/admin/deployment-check', (context) => deploymentCheck(context.env, context.get('user')))
 app.get('/api/admin/users', (context) => listManagedUsers(

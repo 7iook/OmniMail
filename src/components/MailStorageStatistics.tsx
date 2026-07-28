@@ -1,0 +1,332 @@
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  HardDrive,
+  LoaderCircle,
+  Mail,
+  Paperclip,
+  Search,
+  Trash2,
+  UserRound,
+} from 'lucide-react'
+import { type FormEvent, useId, useState } from 'react'
+import {
+  api,
+  type MailCleanupFilter,
+  type MailCleanupPreview,
+  type MailStatistics,
+} from '../lib/api'
+import { getLocale, t } from '../lib/i18n'
+import { roleLabel } from '../lib/roles'
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KiB', 'MiB', 'GiB', 'TiB']
+  let value = bytes / 1024
+  let unit = units[0]
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024
+    unit = units[index]
+  }
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`
+}
+
+function formatCutoff(timestamp: number): string {
+  return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium' })
+    .format(new Date(timestamp * 1000))
+}
+
+function errorMessage(error: unknown): string {
+  return t(error instanceof Error ? error.message : '邮件清理操作失败。')
+}
+
+type PreviewState = {
+  filter: MailCleanupFilter
+  preview: MailCleanupPreview
+  batchLimit: number
+}
+
+const initialFilter: MailCleanupFilter = {
+  scope: 'mailbox',
+  scopeValue: '',
+  category: 'trash',
+  olderThanDays: 30,
+}
+
+function UsageLists({ storage }: { storage: MailStatistics['storage'] }) {
+  return (
+    <div className="storage-ranking-grid">
+      <section>
+        <h3><UserRound size={15} />{t('用户存储用量')}</h3>
+        <div className="storage-ranking-list">
+          {storage.byUser.map((user) => {
+            const percent = user.quotaBytes > 0
+              ? Math.min(100, user.usedBytes / user.quotaBytes * 100)
+              : 0
+            return (
+              <div key={user.id}>
+                <span><strong>{user.displayName}</strong><small>{user.email} · {roleLabel(user.role)}</small></span>
+                <span><b>{formatBytes(user.usedBytes)}</b><small>{user.messageCount} {t('封邮件')}</small></span>
+                {user.quotaBytes > 0 && (
+                  <i aria-label={t('用户存储使用率')} role="meter" aria-valuemin={0}
+                    aria-valuemax={100} aria-valuenow={Math.round(percent)}>
+                    <i style={{ width: `${percent}%` }} />
+                  </i>
+                )}
+              </div>
+            )
+          })}
+          {!storage.byUser.length && <p>{t('暂无用户存储数据。')}</p>}
+        </div>
+      </section>
+      <section>
+        <h3><Mail size={15} />{t('邮箱存储用量')}</h3>
+        <div className="storage-ranking-list storage-mailbox-ranking">
+          {storage.byMailbox.map((mailbox) => (
+            <div key={mailbox.address}>
+              <span><strong>{mailbox.address}</strong><small>{mailbox.userEmail}</small></span>
+              <span><b>{formatBytes(mailbox.usedBytes)}</b><small>{mailbox.messageCount} {t('封邮件')}</small></span>
+            </div>
+          ))}
+          {!storage.byMailbox.length && <p>{t('暂无邮箱存储数据。')}</p>}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function MailCleanup({
+  data,
+  onCleanupComplete,
+}: {
+  data: MailStatistics
+  onCleanupComplete: () => void
+}) {
+  const listId = useId()
+  const [filter, setFilter] = useState(initialFilter)
+  const [preview, setPreview] = useState<PreviewState | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  function updateFilter(next: Partial<MailCleanupFilter>) {
+    setFilter((current) => ({ ...current, ...next }))
+    setPreview(null)
+    setConfirmed(false)
+    setError('')
+    setNotice('')
+  }
+
+  async function loadPreview(event: FormEvent) {
+    event.preventDefault()
+    setPreviewing(true)
+    setError('')
+    setNotice('')
+    setConfirmed(false)
+    try {
+      const result = await api.previewMailCleanup(filter)
+      setFilter(result.filter)
+      setPreview(result)
+    } catch (previewError) {
+      setPreview(null)
+      setError(errorMessage(previewError))
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  async function clean() {
+    if (!preview || !confirmed || preview.preview.messageCount < 1) return
+    setCleaning(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await api.runMailCleanup(
+        preview.filter,
+        preview.preview.messageCount,
+      )
+      setNotice(t(
+        result.remainingCount
+          ? '已永久删除 {count} 封邮件并释放 {bytes}，仍有 {remaining} 封可继续清理。'
+          : '已永久删除 {count} 封邮件并释放 {bytes}。',
+        {
+          count: result.deletedCount,
+          bytes: formatBytes(result.deletedBytes),
+          remaining: result.remainingCount,
+        },
+      ))
+      setPreview(null)
+      setConfirmed(false)
+      onCleanupComplete()
+    } catch (cleanupError) {
+      setError(errorMessage(cleanupError))
+      setPreview(null)
+      setConfirmed(false)
+      onCleanupComplete()
+    } finally {
+      setCleaning(false)
+    }
+  }
+
+  const suggestions = filter.scope === 'user'
+    ? data.storage.byUser.map((user) => user.email)
+    : data.storage.byMailbox.map((mailbox) => mailbox.address)
+  const scopeReady = filter.scope === 'all' || filter.scopeValue.trim().includes('@')
+
+  return (
+    <section className="admin-card mail-cleanup-card">
+      <header>
+        <Trash2 size={17} />
+        <div>
+          <h2>{t('管理员邮件清理')}</h2>
+          <p>{t('先预估影响，再分批永久删除主邮件存储中的数据')}</p>
+        </div>
+      </header>
+      <form className="mail-cleanup-form" onSubmit={(event) => void loadPreview(event)}>
+        <label>
+          <span>{t('清理范围')}</span>
+          <select value={filter.scope} onChange={(event) => updateFilter({
+            scope: event.target.value as MailCleanupFilter['scope'],
+            scopeValue: '',
+          })}>
+            <option value="mailbox">{t('指定邮箱')}</option>
+            <option value="user">{t('指定用户')}</option>
+            <option value="all">{t('全站邮件')}</option>
+          </select>
+        </label>
+        {filter.scope !== 'all' && (
+          <label>
+            <span>{t(filter.scope === 'user' ? '用户登录邮箱' : '邮箱地址')}</span>
+            <input
+              type="email"
+              list={listId}
+              value={filter.scopeValue}
+              placeholder={filter.scope === 'user' ? 'user@example.com' : 'inbox@example.com'}
+              onChange={(event) => updateFilter({ scopeValue: event.target.value })}
+              required
+            />
+            <datalist id={listId}>
+              {suggestions.map((value) => <option value={value} key={value} />)}
+            </datalist>
+          </label>
+        )}
+        <label>
+          <span>{t('邮件类型')}</span>
+          <select value={filter.category} onChange={(event) => updateFilter({
+            category: event.target.value as MailCleanupFilter['category'],
+          })}>
+            <option value="trash">{t('垃圾箱邮件')}</option>
+            <option value="failed">{t('处理失败邮件')}</option>
+            <option value="incoming">{t('全部收件')}</option>
+            <option value="sent">{t('全部已发送')}</option>
+            <option value="all">{t('所有类型')}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t('邮件时间早于')}</span>
+          <select value={filter.olderThanDays} onChange={(event) => updateFilter({
+            olderThanDays: Number(event.target.value),
+          })}>
+            {[1, 7, 30, 90, 180, 365].map((days) => (
+              <option value={days} key={days}>{t('{days} 天', { days })}</option>
+            ))}
+          </select>
+        </label>
+        <button className="button button--secondary button--small" type="submit"
+          disabled={previewing || cleaning || !scopeReady}>
+          {previewing ? <LoaderCircle className="spin" size={14} /> : <Search size={14} />}
+          {t(previewing ? '正在预估…' : '预估影响')}
+        </button>
+      </form>
+
+      {filter.scope === 'all' && (
+        <p className="cleanup-scope-warning"><AlertCircle size={15} />{t('当前选择会匹配全站邮件，请仔细核对类型和时间。')}</p>
+      )}
+      {preview && (
+        <div className="cleanup-preview">
+          <div>
+            <strong>{t('将匹配 {count} 封邮件', { count: preview.preview.messageCount })}</strong>
+            <span>
+              {formatBytes(preview.preview.bytes)} · {preview.preview.attachmentCount} {t('个附件')}
+              {' · '}{t('{date} 及以前', { date: formatCutoff(preview.preview.cutoff) })}
+            </span>
+          </div>
+          {preview.preview.messageCount > 0 ? (
+            <>
+              <label className="cleanup-confirm">
+                <input type="checkbox" checked={confirmed}
+                  onChange={(event) => setConfirmed(event.target.checked)} />
+                <span>{t('我确认永久删除这些邮件；此操作无法撤销。')}</span>
+              </label>
+              <button className="button cleanup-delete-button" type="button"
+                disabled={!confirmed || cleaning} onClick={() => void clean()}>
+                {cleaning ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}
+                {t(
+                  preview.preview.messageCount > preview.batchLimit
+                    ? '永久清理前 {count} 封'
+                    : '永久清理 {count} 封',
+                  { count: Math.min(preview.preview.messageCount, preview.batchLimit) },
+                )}
+              </button>
+            </>
+          ) : <small>{t('当前条件没有可清理的邮件。')}</small>}
+        </div>
+      )}
+      <p className="cleanup-note">
+        <Database size={14} />
+        {t('每次最多清理 50 封；正在处理的邮件不会被删除，备份桶中的保留副本不受影响。')}
+      </p>
+      {notice && <p className="cleanup-feedback is-success" role="status"><CheckCircle2 size={15} />{notice}</p>}
+      {error && <p className="cleanup-feedback is-error" role="alert"><AlertCircle size={15} />{error}</p>}
+    </section>
+  )
+}
+
+export function MailStorageStatistics({
+  data,
+  onCleanupComplete,
+}: {
+  data: MailStatistics
+  onCleanupComplete: () => void
+}) {
+  const storage = data.storage
+  const quotaPercent = storage.quotaBytes > 0
+    ? Math.min(100, storage.quotaUsedBytes / storage.quotaBytes * 100)
+    : 0
+  return (
+    <>
+      <section className="admin-card storage-statistics-card">
+        <header>
+          <HardDrive size={17} />
+          <div><h2>{t('当前存储用量')}</h2><p>{t('按用户配额口径统计邮件原文与已发送正文')}</p></div>
+        </header>
+        <div className="storage-metric-grid">
+          <div><HardDrive size={17} /><span><strong>{formatBytes(storage.usedBytes)}</strong><small>{t('邮件计量用量')}</small></span></div>
+          <div><Mail size={17} /><span><strong>{storage.messageCount}</strong><small>{t('当前邮件')}</small></span></div>
+          <div><Paperclip size={17} /><span><strong>{storage.attachmentCount}</strong><small>{formatBytes(storage.attachmentBytes)} {t('附件')}</small></span></div>
+          <div><Trash2 size={17} /><span><strong>{storage.trashCount}</strong><small>{formatBytes(storage.trashBytes)} {t('垃圾箱')}</small></span></div>
+        </div>
+        {storage.quotaBytes > 0 && (
+          <div className="storage-total-progress">
+            <span><strong>{t('已配置配额使用率')}</strong><b>{quotaPercent.toFixed(1)}%</b></span>
+            <i role="meter" aria-label={t('全站已配置配额使用率')} aria-valuemin={0}
+              aria-valuemax={100} aria-valuenow={Math.round(quotaPercent)}>
+              <i style={{ width: `${quotaPercent}%` }} />
+            </i>
+            <small>
+              {formatBytes(storage.quotaUsedBytes)} / {formatBytes(storage.quotaBytes)}
+              {storage.unlimitedUsers > 0
+                ? ` · ${t('{count} 个不限额用户', { count: storage.unlimitedUsers })}`
+                : ''}
+            </small>
+          </div>
+        )}
+        <UsageLists storage={storage} />
+      </section>
+      <MailCleanup data={data} onCleanupComplete={onCleanupComplete} />
+    </>
+  )
+}

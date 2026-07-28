@@ -23,6 +23,45 @@ interface SenderRow {
   count: number
 }
 
+interface StorageMessageRow {
+  message_count: number
+  used_bytes: number
+  trash_count: number
+  trash_bytes: number
+  failed_count: number
+  failed_bytes: number
+}
+
+interface StorageAttachmentRow {
+  attachment_count: number
+  attachment_bytes: number
+}
+
+interface StorageQuotaRow {
+  user_count: number
+  quota_bytes: number
+  quota_used_bytes: number
+  unlimited_users: number
+}
+
+interface StorageUserRow {
+  id: string
+  email: string
+  display_name: string
+  role: SessionUser['role']
+  mailbox_count: number
+  message_count: number
+  used_bytes: number
+  quota_bytes: number
+}
+
+interface StorageMailboxRow {
+  address: string
+  user_email: string
+  message_count: number
+  used_bytes: number
+}
+
 export function normalizeStatisticsDays(value: string | null): 7 | 30 | 90 {
   const days = Number(value)
   return days === 7 || days === 90 ? days : 30
@@ -89,6 +128,55 @@ export async function mailStatistics(
         ORDER BY count DESC, address
         LIMIT 8`,
     ).bind(start),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS message_count,
+              COALESCE(SUM(quota_bytes), 0) AS used_bytes,
+              SUM(CASE WHEN folder = 'trash' THEN 1 ELSE 0 END) AS trash_count,
+              COALESCE(SUM(CASE WHEN folder = 'trash' THEN quota_bytes ELSE 0 END), 0)
+                AS trash_bytes,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+              COALESCE(SUM(CASE WHEN status = 'failed' THEN quota_bytes ELSE 0 END), 0)
+                AS failed_bytes
+         FROM messages`,
+    ),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS attachment_count,
+              COALESCE(SUM(size), 0) AS attachment_bytes
+         FROM attachments`,
+    ),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS user_count,
+              COALESCE(SUM(CASE WHEN storage_quota_bytes > 0
+                THEN storage_quota_bytes ELSE 0 END), 0) AS quota_bytes,
+              COALESCE(SUM(CASE WHEN storage_quota_bytes > 0
+                THEN storage_used_bytes ELSE 0 END), 0) AS quota_used_bytes,
+              SUM(CASE WHEN storage_quota_bytes = 0 THEN 1 ELSE 0 END) AS unlimited_users
+         FROM users`,
+    ),
+    env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.role,
+              COUNT(DISTINCT mb.address) AS mailbox_count,
+              COUNT(m.id) AS message_count,
+              u.storage_used_bytes AS used_bytes,
+              u.storage_quota_bytes AS quota_bytes
+         FROM users u
+         LEFT JOIN mailboxes mb ON mb.user_id = u.id
+         LEFT JOIN messages m ON m.mailbox_address = mb.address
+        GROUP BY u.id
+        ORDER BY used_bytes DESC, u.email
+        LIMIT 8`,
+    ),
+    env.DB.prepare(
+      `SELECT mb.address, u.email AS user_email,
+              COUNT(m.id) AS message_count,
+              COALESCE(SUM(m.quota_bytes), 0) AS used_bytes
+         FROM mailboxes mb
+         JOIN users u ON u.id = mb.user_id
+         LEFT JOIN messages m ON m.mailbox_address = mb.address
+        GROUP BY mb.address
+        ORDER BY used_bytes DESC, mb.address
+        LIMIT 8`,
+    ),
   ])
 
   const summary = (results[0].results[0] || {}) as unknown as Partial<SummaryRow>
@@ -98,6 +186,9 @@ export async function mailStatistics(
     const day = start + index * 86400
     return { day, count: dailyCounts.get(day) || 0 }
   })
+  const storageMessages = (results[4].results[0] || {}) as unknown as Partial<StorageMessageRow>
+  const storageAttachments = (results[5].results[0] || {}) as unknown as Partial<StorageAttachmentRow>
+  const storageQuotas = (results[6].results[0] || {}) as unknown as Partial<StorageQuotaRow>
 
   return json({
     days,
@@ -111,5 +202,35 @@ export async function mailStatistics(
     daily,
     sourceDomains: results[2].results as unknown as SourceDomainRow[],
     topSenders: results[3].results as unknown as SenderRow[],
+    storage: {
+      messageCount: Number(storageMessages.message_count || 0),
+      usedBytes: Number(storageMessages.used_bytes || 0),
+      attachmentCount: Number(storageAttachments.attachment_count || 0),
+      attachmentBytes: Number(storageAttachments.attachment_bytes || 0),
+      trashCount: Number(storageMessages.trash_count || 0),
+      trashBytes: Number(storageMessages.trash_bytes || 0),
+      failedCount: Number(storageMessages.failed_count || 0),
+      failedBytes: Number(storageMessages.failed_bytes || 0),
+      userCount: Number(storageQuotas.user_count || 0),
+      quotaBytes: Number(storageQuotas.quota_bytes || 0),
+      quotaUsedBytes: Number(storageQuotas.quota_used_bytes || 0),
+      unlimitedUsers: Number(storageQuotas.unlimited_users || 0),
+      byUser: (results[7].results as unknown as StorageUserRow[]).map((row) => ({
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        role: row.role,
+        mailboxCount: Number(row.mailbox_count || 0),
+        messageCount: Number(row.message_count || 0),
+        usedBytes: Number(row.used_bytes || 0),
+        quotaBytes: Number(row.quota_bytes || 0),
+      })),
+      byMailbox: (results[8].results as unknown as StorageMailboxRow[]).map((row) => ({
+        address: row.address,
+        userEmail: row.user_email,
+        messageCount: Number(row.message_count || 0),
+        usedBytes: Number(row.used_bytes || 0),
+      })),
+    },
   })
 }

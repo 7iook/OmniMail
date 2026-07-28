@@ -72,6 +72,7 @@ const actionLabels: Record<string, string> = {
   'temporary_invite.register_failed': '邀请注册被拦截',
   'message.reply': '回复邮件',
   'message.delete': '永久删除邮件',
+  'message.admin_cleanup': '管理员批量清理邮件',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
@@ -121,6 +122,9 @@ function detailText(log: AuditLog): string {
   if (detail.status) parts.push(t('状态 {status}', { status: String(detail.status) }))
   if (typeof detail.mailboxLimit === 'number') {
     parts.push(t('邮箱额度 {limit}', { limit: detail.mailboxLimit }))
+  }
+  if (typeof detail.deletedCount === 'number') {
+    parts.push(t('删除 {count} 封', { count: detail.deletedCount }))
   }
   if (detail.address) parts.push(String(detail.address))
   if (log.action === 'system.remote_images.update' && typeof detail.enabled === 'boolean') {

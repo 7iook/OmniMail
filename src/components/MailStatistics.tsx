@@ -12,6 +12,7 @@ import {
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { api, type MailStatistics as StatisticsData } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
+import { MailStorageStatistics } from './MailStorageStatistics'
 
 type RangeDays = StatisticsData['days']
 
@@ -144,6 +145,7 @@ export function MailStatistics() {
   const [data, setData] = useState<StatisticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -162,7 +164,7 @@ export function MailStatistics() {
     return () => {
       active = false
     }
-  }, [days])
+  }, [days, reloadKey])
 
   const cards = useMemo(() => data ? [
     { label: t('累计收件'), value: data.summary.totalReceived, Icon: Inbox },
@@ -204,6 +206,10 @@ export function MailStatistics() {
           <article key={label}><span><Icon size={18} /></span><strong>{value}</strong><small>{label}</small></article>
         ))}
       </section>
+      <MailStorageStatistics
+        data={data}
+        onCleanupComplete={() => setReloadKey((value) => value + 1)}
+      />
       <section className="admin-card statistics-trend-card">
         <header>
           <TrendingUp size={17} />
