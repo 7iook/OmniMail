@@ -122,7 +122,6 @@ export function MessageList({
   loadingMore,
   onSelect,
   onToggleSelection,
-  onSetSelection,
   onSelectAll,
   onBulkAction,
   onStar,
@@ -139,7 +138,6 @@ export function MessageList({
   loadingMore: boolean
   onSelect: (message: MessageSummary) => void
   onToggleSelection: (message: MessageSummary) => void
-  onSetSelection: (message: MessageSummary, selected: boolean) => void
   onSelectAll: () => void
   onBulkAction: (action: BulkMessageAction) => void
   onStar: (message: MessageSummary) => void
@@ -154,7 +152,6 @@ export function MessageList({
     startY: number
     lastIndex: number
     active: boolean
-    select: boolean
     visited: Set<number>
   } | null>(null)
 
@@ -165,7 +162,7 @@ export function MessageList({
     for (let cursor = current.lastIndex; ; cursor += step) {
       if (!current.visited.has(cursor)) {
         current.visited.add(cursor)
-        onSetSelection(messages[cursor], current.select)
+        onToggleSelection(messages[cursor])
       }
       if (cursor === index) break
     }
@@ -184,7 +181,6 @@ export function MessageList({
       startY: event.clientY,
       lastIndex: index,
       active: false,
-      select: !selectedIds.has(messages[index].id),
       visited: new Set(),
     }
     event.currentTarget.setPointerCapture(event.pointerId)

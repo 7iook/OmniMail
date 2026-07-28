@@ -241,11 +241,10 @@ function Mailbox({
     await loadMessages(true)
   }
 
-  function toggleMessageSelection(message: MessageSummary, selected?: boolean) {
+  function toggleMessageSelection(message: MessageSummary) {
     setSelectedMessageIds((current) => {
       const next = new Set(current)
-      const shouldSelect = selected ?? !next.has(message.id)
-      if (!shouldSelect) next.delete(message.id)
+      if (next.has(message.id)) next.delete(message.id)
       else if (next.size < 50) next.add(message.id)
       return next
     })
@@ -461,7 +460,6 @@ function Mailbox({
           loadingMore={loadingMore}
           onSelect={(message) => void selectMessage(message)}
           onToggleSelection={toggleMessageSelection}
-          onSetSelection={toggleMessageSelection}
           onSelectAll={selectAllLoadedMessages}
           onBulkAction={(action) => void runBulkAction(action)}
           onStar={(message) => void toggleStar(message)}

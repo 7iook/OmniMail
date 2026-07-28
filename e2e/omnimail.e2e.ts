@@ -342,22 +342,22 @@ test('users can apply a bulk action to selected messages', async ({ page }) => {
   await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
-
 test('dragging across message rows quickly selects and deselects a range', async ({ page }) => {
   const state = mockState()
-  state.messages = [
-    message,
+  state.messages = [message,
     { ...message, id: 'message-2', subject: 'Second message', senderName: 'Second Sender' },
     { ...message, id: 'message-3', subject: 'Third message', senderName: 'Third Sender' },
   ]
   await mockApp(page, state)
   await page.goto('/')
+  await page.getByRole('button', { name: '批量操作' }).click()
+  await page.getByRole('checkbox', { name: '选择邮件：Second message' }).check()
   await dragAcrossMessageRows(page, 0, 2)
-  await expect(page.locator('.message-row.is-checked')).toHaveCount(3)
-  await expect(page.getByRole('heading', { name: '选择一封邮件' })).toBeVisible()
-  await dragAcrossMessageRows(page, 0, 1)
+  await expect(page.locator('.message-row.is-checked')).toHaveCount(2)
+  await expect(page.locator('.message-row.is-checked', { hasText: 'Second message' })).toHaveCount(0)
+  await dragAcrossMessageRows(page, 0, 2)
   await expect(page.locator('.message-row.is-checked')).toHaveCount(1)
-  await expect(page.locator('.message-row.is-checked')).toContainText('Third message')
+  await expect(page.locator('.message-row.is-checked')).toContainText('Second message')
 })
 test('single-message deletion requires confirmation', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
