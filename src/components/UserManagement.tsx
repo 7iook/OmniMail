@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  HardDrive,
   Link2,
   MailPlus,
   Search,
@@ -36,6 +37,7 @@ const initialCreate: CreateManagedUser = {
   role: 'user',
   status: 'active',
   mailboxLimit: 1,
+  storageQuotaMiB: 1024,
   canCreateMailboxes: false,
   canReply: false,
 }
@@ -45,6 +47,7 @@ function policyFor(user: AdminUser): ManagedUserPolicy {
     role: user.role === 'super_admin' ? 'admin' : user.role,
     status: user.status,
     mailboxLimit: user.mailboxLimit,
+    storageQuotaMiB: Math.round(user.storageQuotaBytes / (1024 * 1024)),
     canCreateMailboxes: user.canCreateMailboxes,
     canReply: user.canReply,
   }
@@ -56,6 +59,12 @@ function formatDate(timestamp: number): string {
     month: 'short',
     day: 'numeric',
   }).format(new Date(timestamp * 1000))
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(0, bytes / 1024).toFixed(1)} KiB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
 }
 
 const roleOptions = [
@@ -199,6 +208,24 @@ function PolicyFields({
           })}
         />
         <small>{t('范围 0–100；已经创建的邮箱不会被自动删除。')}</small>
+      </label>
+
+      <label>
+        <span>{t('存储配额（MiB）')}</span>
+        <input
+          type="number"
+          min="0"
+          max="102400"
+          value={value.storageQuotaMiB}
+          disabled={disabled}
+          onChange={(event) => onChange({
+            ...value,
+            storageQuotaMiB: Number(event.target.value) === 0
+              ? 0
+              : Math.max(16, Math.min(102400, Number(event.target.value))),
+          })}
+        />
+        <small>{t('填写 0 表示不限；其他值需要在 16–102400 MiB 之间。')}</small>
       </label>
 
       <label className="policy-toggle">
@@ -428,7 +455,7 @@ export function UserManagement({
         ) : filtered.length ? (
           <div className="managed-user-list">
             <div className="user-list-heading" aria-hidden="true">
-              <span>{t('用户')}</span><span>{t('角色')}</span><span>{t('邮箱额度')}</span><span>{t('权限')}</span><span>{t('状态')}</span><span />
+              <span>{t('用户')}</span><span>{t('角色')}</span><span>{t('邮箱 / 存储')}</span><span>{t('权限')}</span><span>{t('状态')}</span><span />
             </div>
             {filtered.map((user) => (
               <button className="managed-user-row" type="button" key={user.id} onClick={() => openUser(user)}>
@@ -438,8 +465,12 @@ export function UserManagement({
                 </span>
                 <span className={`role-pill role-pill--${user.role}`}>{roleLabel(user.role)}</span>
                 <span className="user-mailbox-usage">
-                  <strong>{user.mailboxCount}</strong>
-                  <small>/ {user.role === 'super_admin' ? t('不限') : user.mailboxLimit}</small>
+                  <strong>{user.mailboxCount} / {user.role === 'super_admin' ? t('不限') : user.mailboxLimit}</strong>
+                  <small>
+                    {formatBytes(user.storageUsedBytes)} / {user.storageQuotaBytes === 0
+                      ? t('不限')
+                      : formatBytes(user.storageQuotaBytes)}
+                  </small>
                 </span>
                 <span className="user-capabilities">
                   {user.canCreateMailboxes && <span data-tooltip={t('可管理邮箱')}><MailPlus size={14} /></span>}
@@ -508,6 +539,7 @@ export function UserManagement({
                 <div className="user-panel-meta">
                   <span><UserRound size={15} />{t('创建于 {date}', { date: formatDate(selected.createdAt) })}</span>
                   <span><MailPlus size={15} />{t('已使用 {count} 个邮箱', { count: selected.mailboxCount })}</span>
+                  <span><HardDrive size={15} />{formatBytes(selected.storageUsedBytes)} / {selected.storageQuotaBytes === 0 ? t('不限') : formatBytes(selected.storageQuotaBytes)}</span>
                   {selected.role === 'temporary' && <span><Clock3 size={15} />{t('临时用户')}</span>}
                 </div>
                 {protectedTarget && (

@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  Clock3,
   Copy,
   Download,
   ExternalLink,
@@ -496,6 +497,15 @@ export function MessageReader({
             <time dateTime={new Date(message.date).toISOString()}>{formatFullDate(message.date)}</time>
           </div>
         </header>
+
+        {message.folder === 'trash' && message.purgeAfter && (
+          <p className="trash-retention-notice">
+            <Clock3 size={15} />
+            {t('该邮件将在 {date} 自动永久删除。', {
+              date: formatFullDate(message.purgeAfter),
+            })}
+          </p>
+        )}
 
         {message.status === 'processing' && (
           <div className="message-notice"><LoaderCircle className="spin" size={17} />{t('邮件正在安全解析，请稍后刷新。')}</div>

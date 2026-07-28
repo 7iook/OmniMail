@@ -2,11 +2,19 @@ export interface ParseJob {
   messageId: string
 }
 
+export interface BackupWorkflowParams {
+  trigger?: 'scheduled' | 'manual' | 'enable'
+  requestedBy?: string
+  includeMail?: boolean
+}
+
 export interface Env {
   DB: D1Database
   MAIL_BUCKET: R2Bucket
   MAIL_QUEUE: Queue<ParseJob>
   ASSETS: Fetcher
+  BACKUP_BUCKET?: R2Bucket
+  BACKUP_WORKFLOW?: Workflow<BackupWorkflowParams>
   APP_NAME?: string
   APP_ORIGINS?: string
   SUPER_ADMIN_EMAIL?: string
@@ -16,6 +24,9 @@ export interface Env {
   RESEND_FROM?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
+  CLOUDFLARE_ACCOUNT_ID?: string
+  D1_DATABASE_ID?: string
+  D1_REST_API_TOKEN?: string
 }
 
 export type UserRole = 'super_admin' | 'admin' | 'user' | 'temporary'
@@ -28,6 +39,8 @@ export interface UserRow {
   role: UserRole
   status: 'active' | 'disabled'
   mailbox_limit: number
+  storage_quota_bytes: number
+  storage_used_bytes: number
   can_create_mailboxes: number
   can_reply: number
   temporary_expires_at: number | null
@@ -41,6 +54,8 @@ export interface SessionUser {
   displayName: string
   role: UserRole
   mailboxLimit: number
+  storageQuotaBytes: number
+  storageUsedBytes: number
   canCreateMailboxes: boolean
   canReply: boolean
   temporaryExpiresAt: number | null
@@ -66,10 +81,13 @@ export interface MessageRow {
   raw_key: string | null
   body_key: string | null
   size: number
+  quota_bytes: number
   attachment_count: number
   has_html: number
   is_read: number
   is_starred: number
+  trashed_at: number | null
+  purge_after: number | null
   processing_error: string | null
   created_at: number
   updated_at: number

@@ -1,4 +1,6 @@
 import PostalMime from 'postal-mime'
+import { archiveIncomingMessage } from './mail-archive'
+import { releaseStorage, reserveStorage } from './message-storage'
 import { ensureSchema } from './schema'
 import type { Env, MessageRow, ParseJob, StoredBody } from './types'
 
@@ -70,16 +72,24 @@ function referenceValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-async function mailboxForRecipient(db: D1Database, recipient: string): Promise<string | null> {
+async function mailboxForRecipient(
+  db: D1Database,
+  recipient: string,
+): Promise<{ address: string; userId: string } | null> {
   const exact = normalizeAddress(recipient)
   const base = baseMailboxAddress(recipient)
   const row = await db.prepare(
-    `SELECT address FROM mailboxes
-      WHERE is_active = 1 AND address IN (?, ?)
-      ORDER BY CASE WHEN address = ? THEN 0 ELSE 1 END
+    `SELECT mb.address, mb.user_id
+       FROM mailboxes mb
+       JOIN users u ON u.id = mb.user_id
+      WHERE mb.is_active = 1
+        AND mb.address IN (?, ?)
+        AND u.status = 'active'
+        AND u.deleted_at IS NULL
+      ORDER BY CASE WHEN mb.address = ? THEN 0 ELSE 1 END
       LIMIT 1`,
-  ).bind(exact, base, exact).first<{ address: string }>()
-  return row?.address ?? null
+  ).bind(exact, base, exact).first<{ address: string; user_id: string }>()
+  return row ? { address: row.address, userId: row.user_id } : null
 }
 
 export async function receiveEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
@@ -99,24 +109,32 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
   if (incomingMessageId) {
     const duplicate = await env.DB.prepare(
       'SELECT id FROM messages WHERE mailbox_address = ? AND message_id = ?',
-    ).bind(mailbox, incomingMessageId).first<{ id: string }>()
+    ).bind(mailbox.address, incomingMessageId).first<{ id: string }>()
     if (duplicate) return
   }
 
-  const raw = await new Response(message.raw).arrayBuffer()
-  await env.MAIL_BUCKET.put(rawKey, raw, {
-    httpMetadata: { contentType: 'message/rfc822' },
-  })
+  const quotaBytes = Math.max(0, message.rawSize)
+  if (!await reserveStorage(env.DB, mailbox.userId, quotaBytes)) {
+    message.setReject('Mailbox storage quota exceeded')
+    return
+  }
 
+  let rawStored = false
+  let inserted = false
   try {
-    const inserted = await env.DB.prepare(
+    const raw = await new Response(message.raw).arrayBuffer()
+    await env.MAIL_BUCKET.put(rawKey, raw, {
+      httpMetadata: { contentType: 'message/rfc822' },
+    })
+    rawStored = true
+    const insertResult = await env.DB.prepare(
       `INSERT OR IGNORE INTO messages (
         id, mailbox_address, direction, status, folder, message_id,
-        sender_address, recipients_json, subject, received_at, raw_key, size
-      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?)`,
+        sender_address, recipients_json, subject, received_at, raw_key, size, quota_bytes
+      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
-      mailbox,
+      mailbox.address,
       incomingMessageId,
       normalizeAddress(message.from),
       JSON.stringify([normalizeAddress(message.to)]),
@@ -124,20 +142,33 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
       now,
       rawKey,
       message.rawSize,
+      quotaBytes,
     ).run()
 
-    if (!inserted.meta.changes) {
+    if (!insertResult.meta.changes) {
       await env.MAIL_BUCKET.delete(rawKey)
+      await releaseStorage(env.DB, mailbox.userId, quotaBytes)
       return
+    }
+    inserted = true
+    try {
+      await archiveIncomingMessage(env, id, raw, now)
+    } catch (error) {
+      console.error('Unable to archive incoming message', error)
     }
 
     await env.MAIL_QUEUE.send({ messageId: id })
   } catch (error) {
-    await env.DB.prepare(
-      `UPDATE messages
-          SET status = 'failed', processing_error = ?, updated_at = unixepoch()
-        WHERE id = ?`,
-    ).bind(error instanceof Error ? error.message : 'Unable to queue message', id).run()
+    if (inserted) {
+      await env.DB.prepare(
+        `UPDATE messages
+            SET status = 'failed', processing_error = ?, updated_at = unixepoch()
+          WHERE id = ?`,
+      ).bind(error instanceof Error ? error.message : 'Unable to queue message', id).run()
+    } else {
+      if (rawStored) await env.MAIL_BUCKET.delete(rawKey)
+      await releaseStorage(env.DB, mailbox.userId, quotaBytes)
+    }
     throw error
   }
 }

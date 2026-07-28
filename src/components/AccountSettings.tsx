@@ -3,6 +3,7 @@ import {
   AtSign,
   CheckCircle2,
   Clock3,
+  HardDrive,
   KeyRound,
   LoaderCircle,
   LogOut,
@@ -33,6 +34,18 @@ function formatDate(timestamp: number): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(timestamp * 1000))
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KiB', 'MiB', 'GiB', 'TiB']
+  let value = bytes / 1024
+  let unit = units[0]
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024
+    unit = units[index]
+  }
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`
 }
 
 function Feedback({ type, children }: {
@@ -134,6 +147,9 @@ export function AccountSettings({
   }
 
   const profileChanged = displayName.trim() !== user.displayName
+  const storagePercent = user.storageQuotaBytes > 0
+    ? Math.min(100, (user.storageUsedBytes / user.storageQuotaBytes) * 100)
+    : 0
 
   return (
     <main className="admin-workspace account-workspace">
@@ -169,6 +185,26 @@ export function AccountSettings({
               <div>
                 <dt><ShieldCheck size={15} />{t('账户角色')}</dt>
                 <dd>{roleLabel(user.role)}</dd>
+              </div>
+              <div className="account-storage-summary">
+                <dt><HardDrive size={15} />{t('存储空间')}</dt>
+                <dd>
+                  {formatBytes(user.storageUsedBytes)} / {user.storageQuotaBytes === 0
+                    ? t('不限')
+                    : formatBytes(user.storageQuotaBytes)}
+                </dd>
+                {user.storageQuotaBytes > 0 && (
+                  <span
+                    className={storagePercent >= 90 ? 'is-warning' : ''}
+                    role="meter"
+                    aria-label={t('存储空间使用率')}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(storagePercent)}
+                  >
+                    <span style={{ width: `${storagePercent}%` }} />
+                  </span>
+                )}
               </div>
               {user.role === 'temporary' && (
                 <div>
@@ -312,12 +348,12 @@ export function AccountSettings({
                 <Trash2 size={17} />
                 <div>
                   <h2>{t('删除临时账号')}</h2>
-                  <p>{t('立即结束账号访问，但保留邮箱数据')}</p>
+                  <p>{t('立即结束账号访问，数据稍后按保留策略清理')}</p>
                 </div>
               </header>
               <div className="account-danger-note">
                 <Mail size={17} />
-                <p><strong>{t('邮箱不会随账号删除')}</strong><span>{t('收件地址、已有邮件和附件会继续保留，删除账号后将无法再登录查看。')}</span></p>
+                <p><strong>{t('数据不会立即删除')}</strong><span>{t('收件地址、已有邮件和附件会暂时保留，之后按管理员设置的保留期自动清理。')}</span></p>
               </div>
               <button
                 className="button account-delete-trigger"
@@ -354,7 +390,7 @@ export function AccountSettings({
             <form onSubmit={(event) => void deleteAccount(event)}>
               <div className="account-delete-risks">
                 <p><Trash2 size={16} /><span><strong>{t('账号无法恢复')}</strong><small>{t('当前账号及其所有登录会话会立即失效。')}</small></span></p>
-                <p><Mail size={16} /><span><strong>{t('邮箱继续保留')}</strong><small>{t('邮箱地址、邮件和附件不会随账号一起删除。')}</small></span></p>
+                <p><Mail size={16} /><span><strong>{t('数据进入保留期')}</strong><small>{t('邮箱地址、邮件和附件会在管理员设置的保留期结束后清理。')}</small></span></p>
               </div>
               <label className="account-field">
                 <span>{t('输入当前密码确认')}</span>

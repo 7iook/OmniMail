@@ -20,6 +20,7 @@ type SummaryFields = Pick<
   | 'is_read'
   | 'is_starred'
   | 'processing_error'
+  | 'purge_after'
   | 'created_at'
 >
 
@@ -42,6 +43,7 @@ export function messageSummary(row: SummaryFields) {
     isRead: Boolean(row.is_read),
     isStarred: Boolean(row.is_starred),
     processingError: row.processing_error,
+    purgeAfter: row.purge_after ? row.purge_after * 1000 : null,
   }
 }
 
@@ -119,7 +121,7 @@ export async function listMessages(
        m.id, m.mailbox_address, m.direction, m.status, m.folder,
        m.sender_name, m.sender_address, m.recipients_json, m.subject, m.preview,
        m.received_at, m.sent_at, m.attachment_count, m.is_read, m.is_starred,
-       m.processing_error, m.created_at,
+       m.processing_error, m.purge_after, m.created_at,
        COALESCE(m.received_at, m.sent_at, m.created_at) AS sort_time
      FROM messages m
      JOIN mailboxes mb ON mb.address = m.mailbox_address

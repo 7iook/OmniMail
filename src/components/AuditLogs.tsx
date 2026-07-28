@@ -76,6 +76,9 @@ const actionLabels: Record<string, string> = {
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
   'system.remote_images.update': '修改远程图片策略',
+  'system.storage_policy.update': '修改备份与存储策略',
+  'system.backup.start': '手动启动备份',
+  'account.purge': '清理临时账号数据',
 }
 
 const categoryLabels: Record<string, string> = {

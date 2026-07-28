@@ -19,6 +19,7 @@ interface UserPolicyInput {
   role?: EditableRole
   status?: AccountStatus
   mailboxLimit?: number
+  storageQuotaMiB?: number
   canCreateMailboxes?: boolean
   canReply?: boolean
 }
@@ -64,6 +65,11 @@ function validPolicy(input: UserPolicyInput): input is Required<UserPolicyInput>
     && Number.isInteger(input.mailboxLimit)
     && Number(input.mailboxLimit) >= 0
     && Number(input.mailboxLimit) <= 100
+    && Number.isInteger(input.storageQuotaMiB)
+    && (
+      Number(input.storageQuotaMiB) === 0
+      || (Number(input.storageQuotaMiB) >= 16 && Number(input.storageQuotaMiB) <= 102400)
+    )
     && typeof input.canCreateMailboxes === 'boolean'
     && typeof input.canReply === 'boolean'
   )
@@ -79,6 +85,8 @@ function userJson(row: AdminUserRow, configuredEmail: string) {
     status: row.status,
     mailboxLimit: row.mailbox_limit,
     mailboxCount: row.mailbox_count,
+    storageQuotaBytes: row.storage_quota_bytes,
+    storageUsedBytes: row.storage_used_bytes,
     canCreateMailboxes: superAdmin || row.role === 'admin' || Boolean(row.can_create_mailboxes),
     canReply: superAdmin || Boolean(row.can_reply),
     temporaryExpiresAt: row.temporary_expires_at,
@@ -199,6 +207,7 @@ export async function createManagedUser(
     role: body.role,
     status: 'active',
     mailboxLimit: body.mailboxLimit,
+    storageQuotaMiB: body.storageQuotaMiB,
     canCreateMailboxes: body.role === 'admin' ? true : body.canCreateMailboxes,
     canReply: body.canReply,
   }
@@ -222,8 +231,8 @@ export async function createManagedUser(
     await env.DB.prepare(
       `INSERT INTO users (
         id, email, display_name, password_hash, role, status, mailbox_limit,
-        can_create_mailboxes, can_reply
-      ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+        storage_quota_bytes, can_create_mailboxes, can_reply
+      ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
     ).bind(
       id,
       email,
@@ -231,6 +240,7 @@ export async function createManagedUser(
       await hashPassword(password),
       policy.role,
       policy.mailboxLimit,
+      Number(policy.storageQuotaMiB) * 1024 * 1024,
       Number(policy.canCreateMailboxes),
       Number(policy.canReply),
     ).run()
@@ -242,6 +252,7 @@ export async function createManagedUser(
     email,
     role: policy.role,
     mailboxLimit: policy.mailboxLimit,
+    storageQuotaMiB: policy.storageQuotaMiB,
   })
   const created = await findUser(env, id)
   return json({ user: created ? userJson(created, configuredEmail) : null }, 201)
@@ -283,13 +294,14 @@ export async function updateManagedUser(
 
   await env.DB.prepare(
     `UPDATE users
-        SET role = ?, status = ?, mailbox_limit = ?,
+        SET role = ?, status = ?, mailbox_limit = ?, storage_quota_bytes = ?,
             can_create_mailboxes = ?, can_reply = ?, updated_at = unixepoch()
       WHERE id = ?`,
   ).bind(
     policy.role,
     policy.status,
     policy.mailboxLimit,
+    Number(policy.storageQuotaMiB) * 1024 * 1024,
     Number(policy.canCreateMailboxes),
     Number(policy.canReply),
     target.id,
@@ -308,6 +320,7 @@ export async function updateManagedUser(
     role: policy.role,
     status: policy.status,
     mailboxLimit: policy.mailboxLimit,
+    storageQuotaMiB: policy.storageQuotaMiB,
     canCreateMailboxes: policy.canCreateMailboxes,
     canReply: policy.canReply,
   })

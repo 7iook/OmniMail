@@ -11,6 +11,7 @@ import {
   registrationProtectionReady,
   verifyRegistrationTurnstile,
 } from './registration-security'
+import { defaultQuotaBytes } from './storage-policy'
 import type { Env, SessionUser } from './types'
 
 interface InviteRow {
@@ -405,19 +406,21 @@ export async function registerTemporaryInvite(
   }
 
   const userId = crypto.randomUUID()
+  const storageQuotaBytes = await defaultQuotaBytes(env.DB, 'temporary')
   try {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO users (
           id, email, display_name, password_hash, role, status, mailbox_limit,
-          can_create_mailboxes, can_reply, temporary_expires_at
-        ) VALUES (?, ?, ?, ?, 'temporary', 'active', ?, ?, ?, ?)`,
+          storage_quota_bytes, can_create_mailboxes, can_reply, temporary_expires_at
+        ) VALUES (?, ?, ?, ?, 'temporary', 'active', ?, ?, ?, ?, ?)`,
       ).bind(
         userId,
         address,
         displayName,
         passwordHash,
         invite.mailbox_limit,
+        storageQuotaBytes,
         invite.can_create_mailboxes,
         invite.can_reply,
         now + invite.account_lifetime_hours * 60 * 60,

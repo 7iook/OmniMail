@@ -165,6 +165,23 @@
   scrollbar-color: var(--line-strong) transparent;
 }
 
+.trash-retention-notice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.trash-retention-notice svg {
+  flex: none;
+  color: var(--text-tertiary);
+}
+
 .message-heading {
   max-width: 920px;
   margin: 0 auto 36px;

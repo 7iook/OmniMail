@@ -23,6 +23,8 @@ type DeviceUserRow = Pick<
   | 'role'
   | 'status'
   | 'mailbox_limit'
+  | 'storage_quota_bytes'
+  | 'storage_used_bytes'
   | 'can_create_mailboxes'
   | 'can_reply'
   | 'temporary_expires_at'
@@ -146,6 +148,7 @@ export async function authenticateAccessToken(
     `SELECT d.id AS device_session_id, d.device_name,
             u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM device_sessions d
        JOIN users u ON u.id = d.user_id
@@ -219,6 +222,7 @@ export async function refreshDeviceToken(env: Env, request: Request): Promise<Re
     `SELECT d.id AS device_session_id, d.device_name,
             u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM device_sessions d
        JOIN users u ON u.id = d.user_id

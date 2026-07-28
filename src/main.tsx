@@ -23,6 +23,7 @@ import './styles/domain-management.css'
 import './styles/temporary-invites.css'
 import './styles/temporary-invite-page.css'
 import './styles/system-settings.css'
+import './styles/storage-policy.css'
 import './styles/deployment-wizard.css'
 
 createRoot(document.getElementById('root')!).render(

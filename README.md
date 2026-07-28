@@ -75,10 +75,10 @@ Serverless Webmail：
 - 多域名集中管理，支持启用、停用和安全删除
 - 每个域名可创建多个独立邮箱地址
 - 用户级邮箱额度、创建权限和回信权限
+- 用户级存储配额与空间使用统计
 - 用户封禁、解封及会话即时失效
 - 管理员指定邮箱或用户自选前缀的临时邀请
-- 临时账号独立有效期、到期清理和自助删除
-- 账号删除后保留邮箱地址、历史邮件与附件
+- 临时账号独立有效期、到期停用和延迟数据清理
 
 ### 管理与安全
 
@@ -91,6 +91,7 @@ Serverless Webmail：
 - 亮色、暗色及跟随系统主题
 - 简体中文与英文界面，支持浏览器语言识别和手动切换
 - 首次运行检查和三步部署初始化向导
+- 管理员可选 D1 / 邮件归档备份、保留周期与自动清理
 - 桌面、平板和手机响应式布局
 
 ## 技术架构
@@ -103,6 +104,7 @@ flowchart LR
     Worker -->|解析任务| Queue[Cloudflare Queue]
     Queue --> Worker
     Worker -->|索引 / 用户 / 会话| D1[(Cloudflare D1)]
+    Worker -->|可选备份| Backup[(Private backup R2)]
     Worker -->|可选回复| Resend[Resend]
 
     Browser[浏览器] -->|HTML / CSS / JS| Worker
@@ -215,10 +217,30 @@ Import a repository**，选择你的 OmniMail 仓库：
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
 | `RESEND_API_KEY` | Secret | Resend 回复 |
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
+| `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
+| `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
+| `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
 
 同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
 Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
+
+### 备份、保留与配额
+
+生产部署可绑定独立私有 R2 Bucket `omni-mail-backups`。配置上表三个备份变量后，
+管理员可以在 **系统设置 → 备份、保留与配额** 中自行开启或关闭备份；资源不完整时
+开关会保持不可用，不会显示虚假的成功状态。
+
+- 开启时每日导出 D1，并将新收邮件原文和已发送正文归档到备份桶。
+- D1 每日、每周、每月备份默认分别保留 30、84、365 天，邮件归档保留 90 天。
+- 垃圾箱、失败邮件、临时账号数据和操作日志保留期由管理员设置。
+- 普通用户和临时用户有独立默认空间配额；单个账号可在用户管理中覆盖，垃圾箱内
+  邮件在永久清理前仍计入配额。
+
+`D1_REST_API_TOKEN` 应使用独立的 Cloudflare API Token，只授予目标账户的
+**D1 Read** 权限。恢复前先下载备份对象并导入一个新的 D1 数据库完成校验，再切换
+绑定；不要直接覆盖正在运行的生产数据库。R2 邮件归档用于灾难恢复，不替代原始
+邮件桶，也不应设置为公开访问。
 
 在 Worker 的 **Settings → Domains & Routes** 添加 Webmail 自定义域名：
 
@@ -286,7 +308,7 @@ SMTP 阶段返回 `Mailbox unavailable`，不会被写入 R2 或 D1。
 - **多人注册**：同一链接有效期内允许多个用户分别注册，必须配置 Turnstile。
 
 邀请过期只阻止继续注册，不删除已经创建的邮箱。临时账号到期或用户主动删除后，
-登录账号会停用，但邮箱地址、历史邮件与附件继续保留。
+登录账号会立即停用，邮箱地址、历史邮件与附件会在管理员设置的保留期结束后清理。
 
 ## API 与桌面客户端
 
@@ -371,7 +393,7 @@ Wrangler 构建产物不计入限制。
 - 新邮件撰写、群发、转发和通讯录
 - 完整反垃圾、病毒扫描和邮件规则引擎
 - 自动修改 Cloudflare DNS、MX 或 Email Routing
-- 跨实例迁移与自动备份
+- 跨实例一键迁移与自动恢复
 - 面向大型组织的合规归档和高可用保证
 
 ### 后续方向
@@ -379,7 +401,7 @@ Wrangler 构建产物不计入限制。
 - 稳定并版本化 `/api/v1`
 - 桌面客户端与增量同步
 - 邮件全文搜索、通知与批量操作
-- 数据导出、备份和恢复
+- 可视化备份浏览、下载与恢复演练
 - 更细粒度的 Token Scope 与管理策略
 
 路线图会根据实际使用反馈调整。欢迎通过

@@ -408,4 +408,56 @@ export const enAdmin: Record<string, string> = {
   '取消': 'Cancel',
   '正在删除…': 'Deleting…',
   '确认删除账号': 'Delete account',
+  '无法更新备份与存储策略。': 'Could not update backup and storage policy.',
+  '备份、保留与配额': 'Backup, retention, and quotas',
+  '由管理员决定是否备份，并控制自动清理和用户空间':
+    'Let administrators control backups, automatic cleanup, and user storage',
+  '刷新备份状态': 'Refresh backup status',
+  '正在读取存储策略…': 'Loading storage policy…',
+  '自动备份已开启': 'Automatic backup is on',
+  '自动备份已关闭': 'Automatic backup is off',
+  '每日导出 D1，并归档邮件原文到独立 R2 存储桶':
+    'Export D1 daily and archive original messages to a separate R2 bucket',
+  '开启自动备份': 'Enable automatic backup',
+  '备份资源已就绪': 'Backup resources are ready',
+  '备份资源尚未就绪': 'Backup resources are not ready',
+  '管理员可以开启备份或立即执行一次备份。':
+    'An administrator can enable backups or run one immediately.',
+  '缺少：{items}': 'Missing: {items}',
+  '数据库：每日 {daily} 天 / 每周 {weekly} 天 / 每月 {monthly} 天':
+    'Database: daily {daily} days / weekly {weekly} days / monthly {monthly} days',
+  '邮件归档保留 {days} 天': 'Message archives are retained for {days} days',
+  '正在提交…': 'Submitting…',
+  '立即备份': 'Back up now',
+  '上次备份成功': 'Last backup succeeded',
+  '备份正在运行': 'Backup is running',
+  '上次备份失败': 'Last backup failed',
+  '尚无备份记录': 'No backup record yet',
+  '垃圾箱保留': 'Trash retention',
+  '临时账号删除后保留': 'Deleted temporary account retention',
+  '失败邮件保留': 'Failed message retention',
+  '操作日志保留': 'Audit log retention',
+  '普通用户默认配额': 'Default user quota',
+  '临时用户默认配额': 'Default temporary user quota',
+  '修改默认配额只影响之后创建的账户；单个用户配额可在用户管理中调整。':
+    'Default quota changes affect new accounts only. Adjust individual quotas in User management.',
+  '保存策略': 'Save policy',
+  '备份与存储策略已保存。': 'Backup and storage policy saved.',
+  '备份任务已提交，可稍后刷新查看结果。':
+    'The backup task was submitted. Refresh later to see the result.',
+  '存储空间': 'Storage',
+  '存储空间使用率': 'Storage usage',
+  '该邮件将在 {date} 自动永久删除。':
+    'This message will be permanently deleted automatically on {date}.',
+  '修改备份与存储策略': 'Backup and storage policy updated',
+  '手动启动备份': 'Manual backup started',
+  '清理临时账号数据': 'Temporary account data purged',
+  '立即结束账号访问，数据稍后按保留策略清理':
+    'End account access now; data is cleaned up later according to retention policy',
+  '数据不会立即删除': 'Data is not deleted immediately',
+  '收件地址、已有邮件和附件会暂时保留，之后按管理员设置的保留期自动清理。':
+    'Addresses, messages, and attachments are retained temporarily, then cleaned up according to the administrator-defined retention period.',
+  '数据进入保留期': 'Data enters its retention period',
+  '邮箱地址、邮件和附件会在管理员设置的保留期结束后清理。':
+    'Addresses, messages, and attachments are cleaned up after the administrator-defined retention period.',
 }

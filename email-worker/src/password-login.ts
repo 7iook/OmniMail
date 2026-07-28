@@ -81,6 +81,7 @@ export async function authenticatePassword(
   const user = await db.prepare(
     `SELECT id, email, display_name, password_hash, role, status,
             mailbox_limit, can_create_mailboxes, can_reply,
+            storage_quota_bytes, storage_used_bytes,
             temporary_expires_at, deleted_at, created_at
        FROM users WHERE email = ?`,
   ).bind(email).first<UserRow>()

@@ -57,6 +57,8 @@ export interface User {
   displayName: string
   role: UserRole
   mailboxLimit: number
+  storageQuotaBytes: number
+  storageUsedBytes: number
   canCreateMailboxes: boolean
   canReply: boolean
   temporaryExpiresAt: number | null
@@ -75,6 +77,7 @@ export interface ManagedUserPolicy {
   role: Exclude<UserRole, 'super_admin'>
   status: AccountStatus
   mailboxLimit: number
+  storageQuotaMiB: number
   canCreateMailboxes: boolean
   canReply: boolean
 }
@@ -83,6 +86,34 @@ export interface CreateManagedUser extends ManagedUserPolicy {
   email: string
   displayName: string
   password: string
+}
+
+export interface StoragePolicy {
+  backupEnabled: boolean
+  backupReady: boolean
+  backupMissing: string[]
+  backupRetention: {
+    dailyDays: 30
+    weeklyDays: 84
+    monthlyDays: 365
+    mailDays: 90
+  }
+  trashRetentionDays: number
+  temporaryDataRetentionDays: number
+  auditRetentionDays: number
+  failedMessageRetentionDays: number
+  defaultUserQuotaMiB: number
+  defaultTemporaryQuotaMiB: number
+  lastBackup: {
+    id: string
+    trigger: 'scheduled' | 'manual' | 'enable'
+    status: 'running' | 'succeeded' | 'failed'
+    objectKey: string | null
+    size: number
+    error: string | null
+    startedAt: number
+    completedAt: number | null
+  } | null
 }
 
 export interface MailCounts {
@@ -222,6 +253,7 @@ export interface MessageSummary {
   isRead: boolean
   isStarred: boolean
   processingError: string | null
+  purgeAfter: number | null
 }
 
 export interface Attachment {
@@ -338,6 +370,25 @@ export const api = {
       body: jsonBody({ enabled }),
     })
   ),
+  storagePolicy: () => request<{ storagePolicy: StoragePolicy }>(
+    '/api/admin/settings/storage',
+  ),
+  updateStoragePolicy: (storagePolicy: Pick<
+    StoragePolicy,
+    | 'backupEnabled'
+    | 'trashRetentionDays'
+    | 'temporaryDataRetentionDays'
+    | 'auditRetentionDays'
+    | 'failedMessageRetentionDays'
+    | 'defaultUserQuotaMiB'
+    | 'defaultTemporaryQuotaMiB'
+  >) => request<{ storagePolicy: StoragePolicy }>('/api/admin/settings/storage', {
+    method: 'PATCH',
+    body: jsonBody(storagePolicy),
+  }),
+  startBackup: () => request<{ id: string }>('/api/admin/backups', {
+    method: 'POST',
+  }),
   updateAccount: (input: {
     displayName?: string
     currentPassword?: string

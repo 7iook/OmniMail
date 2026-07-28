@@ -3,6 +3,8 @@ import { cleanup } from './cleanup'
 import { consumeEmailQueue, receiveEmail } from './mail'
 import type { Env, ParseJob } from './types'
 
+export { OmniMailBackupWorkflow } from './backup'
+
 async function fetchRequest(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
   const path = new URL(request.url).pathname
   return path === '/api' || path.startsWith('/api/')

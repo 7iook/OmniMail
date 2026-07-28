@@ -310,6 +310,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/messages` | 邮件列表、筛选与分页 |
 | `GET /api/messages/{id}` | 邮件正文和附件元数据 |
 | `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
+| `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 使用 Resend 回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
@@ -317,6 +318,9 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员临时邀请列表 |
+| `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |
+| `PATCH /api/admin/settings/storage` | 更新备份开关、保留期和默认配额 |
+| `POST /api/admin/backups` | 手动启动一次备份 |
 | `PATCH /api/admin/settings/registration` | 管理员开启或关闭外部注册 |
 | `PATCH /api/admin/settings/registration-domains` | 管理员设置注册邮箱允许/禁止规则 |
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |

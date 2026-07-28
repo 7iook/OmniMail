@@ -132,6 +132,8 @@ export function sessionFromUser(user: Pick<
   | 'display_name'
   | 'role'
   | 'mailbox_limit'
+  | 'storage_quota_bytes'
+  | 'storage_used_bytes'
   | 'can_create_mailboxes'
   | 'can_reply'
   | 'temporary_expires_at'
@@ -142,6 +144,8 @@ export function sessionFromUser(user: Pick<
     displayName: user.display_name,
     role: user.role,
     mailboxLimit: user.mailbox_limit,
+    storageQuotaBytes: user.storage_quota_bytes,
+    storageUsedBytes: user.storage_used_bytes,
     canCreateMailboxes: Boolean(user.can_create_mailboxes),
     canReply: Boolean(user.can_reply),
     temporaryExpiresAt: user.temporary_expires_at,
@@ -153,6 +157,7 @@ export async function sessionUser(db: D1Database, token: string): Promise<Sessio
   const row = await db.prepare(
     `SELECT u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
@@ -165,6 +170,8 @@ export async function sessionUser(db: D1Database, token: string): Promise<Sessio
     | 'role'
     | 'status'
     | 'mailbox_limit'
+    | 'storage_quota_bytes'
+    | 'storage_used_bytes'
     | 'can_create_mailboxes'
     | 'can_reply'
     | 'temporary_expires_at'

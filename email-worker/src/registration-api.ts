@@ -11,6 +11,7 @@ import {
   registrationProtectionReady,
   verifyRegistrationTurnstile,
 } from './registration-security'
+import { defaultQuotaBytes } from './storage-policy'
 import type { Env, SessionUser } from './types'
 
 const REGISTRATION_SETTING = 'external_registration_enabled'
@@ -204,13 +205,14 @@ export async function registerExternalUser(
   }
 
   const id = crypto.randomUUID()
+  const storageQuotaBytes = await defaultQuotaBytes(env.DB, 'user')
   try {
     await env.DB.prepare(
       `INSERT INTO users (
         id, email, display_name, password_hash, role, status, mailbox_limit,
-        can_create_mailboxes, can_reply
-      ) VALUES (?, ?, ?, ?, 'user', 'active', 1, 0, 0)`,
-    ).bind(id, email, displayName, await hashPassword(password)).run()
+        storage_quota_bytes, can_create_mailboxes, can_reply
+      ) VALUES (?, ?, ?, ?, 'user', 'active', 1, ?, 0, 0)`,
+    ).bind(id, email, displayName, await hashPassword(password), storageQuotaBytes).run()
   } catch {
     await writeAudit(env, null, 'auth.register_failed', email, ip, {
       reason: 'email_conflict',
@@ -233,6 +235,8 @@ export async function registerExternalUser(
         displayName,
         role: 'user',
         mailboxLimit: 1,
+        storageQuotaBytes,
+        storageUsedBytes: 0,
         canCreateMailboxes: false,
         canReply: false,
         temporaryExpiresAt: null,

@@ -59,6 +59,30 @@
   margin-bottom: 17px;
 }
 
+.account-storage-summary {
+  grid-template-rows: auto auto;
+}
+
+.account-storage-summary > span {
+  grid-column: 1 / -1;
+  height: 5px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.account-storage-summary > span > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.account-storage-summary > span.is-warning > span {
+  background: var(--danger);
+}
+
 .account-form {
   display: grid;
   gap: 13px;

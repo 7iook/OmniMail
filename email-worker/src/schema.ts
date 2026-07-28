@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS users (
     CHECK (role IN ('super_admin', 'admin', 'user', 'temporary')),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
   mailbox_limit INTEGER NOT NULL DEFAULT 1 CHECK (mailbox_limit BETWEEN 0 AND 100),
+  storage_quota_bytes INTEGER NOT NULL DEFAULT 1073741824
+    CHECK (storage_quota_bytes BETWEEN 0 AND 1099511627776),
+  storage_used_bytes INTEGER NOT NULL DEFAULT 0 CHECK (storage_used_bytes >= 0),
   can_create_mailboxes INTEGER NOT NULL DEFAULT 0 CHECK (can_create_mailboxes IN (0, 1)),
   can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)),
   temporary_expires_at INTEGER,
@@ -123,10 +126,13 @@ CREATE TABLE IF NOT EXISTS messages (
   raw_key TEXT,
   body_key TEXT,
   size INTEGER NOT NULL DEFAULT 0,
+  quota_bytes INTEGER NOT NULL DEFAULT 0 CHECK (quota_bytes >= 0),
   attachment_count INTEGER NOT NULL DEFAULT 0,
   has_html INTEGER NOT NULL DEFAULT 0 CHECK (has_html IN (0, 1)),
   is_read INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
   is_starred INTEGER NOT NULL DEFAULT 0 CHECK (is_starred IN (0, 1)),
+  trashed_at INTEGER,
+  purge_after INTEGER,
   processing_error TEXT,
   client_request_id TEXT UNIQUE,
   provider_id TEXT,
@@ -140,6 +146,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_mailbox_starred
   ON messages(mailbox_address, is_starred, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_direction_received
   ON messages(direction, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_purge
+  ON messages(purge_after, id);
 
 CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
@@ -165,16 +173,30 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_cursor
   ON audit_logs(created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS backup_runs (
+  id TEXT PRIMARY KEY,
+  trigger TEXT NOT NULL CHECK (trigger IN ('scheduled', 'manual', 'enable')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed')),
+  object_key TEXT,
+  size INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  completed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_backup_runs_started
+  ON backup_runs(started_at DESC);
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28'
+const SCHEMA_VERSION = '2026-07-28-storage-v2'
 
 async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
   const columns = new Set(results.map((column) => column.name))
   const statements: D1PreparedStatement[] = []
   let policyChanged = false
+  let storageChanged = false
   if (!columns.has('mailbox_limit')) {
     policyChanged = true
     statements.push(db.prepare(
@@ -199,8 +221,36 @@ async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
   if (!columns.has('deleted_at')) {
     statements.push(db.prepare('ALTER TABLE users ADD COLUMN deleted_at INTEGER'))
   }
+  if (!columns.has('storage_quota_bytes')) {
+    storageChanged = true
+    statements.push(db.prepare(
+      'ALTER TABLE users ADD COLUMN storage_quota_bytes INTEGER NOT NULL DEFAULT 1073741824',
+    ))
+  }
+  if (!columns.has('storage_used_bytes')) {
+    storageChanged = true
+    statements.push(db.prepare(
+      'ALTER TABLE users ADD COLUMN storage_used_bytes INTEGER NOT NULL DEFAULT 0',
+    ))
+  }
   if (!statements.length) return
   await db.batch(statements)
+  if (storageChanged) {
+    await db.prepare(
+      `UPDATE users
+          SET storage_quota_bytes = CASE
+                WHEN role IN ('super_admin', 'admin') THEN 5368709120
+                WHEN role = 'temporary' THEN 268435456
+                ELSE storage_quota_bytes
+              END,
+              storage_used_bytes = COALESCE((
+                SELECT SUM(msg.size)
+                  FROM mailboxes mb
+                  JOIN messages msg ON msg.mailbox_address = mb.address
+                 WHERE mb.user_id = users.id
+              ), 0)`,
+    ).run()
+  }
   if (!policyChanged) return
   await db.prepare(
     `UPDATE users
@@ -211,6 +261,58 @@ async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
             ),
             can_create_mailboxes = CASE WHEN role IN ('super_admin', 'admin') THEN 1 ELSE 0 END,
             can_reply = CASE WHEN role IN ('super_admin', 'admin') THEN 1 ELSE 0 END`,
+  ).run()
+}
+
+async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
+  const { results } = await db.prepare(
+    'PRAGMA table_info(messages)',
+  ).all<{ name: string }>()
+  const columns = new Set(results.map((column) => column.name))
+  const statements: D1PreparedStatement[] = []
+  if (!columns.has('quota_bytes')) {
+    statements.push(db.prepare(
+      'ALTER TABLE messages ADD COLUMN quota_bytes INTEGER NOT NULL DEFAULT 0',
+    ))
+  }
+  if (!columns.has('trashed_at')) {
+    statements.push(db.prepare('ALTER TABLE messages ADD COLUMN trashed_at INTEGER'))
+  }
+  if (!columns.has('purge_after')) {
+    statements.push(db.prepare('ALTER TABLE messages ADD COLUMN purge_after INTEGER'))
+  }
+  if (statements.length) await db.batch(statements)
+  await db.prepare(
+    'UPDATE messages SET quota_bytes = size WHERE quota_bytes = 0 AND size > 0',
+  ).run()
+  await db.prepare(
+    `UPDATE messages
+        SET trashed_at = COALESCE(trashed_at, updated_at, created_at),
+            purge_after = COALESCE(trashed_at, updated_at, created_at) + 2592000
+      WHERE folder = 'trash' AND purge_after IS NULL`,
+  ).run()
+  await db.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_messages_purge
+     ON messages(purge_after, id)`,
+  ).run()
+}
+
+async function ensureBackupRuns(db: D1Database): Promise<void> {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS backup_runs (
+      id TEXT PRIMARY KEY,
+      trigger TEXT NOT NULL CHECK (trigger IN ('scheduled', 'manual', 'enable')),
+      status TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed')),
+      object_key TEXT,
+      size INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      completed_at INTEGER
+    )`,
+  ).run()
+  await db.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_backup_runs_started
+     ON backup_runs(started_at DESC)`,
   ).run()
 }
 
@@ -347,6 +449,8 @@ export function ensureSchema(db: D1Database): Promise<void> {
       } else {
         await ensureUserPolicyColumns(db)
       }
+      await ensureMessageStorageColumns(db)
+      await ensureBackupRuns(db)
       await ensureDomains(db)
       await ensureTemporaryInvites(db)
       await ensureDeviceSessions(db)

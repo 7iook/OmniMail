@@ -1,4 +1,6 @@
+import { archiveSentMessage } from './mail-archive'
 import { replySubject, textPreview, textToHtml } from './mail'
+import { releaseStorage, reserveStorage } from './message-storage'
 import type { Env, MessageRow, SessionUser, StoredBody } from './types'
 
 type ReplyInput = {
@@ -81,6 +83,11 @@ export async function sendReply(
 
   const outboundId = crypto.randomUUID()
   const bodyKey = `bodies/${outboundId}.json`
+  const storedBody = JSON.stringify({ text, html: textToHtml(text) } satisfies StoredBody)
+  const quotaBytes = new TextEncoder().encode(storedBody).byteLength
+  if (!await reserveStorage(env.DB, user.id, quotaBytes)) {
+    return json({ error: '邮箱存储空间已满，请清理邮件后重试。' }, 409)
+  }
   const subject = replySubject(original.subject)
   const now = Math.floor(Date.now() / 1000)
   const references = [original.references_header, original.message_id].filter(Boolean).join(' ')
@@ -92,8 +99,8 @@ export async function sendReply(
       `INSERT INTO messages (
         id, mailbox_address, direction, status, folder, in_reply_to, references_header,
         sender_name, sender_address, recipients_json, subject, preview, sent_at,
-        body_key, has_html, is_read, client_request_id
-      ) VALUES (?, ?, 'outgoing', 'processing', 'sent', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
+        body_key, size, quota_bytes, has_html, is_read, client_request_id
+      ) VALUES (?, ?, 'outgoing', 'processing', 'sent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
     ).bind(
       outboundId,
       original.mailbox_address,
@@ -106,21 +113,33 @@ export async function sendReply(
       textPreview(text),
       now,
       bodyKey,
+      quotaBytes,
+      quotaBytes,
       idempotencyKey,
     ).run()
   } catch {
     const duplicate = await env.DB.prepare(
       'SELECT id, status, provider_id FROM messages WHERE client_request_id = ?',
     ).bind(idempotencyKey).first()
+    await releaseStorage(env.DB, user.id, quotaBytes)
     if (duplicate) return json({ message: duplicate })
     return json({ error: '无法创建回复。' }, 409)
   }
 
-  await env.MAIL_BUCKET.put(
-    bodyKey,
-    JSON.stringify({ text, html: textToHtml(text) } satisfies StoredBody),
-    { httpMetadata: { contentType: 'application/json; charset=utf-8' } },
-  )
+  try {
+    await env.MAIL_BUCKET.put(bodyKey, storedBody, {
+      httpMetadata: { contentType: 'application/json; charset=utf-8' },
+    })
+    await archiveSentMessage(env, outboundId, storedBody, now)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unable to store reply'
+    await env.DB.prepare(
+      `UPDATE messages
+          SET status = 'failed', processing_error = ?, updated_at = unixepoch()
+        WHERE id = ?`,
+    ).bind(detail.slice(0, 500), outboundId).run()
+    return json({ error: `保存回复失败：${detail}` }, 502)
+  }
 
   const headers: Record<string, string> = {}
   if (original.message_id) headers['In-Reply-To'] = original.message_id

@@ -140,7 +140,7 @@ export async function deleteTemporaryAccount(
 
   const now = Math.floor(Date.now() / 1000)
   await audit(env, user.id, 'account.delete', ip, {
-    retainedMailbox: true,
+    scheduledCleanup: true,
     reason: 'self_service',
   })
   await env.DB.batch([
@@ -165,7 +165,7 @@ export async function expireTemporaryAccounts(env: Env, now: number): Promise<vo
     env.DB.prepare(
       `INSERT INTO audit_logs (user_id, action, target_id, ip, detail_json)
        SELECT id, 'account.expire', id, 'cron',
-              '{"retainedMailbox":true,"reason":"expired"}'
+              '{"scheduledCleanup":true,"reason":"expired"}'
          FROM users WHERE ${expired}`,
     ).bind(now),
     env.DB.prepare(

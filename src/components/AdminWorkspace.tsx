@@ -17,6 +17,7 @@ import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
 import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
+import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
 
 const refreshOptions: Array<{ value: MailRefreshInterval; label: string }> = [
@@ -183,6 +184,8 @@ export function AdminWorkspace({
 
       <div className="admin-detail-grid">
         <DomainManagement domains={domains} onChanged={onDomainsChanged} />
+
+        <StoragePolicySettings />
 
         <section className="admin-card admin-card--settings">
           <header>

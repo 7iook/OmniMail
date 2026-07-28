@@ -9,6 +9,7 @@ import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { listMessages, messageSummary } from './message-list-api'
+import { permanentlyDeleteMessage } from './message-storage'
 import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
@@ -18,6 +19,7 @@ import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
+import { retentionValues, startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
 import { mailRefreshInterval, remoteImagesEnabled, updateMailRefreshInterval, updateRemoteImagesSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
@@ -193,8 +195,8 @@ app.post('/api/setup', async (context) => {
       context.env.DB.prepare(
         `INSERT INTO users (
           id, email, display_name, password_hash, role, mailbox_limit,
-          can_create_mailboxes, can_reply
-        ) VALUES (?, ?, ?, ?, 'super_admin', 100, 1, 1)`,
+          storage_quota_bytes, can_create_mailboxes, can_reply
+        ) VALUES (?, ?, ?, ?, 'super_admin', 100, 5368709120, 1, 1)`,
       ).bind(userId, email, displayName, passwordHash),
     ])
   } catch {
@@ -212,6 +214,8 @@ app.post('/api/setup', async (context) => {
       displayName,
       role: 'super_admin' as const,
       mailboxLimit: 100,
+      storageQuotaBytes: 5368709120,
+      storageUsedBytes: 0,
       canCreateMailboxes: true,
       canReply: true,
       temporaryExpiresAt: null,
@@ -347,6 +351,24 @@ app.patch('/api/admin/settings/registration', (context) => updateExternalRegistr
 app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.get('/api/admin/settings/storage', async (context) => {
+  const user = context.get('user')
+  if (user.role !== 'super_admin' && user.role !== 'admin') {
+    return context.json({ error: '只有管理员可以查看存储策略。' }, 403)
+  }
+  return context.json({ storagePolicy: await storagePolicy(context.env) })
+})
+app.patch('/api/admin/settings/storage', (context) => updateStoragePolicy(
+  context.env,
+  context.get('user'),
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+))
+app.post('/api/admin/backups', (context) => startManualBackup(
+  context.env,
+  context.get('user'),
+  clientIp(context.req.raw.headers),
+))
 app.patch('/api/admin/users/:id', (context) => updateManagedUser(
   context.env,
   context.get('user'),
@@ -445,15 +467,25 @@ app.patch('/api/messages/:id', async (context) => {
   const allowedFolder = body.folder && ['inbox', 'sent', 'trash'].includes(body.folder)
     ? body.folder
     : message.folder
+  const now = Math.floor(Date.now() / 1000)
+  const movingToTrash = allowedFolder === 'trash'
+  const trashDays = movingToTrash
+    ? (await retentionValues(context.env.DB)).trashRetentionDays
+    : 0
+  const trashedAt = movingToTrash ? message.trashed_at ?? now : null
+  const purgeAfter = movingToTrash ? trashedAt! + trashDays * 24 * 60 * 60 : null
 
   await context.env.DB.prepare(
     `UPDATE messages
-        SET is_read = ?, is_starred = ?, folder = ?, updated_at = unixepoch()
+        SET is_read = ?, is_starred = ?, folder = ?,
+            trashed_at = ?, purge_after = ?, updated_at = unixepoch()
       WHERE id = ?`,
   ).bind(
     typeof body.isRead === 'boolean' ? Number(body.isRead) : message.is_read,
     typeof body.isStarred === 'boolean' ? Number(body.isStarred) : message.is_starred,
     allowedFolder,
+    trashedAt,
+    purgeAfter,
     message.id,
   ).run()
   return context.json({ ok: true })
@@ -467,16 +499,7 @@ app.delete('/api/messages/:id', async (context) => {
     return context.json({ error: '请先将邮件移入垃圾箱。' }, 409)
   }
 
-  const { results: attachments } = await context.env.DB.prepare(
-    'SELECT r2_key FROM attachments WHERE message_id = ?',
-  ).bind(message.id).all<{ r2_key: string }>()
-  const objectKeys = [
-    message.raw_key,
-    message.body_key,
-    ...attachments.map((attachment) => attachment.r2_key),
-  ].filter((key): key is string => Boolean(key))
-  if (objectKeys.length) await context.env.MAIL_BUCKET.delete(objectKeys)
-  await context.env.DB.prepare('DELETE FROM messages WHERE id = ?').bind(message.id).run()
+  await permanentlyDeleteMessage(context.env, user.id, message)
   await writeAudit(context.env, user.id, 'message.delete', message.id, clientIp(context.req.raw.headers))
   return context.json({ ok: true })
 })
