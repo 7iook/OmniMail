@@ -166,7 +166,7 @@ API path       https://mail.example.com/api/*
 ### 1. Fork 仓库
 
 Fork [mibgb65-cloud/OmniMail](https://github.com/mibgb65-cloud/OmniMail)，
-然后使用 GitHub Actions 将验证通过的提交部署到 Cloudflare。
+然后让 Cloudflare Worker 连接你的 Fork。
 
 如果使用本地 Git：
 
@@ -175,7 +175,7 @@ git clone https://github.com/YOUR_NAME/OmniMail.git
 cd OmniMail
 ```
 
-### 2. 首次创建 Cloudflare Worker
+### 2. 连接 Cloudflare Worker
 
 在 Cloudflare Dashboard 中进入 **Workers & Pages → Create application →
 Import a repository**，选择你的 OmniMail 仓库：
@@ -194,25 +194,15 @@ Import a repository**，选择你的 OmniMail 仓库：
 [`wrangler.jsonc`](./wrangler.jsonc) 完成两件事：
 
 1. `npm run build` 将 React 前端生成到 `dist/`。
-2. Wrangler 将 `dist/`、Worker API、D1、R2、Queue 和定时任务作为同一个
+2. Wrangler 将 `dist/`、Worker API、D1、R2、Queue、Workflow 和定时任务作为同一个
    Worker 版本发布。
 
 `/api/*` 优先交给 Worker 脚本，其余路径由 Static Assets 提供；未匹配的浏览器
 导航会回退到 `index.html`，因此 React SPA 刷新不会出现 404。
 
-首次部署完成后，在 GitHub 仓库的 **Settings → Secrets and variables → Actions**
-配置：
-
-| 名称 | 类型 | 用途 |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Secret | 仅授予该项目所需的 Workers、D1、R2、Queues 与 Workflows 编辑权限 |
-| `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare Account ID |
-| `PRODUCTION_ORIGIN` | Variable | 生产站点来源，例如 `https://mail.example.com` |
-
-随后关闭 Cloudflare 仓库集成中的自动生产部署，避免它绕过测试直接发布。生产版本由
-`.github/workflows/ci.yml` 在单元测试、类型检查、端到端测试和 Wrangler dry-run
-全部通过后发布，并在发布后检查 `/api/health`。建议同时为 `main` 开启分支保护，
-要求 `verify` 检查通过后才能合并。不要同时保留两条生产部署链路。
+Cloudflare Workers Builds 会在 `main` 更新后自动拉取、构建并部署，不需要在
+GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责运行测试、
+类型检查和部署预检。
 
 ### 3. 配置 Worker
 
@@ -408,8 +398,8 @@ npx wrangler deploy --dry-run
 ```
 
 最后一条命令只执行 Worker 打包验证，不会部署。CI 会在每次 Push 和 Pull Request
-中运行测试、类型检查、生产构建与 Wrangler dry-run；只有 `main` 的验证任务全部
-通过后，`deploy` 任务才会发布并执行生产健康检查。
+中运行测试、类型检查、生产构建与 Wrangler dry-run。生产发布由已连接仓库的
+Cloudflare Workers Builds 自动执行。
 
 项目要求手写代码、测试和配置文件单文件不超过 600 行。自动生成的依赖锁文件和
 Wrangler 构建产物不计入限制。
