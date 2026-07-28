@@ -1,4 +1,4 @@
-import { Copy, Mail, RefreshCw } from 'lucide-react'
+import { Copy, RefreshCw, SquarePen } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ManagedDomain,
@@ -60,7 +60,7 @@ export function MailboxHeaderActions({
         onClick={() => setComposeOpen(true)} disabled={!canCompose || !address}
         aria-label={t('新建邮件')}
         data-tooltip={!canCompose ? t('当前账户没有发信权限。') : t('新建邮件')}>
-        <Mail size={16} />{t('新建邮件')}
+        <SquarePen size={17} />
       </button>
       <button
         className="icon-button"
