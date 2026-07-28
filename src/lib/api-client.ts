@@ -40,6 +40,7 @@ export class ApiError extends Error {
 
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || '').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 15000
+export const AUTH_REQUIRED_EVENT = 'omnimail:auth-required'
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
@@ -60,6 +61,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   }
   const data = await response.json().catch(() => ({})) as { error?: string }
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT))
+    }
     throw new ApiError(
       data.error ? t(data.error) : t('请求失败（{status}）', { status: response.status }),
       response.status,

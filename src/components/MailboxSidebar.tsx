@@ -14,10 +14,11 @@ import {
 import { type Folder, type MailCounts, type User } from '../lib/api'
 import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
+import type { AdminView } from '../lib/workspaceNavigation'
 import { Brand, ThemeToggle } from './AuthPages'
 import { LanguageQuickToggle } from './LanguageToggle'
 
-export type AdminView = 'statistics' | 'users' | 'invites' | 'logs' | 'settings' | 'account'
+export type { AdminView } from '../lib/workspaceNavigation'
 
 const folders: Array<{
   id: Folder

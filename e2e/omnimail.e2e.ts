@@ -54,6 +54,7 @@ type MockState = {
   refreshInterval: number
   subject: string
   adminUserStatus: 'active' | 'disabled'
+  authorized: boolean
 }
 
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
@@ -66,6 +67,7 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     refreshInterval,
     subject,
     adminUserStatus: 'active',
+    authorized: true,
   }
 }
 
@@ -92,6 +94,9 @@ async function mockApp(page: Page, state = mockState()) {
         superAdminReady: true, setupTokenReady: false },
     })
     if (path === '/api/session') return json(route, { user })
+    if (path === '/api/logout' && request.method() === 'POST') {
+      return json(route, { ok: true })
+    }
     if (path === '/api/mailboxes') return json(route, { mailboxes: [
       { address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true },
     ] })
@@ -127,6 +132,7 @@ async function mockApp(page: Page, state = mockState()) {
       return json(route, { ok: true, updatedCount: input.ids.length })
     }
     if (path === '/api/messages') {
+      if (!state.authorized) return json(route, { error: '请先登录。' }, 401)
       state.messageRequests += 1
       const requestedVersion = url.searchParams.get('version')
       if (requestedVersion !== null) state.conditionalRequests += 1
@@ -276,7 +282,7 @@ test('email links open the safety dialog instead of navigating the iframe', asyn
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toContainText('example.com')
   await expect(dialog.getByRole('button', { name: '复制链接' })).toBeVisible()
-  await expect(page).toHaveURL('http://127.0.0.1:4173/')
+  await expect(page).toHaveURL('http://127.0.0.1:4173/mail/inbox')
 })
 
 test('users can apply a bulk action to selected messages', async ({ page }) => {
@@ -428,6 +434,38 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await expect(page.getByText('Broken MIME')).toBeVisible()
   await page.getByRole('button', { name: '重新处理' }).click()
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()
+})
+
+test('workspace navigation has durable URLs and browser history', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/mail\/inbox$/)
+
+  await page.getByRole('button', { name: '用户' }).click()
+  await expect(page).toHaveURL(/\/admin\/users$/)
+  await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
+
+  await page.getByRole('button', { name: '系统设置' }).click()
+  await expect(page).toHaveURL(/\/admin\/settings$/)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/admin\/users$/)
+  await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
+  await page.goForward()
+  await expect(page).toHaveURL(/\/admin\/settings$/)
+
+  await page.goto('/admin/invites')
+  await expect(page.getByRole('heading', { name: '邀请管理' })).toBeVisible()
+})
+
+test('an expired or disabled session returns to the public home page', async ({ page }) => {
+  const state = await mockApp(page)
+  await page.goto('/admin/users')
+  await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
+  state.authorized = false
+  await page.getByRole('button', { name: '收件箱' }).click()
+  await expect(page).toHaveURL('http://127.0.0.1:4173/')
+  await expect(page.getByRole('button', { name: '进入邮箱' })).toBeVisible()
+  await expect(page.getByText('test11@snipxn.com')).toHaveCount(0)
 })
 
 test('disabling a user uses the in-app safety dialog', async ({ page }) => {

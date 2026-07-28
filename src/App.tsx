@@ -2,7 +2,7 @@ import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
-import { type AdminView, folderLabel, MailboxSidebar } from './components/MailboxSidebar'
+import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
 import { MailDeleteDialog } from './components/MailDeleteDialog'
@@ -31,6 +31,8 @@ import { t, useLocale } from './lib/i18n'
 import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
 import { errorMessage } from './lib/errorMessage'
 import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
+import { useSessionExpiry } from './lib/useSessionExpiry'
+import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
 
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
@@ -54,8 +56,7 @@ function Mailbox({
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
-  const [folder, setFolder] = useState<Folder>('inbox')
-  const [adminView, setAdminView] = useState<AdminView | null>(null)
+  const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role)
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query.trim())
   const [messages, setMessages] = useState<MessageSummary[]>([])
@@ -330,7 +331,7 @@ function Mailbox({
 
   function changeFolder(next: Folder) {
     const shouldQuietRefresh = shouldQuietRefreshFolder(folder, next, query)
-    setAdminView(null)
+    openFolder(next)
     setSelectedId(null)
     setDetail(null)
     setThread([])
@@ -340,7 +341,6 @@ function Mailbox({
       return
     }
     setListLoading(true)
-    setFolder(next)
   }
 
   function changeScope(next: MailboxScope) {
@@ -354,7 +354,7 @@ function Mailbox({
 
   function changeAdminView(next: AdminView) {
     if (next !== 'account' && !isAdminRole(user.role)) return
-    setAdminView(next)
+    openAdminView(next)
     setScope({ type: 'all' })
     setSelectedId(null)
     setDetail(null)
@@ -520,6 +520,7 @@ export function App() {
   const [connectionError, setConnectionError] = useState('')
   const [loadVersion, setLoadVersion] = useState(0)
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite'))
+  const clearSession = useSessionExpiry(user, loading, Boolean(inviteToken), setUser)
 
   useEffect(() => {
     if (!inviteToken) return
@@ -553,9 +554,9 @@ export function App() {
     try {
       await api.logout()
     } finally {
-      setUser(null)
+      clearSession()
     }
-  }, [])
+  }, [clearSession])
 
   if (loading) return <PageLoader />
   if (connectionError || !config) {
