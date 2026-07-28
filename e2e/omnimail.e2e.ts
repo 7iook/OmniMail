@@ -1,50 +1,6 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
 import { beginMessageRowDrag, endMessageRowDrag, moveMessageRowDrag } from './drag-selection'
-
-const user = {
-  id: 'user-1',
-  email: 'owner@example.com',
-  displayName: 'Owner',
-  role: 'super_admin',
-  mailboxLimit: 100,
-  storageQuotaBytes: 5 * 1024 ** 3,
-  storageUsedBytes: 2048,
-  canCreateMailboxes: true,
-  canReply: true,
-  temporaryExpiresAt: null,
-}
-
-const message = {
-  id: 'message-1',
-  mailboxAddress: 'inbox@example.com',
-  direction: 'incoming',
-  status: 'ready',
-  folder: 'inbox',
-  senderName: 'Example Sender',
-  senderAddress: 'sender@example.net',
-  recipients: ['inbox@example.com'],
-  subject: 'Welcome to OmniMail',
-  preview: 'Open the secure link.',
-  date: Date.now(),
-  attachmentCount: 0,
-  isRead: true,
-  isStarred: false,
-  processingError: null,
-  purgeAfter: null,
-}
-
-const reply = {
-  ...message,
-  id: 'reply-1',
-  direction: 'outgoing',
-  status: 'sent',
-  folder: 'sent',
-  senderName: 'Owner',
-  senderAddress: 'inbox@example.com',
-  recipients: ['sender@example.net'],
-  preview: 'Thanks from OmniMail.',
-  date: message.date + 1000,
-}
+import { message, reply, user } from './omnimail-fixtures'
 
 type MockState = {
   messageRequests: number
@@ -59,6 +15,9 @@ type MockState = {
   createdInviteRole: 'user' | 'temporary' | null
   unassignedMailEnabled: boolean
   messages: Array<typeof message>
+  replyEnabled: boolean
+  hasMailbox: boolean
+  sentMessage: Record<string, string> | null
 }
 
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
@@ -75,6 +34,9 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     createdInviteRole: null,
     unassignedMailEnabled: false,
     messages: [message],
+    replyEnabled: false,
+    hasMailbox: true,
+    sentMessage: null,
   }
 }
 
@@ -93,8 +55,10 @@ async function mockApp(page: Page, state = mockState()) {
     const url = new URL(request.url())
     const path = url.pathname
     if (path === '/api/config') return json(route, {
-      appName: 'OmniMail', setupComplete: true, replyEnabled: false,
-      registrationEnabled: false, registrationDomainPolicy: { mode: 'blocklist', domains: [] },
+      appName: 'OmniMail', setupComplete: true, replyEnabled: state.replyEnabled,
+      registrationEnabled: false, registrationAvailable: false,
+      registrationMethod: 'password', linuxDoLoginEnabled: false,
+      registrationDomainPolicy: { mode: 'blocklist', domains: [] },
       registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: state.refreshInterval,
       remoteImagesEnabled: false, unassignedMailEnabled: state.unassignedMailEnabled,
       superAdminEmail: user.email,
@@ -105,9 +69,9 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/logout' && request.method() === 'POST') {
       return json(route, { ok: true })
     }
-    if (path === '/api/mailboxes') return json(route, { mailboxes: [
+    if (path === '/api/mailboxes') return json(route, { mailboxes: state.hasMailbox ? [
       { address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true },
-    ] })
+    ] : [] })
     if (path === '/api/domains') return json(route, { domains: [
       { name: 'example.com', isActive: true, mailboxCount: 1, createdAt: 1, updatedAt: 1 },
     ] })
@@ -138,6 +102,11 @@ async function mockApp(page: Page, state = mockState()) {
       if (input.action === 'trash' || input.action === 'delete') state.messageVisible = false
       state.version += 1
       return json(route, { ok: true, updatedCount: input.ids.length })
+    }
+    if (path === '/api/messages' && request.method() === 'POST') {
+      state.sentMessage = request.postDataJSON() as Record<string, string>
+      state.version += 1
+      return json(route, { message: { id: 'sent-1', status: 'sent', providerId: 'resend-1' } }, 201)
     }
     if (path === '/api/messages') {
       if (!state.authorized) return json(route, { error: '请先登录。' }, 401)
@@ -342,6 +311,37 @@ test('users can apply a bulk action to selected messages', async ({ page }) => {
   await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
+
+test('users can compose and send a new message', async ({ page }) => {
+  const state = mockState()
+  state.replyEnabled = true
+  await mockApp(page, state)
+  await page.goto('/')
+  await page.getByRole('button', { name: '新建邮件' }).click()
+  const dialog = page.getByRole('dialog', { name: '新建邮件' })
+  await expect(dialog.getByLabel('发件人')).toHaveValue('inbox@example.com')
+  await dialog.getByLabel('收件人').fill('friend@example.net')
+  await dialog.getByLabel('主题').fill('Hello from OmniMail')
+  await dialog.getByLabel('邮件正文').fill('This is a new message.')
+  await dialog.getByRole('button', { name: '发送邮件' }).click()
+  await expect(dialog).toBeHidden()
+  expect(state.sentMessage).toMatchObject({
+    mailboxAddress: 'inbox@example.com', to: 'friend@example.net',
+    subject: 'Hello from OmniMail', text: 'This is a new message.',
+  })
+  await expect(page.getByRole('status')).toHaveText('邮件已发送')
+})
+test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {
+  const state = mockState()
+  state.hasMailbox = false
+  await mockApp(page, state)
+  await page.goto('/')
+  const dialog = page.getByRole('dialog', { name: '管理邮箱地址' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('新增邮箱地址')).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: '邮箱域名' })).toHaveValue('example.com')
+})
+
 test('dragging across message rows quickly selects and deselects a range', async ({ page }) => {
   const state = mockState()
   state.messages = [message,
@@ -363,6 +363,7 @@ test('single-message deletion requires confirmation', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
   await page.getByText('Welcome to OmniMail').click()
+  await expect(page.locator('.sender-avatar')).toHaveCSS('color', 'rgb(255, 255, 255)')
   await page.getByRole('button', { name: '移入垃圾箱' }).click()
   const dialog = page.getByRole('alertdialog')
   await expect(dialog.getByRole('heading')).toHaveText('将这封邮件移入垃圾箱？')

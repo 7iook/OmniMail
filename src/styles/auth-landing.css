@@ -325,6 +325,7 @@
 
 .public-auth-modal > footer {
   display: flex;
+  align-items: center;
   justify-content: center;
   gap: 5px;
   margin-top: 21px;
@@ -340,6 +341,32 @@
   color: var(--text);
   cursor: pointer;
   font-weight: 700;
+}
+
+.linux-do-auth {
+  width: 100%;
+  min-height: 45px;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, #f97316 48%, var(--line));
+  background: color-mix(in srgb, #f97316 9%, var(--surface));
+  color: var(--text);
+}
+
+.linux-do-auth:hover {
+  border-color: #f97316;
+  background: color-mix(in srgb, #f97316 14%, var(--surface));
+}
+
+.linux-do-auth > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f97316;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .turnstile-field {

@@ -53,7 +53,7 @@ Serverless Webmail：
 | 一体化 Git 部署 | 一次构建同时发布 React 静态前端与 Worker API |
 | 多域名与多邮箱 | 一个实例统一管理多个域名、用户和收件地址 |
 | 完整权限模型 | 主管理员、管理员、普通用户和限时临时用户 |
-| 可选回信能力 | 通过 Resend 回复；不配置时仍可正常收件 |
+| 可选发信能力 | 通过 Resend 新建邮件与回复；不配置时仍可正常收件 |
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
@@ -70,13 +70,13 @@ Serverless Webmail：
 - 私有附件与原始 `.eml` 下载
 - 按域名、邮箱地址、发件人和主题筛选
 - 稳定游标分页、自适应自动刷新与跨标签页轮询合并
-- Resend 线程内回复及幂等发送
+- Resend 主动发信、线程内回复及幂等发送
 
 ### 多域名与用户
 
 - 多域名集中管理，支持启用、停用和安全删除
 - 每个域名可创建多个独立邮箱地址
-- 用户级邮箱额度、创建权限和回信权限
+- 用户级邮箱额度、创建权限和发信权限
 - 用户级存储配额与空间使用统计
 - 用户封禁、解封及会话即时失效
 - 管理员指定邮箱或用户自选前缀的普通/临时用户邀请
@@ -85,7 +85,7 @@ Serverless Webmail：
 ### 管理与安全
 
 - 邮箱密码登录和 Worker 配置驱动的主管理员
-- 可选外部注册、Cloudflare Turnstile 与注册限速
+- 可选邮箱密码注册、Linux DO Connect 第三方注册与注册限速
 - 注册邮箱后缀允许列表 / 禁止列表
 - 短期 Access Token、轮换 Refresh Token 和设备会话
 - 登录与敏感操作审计日志
@@ -107,7 +107,7 @@ flowchart LR
     Queue --> Worker
     Worker -->|索引 / 用户 / 会话| D1[(Cloudflare D1)]
     Worker -->|可选备份| Backup[(Private backup R2)]
-    Worker -->|可选回复| Resend[Resend]
+    Worker -->|可选发信 / 回复| Resend[Resend]
 
     Browser[浏览器] -->|HTML / CSS / JS| Worker
     Browser -->|同源 /api| Worker
@@ -122,8 +122,8 @@ flowchart LR
 | 对象存储 | Cloudflare R2 |
 | 异步任务 | Cloudflare Queues |
 | 收件 | Cloudflare Email Routing |
-| 回信 | Resend（可选） |
-| 防护 | Cloudflare Turnstile（开放注册或多人邀请时） |
+| 发信与回复 | Resend（可选） |
+| 防护 | Cloudflare Turnstile（邮箱密码注册或多人邀请时） |
 
 ### 仓库结构
 
@@ -147,7 +147,7 @@ flowchart LR
 - Cloudflare 账户，以及已托管在 Cloudflare DNS 的域名
 - GitHub 账户
 - Node.js 22+（仅本地开发需要）
-- Resend 账户（可选，仅用于回复）
+- Resend 账户（可选，用于主动发信与回复）
 
 > [!TIP]
 > 如果根域名已经承载其他邮件服务，建议先使用专用子域测试，例如
@@ -217,15 +217,27 @@ Import a repository**，选择你的 OmniMail 仓库：
 | `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端来源 |
 | `TURNSTILE_SITE_KEY` | Text | Turnstile 公开 Site Key |
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
-| `RESEND_API_KEY` | Secret | Resend 回复 |
+| `LINUX_DO_CLIENT_ID` | Text | Linux DO Connect Client ID |
+| `LINUX_DO_CLIENT_SECRET` | Secret | Linux DO Connect Client Secret |
+| `RESEND_API_KEY` | Secret | Resend 主动发信与回复 |
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
 
+一个 Resend 账户和 API Key 可以服务多个托管域名，不需要为每个域名单独配置 Key。
+未设置 `RESEND_FROM` 时，用户选择的邮箱会作为发件人，因此对应域名都需要在同一
+Resend 账户中完成验证；设置 `RESEND_FROM` 后统一从该固定地址发出，用户选择的
+邮箱仍作为 Reply-To。
+
 同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
 Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
+
+若要启用 Linux DO 登录，请在 [Linux DO Connect](https://connect.linux.do) 申请应用，
+将回调地址设置为 `https://你的域名/api/auth/linux-do/callback`，再配置上表两个变量。
+管理员随后可在 **系统设置 → 外部注册** 中选择“仅 Linux DO”。现有账号仍可使用
+邮箱密码登录；公开注册的新用户默认可在已启用域名中选择 1 个尚未占用的邮箱地址。
 
 ### 备份、保留与配额
 
@@ -295,7 +307,7 @@ SMTP 阶段返回 `Mailbox unavailable`，不会被写入 R2 或 D1。
 | --- | --- |
 | `super_admin` | 唯一主管理员；管理全部非主管理员账户并授予管理员角色 |
 | `admin` | 用户、邀请、域名、统计、日志与系统设置；不能修改管理员或主管理员 |
-| `user` | 按管理员设置的额度使用邮箱、创建地址和回复 |
+| `user` | 按管理员设置的额度使用邮箱、创建地址和发信 |
 | `temporary` | 限时账户；权限与邮箱由邀请或管理员预设 |
 
 主管理员身份始终由 Worker 的 `SUPER_ADMIN_EMAIL` 决定，不能在网页端被降级或
@@ -374,8 +386,9 @@ Wrangler 构建产物不计入限制。
   Workers 运行时当前支持的上限）。
 - 浏览器会话只通过安全 Cookie 传递。
 - Access Token 短期有效，Refresh Token 轮换并仅保存摘要。
-- 登录、公开注册和邀请注册均有限速保护。
-- 开放注册和多人邀请使用 Turnstile 服务端校验。
+- 登录、邮箱密码公开注册和邀请注册均有限速保护。
+- 邮箱密码公开注册和多人邀请使用 Turnstile 服务端校验；Linux DO 注册使用一次性
+  OAuth state 和服务端授权码交换。
 - API 自动允许当前 Worker 同源请求；额外跨域来源必须在 `APP_ORIGINS` 中精确配置。
 - R2 Bucket 必须保持私有，文件只能通过鉴权 API 下载。
 - HTML 邮件在禁止脚本、表单和远程网络的 sandbox iframe 中显示。

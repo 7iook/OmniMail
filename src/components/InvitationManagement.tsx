@@ -470,7 +470,7 @@ export function InvitationManagement({
                     </>
                   )}
                   <label className="policy-toggle">
-                    <span><Send size={17} /><span><strong>{t('允许使用 Resend 回信')}</strong><small>{t('Worker 仍需配置有效的 Resend 服务')}</small></span></span>
+                    <span><Send size={17} /><span><strong>{t('允许使用 Resend 发信与回复')}</strong><small>{t('Worker 仍需配置有效的 Resend 服务')}</small></span></span>
                     <input
                       type="checkbox"
                       checked={draft.canReply}
@@ -524,7 +524,7 @@ export function InvitationManagement({
                       <dl className="invite-card__details">
                         <div><dt><Clock3 size={14} />{t('链接截止')}</dt><dd className="invite-expiry">{formatDate(invite.expiresAt)}</dd></div>
                         <div><dt><UserRoundPlus size={14} />{t('账号有效期')}</dt><dd>{invite.accountLifetimeHours === null ? t('长期有效') : formatDuration(invite.accountLifetimeHours)}</dd></div>
-                        <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可回信')}` : ''}</dd></div>
+                        <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可发信')}` : ''}</dd></div>
                       </dl>
                       <footer>
                         <span>{t('创建于 {date}', { date: formatDate(invite.createdAt) })}</span>

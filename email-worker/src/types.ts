@@ -24,6 +24,8 @@ export interface Env {
   RESEND_FROM?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
+  LINUX_DO_CLIENT_ID?: string
+  LINUX_DO_CLIENT_SECRET?: string
   CLOUDFLARE_ACCOUNT_ID?: string
   D1_DATABASE_ID?: string
   D1_REST_API_TOKEN?: string

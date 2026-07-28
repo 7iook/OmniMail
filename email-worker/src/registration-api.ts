@@ -15,11 +15,13 @@ import { defaultQuotaBytes } from './storage-policy'
 import type { Env, SessionUser } from './types'
 
 const REGISTRATION_SETTING = 'external_registration_enabled'
+const REGISTRATION_METHOD_SETTING = 'external_registration_method'
 const DOMAIN_POLICY_MODE_SETTING = 'registration_domain_policy_mode'
 const DOMAIN_POLICY_DOMAINS_SETTING = 'registration_blocked_domains'
 const MAX_BLOCKED_DOMAINS = 100
 
 export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'
+export type RegistrationMethod = 'password' | 'linuxdo'
 
 export interface RegistrationDomainPolicy {
   mode: RegistrationDomainPolicyMode
@@ -67,6 +69,24 @@ export async function externalRegistrationEnabled(db: D1Database): Promise<boole
     'SELECT value FROM settings WHERE key = ?',
   ).bind(REGISTRATION_SETTING).first<{ value: string }>()
   return setting?.value === '1'
+}
+
+export function linuxDoAuthReady(env: Env): boolean {
+  return Boolean(
+    env.LINUX_DO_CLIENT_ID?.trim()
+    && env.LINUX_DO_CLIENT_SECRET?.trim(),
+  )
+}
+
+export function parseRegistrationMethod(value: unknown): RegistrationMethod | null {
+  return value === 'password' || value === 'linuxdo' ? value : null
+}
+
+export async function externalRegistrationMethod(db: D1Database): Promise<RegistrationMethod> {
+  const setting = await db.prepare(
+    'SELECT value FROM settings WHERE key = ?',
+  ).bind(REGISTRATION_METHOD_SETTING).first<{ value: string }>()
+  return parseRegistrationMethod(setting?.value) || 'password'
 }
 
 function validDomainSuffix(value: string): boolean {
@@ -148,6 +168,9 @@ export async function registerExternalUser(
   if (!await externalRegistrationEnabled(env.DB)) {
     return { response: json({ error: '管理员当前未开放外部注册。' }, 403) }
   }
+  if (await externalRegistrationMethod(env.DB) !== 'password') {
+    return { response: json({ error: '当前仅允许通过 Linux DO 注册。' }, 403) }
+  }
   if (!registrationProtectionReady(env)) {
     return { response: json({ error: '注册保护尚未配置，请联系管理员。' }, 503) }
   }
@@ -211,7 +234,7 @@ export async function registerExternalUser(
       `INSERT INTO users (
         id, email, display_name, password_hash, role, status, mailbox_limit,
         storage_quota_bytes, can_create_mailboxes, can_reply
-      ) VALUES (?, ?, ?, ?, 'user', 'active', 1, ?, 0, 0)`,
+      ) VALUES (?, ?, ?, ?, 'user', 'active', 1, ?, 1, 0)`,
     ).bind(id, email, displayName, await hashPassword(password), storageQuotaBytes).run()
   } catch {
     await writeAudit(env, null, 'auth.register_failed', email, ip, {
@@ -237,7 +260,7 @@ export async function registerExternalUser(
         mailboxLimit: 1,
         storageQuotaBytes,
         storageUsedBytes: 0,
-        canCreateMailboxes: false,
+        canCreateMailboxes: true,
         canReply: false,
         temporaryExpiresAt: null,
       },
@@ -254,24 +277,35 @@ export async function updateExternalRegistration(
   if (!isAdministrator(actor)) {
     return json({ error: '只有管理员可以修改注册设置。' }, 403)
   }
-  const body = await request.json<{ enabled?: boolean }>()
-    .catch(() => ({} as { enabled?: boolean }))
-  if (typeof body.enabled !== 'boolean') {
+  const body = await request.json<{ enabled?: boolean; method?: unknown }>()
+    .catch(() => ({} as { enabled?: boolean; method?: unknown }))
+  const method = parseRegistrationMethod(body.method)
+  if (typeof body.enabled !== 'boolean' || !method) {
     return json({ error: '注册设置无效。' }, 400)
   }
-  if (body.enabled && !registrationProtectionReady(env)) {
+  if (body.enabled && method === 'password' && !registrationProtectionReady(env)) {
     return json({
       error: '请先配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY。',
     }, 409)
   }
-  await env.DB.prepare(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
-  ).bind(REGISTRATION_SETTING, body.enabled ? '1' : '0').run()
+  if (body.enabled && method === 'linuxdo' && !linuxDoAuthReady(env)) {
+    return json({ error: '请先配置 Linux DO Connect Client ID 和 Client Secret。' }, 409)
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(REGISTRATION_SETTING, body.enabled ? '1' : '0'),
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(REGISTRATION_METHOD_SETTING, method),
+  ])
   await writeAudit(env, actor.id, 'system.registration.update', null, ip, {
     enabled: body.enabled,
+    method,
   })
-  return json({ registrationEnabled: body.enabled })
+  return json({ registrationEnabled: body.enabled, registrationMethod: method })
 }
 
 export async function updateRegistrationDomainPolicy(

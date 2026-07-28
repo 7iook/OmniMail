@@ -1,10 +1,12 @@
-import { Copy, RefreshCw } from 'lucide-react'
+import { Copy, Mail, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import type {
   ManagedDomain,
   MailboxAddress,
   MailboxScope,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import { ComposeDialog } from './ComposeDialog'
 import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
 interface Props {
@@ -12,11 +14,13 @@ interface Props {
   domains: ManagedDomain[]
   scope: MailboxScope
   canGenerate: boolean
+  canCompose: boolean
   refreshing: boolean
   onRefresh: () => void
   onCopied: (address: string) => void
   onCopyError: () => void
   onMailboxCreated: (mailbox: MailboxAddress) => Promise<void>
+  onMessageSent: () => void
 }
 
 export function MailboxHeaderActions({
@@ -24,16 +28,20 @@ export function MailboxHeaderActions({
   domains,
   scope,
   canGenerate,
+  canCompose,
   refreshing,
   onRefresh,
   onCopied,
   onCopyError,
   onMailboxCreated,
+  onMessageSent,
 }: Props) {
+  const [composeOpen, setComposeOpen] = useState(false)
+  const activeMailboxes = mailboxes.filter((mailbox) => mailbox.isActive)
   const address = scope.type === 'mailbox'
     ? scope.value
-    : mailboxes.find((mailbox) => mailbox.isPrimary && mailbox.isActive)?.address
-      || mailboxes.find((mailbox) => mailbox.isActive)?.address
+    : activeMailboxes.find((mailbox) => mailbox.isPrimary)?.address
+      || activeMailboxes[0]?.address
       || ''
 
   async function copy() {
@@ -48,6 +56,12 @@ export function MailboxHeaderActions({
 
   return (
     <div className="list-header__actions">
+      <button className="button button--primary compose-trigger" type="button"
+        onClick={() => setComposeOpen(true)} disabled={!canCompose || !address}
+        aria-label={t('新建邮件')}
+        data-tooltip={!canCompose ? t('当前账户没有发信权限。') : t('新建邮件')}>
+        <Mail size={16} />{t('新建邮件')}
+      </button>
       <button
         className="icon-button"
         type="button"
@@ -66,6 +80,17 @@ export function MailboxHeaderActions({
       <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>
+      {composeOpen && (
+        <ComposeDialog
+          mailboxes={activeMailboxes}
+          initialMailbox={address}
+          onClose={() => setComposeOpen(false)}
+          onSent={() => {
+            setComposeOpen(false)
+            onMessageSent()
+          }}
+        />
+      )}
     </div>
   )
 }

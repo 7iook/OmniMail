@@ -7,6 +7,9 @@ export interface AppConfig {
   setupComplete: boolean
   replyEnabled: boolean
   registrationEnabled: boolean
+  registrationAvailable: boolean
+  registrationMethod: RegistrationMethod
+  linuxDoLoginEnabled: boolean
   registrationDomainPolicy: RegistrationDomainPolicy
   registrationProtectionReady: boolean
   turnstileSiteKey: string
@@ -44,6 +47,7 @@ export interface DeploymentCheck {
 }
 
 export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'
+export type RegistrationMethod = 'password' | 'linuxdo'
 
 export interface RegistrationDomainPolicy {
   mode: RegistrationDomainPolicyMode

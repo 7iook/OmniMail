@@ -7,6 +7,11 @@ APP_ORIGINS=http://localhost:5173
 COOKIE_SECURE=false
 APP_NAME=OmniMail
 
-# Optional. Reply is hidden until both values are configured.
+# Optional. Register the callback URL /api/auth/linux-do/callback in Linux DO Connect.
+LINUX_DO_CLIENT_ID=
+LINUX_DO_CLIENT_SECRET=
+
+# Optional. Sending and replies are disabled until RESEND_API_KEY is configured.
+# RESEND_FROM can provide one fixed sender across all managed mailbox domains.
 RESEND_API_KEY=
 RESEND_FROM=

@@ -79,12 +79,24 @@ export function AdminWorkspace({
   const [unassignedMailSaving, setUnassignedMailSaving] = useState(false)
   const [unassignedMailError, setUnassignedMailError] = useState('')
 
-  async function toggleRegistration() {
+  async function saveRegistration(
+    enabled: boolean,
+    method = config.registrationMethod,
+  ) {
     setRegistrationSaving(true)
     setRegistrationError('')
     try {
-      const result = await api.updateRegistrationSetting(!config.registrationEnabled)
-      onConfigChange({ ...config, registrationEnabled: result.registrationEnabled })
+      const result = await api.updateRegistrationSetting(enabled, method)
+      onConfigChange({
+        ...config,
+        registrationEnabled: result.registrationEnabled,
+        registrationAvailable: result.registrationEnabled && (
+          result.registrationMethod === 'linuxdo'
+            ? config.linuxDoLoginEnabled
+            : config.registrationProtectionReady
+        ),
+        registrationMethod: result.registrationMethod,
+      })
     } catch (error) {
       setRegistrationError(t(error instanceof Error ? error.message : '无法更新注册设置。'))
     } finally {
@@ -364,26 +376,53 @@ export function AdminWorkspace({
               <p>{t('控制未登录访客是否可以创建普通账户')}</p>
             </div>
           </header>
+          <fieldset className="registration-domain-mode">
+            <legend>{t('注册方式')}</legend>
+            <label className={config.registrationMethod === 'password' ? 'is-selected' : ''}>
+              <input type="radio" name="registration-method"
+                checked={config.registrationMethod === 'password'}
+                disabled={registrationSaving || (
+                  config.registrationEnabled && !config.registrationProtectionReady
+                )}
+                onChange={() => void saveRegistration(config.registrationEnabled, 'password')} />
+              <span><UserPlus size={15} /><span><strong>{t('邮箱与密码')}</strong>
+                <small>{t('访客填写邮箱、名称和密码注册')}</small></span></span>
+            </label>
+            <label className={config.registrationMethod === 'linuxdo' ? 'is-selected' : ''}>
+              <input type="radio" name="registration-method"
+                checked={config.registrationMethod === 'linuxdo'}
+                disabled={registrationSaving || !config.linuxDoLoginEnabled}
+                onChange={() => void saveRegistration(config.registrationEnabled, 'linuxdo')} />
+              <span><BadgeCheck size={15} /><span><strong>{t('仅 Linux DO')}</strong>
+                <small>{t('新用户必须通过 Linux DO Connect 注册')}</small></span></span>
+            </label>
+          </fieldset>
           <label className="policy-toggle">
             <span>
               {registrationSaving ? <LoaderCircle className="spin" size={17} /> : <UserPlus size={17} />}
               <span>
                 <strong>{t(config.registrationEnabled ? '允许外部注册' : '外部注册已关闭')}</strong>
                 <small>
-                  {t(config.registrationProtectionReady
-                    ? 'Turnstile 已启用；新账户默认无创建邮箱和回信权限'
-                    : '配置 Cloudflare Turnstile 后才能开启')}
+                  {t(config.registrationMethod === 'linuxdo'
+                    ? config.linuxDoLoginEnabled
+                      ? 'Linux DO Connect 已配置；新账户默认没有邮箱权限'
+                      : '配置 Linux DO Connect 后才能开启'
+                    : config.registrationProtectionReady
+                      ? 'Turnstile 已启用；新账户默认无创建邮箱和发信权限'
+                      : '配置 Cloudflare Turnstile 后才能开启')}
                 </small>
               </span>
             </span>
             <input
               type="checkbox"
               checked={config.registrationEnabled}
-              disabled={registrationSaving || (
-                !config.registrationProtectionReady && !config.registrationEnabled
-              )}
+              disabled={registrationSaving || (!config.registrationEnabled && (
+                config.registrationMethod === 'linuxdo'
+                  ? !config.linuxDoLoginEnabled
+                  : !config.registrationProtectionReady
+              ))}
               aria-label={t('允许外部注册')}
-              onChange={() => void toggleRegistration()}
+              onChange={() => void saveRegistration(!config.registrationEnabled)}
             />
           </label>
           {registrationError && (
@@ -391,10 +430,13 @@ export function AdminWorkspace({
               <AlertCircle size={15} />{registrationError}
             </p>
           )}
-          {!config.registrationProtectionReady && (
+          {config.registrationMethod === 'password' && !config.registrationProtectionReady && (
             <p className="admin-note">{t('需要在 Worker 中配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY，防止机器人批量注册。')}</p>
           )}
-          <div className="registration-domain-policy">
+          {config.registrationMethod === 'linuxdo' && !config.linuxDoLoginEnabled && (
+            <p className="admin-note">{t('需要在 Worker 中配置 LINUX_DO_CLIENT_ID 和 LINUX_DO_CLIENT_SECRET。')}</p>
+          )}
+          {config.registrationMethod === 'password' && <div className="registration-domain-policy">
             <fieldset className="registration-domain-mode">
               <legend>{t('邮箱后缀规则')}</legend>
               <label className={registrationDomainMode === 'blocklist' ? 'is-selected' : ''}>
@@ -474,7 +516,7 @@ export function AdminWorkspace({
                 <AlertCircle size={15} />{registrationDomainsError}
               </p>
             )}
-          </div>
+          </div>}
         </section>
 
         <section className="admin-card admin-card--settings">
@@ -487,7 +529,7 @@ export function AdminWorkspace({
           </header>
           <div className="service-status-list">
             <div><span>Cloudflare Email Routing</span><Status enabled>{t('收件已启用')}</Status></div>
-            <div><span>{t('Resend 回复')}</span><Status enabled={config.replyEnabled}>{t(config.replyEnabled ? '已配置' : '未配置')}</Status></div>
+            <div><span>{t('Resend 发信与回复')}</span><Status enabled={config.replyEnabled}>{t(config.replyEnabled ? '已配置' : '未配置')}</Status></div>
             <div><span>{t('收件地址')}</span><strong>{activeMailboxes.length}</strong></div>
           </div>
         </section>

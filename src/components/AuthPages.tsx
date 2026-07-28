@@ -27,6 +27,7 @@ import { api, type RegistrationDomainPolicy, type User } from '../lib/api'
 import type { SetupRequirements } from '../lib/api'
 import { emailAllowedByDomainPolicy } from '../lib/registration'
 import { t } from '../lib/i18n'
+import { LinuxDoAuthButton } from './LinuxDoAuthButton'
 import {
   getThemePreference,
   setThemePreference,
@@ -261,6 +262,8 @@ function AuthModal({
   mode,
   appName,
   registrationEnabled,
+  registrationMethod,
+  linuxDoLoginEnabled,
   registrationDomainPolicy,
   turnstileSiteKey,
   onModeChange,
@@ -270,6 +273,8 @@ function AuthModal({
   mode: AuthMode
   appName: string
   registrationEnabled: boolean
+  registrationMethod: 'password' | 'linuxdo'
+  linuxDoLoginEnabled: boolean
   registrationDomainPolicy: RegistrationDomainPolicy
   turnstileSiteKey: string
   onModeChange: (mode: AuthMode) => void
@@ -285,10 +290,20 @@ function AuthModal({
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileAttempt, setTurnstileAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => (
+    new URLSearchParams(window.location.search).has('auth_error')
+      ? t('Linux DO 登录失败，请重试或联系管理员。')
+      : ''
+  ))
   const registering = mode === 'register'
+  const oauthOnly = registering && registrationMethod === 'linuxdo'
 
   useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('auth_error')) {
+      url.searchParams.delete('auth_error')
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+    }
     const previousOverflow = document.body.style.overflow
     const previousFocus = document.activeElement as HTMLElement | null
     document.body.style.overflow = 'hidden'
@@ -380,6 +395,7 @@ function AuthModal({
         </header>
 
         <form className="auth-form" onSubmit={submit}>
+          {!oauthOnly && <>
           {registering && (
             <label>
               <span>{t('显示名称')}</span>
@@ -439,7 +455,6 @@ function AuthModal({
               onTokenChange={setTurnstileToken}
             />
           )}
-          {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
           <button
             className="button button--primary auth-submit"
             type="submit"
@@ -448,6 +463,11 @@ function AuthModal({
             {submitting && <LoaderCircle className="spin" size={17} />}
             {registering ? t('创建并登录') : t('登录')}
           </button>
+          </>}
+          {linuxDoLoginEnabled && (!registering || oauthOnly) && (
+            <LinuxDoAuthButton registering={oauthOnly} />
+          )}
+          {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
         </form>
 
         <footer>
@@ -469,17 +489,23 @@ function AuthModal({
 export function PublicLanding({
   appName,
   registrationEnabled,
+  registrationMethod,
+  linuxDoLoginEnabled,
   registrationDomainPolicy,
   turnstileSiteKey,
   onAuthenticated,
 }: {
   appName: string
   registrationEnabled: boolean
+  registrationMethod: 'password' | 'linuxdo'
+  linuxDoLoginEnabled: boolean
   registrationDomainPolicy: RegistrationDomainPolicy
   turnstileSiteKey: string
   onAuthenticated: (user: User) => void
 }) {
-  const [authMode, setAuthMode] = useState<AuthMode | null>(null)
+  const [authMode, setAuthMode] = useState<AuthMode | null>(() => (
+    new URLSearchParams(window.location.search).has('auth_error') ? 'login' : null
+  ))
   const closeModal = () => setAuthMode(null)
 
   return (
@@ -518,7 +544,9 @@ export function PublicLanding({
             </div>
             <small>
               {t(registrationEnabled
-                ? '外部注册已开放；邮箱能力由管理员统一分配。'
+                ? registrationMethod === 'linuxdo'
+                  ? '仅开放 Linux DO 注册；邮箱能力由管理员统一分配。'
+                  : '外部注册已开放；邮箱能力由管理员统一分配。'
                 : '当前仅允许管理员创建或邀请账户。')}
             </small>
           </div>
@@ -555,6 +583,8 @@ export function PublicLanding({
           mode={authMode}
           appName={appName}
           registrationEnabled={registrationEnabled}
+          registrationMethod={registrationMethod}
+          linuxDoLoginEnabled={linuxDoLoginEnabled}
           registrationDomainPolicy={registrationDomainPolicy}
           turnstileSiteKey={turnstileSiteKey}
           onModeChange={setAuthMode}

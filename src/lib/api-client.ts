@@ -24,6 +24,7 @@ import type {
   MessageSummary,
   PageInfo,
   RegistrationDomainPolicy,
+  RegistrationMethod,
   StoragePolicy,
   TemporaryInvite,
   User,
@@ -101,11 +102,14 @@ export const api = {
   ),
   logout: () => request<{ ok: true }>('/api/logout', { method: 'POST' }),
   deploymentCheck: () => request<DeploymentCheck>('/api/admin/deployment-check'),
-  updateRegistrationSetting: (enabled: boolean) => (
-    request<{ registrationEnabled: boolean }>('/api/admin/settings/registration', {
+  updateRegistrationSetting: (enabled: boolean, method: RegistrationMethod) => (
+    request<{ registrationEnabled: boolean; registrationMethod: RegistrationMethod }>('/api/admin/settings/registration', {
       method: 'PATCH',
-      body: jsonBody({ enabled }),
+      body: jsonBody({ enabled, method }),
     })
+  ),
+  linuxDoLoginUrl: (returnTo: string) => (
+    `${API_ORIGIN}/api/auth/linux-do?returnTo=${encodeURIComponent(returnTo)}`
   ),
   updateRegistrationDomainPolicy: (policy: RegistrationDomainPolicy) => (
     request<{ registrationDomainPolicy: RegistrationDomainPolicy }>(
@@ -315,6 +319,16 @@ export const api = {
         body: jsonBody({ text, idempotencyKey }),
       },
     )
+  ),
+  sendMessage: (input: {
+    mailboxAddress: string
+    to: string
+    subject: string
+    text: string
+    idempotencyKey: string
+  }) => request<{ message: { id: string; status: string; providerId?: string } }>(
+    '/api/messages',
+    { method: 'POST', body: jsonBody(input) },
   ),
   attachmentUrl: (messageId: string, attachmentId: string) => (
     `${API_ORIGIN}/api/messages/${messageId}/attachments/${attachmentId}`

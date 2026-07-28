@@ -1,3 +1,5 @@
+import { ensureOAuthTables } from './schema-oauth'
+
 const SCHEMA_SQL = String.raw`
 PRAGMA foreign_keys = ON;
 
@@ -69,6 +71,19 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  provider TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  avatar_url TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  PRIMARY KEY (provider, subject),
+  UNIQUE (provider, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
 
 CREATE TABLE IF NOT EXISTS device_sessions (
   id TEXT PRIMARY KEY,
@@ -201,7 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28-unassigned-mail-v1'
+const SCHEMA_VERSION = '2026-07-28-linux-do-auth-v1'
 
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(
@@ -543,6 +558,7 @@ export function ensureSchema(db: D1Database): Promise<void> {
       await ensureTemporaryInvites(db)
       await ensureDeviceSessions(db)
       await ensureRegistrationAttempts(db)
+      await ensureOAuthTables(db)
       await db.prepare(
         `CREATE INDEX IF NOT EXISTS idx_messages_direction_received
          ON messages(direction, received_at DESC)`,

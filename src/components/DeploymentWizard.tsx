@@ -25,7 +25,7 @@ import { t } from '../lib/i18n'
 const steps = [
   { id: 'core' as const, label: '核心资源', description: 'Worker、D1、R2 与队列', Icon: Database },
   { id: 'security' as const, label: '身份安全', description: '管理员、来源与防护', Icon: ShieldCheck },
-  { id: 'mail' as const, label: '邮件服务', description: '域名、邮箱与回信', Icon: HardDrive },
+  { id: 'mail' as const, label: '邮件服务', description: '域名、邮箱与发信', Icon: HardDrive },
 ]
 
 const stateLabels: Record<DeploymentCheckState, string> = {

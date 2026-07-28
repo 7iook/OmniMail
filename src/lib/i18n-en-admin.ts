@@ -78,8 +78,8 @@ export const enAdmin: Record<string, string> = {
     'Control whether signed-out visitors can create regular accounts',
   '允许外部注册': 'Allow public registration',
   '外部注册已关闭': 'Public registration is off',
-  'Turnstile 已启用；新账户默认无创建邮箱和回信权限':
-    'Turnstile is active. New accounts cannot create mailboxes or reply by default.',
+  'Turnstile 已启用；新账户默认无创建邮箱和发信权限':
+    'Turnstile is active. New accounts cannot create mailboxes or send messages by default.',
   '配置 Cloudflare Turnstile 后才能开启':
     'Configure Cloudflare Turnstile before enabling registration',
   '需要在 Worker 中配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY，防止机器人批量注册。':
@@ -99,7 +99,7 @@ export const enAdmin: Record<string, string> = {
   '邮件服务': 'Mail services',
   '当前 Worker 功能状态': 'Current Worker service status',
   '收件已启用': 'Receiving enabled',
-  'Resend 回复': 'Resend replies',
+  'Resend 发信与回复': 'Resend sending and replies',
   '已配置': 'Configured',
   '未配置': 'Not configured',
   '收件地址': 'Receiving addresses',
@@ -257,7 +257,7 @@ export const enAdmin: Record<string, string> = {
   '管理员默认拥有此权限': 'Administrators always have this permission',
   '允许添加、启用和停用自己的收件地址':
     'Allow adding, enabling, and disabling personal receiving addresses',
-  '使用 Resend 回信': 'Reply with Resend',
+  '使用 Resend 发信与回复': 'Send and reply with Resend',
   '仍需 Worker 已配置 Resend 服务': 'The Worker must also have Resend configured',
   '封禁账户': 'Disable account',
   '保存后立即注销该用户的所有会话':
@@ -297,7 +297,7 @@ export const enAdmin: Record<string, string> = {
   '状态': 'Status',
   '不限': 'Unlimited',
   '可管理邮箱': 'Can manage mailboxes',
-  '可回信': 'Can reply',
+  '可发信': 'Can send',
   '基础权限': 'Basic access',
   '正常': 'Active',
   '已封禁': 'Disabled',
@@ -319,7 +319,7 @@ export const enAdmin: Record<string, string> = {
   'Worker、D1、R2 与队列': 'Worker, D1, R2, and queue',
   '身份安全': 'Identity security',
   '管理员、来源与防护': 'Administrator, origins, and protection',
-  '域名、邮箱与回信': 'Domains, mailboxes, and replies',
+  '域名、邮箱与发信': 'Domains, mailboxes, and sending',
   '需要处理': 'Action required',
   '建议配置': 'Recommended',
   '人工确认': 'Manual confirmation',
@@ -375,10 +375,6 @@ export const enAdmin: Record<string, string> = {
   '如果已经完成初始化，可以删除 SETUP_TOKEN；重新初始化前需要再次配置。':
     'After setup, SETUP_TOKEN can be removed. Configure it again before reinitializing.',
   'Turnstile 防护': 'Turnstile protection',
-  '公开注册与多人邀请可以使用机器人防护。':
-    'Public registration and multi-use invitations can use bot protection.',
-  '需要开放注册时，同时配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY。':
-    'Configure TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY before enabling public registration.',
   '收件域名': 'Receiving domains',
   'OmniMail 中已管理 {count} 个收件域名。':
     'OmniMail manages {count} receiving domains.',
@@ -387,10 +383,10 @@ export const enAdmin: Record<string, string> = {
   '当前已创建 {count} 个邮箱地址。': '{count} mailbox addresses have been created.',
   '添加域名后，为主管理员或其他用户创建收件地址。':
     'After adding a domain, create a receiving address for the owner or another user.',
-  'RESEND_API_KEY 已配置，具备发送回复的条件。':
-    'RESEND_API_KEY is configured and replies can be sent.',
-  '不需要回信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。':
-    'Skip this if replies are not needed. Otherwise configure the Resend API key as a Worker Secret.',
+  'RESEND_API_KEY 已配置，具备主动发信与回复的条件。':
+    'RESEND_API_KEY is configured for sending and replies.',
+  '不需要发信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。':
+    'Skip this if sending is not needed. Otherwise configure the Resend API key as a Worker Secret.',
   'Cloudflare 不会把 Email Routing 状态暴露给当前 Worker，需要人工确认。':
     'Cloudflare does not expose Email Routing status to this Worker, so verify it manually.',
   '在 Cloudflare Email Routing 中启用域名，并将 Catch-all 规则指向 OmniMail Worker。':

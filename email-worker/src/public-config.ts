@@ -1,6 +1,8 @@
 import { publicSetupRequirements } from './deployment-check'
 import {
+  linuxDoAuthReady,
   parseRegistrationDomains,
+  parseRegistrationMethod,
   type RegistrationDomainPolicy,
 } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
@@ -35,6 +37,7 @@ export async function publicConfig(env: Env) {
     `SELECT key, value FROM settings WHERE key IN (
       'setup_complete',
       'external_registration_enabled',
+      'external_registration_method',
       'registration_domain_policy_mode',
       'registration_blocked_domains',
       'mail_refresh_interval',
@@ -43,14 +46,25 @@ export async function publicConfig(env: Env) {
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
+  const registrationEnabled = settings.get('external_registration_enabled') === '1'
+  const registrationMethod = parseRegistrationMethod(
+    settings.get('external_registration_method'),
+  ) || 'password'
+  const linuxDoLoginEnabled = linuxDoAuthReady(env)
+  const passwordRegistrationReady = registrationProtectionReady(env)
 
   return {
     appName: env.APP_NAME || 'OmniMail',
     setupComplete: settings.get('setup_complete') === '1',
     replyEnabled: Boolean(env.RESEND_API_KEY),
-    registrationEnabled: settings.get('external_registration_enabled') === '1',
+    registrationEnabled,
+    registrationAvailable: registrationEnabled && (
+      registrationMethod === 'linuxdo' ? linuxDoLoginEnabled : passwordRegistrationReady
+    ),
+    registrationMethod,
+    linuxDoLoginEnabled,
     registrationDomainPolicy: domainPolicy(settings),
-    registrationProtectionReady: registrationProtectionReady(env),
+    registrationProtectionReady: passwordRegistrationReady,
     turnstileSiteKey: env.TURNSTILE_SITE_KEY?.trim() || '',
     mailRefreshInterval: parseMailRefreshInterval(
       Number(settings.get('mail_refresh_interval')),

@@ -92,6 +92,9 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
   const turnstileReady = Boolean(
     env.TURNSTILE_SITE_KEY?.trim() && env.TURNSTILE_SECRET_KEY?.trim(),
   )
+  const linuxDoReady = Boolean(
+    env.LINUX_DO_CLIENT_ID?.trim() && env.LINUX_DO_CLIENT_SECRET?.trim(),
+  )
   const checks: DeploymentCheckItem[] = [
     check({
       id: 'database', group: 'core', label: 'D1 数据库', ready: database.ready,
@@ -140,8 +143,14 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
     check({
       id: 'turnstile', group: 'security', label: 'Turnstile 防护',
       ready: turnstileReady, required: false, missingState: 'warning',
-      detail: '公开注册与多人邀请可以使用机器人防护。',
-      action: '需要开放注册时，同时配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY。',
+      detail: '邮箱密码注册与多人邀请可以使用机器人防护。',
+      action: '需要邮箱密码注册时，同时配置 TURNSTILE_SITE_KEY 和 TURNSTILE_SECRET_KEY。',
+    }),
+    check({
+      id: 'linux-do', group: 'security', label: 'Linux DO Connect',
+      ready: linuxDoReady, required: false, missingState: 'warning',
+      detail: '可选的 Linux DO 第三方登录与仅第三方注册。',
+      action: '申请 Connect 应用，并配置 LINUX_DO_CLIENT_ID 和 LINUX_DO_CLIENT_SECRET。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,
@@ -156,10 +165,10 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       action: '添加域名后，为主管理员或其他用户创建收件地址。',
     }),
     check({
-      id: 'resend', group: 'mail', label: 'Resend 回信',
+      id: 'resend', group: 'mail', label: 'Resend 发信与回复',
       ready: Boolean(env.RESEND_API_KEY?.trim()), required: false, missingState: 'warning',
-      detail: 'RESEND_API_KEY 已配置，具备发送回复的条件。',
-      action: '不需要回信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。',
+      detail: 'RESEND_API_KEY 已配置，具备主动发信与回复的条件。',
+      action: '不需要发信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。',
     }),
     {
       id: 'email-routing', group: 'mail', label: 'Email Routing',

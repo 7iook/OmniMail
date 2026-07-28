@@ -2,12 +2,28 @@ import { describe, expect, it } from 'vitest'
 import {
   emailAllowedByDomainPolicy,
   emailMatchesDomainList,
+  linuxDoAuthReady,
   parseRegistrationDomainPolicy,
   parseRegistrationDomains,
   parseRegistrationInput,
+  parseRegistrationMethod,
 } from './registration-api'
+import type { Env } from './types'
 
 describe('external registration validation', () => {
+  it('accepts only supported registration methods', () => {
+    expect(parseRegistrationMethod('password')).toBe('password')
+    expect(parseRegistrationMethod('linuxdo')).toBe('linuxdo')
+    expect(parseRegistrationMethod('both')).toBeNull()
+  })
+
+  it('requires both Linux DO Connect credentials', () => {
+    expect(linuxDoAuthReady({
+      LINUX_DO_CLIENT_ID: 'client',
+      LINUX_DO_CLIENT_SECRET: 'secret',
+    } as Env)).toBe(true)
+    expect(linuxDoAuthReady({ LINUX_DO_CLIENT_ID: 'client' } as Env)).toBe(false)
+  })
   it('normalizes a valid public registration', () => {
     const result = parseRegistrationInput({
       email: ' New.User@Example.com ',

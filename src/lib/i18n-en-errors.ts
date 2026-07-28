@@ -87,7 +87,16 @@ export const enErrors: Record<string, string> = {
     'Too many registration attempts. Try again later.',
   '注册设置无效。': 'The registration setting is invalid.',
   '当前账户没有回信权限。': 'This account cannot send replies.',
+  '当前账户没有发信权限。': 'This account cannot send messages.',
   '管理员尚未配置 Resend。': 'Resend is not configured by the administrator.',
+  '发件邮箱格式无效。': 'The sender mailbox is invalid.',
+  '请输入有效的收件邮箱地址。': 'Enter a valid recipient email address.',
+  '邮件主题需要在 1–500 个字符之间。':
+    'The subject must be between 1 and 500 characters.',
+  '邮件正文需要在 1–50,000 个字符之间。':
+    'The message body must be between 1 and 50,000 characters.',
+  '发件邮箱不存在或已停用。': 'The sender mailbox does not exist or is disabled.',
+  '无法创建待发送邮件。': 'Could not create the outgoing message.',
   '回复内容需要在 1–50,000 个字符之间。':
     'The reply must be between 1 and 50,000 characters.',
   '无法创建回复。': 'Could not create the reply.',

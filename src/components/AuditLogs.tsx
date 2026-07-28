@@ -71,6 +71,7 @@ const actionLabels: Record<string, string> = {
   'temporary_invite.register': '通过邀请注册',
   'temporary_invite.register_failed': '邀请注册被拦截',
   'message.reply': '回复邮件',
+  'message.send': '发送邮件',
   'message.delete': '永久删除邮件',
   'message.retry': '重试失败邮件',
   'message.bulk_read': '批量标记已读',

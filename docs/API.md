@@ -2,7 +2,7 @@
 
 OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认使用
 `HttpOnly` Cookie；桌面端应使用短期 Access Token，并用 Refresh Token
-轮换续期。两种认证方式执行完全相同的用户角色、邮箱归属和回信权限检查。
+轮换续期。两种认证方式执行完全相同的用户角色、邮箱归属和发信权限检查。
 
 下面示例中的 API 地址使用 `https://mail.example.com`。生产环境中前端与 API
 由同一个 Worker 提供，API 路径统一位于 `/api/*`。
@@ -15,7 +15,9 @@ OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认�
 GET /api/config
 ```
 
-响应中的 `registrationEnabled` 表示管理员是否允许外部注册。开关关闭时，
+响应中的 `registrationEnabled` 表示管理员是否允许外部注册，`registrationAvailable`
+表示当前所选方式的配置是否完整。`registrationMethod` 为 `password` 或 `linuxdo`，
+`linuxDoLoginEnabled` 只表示 Connect 凭据已经配置。开关关闭时，
 `POST /api/register` 返回 `403`。`registrationProtectionReady` 表示 Worker
 是否已经配置完整的 Turnstile 公钥和密钥，`turnstileSiteKey` 是前端渲染组件时
 使用的公开 Site Key。`mailRefreshInterval` 是管理员设置的收件箱自动刷新秒数，
@@ -40,8 +42,8 @@ Content-Type: application/json
 
 Worker 会将令牌、来源 IP、`action=register` 和当前 Webmail Hostname 发送到 Cloudflare
 Siteverify 验证。令牌只能使用一次，验证失败后客户端必须重新生成。注册成功后
-创建普通用户并返回 `201`，浏览器同时获得登录 Cookie。新用户默认
-邮箱额度为 1，但没有创建邮箱或 Resend 回信权限，也不会自动获得收件地址。
+创建普通用户并返回 `201`，浏览器同时获得登录 Cookie。新用户默认邮箱额度为 1，
+可从已启用域名中选择 1 个尚未占用的邮箱地址，但没有 Resend 发信权限。
 管理员可通过以下接口修改开关：
 
 ```http
@@ -49,11 +51,26 @@ PATCH /api/admin/settings/registration
 Authorization: Bearer om_at_...
 Content-Type: application/json
 
-{ "enabled": true }
+{ "enabled": true, "method": "password" }
 ```
 
-该接口仅管理员可用，并会写入操作日志。Turnstile 未配置完整时，开启请求返回
-`409`。关闭开关不会删除或停用已有账户。
+该接口仅管理员可用，并会写入操作日志。`password` 模式要求完整的 Turnstile
+配置，`linuxdo` 模式要求 `LINUX_DO_CLIENT_ID` 和 `LINUX_DO_CLIENT_SECRET`；
+配置不完整时开启请求返回 `409`。关闭开关不会删除或停用已有账户。
+
+Linux DO 使用 OAuth2 授权码流程：
+
+```http
+GET /api/auth/linux-do?returnTo=https%3A%2F%2Fmail.example.com
+GET /api/auth/linux-do/callback?code=...&state=...
+```
+
+首个接口生成十分钟有效、保存在 `HttpOnly`、`SameSite=Lax` 专用 Cookie 中的
+state，然后重定向到 Linux DO。回调消费并清除 Cookie，在 Worker 内换取访问令牌
+并读取社区用户不可变 ID；令牌不会写入
+D1。未知身份只在注册开关开启且方式为 `linuxdo` 时创建普通账号。Linux DO 不提供
+登录邮箱，因此本地使用 `linuxdo-{id}@oauth.omnimail.invalid` 作为不可投递的内部标识。
+新账号进入邮箱后会打开邮箱地址选择界面，创建规则与 `POST /api/mailboxes` 相同。
 
 管理员可更新公开注册邮箱后缀允许/禁止规则：
 
@@ -303,6 +320,25 @@ GET /api/messages?folder=inbox&limit=30&version=42
 计数扫描。浏览器端还会在同源标签页之间协调轮询，同一时刻只保留一个可见页面
 主动刷新。
 
+### 主动发送邮件
+
+```http
+POST /api/messages
+Content-Type: application/json
+
+{
+  "mailboxAddress": "owner@example.com",
+  "to": "friend@example.net",
+  "subject": "Hello",
+  "text": "Message body",
+  "idempotencyKey": "request_12345678"
+}
+```
+
+发件邮箱必须属于当前用户且处于启用状态，用户需要具备 Resend 发信权限。
+接口同时保存纯文本和安全生成的 HTML 正文，并将结果写入“已发送”；同一个
+`idempotencyKey` 不会重复投递。
+
 ### 批量邮件操作
 
 ```http
@@ -369,16 +405,19 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | --- | --- |
 | `GET /api/config` | 公开运行配置与外部注册状态 |
 | `POST /api/register` | 外部注册普通用户 |
+| `GET /api/auth/linux-do` | 开始 Linux DO Connect 登录 |
+| `GET /api/auth/linux-do/callback` | Linux DO OAuth 回调 |
 | `GET /api/session` | 查询当前 Cookie 或 Bearer 会话 |
 | `GET /api/mailboxes` | 当前用户邮箱列表 |
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
 | `GET /api/messages` | 邮件列表、筛选与分页 |
+| `POST /api/messages` | 使用 Resend 主动发送邮件 |
 | `GET /api/messages/{id}` | 邮件正文和附件元数据 |
 | `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
 | `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
 | `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
-| `POST /api/messages/{id}/reply` | 使用 Resend 回复 |
+| `POST /api/messages/{id}/reply` | 使用 Resend 在线程内回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/mail-cleanup/preview` | 按范围、类型和邮件时间预估清理影响 |
 | `POST /api/admin/mail-cleanup` | 经数量复核后每批永久清理最多 50 封邮件 |

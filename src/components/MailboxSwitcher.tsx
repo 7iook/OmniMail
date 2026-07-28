@@ -27,6 +27,7 @@ import { t } from '../lib/i18n'
 
 interface Props {
   mailboxes: MailboxAddress[]
+  loaded: boolean
   domains: ManagedDomain[]
   scope: MailboxScope
   canManage: boolean
@@ -55,61 +56,27 @@ function MailboxDomainSelect({
   disabled: boolean
   onChange: (value: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function closeOnOutsideClick(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOnOutsideClick)
-    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
-  }, [open])
-
   return (
-    <div
-      ref={rootRef}
-      className={`mailbox-domain-select${open ? ' is-open' : ''}`}
-    >
-      <button
-        className="mailbox-domain-select__trigger"
-        type="button"
+    <div className="mailbox-domain-select">
+      <select
+        className="mailbox-domain-select__native"
         aria-label={t('邮箱域名')}
-        aria-haspopup="listbox"
-        aria-expanded={open}
+        value={value}
         disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
+        onChange={(event) => onChange(event.target.value)}
       >
-        <span>{value || t('暂无可用域名')}</span>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="mailbox-domain-select__menu" role="listbox" aria-label={t('邮箱域名')}>
-          {domains.map((domain) => (
-            <button
-              className={domain.name === value ? 'is-selected' : ''}
-              type="button"
-              role="option"
-              aria-selected={domain.name === value}
-              key={domain.name}
-              onClick={() => {
-                onChange(domain.name)
-                setOpen(false)
-              }}
-            >
-              <span>{domain.name}</span>
-              {domain.name === value && <Check size={14} aria-hidden="true" />}
-            </button>
-          ))}
-        </div>
-      )}
+        {!domains.length && <option value="">{t('暂无可用域名')}</option>}
+        {domains.map((domain) => (
+          <option key={domain.name} value={domain.name}>{domain.name}</option>
+        ))}
+      </select>
     </div>
   )
 }
 
 export function MailboxSwitcher({
   mailboxes,
+  loaded,
   domains,
   scope,
   canManage,
@@ -125,6 +92,7 @@ export function MailboxSwitcher({
   const [notice, setNotice] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const onboardingShown = useRef(false)
 
   const activeMailboxes = useMemo(
     () => mailboxes.filter((mailbox) => mailbox.isActive),
@@ -149,6 +117,13 @@ export function MailboxSwitcher({
     if (enabledDomains.some((domain) => domain.name === domainName)) return
     setDomainName(enabledDomains[0]?.name || '')
   }, [domainName, enabledDomains])
+
+  useEffect(() => {
+    if (onboardingShown.current || !loaded || !canManage || mailboxes.length) return
+    onboardingShown.current = true
+    setOpen(true)
+    setManaging(true)
+  }, [canManage, loaded, mailboxes.length])
 
   useEffect(() => {
     if (!open) return

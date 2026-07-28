@@ -33,13 +33,10 @@ import { errorMessage } from './lib/errorMessage'
 import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
 import { useSessionExpiry } from './lib/useSessionExpiry'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
-
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
-
 const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
-
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
   | { kind: 'bulk'; action: 'trash' | 'delete'; ids: string[] }
 
@@ -64,6 +61,7 @@ function Mailbox({
   const [messageVersion, setMessageVersion] = useState<number>()
   const [messagePage, setMessagePage] = useState<PageInfo>(emptyPage)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
+  const [mailboxesLoaded, setMailboxesLoaded] = useState(false)
   const [domains, setDomains] = useState<ManagedDomain[]>([])
   const [scope, setScope] = useState<MailboxScope>({ type: 'all' })
   const [counts, setCounts] = useState<MailCounts>(emptyCounts)
@@ -81,16 +79,15 @@ function Mailbox({
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(
     () => deploymentGuideUnseen(user),
   )
-
   function closeDeploymentWizard() {
     markDeploymentGuideSeen()
     setDeploymentWizardOpen(false)
   }
-
   const loadMailboxes = useCallback(async () => {
     try {
       const result = await api.mailboxes()
       setMailboxes(result.mailboxes)
+      setMailboxesLoaded(true)
       setScope((current) => {
         if (current.type === 'all') return current
         const active = result.mailboxes.filter((mailbox) => mailbox.isActive)
@@ -107,7 +104,6 @@ function Mailbox({
       setError(errorMessage(loadError))
     }
   }, [onLogout])
-
   const loadDomains = useCallback(async () => {
     try {
       const result = await api.domains()
@@ -408,6 +404,7 @@ function Mailbox({
           <div>
             <MailboxSwitcher
               mailboxes={mailboxes}
+              loaded={mailboxesLoaded}
               domains={domains}
               scope={scope}
               canManage={isAdminRole(user.role) || user.canCreateMailboxes}
@@ -421,6 +418,7 @@ function Mailbox({
             domains={domains}
             scope={scope}
             canGenerate={isAdminRole(user.role) || user.canCreateMailboxes}
+            canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
             refreshing={refreshing}
             onRefresh={() => void loadMessages(true)}
             onCopied={(address) => {
@@ -433,6 +431,7 @@ function Mailbox({
               changeScope({ type: 'mailbox', value: mailbox.address })
               setNotice(t('已生成：{address}', { address: mailbox.address }))
             }}
+            onMessageSent={() => { setNotice(t('邮件已发送')); void loadMessages(true) }}
           />
         </header>
         <label className="search-field">
@@ -558,7 +557,6 @@ export function App() {
       clearSession()
     }
   }, [clearSession])
-
   if (loading) return <PageLoader />
   if (connectionError || !config) {
     return <ConnectionError message={connectionError || t('配置读取失败。')} retry={() => setLoadVersion((value) => value + 1)} />
@@ -589,7 +587,9 @@ export function App() {
     return (
       <PublicLanding
         appName={config.appName}
-        registrationEnabled={config.registrationEnabled && config.registrationProtectionReady}
+        registrationEnabled={config.registrationAvailable}
+        registrationMethod={config.registrationMethod}
+        linuxDoLoginEnabled={config.linuxDoLoginEnabled}
         registrationDomainPolicy={config.registrationDomainPolicy}
         turnstileSiteKey={config.turnstileSiteKey}
         onAuthenticated={setUser}

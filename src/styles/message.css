@@ -302,8 +302,8 @@
   line-height: 1.45;
 }
 
-.sender-block span,
-.sender-block small {
+.sender-block > div span,
+.sender-block > div small {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;

@@ -13,6 +13,7 @@ import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
 import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, updateMessage } from './message-detail-api'
 import { listMessages } from './message-list-api'
+import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
 import { isAllowedOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
@@ -20,6 +21,7 @@ import { proxyRemoteImage } from './remote-image'
 import { externalRegistrationEnabled, registerExternalUser, registrationDomainPolicy, updateExternalRegistration, updateRegistrationDomainPolicy } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
+import { sendMessage, type NewMessageInput } from './send-message'
 import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
 import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
@@ -31,6 +33,7 @@ import { createManagedUser, listManagedUsers, updateManagedUser } from './user-a
 import type { Env, SessionUser } from './types'
 
 const SESSION_COOKIE = 'omnimail_session'
+const OAUTH_STATE_COOKIE = 'omnimail_oauth_state'
 const PUBLIC_PATHS = new Set([
   '/api/health',
   '/api/config',
@@ -41,6 +44,8 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/token',
   '/api/auth/token/refresh',
   '/api/auth/token/revoke',
+  '/api/auth/linux-do',
+  '/api/auth/linux-do/callback',
 ])
 
 type AppContext = {
@@ -69,6 +74,31 @@ function clearSessionCookie(context: Parameters<typeof deleteCookie>[0], env: En
     secure: env.COOKIE_SECURE !== 'false',
     sameSite: 'Lax',
     path: '/',
+  })
+}
+
+function setOAuthStateCookie(
+  context: Parameters<typeof setCookie>[0],
+  env: Env,
+  value: string,
+): void {
+  setCookie(context, OAUTH_STATE_COOKIE, value, {
+    httpOnly: true,
+    secure: env.COOKIE_SECURE !== 'false',
+    sameSite: 'Lax',
+    path: '/api/auth/linux-do',
+    maxAge: 10 * 60,
+  })
+}
+
+function clearOAuthStateCookie(
+  context: Parameters<typeof deleteCookie>[0],
+  env: Env,
+): void {
+  deleteCookie(context, OAUTH_STATE_COOKIE, {
+    secure: env.COOKIE_SECURE !== 'false',
+    sameSite: 'Lax',
+    path: '/api/auth/linux-do',
   })
 }
 
@@ -152,6 +182,30 @@ app.use('/api/*', async (context, next) => {
 app.get('/api/health', (context) => context.json({ ok: true }))
 
 app.get('/api/config', async (context) => context.json(await publicConfig(context.env)))
+
+app.get('/api/auth/linux-do', async (context) => {
+  const result = await beginLinuxDoAuth(context.env, context.req.raw)
+  if (!result.stateCookie) return result.response
+  setOAuthStateCookie(context, context.env, result.stateCookie)
+  const location = result.response.headers.get('Location')
+  if (location) return context.redirect(location, 302)
+  return result.response
+})
+
+app.get('/api/auth/linux-do/callback', async (context) => {
+  const oauthState = getCookie(context, OAUTH_STATE_COOKIE)
+  clearOAuthStateCookie(context, context.env)
+  const result = await finishLinuxDoAuth(
+    context.env,
+    context.req.raw,
+    clientIp(context.req.raw.headers),
+    oauthState,
+  )
+  if (result.sessionToken) setSessionCookie(context, context.env, result.sessionToken)
+  const location = result.response.headers.get('Location')
+  if (location) return context.redirect(location, 302)
+  return result.response
+})
 
 app.get('/api/remote-images', (context) => proxyRemoteImage(context.req.raw))
 
@@ -424,6 +478,16 @@ app.patch('/api/mailboxes/:address', (context) => (
 app.get('/api/messages', (context) => (
   listMessages(context.env, context.get('user'), context.req.raw)
 ))
+app.post('/api/messages', async (context) => {
+  const body = await context.req.json<NewMessageInput>()
+    .catch(() => ({} as NewMessageInput))
+  return sendMessage(
+    context.env,
+    context.get('user'),
+    body,
+    clientIp(context.req.raw.headers),
+  )
+})
 app.patch('/api/messages/bulk', (context) => bulkUpdateMessages(
   context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers),
 ))

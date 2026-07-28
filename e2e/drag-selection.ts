@@ -16,7 +16,7 @@ export async function beginMessageRowDrag(page: Page, index: number) {
 
 export async function moveMessageRowDrag(page: Page, index: number) {
   const position = await messageRowCenter(page, index)
-  await page.mouse.move(position.x, position.y)
+  await page.mouse.move(position.x, position.y, { steps: 8 })
 }
 
 export async function endMessageRowDrag(page: Page) {

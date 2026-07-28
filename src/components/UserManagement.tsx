@@ -239,7 +239,7 @@ function PolicyFields({
       </label>
 
       <label className="policy-toggle">
-        <span><Send size={17} /><span><strong>{t('使用 Resend 回信')}</strong><small>{t('仍需 Worker 已配置 Resend 服务')}</small></span></span>
+        <span><Send size={17} /><span><strong>{t('使用 Resend 发信与回复')}</strong><small>{t('仍需 Worker 已配置 Resend 服务')}</small></span></span>
         <input
           type="checkbox"
           checked={value.canReply}
@@ -481,7 +481,7 @@ export function UserManagement({
                 </span>
                 <span className="user-capabilities">
                   {user.canCreateMailboxes && <span data-tooltip={t('可管理邮箱')}><MailPlus size={14} /></span>}
-                  {user.canReply && <span data-tooltip={t('可回信')}><Send size={14} /></span>}
+                  {user.canReply && <span data-tooltip={t('可发信')}><Send size={14} /></span>}
                   {!user.canCreateMailboxes && !user.canReply && <small>{t('基础权限')}</small>}
                 </span>
                 <span className={`user-status ${user.status === 'active' ? 'is-active' : ''}`}>

@@ -325,19 +325,14 @@
 }
 
 .mailbox-domain-select {
-  position: relative;
   width: 100%;
   min-width: 0;
 }
 
-.mailbox-domain-select__trigger {
-  display: flex;
+.mailbox-domain-select__native {
   width: 100%;
   height: 36px;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -351,77 +346,19 @@
   transition: border-color 160ms ease, background 160ms ease;
 }
 
-.mailbox-domain-select__trigger > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mailbox-domain-select__trigger > svg {
-  flex: 0 0 auto;
-  color: var(--text-tertiary);
-  transition: transform 160ms ease;
-}
-
-.mailbox-domain-select.is-open .mailbox-domain-select__trigger {
+.mailbox-domain-select__native:focus {
   border-color: var(--line-strong);
   background: var(--surface);
 }
 
-.mailbox-domain-select.is-open .mailbox-domain-select__trigger > svg {
-  transform: rotate(180deg);
-}
-
-.mailbox-domain-select__trigger:disabled {
+.mailbox-domain-select__native:disabled {
   cursor: not-allowed;
   color: var(--text-tertiary);
 }
 
-.mailbox-domain-select__menu {
-  position: absolute;
-  z-index: 95;
-  top: calc(100% + 5px);
-  right: 0;
-  left: 0;
-  display: grid;
-  max-height: 190px;
-  gap: 2px;
-  overflow-y: auto;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.mailbox-domain-select__native option {
   background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  scrollbar-width: thin;
-}
-
-.mailbox-domain-select__menu button {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 36px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
   color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-}
-
-.mailbox-domain-select__menu button:hover,
-.mailbox-domain-select__menu button.is-selected {
-  background: var(--surface-hover);
-}
-
-.mailbox-domain-select__menu button.is-selected {
-  font-weight: 600;
 }
 
 .mailbox-manager-note {

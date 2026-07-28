@@ -181,10 +181,14 @@ export function MessageList({
   }
 
   function startDragSelection(
-    event: ReactPointerEvent<HTMLButtonElement>,
-    index: number,
+    event: ReactPointerEvent<HTMLDivElement>,
   ) {
     if (event.pointerType !== 'mouse' || event.button !== 0 || bulkLoading) return
+    if (!(event.target instanceof Element)) return
+    const row = event.target.closest('.message-row__main')
+      ?.closest<HTMLElement>('[data-message-index]')
+    const index = Number(row?.dataset.messageIndex)
+    if (!Number.isInteger(index)) return
     suppressClick.current = false
     drag.current = {
       pointerId: event.pointerId,
@@ -196,10 +200,9 @@ export function MessageList({
       select: !selectedIds.has(messages[index].id),
       initialSelectedIds: new Set(selectedIds),
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  function continueDragSelection(event: ReactPointerEvent<HTMLButtonElement>) {
+  function continueDragSelection(event: ReactPointerEvent<HTMLDivElement>) {
     const current = drag.current
     if (!current || current.pointerId !== event.pointerId) return
     if (!current.active) {
@@ -209,6 +212,7 @@ export function MessageList({
       )
       if (distance < 6) return
       current.active = true
+      event.currentTarget.setPointerCapture(event.pointerId)
       suppressClick.current = true
       setBulkMode(true)
       setDragSelecting(true)
@@ -221,7 +225,7 @@ export function MessageList({
     if (Number.isInteger(index)) applyDragSelection(index)
   }
 
-  function finishDragSelection(event: ReactPointerEvent<HTMLButtonElement>) {
+  function finishDragSelection(event: ReactPointerEvent<HTMLDivElement>) {
     const current = drag.current
     if (!current || current.pointerId !== event.pointerId) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -237,7 +241,7 @@ export function MessageList({
     }
   }
 
-  function cancelDragSelection(event: ReactPointerEvent<HTMLButtonElement>) {
+  function cancelDragSelection(event: ReactPointerEvent<HTMLDivElement>) {
     if (drag.current?.pointerId !== event.pointerId) return
     drag.current = null
     suppressClick.current = false
@@ -272,7 +276,10 @@ export function MessageList({
     </div>
   }
 
-  return <div className={`message-list${bulkMode ? ' is-bulk-mode' : ''}${dragSelecting ? ' is-drag-selecting' : ''}`} role="listbox" aria-label={t('邮件列表')}>
+  return <div className={`message-list${bulkMode ? ' is-bulk-mode' : ''}${dragSelecting ? ' is-drag-selecting' : ''}`}
+    role="listbox" aria-label={t('邮件列表')}
+    onPointerDown={startDragSelection} onPointerMove={continueDragSelection}
+    onPointerUp={finishDragSelection} onPointerCancel={cancelDragSelection}>
     {bulkMode ? (
       <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
         loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction}
@@ -298,10 +305,6 @@ export function MessageList({
           </span>
         )}
         <button className="message-row__main" type="button"
-          onPointerDown={(event) => startDragSelection(event, index)}
-          onPointerMove={continueDragSelection}
-          onPointerUp={finishDragSelection}
-          onPointerCancel={cancelDragSelection}
           onClick={() => selectOrOpen(message)}
           data-tooltip={message.subject.length > 40 ? message.subject : undefined}>
           <span className="message-row__top">

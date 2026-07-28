@@ -3,6 +3,7 @@ import { enCore } from './i18n-en-core'
 import { enAdmin } from './i18n-en-admin'
 import { enInvites } from './i18n-en-invites'
 import { enErrors } from './i18n-en-errors'
+import { enOauth } from './i18n-en-oauth'
 
 export type Locale = 'zh-CN' | 'en-US'
 export type TranslationValues = Record<string, string | number>
@@ -32,7 +33,7 @@ function initialLocale(): Locale {
 }
 
 let currentLocale = initialLocale()
-const english = { ...enCore, ...enAdmin, ...enInvites, ...enErrors }
+const english = { ...enCore, ...enAdmin, ...enInvites, ...enErrors, ...enOauth }
 const englishPlurals: Record<string, [string, string]> = {
   '{count} 个邮箱地址': ['{count} mailbox', '{count} mailboxes'],
   '{count} 个启用地址': ['{count} enabled address', '{count} enabled addresses'],

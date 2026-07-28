@@ -80,7 +80,7 @@ export const enInvites: Record<string, string> = {
   '注册时创建的首个邮箱不受此开关影响':
     'The first mailbox created at registration is not affected',
   '邮箱总数上限': 'Total mailbox limit',
-  '允许使用 Resend 回信': 'Allow replies with Resend',
+  '允许使用 Resend 发信与回复': 'Allow sending and replies with Resend',
   'Worker 仍需配置有效的 Resend 服务':
     'The Worker must also have a valid Resend configuration',
   '使用与权限': 'Usage and permissions',
@@ -111,7 +111,7 @@ export const enInvites: Record<string, string> = {
   '账号 {duration}': 'Account {duration}',
   '最多 {count} 个邮箱': 'Up to {count} mailboxes',
   '仅首个邮箱': 'First mailbox only',
-  '可回信': 'Can reply',
+  '可发信': 'Can send',
   '撤销': 'Revoke',
   '加载更多邀请': 'Load more invitations',
   '账号 {email} 已创建，但自动登录失败，请返回登录页手动登录。':
@@ -137,8 +137,8 @@ export const enInvites: Record<string, string> = {
     'Fixed mailbox; cannot add or change addresses',
   '最多创建 {count} 个邮箱': 'Create up to {count} mailboxes',
   '仅使用注册时创建的邮箱': 'Use only the mailbox created at registration',
-  '回信权限': 'Reply permission',
-  '可以通过 Resend 回信': 'Can reply with Resend',
+  '发信权限': 'Sending permission',
+  '可以通过 Resend 发信与回复': 'Can send and reply with Resend',
   '仅接收与查看邮件': 'Receive and view messages only',
   '链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。':
     'Link expiry stops new registrations. Account expiry deletes the account, while mailboxes and existing messages remain.',
