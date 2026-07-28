@@ -1,8 +1,107 @@
 .storage-statistics-card,
+.platform-usage-card,
 .mail-cleanup-card {
   width: var(--admin-content-width);
   margin-inline: auto;
   margin-bottom: 14px;
+}
+
+.platform-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  padding-top: 16px;
+}
+
+.platform-usage-grid article {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.platform-usage-grid article > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.platform-usage-grid article > div svg {
+  flex: none;
+}
+
+.platform-usage-grid article > div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-usage-grid article > div b {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.platform-usage-grid article[data-level='warning'] > div b {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.platform-usage-grid article[data-level='danger'] > div b {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.platform-usage-grid article > strong {
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-usage-grid article > small,
+.platform-usage-note {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.platform-usage-grid article > i {
+  display: block;
+  height: 5px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.platform-usage-grid article > i > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+}
+
+.platform-usage-grid article[data-level='warning'] > i > i {
+  background: var(--warning);
+}
+
+.platform-usage-grid article[data-level='danger'] > i > i {
+  background: var(--danger);
+}
+
+.platform-usage-note {
+  margin: 11px 0 0;
 }
 
 .storage-metric-grid {
@@ -414,6 +513,10 @@
 }
 
 @media (max-width: 1040px) {
+  .platform-usage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .mail-cleanup-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -447,6 +550,7 @@
 
 @media (max-width: 480px) {
   .mail-cleanup-form,
+  .platform-usage-grid,
   .storage-metric-grid {
     grid-template-columns: 1fr;
   }

@@ -72,6 +72,7 @@ const actionLabels: Record<string, string> = {
   'temporary_invite.register_failed': '邀请注册被拦截',
   'message.reply': '回复邮件',
   'message.delete': '永久删除邮件',
+  'message.retry': '重试失败邮件',
   'message.admin_cleanup': '管理员批量清理邮件',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',

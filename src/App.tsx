@@ -165,6 +165,7 @@ function Mailbox({
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query.trim())
   const [messages, setMessages] = useState<MessageSummary[]>([])
+  const [messageVersion, setMessageVersion] = useState<number>()
   const [messagePage, setMessagePage] = useState<PageInfo>(emptyPage)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
   const [domains, setDomains] = useState<ManagedDomain[]>([])
@@ -230,7 +231,11 @@ function Mailbox({
     else setListLoading(true)
     setError('')
     try {
-      const result = await api.messages(folder, deferredQuery, scope)
+      const result = await api.messages(
+        folder, deferredQuery, scope, undefined, quiet ? messageVersion : undefined,
+      )
+      if (result.unchanged) return false
+      setMessageVersion(result.version)
       setMessages(result.messages)
       setMessagePage(result.page)
       setCounts(result.counts)
@@ -248,7 +253,7 @@ function Mailbox({
       setListLoading(false)
       setRefreshing(false)
     }
-  }, [deferredQuery, folder, onLogout, scope, selectedId])
+  }, [deferredQuery, folder, messageVersion, onLogout, scope, selectedId])
 
   async function loadMoreMessages() {
     if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
@@ -261,6 +266,7 @@ function Mailbox({
         scope,
         messagePage.nextCursor,
       )
+      if (result.unchanged) return
       setMessages((items) => {
         const existing = new Set(items.map((item) => item.id))
         return [...items, ...result.messages.filter((item) => !existing.has(item.id))]

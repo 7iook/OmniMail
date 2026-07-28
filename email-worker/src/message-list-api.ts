@@ -26,6 +26,12 @@ type SummaryFields = Pick<
 
 type SummaryRow = SummaryFields & { sort_time: number }
 
+export function parseSyncVersion(value: string | null): number | null | undefined {
+  if (value === null) return null
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined
+}
+
 export function messageSummary(row: SummaryFields) {
   return {
     id: row.id,
@@ -53,6 +59,17 @@ export async function listMessages(
   request: Request,
 ): Promise<Response> {
   const params = new URL(request.url).searchParams
+  const syncVersion = parseSyncVersion(params.get('version'))
+  if (syncVersion === undefined) {
+    return Response.json({ error: '邮件同步版本无效。' }, { status: 400 })
+  }
+  const versionRow = await env.DB.prepare(
+    'SELECT version FROM mail_state_versions WHERE user_id = ?',
+  ).bind(user.id).first<{ version: number }>()
+  const version = Number(versionRow?.version || 0)
+  if (syncVersion !== null && syncVersion === version) {
+    return Response.json({ unchanged: true, version })
+  }
   const pagination = parsePageRequest(request, 2)
   if (!pagination) {
     return Response.json({ error: '分页参数无效，limit 需要在 1–100 之间。' }, { status: 400 })
@@ -152,6 +169,8 @@ export async function listMessages(
   }>()
 
   return Response.json({
+    unchanged: false,
+    version,
     messages: result.items.map(messageSummary),
     counts: {
       unread: counts?.unread ?? 0,

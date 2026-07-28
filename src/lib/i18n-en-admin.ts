@@ -508,6 +508,21 @@ export const enAdmin: Record<string, string> = {
   '已配置配额使用率': 'Configured quota usage',
   '全站已配置配额使用率': 'Site-wide configured quota usage',
   '{count} 个不限额用户': '{count} unlimited users',
+  'Cloudflare 免费额度参考': 'Cloudflare free allowance reference',
+  '根据当前数据和刷新配置估算，不是 Cloudflare 账单':
+    'Estimated from current data and refresh settings; this is not a Cloudflare bill',
+  'Worker 轮询请求': 'Worker polling requests',
+  'D1 轮询读取': 'D1 polling rows read',
+  'Queue 操作': 'Queue operations',
+  'R2 主邮件存储': 'R2 primary mail storage',
+  '单个持续可见页面 / 天': 'per continuously visible tab / day',
+  '根据今日收件与失败重试估算': 'estimated from today’s mail and failed retries',
+  '不包含备份桶与对象元数据': 'excludes the backup bucket and object metadata',
+  '额度正常': 'Within allowance',
+  '注意': 'Attention',
+  '接近上限': 'Near limit',
+  '轮询采用自适应退避，实际请求通常低于这里显示的配置上限；其他 API、备份和 Cloudflare 账户内其他 Worker 未计入。':
+    'Adaptive polling usually stays below this configured ceiling. Other APIs, backups, and Workers in the same Cloudflare account are not included.',
   '管理员批量清理邮件': 'Administrator bulk mail cleanup',
   '删除 {count} 封': 'Deleted {count} messages',
   '只有管理员可以预估邮件清理。': 'Only administrators can preview mail cleanup.',
@@ -516,4 +531,26 @@ export const enAdmin: Record<string, string> = {
   '邮件清理确认信息无效。': 'The mail cleanup confirmation is invalid.',
   '邮件数据已经变化，请重新预估后再清理。':
     'Mail data changed. Preview the impact again before cleaning up.',
+  '失败邮件恢复中心': 'Failed mail recovery center',
+  '查看解析失败原因，并从私有原始邮件重新提交处理':
+    'Review parsing errors and resubmit from the private original message',
+  '刷新失败邮件': 'Refresh failed mail',
+  '当前失败': 'Currently failed',
+  '最多显示最近 50 封': 'Showing up to the latest 50',
+  '正在读取失败邮件…': 'Loading failed mail…',
+  '{count} 次尝试': '{count} attempts',
+  '重新处理': 'Retry processing',
+  '原始邮件缺失': 'Original message missing',
+  '当前没有失败邮件': 'No failed mail',
+  '自动重试耗尽后，邮件会出现在这里。':
+    'Messages appear here after automatic retries are exhausted.',
+  '“{subject}”已重新提交处理。': '“{subject}” was resubmitted for processing.',
+  '无法读取失败邮件。': 'Could not load failed mail.',
+  '只有管理员可以查看失败邮件。': 'Only administrators can view failed mail.',
+  '只有管理员可以重试失败邮件。': 'Only administrators can retry failed mail.',
+  '失败邮件不存在或已被处理。': 'The failed message does not exist or was already handled.',
+  '原始邮件文件不存在，无法重新处理。':
+    'The original message file is missing and cannot be reprocessed.',
+  '重新提交失败，请稍后再试。': 'Resubmission failed. Try again later.',
+  '重试失败邮件': 'Failed message retried',
 }

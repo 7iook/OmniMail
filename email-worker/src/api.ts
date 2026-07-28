@@ -8,6 +8,7 @@ import { listAuditLogs } from './audit-log-api'
 import { writeAudit } from './audit'
 import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-api'
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
+import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { listMessages, messageSummary } from './message-list-api'
 import { permanentlyDeleteMessage } from './message-storage'
@@ -333,6 +334,10 @@ app.get('/api/admin/invites', (context) => listTemporaryInvites(
 app.post('/api/admin/invites', (context) => createTemporaryInvite(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/invites/:id/revoke', (context) => revokeTemporaryInvite(context.env, context.get('user'), context.req.param('id'), clientIp(context.req.raw.headers)))
 app.get('/api/admin/statistics', (context) => mailStatistics(context.env, context.get('user'), context.req.raw))
+app.get('/api/admin/failed-messages', (context) => listFailedMessages(context.env, context.get('user')))
+app.post('/api/admin/failed-messages/:id/retry', (context) => retryFailedMessage(
+  context.env, context.get('user'), context.req.param('id'), clientIp(context.req.raw.headers),
+))
 app.get('/api/admin/mail-cleanup/preview', (context) => previewAdminMailCleanup(
   context.env,
   context.get('user'),

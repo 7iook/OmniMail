@@ -13,6 +13,7 @@ import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { api, type MailStatistics as StatisticsData } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
 import { MailStorageStatistics } from './MailStorageStatistics'
+import { FailedMailCenter } from './FailedMailCenter'
 
 type RangeDays = StatisticsData['days']
 
@@ -210,6 +211,7 @@ export function MailStatistics() {
         data={data}
         onCleanupComplete={() => setReloadKey((value) => value + 1)}
       />
+      <FailedMailCenter onChanged={() => setReloadKey((value) => value + 1)} />
       <section className="admin-card statistics-trend-card">
         <header>
           <TrendingUp size={17} />

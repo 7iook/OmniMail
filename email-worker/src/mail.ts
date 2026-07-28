@@ -44,6 +44,10 @@ export function textToHtml(value: string): string {
     .join('')
 }
 
+export function queueFailureStatus(attempts: number): 'processing' | 'failed' {
+  return attempts >= 3 ? 'failed' : 'processing'
+}
+
 function stripHtml(value: string): string {
   return value
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -162,7 +166,8 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
     if (inserted) {
       await env.DB.prepare(
         `UPDATE messages
-            SET status = 'failed', processing_error = ?, updated_at = unixepoch()
+            SET status = 'failed', processing_error = ?, last_failed_at = unixepoch(),
+                updated_at = unixepoch()
           WHERE id = ?`,
       ).bind(error instanceof Error ? error.message : 'Unable to queue message', id).run()
     } else {
@@ -277,9 +282,15 @@ export async function consumeEmailQueue(batch: MessageBatch<ParseJob>, env: Env)
       const detail = error instanceof Error ? error.message : 'Unable to parse message'
       await env.DB.prepare(
         `UPDATE messages
-            SET status = 'failed', processing_error = ?, updated_at = unixepoch()
+            SET status = ?, processing_error = ?,
+                processing_attempts = processing_attempts + 1,
+                last_failed_at = unixepoch(), updated_at = unixepoch()
           WHERE id = ?`,
-      ).bind(detail.slice(0, 500), message.body.messageId).run()
+      ).bind(
+        queueFailureStatus(message.attempts),
+        detail.slice(0, 500),
+        message.body.messageId,
+      ).run()
       message.retry({ delaySeconds: 30 })
     }
   }

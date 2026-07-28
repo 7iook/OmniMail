@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS messages (
   trashed_at INTEGER,
   purge_after INTEGER,
   processing_error TEXT,
+  processing_attempts INTEGER NOT NULL DEFAULT 0,
+  last_failed_at INTEGER,
   client_request_id TEXT UNIQUE,
   provider_id TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -148,6 +150,12 @@ CREATE INDEX IF NOT EXISTS idx_messages_direction_received
   ON messages(direction, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_purge
   ON messages(purge_after, id);
+
+CREATE TABLE IF NOT EXISTS mail_state_versions (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
 
 CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
@@ -189,7 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28-storage-v2'
+const SCHEMA_VERSION = '2026-07-28-operations-v1'
 
 async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
@@ -281,6 +289,14 @@ async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
   if (!columns.has('purge_after')) {
     statements.push(db.prepare('ALTER TABLE messages ADD COLUMN purge_after INTEGER'))
   }
+  if (!columns.has('processing_attempts')) {
+    statements.push(db.prepare(
+      'ALTER TABLE messages ADD COLUMN processing_attempts INTEGER NOT NULL DEFAULT 0',
+    ))
+  }
+  if (!columns.has('last_failed_at')) {
+    statements.push(db.prepare('ALTER TABLE messages ADD COLUMN last_failed_at INTEGER'))
+  }
   if (statements.length) await db.batch(statements)
   await db.prepare(
     'UPDATE messages SET quota_bytes = size WHERE quota_bytes = 0 AND size > 0',
@@ -294,6 +310,38 @@ async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
   await db.prepare(
     `CREATE INDEX IF NOT EXISTS idx_messages_purge
      ON messages(purge_after, id)`,
+  ).run()
+}
+
+async function ensureMailStateVersions(db: D1Database): Promise<void> {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS mail_state_versions (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )`,
+  ).run()
+  const upsert = (reference: 'NEW' | 'OLD') => `
+    INSERT INTO mail_state_versions (user_id, version, updated_at)
+    SELECT mb.user_id, 1, unixepoch()
+      FROM mailboxes mb
+     WHERE mb.address = ${reference}.mailbox_address
+    ON CONFLICT(user_id) DO UPDATE SET
+      version = mail_state_versions.version + 1,
+      updated_at = excluded.updated_at;`
+  await db.prepare(
+    `CREATE TRIGGER IF NOT EXISTS trg_messages_mail_state_insert
+     AFTER INSERT ON messages BEGIN ${upsert('NEW')} END`,
+  ).run()
+  await db.prepare(
+    `CREATE TRIGGER IF NOT EXISTS trg_messages_mail_state_update
+     AFTER UPDATE OF status, folder, sender_name, sender_address, subject, preview,
+       received_at, sent_at, attachment_count, is_read, is_starred, processing_error
+     ON messages BEGIN ${upsert('NEW')} END`,
+  ).run()
+  await db.prepare(
+    `CREATE TRIGGER IF NOT EXISTS trg_messages_mail_state_delete
+     AFTER DELETE ON messages BEGIN ${upsert('OLD')} END`,
   ).run()
 }
 
@@ -450,6 +498,7 @@ export function ensureSchema(db: D1Database): Promise<void> {
         await ensureUserPolicyColumns(db)
       }
       await ensureMessageStorageColumns(db)
+      await ensureMailStateVersions(db)
       await ensureBackupRuns(db)
       await ensureDomains(db)
       await ensureTemporaryInvites(db)

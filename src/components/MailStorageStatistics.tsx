@@ -1,8 +1,10 @@
 import {
+  Activity,
   AlertCircle,
   CheckCircle2,
   Check,
   ChevronDown,
+  Cloud,
   Database,
   HardDrive,
   LoaderCircle,
@@ -11,6 +13,7 @@ import {
   Search,
   Trash2,
   UserRound,
+  Workflow,
 } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
@@ -37,6 +40,13 @@ function formatBytes(bytes: number): string {
 function formatCutoff(timestamp: number): string {
   return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium' })
     .format(new Date(timestamp * 1000))
+}
+
+function formatCompact(value: number): string {
+  return new Intl.NumberFormat(getLocale(), {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
 }
 
 function errorMessage(error: unknown): string {
@@ -165,6 +175,72 @@ function UsageLists({ storage }: { storage: MailStatistics['storage'] }) {
         </div>
       </section>
     </div>
+  )
+}
+
+function PlatformUsagePanel({ usage }: { usage: MailStatistics['platform'] }) {
+  const metrics = [
+    {
+      label: t('Worker 轮询请求'),
+      detail: t('单个持续可见页面 / 天'),
+      used: usage.workerRequests.estimatedPerVisibleTab,
+      limit: usage.workerRequests.dailyLimit,
+      Icon: Activity,
+    },
+    {
+      label: t('D1 轮询读取'),
+      detail: t('单个持续可见页面 / 天'),
+      used: usage.d1RowsRead.estimatedPerVisibleTab,
+      limit: usage.d1RowsRead.dailyLimit,
+      Icon: Database,
+    },
+    {
+      label: t('Queue 操作'),
+      detail: t('根据今日收件与失败重试估算'),
+      used: usage.queueOperations.estimatedToday,
+      limit: usage.queueOperations.dailyLimit,
+      Icon: Workflow,
+    },
+    {
+      label: t('R2 主邮件存储'),
+      detail: t('不包含备份桶与对象元数据'),
+      used: usage.r2Storage.estimatedPrimaryBytes,
+      limit: usage.r2Storage.freeBytes,
+      Icon: Cloud,
+      bytes: true,
+    },
+  ]
+
+  return (
+    <section className="admin-card platform-usage-card">
+      <header>
+        <Activity size={17} />
+        <div>
+          <h2>{t('Cloudflare 免费额度参考')}</h2>
+          <p>{t('根据当前数据和刷新配置估算，不是 Cloudflare 账单')}</p>
+        </div>
+      </header>
+      <div className="platform-usage-grid">
+        {metrics.map(({ label, detail, used, limit, Icon, bytes }) => {
+          const percent = limit > 0 ? Math.min(100, used / limit * 100) : 0
+          const level = percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'normal'
+          return (
+            <article data-level={level} key={label}>
+              <div><Icon size={17} /><span>{label}</span><b>{t(
+                level === 'danger' ? '接近上限' : level === 'warning' ? '注意' : '额度正常',
+              )}</b></div>
+              <strong>{bytes ? formatBytes(used) : formatCompact(used)}</strong>
+              <small>/ {bytes ? formatBytes(limit) : formatCompact(limit)} · {detail}</small>
+              <i role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100}
+                aria-valuenow={Math.round(percent)}><i style={{ width: `${percent}%` }} /></i>
+            </article>
+          )
+        })}
+      </div>
+      <p className="platform-usage-note">
+        {t('轮询采用自适应退避，实际请求通常低于这里显示的配置上限；其他 API、备份和 Cloudflare 账户内其他 Worker 未计入。')}
+      </p>
+    </section>
   )
 }
 
@@ -410,6 +486,7 @@ export function MailStorageStatistics({
         )}
         <UsageLists storage={storage} />
       </section>
+      <PlatformUsagePanel usage={data.platform} />
       <MailCleanup data={data} onCleanupComplete={onCleanupComplete} />
     </>
   )

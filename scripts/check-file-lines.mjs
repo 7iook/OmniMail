@@ -3,7 +3,14 @@ import { extname, join, relative } from 'node:path'
 
 const root = process.cwd()
 const limit = 600
-const ignoredDirectories = new Set(['.git', '.wrangler', 'dist', 'node_modules'])
+const ignoredDirectories = new Set([
+  '.git',
+  '.wrangler',
+  'dist',
+  'node_modules',
+  'playwright-report',
+  'test-results',
+])
 const ignoredFiles = new Set(['package-lock.json'])
 const codeExtensions = new Set([
   '.cjs',

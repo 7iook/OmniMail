@@ -185,6 +185,7 @@ export interface MailStatistics {
   daily: Array<{ day: number; count: number }>
   sourceDomains: Array<{ domain: string; count: number }>
   topSenders: Array<{ address: string; name: string | null; count: number }>
+  platform: PlatformUsage
   storage: {
     messageCount: number
     usedBytes: number
@@ -321,7 +322,7 @@ export class ApiError extends Error {
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || '').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 15000
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   let response: Response
@@ -557,17 +558,14 @@ export const api = {
       body: jsonBody({ isActive }),
     })
   ),
-  messages: (folder: Folder, query: string, scope: MailboxScope, cursor?: string) => {
+  messages: (folder: Folder, query: string, scope: MailboxScope, cursor?: string, version?: number) => {
     const search = new URLSearchParams({ folder, limit: '30' })
     if (query) search.set('q', query)
     if (scope.type === 'domain') search.set('domain', scope.value)
     if (scope.type === 'mailbox') search.set('mailbox', scope.value)
     if (cursor) search.set('cursor', cursor)
-    return request<{
-      messages: MessageSummary[]
-      counts: MailCounts
-      page: PageInfo
-    }>(`/api/messages?${search}`)
+    if (version !== undefined) search.set('version', String(version))
+    return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(`/api/messages?${search}`)
   },
   message: (id: string) => request<{ message: MessageDetail }>(`/api/messages/${id}`),
   updateMessage: (
@@ -598,3 +596,4 @@ export const api = {
   rawUrl: (messageId: string) => `${API_ORIGIN}/api/messages/${messageId}/raw`,
 }
 import { t } from './i18n'
+import type { PlatformUsage } from './platformUsage'

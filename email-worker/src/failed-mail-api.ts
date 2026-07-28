@@ -1,0 +1,95 @@
+import { writeAudit } from './audit'
+import type { Env, SessionUser } from './types'
+
+interface FailedMessageRow {
+  id: string
+  mailbox_address: string
+  sender_name: string | null
+  sender_address: string
+  subject: string
+  processing_error: string | null
+  processing_attempts: number
+  last_failed_at: number | null
+  updated_at: number
+  size: number
+  raw_key: string | null
+}
+
+function isAdministrator(user: SessionUser): boolean {
+  return user.role === 'super_admin' || user.role === 'admin'
+}
+
+export function failedMessageSummary(row: FailedMessageRow) {
+  return {
+    id: row.id,
+    mailboxAddress: row.mailbox_address,
+    senderName: row.sender_name || '',
+    senderAddress: row.sender_address,
+    subject: row.subject || '无主题',
+    error: row.processing_error || '未知处理错误',
+    attempts: Number(row.processing_attempts || 0),
+    lastFailedAt: (row.last_failed_at || row.updated_at) * 1000,
+    size: Number(row.size || 0),
+    canRetry: Boolean(row.raw_key),
+  }
+}
+
+export async function listFailedMessages(env: Env, user: SessionUser): Promise<Response> {
+  if (!isAdministrator(user)) {
+    return Response.json({ error: '只有管理员可以查看失败邮件。' }, { status: 403 })
+  }
+  const [messagesResult, total] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id, mailbox_address, sender_name, sender_address, subject,
+              processing_error, processing_attempts, last_failed_at,
+              updated_at, size, raw_key
+         FROM messages
+        WHERE status = 'failed'
+        ORDER BY COALESCE(last_failed_at, updated_at) DESC, id DESC
+        LIMIT 50`,
+    ).all<FailedMessageRow>(),
+    env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM messages WHERE status = 'failed'",
+    ).first<{ count: number }>(),
+  ])
+  return Response.json({
+    messages: messagesResult.results.map(failedMessageSummary),
+    total: Number(total?.count || 0),
+  })
+}
+
+export async function retryFailedMessage(
+  env: Env,
+  user: SessionUser,
+  messageId: string,
+  ip: string,
+): Promise<Response> {
+  if (!isAdministrator(user)) {
+    return Response.json({ error: '只有管理员可以重试失败邮件。' }, { status: 403 })
+  }
+  const message = await env.DB.prepare(
+    `SELECT id, raw_key FROM messages WHERE id = ? AND status = 'failed'`,
+  ).bind(messageId).first<{ id: string; raw_key: string | null }>()
+  if (!message) return Response.json({ error: '失败邮件不存在或已被处理。' }, { status: 404 })
+  if (!message.raw_key || !await env.MAIL_BUCKET.head(message.raw_key)) {
+    return Response.json({ error: '原始邮件文件不存在，无法重新处理。' }, { status: 409 })
+  }
+
+  await env.DB.prepare(
+    `UPDATE messages
+        SET status = 'processing', processing_error = NULL, updated_at = unixepoch()
+      WHERE id = ? AND status = 'failed'`,
+  ).bind(message.id).run()
+  try {
+    await env.MAIL_QUEUE.send({ messageId: message.id })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unable to queue retry'
+    await env.DB.prepare(
+      `UPDATE messages SET status = 'failed', processing_error = ?,
+          last_failed_at = unixepoch(), updated_at = unixepoch() WHERE id = ?`,
+    ).bind(detail.slice(0, 500), message.id).run()
+    return Response.json({ error: '重新提交失败，请稍后再试。' }, { status: 503 })
+  }
+  await writeAudit(env, user.id, 'message.retry', message.id, ip, {})
+  return Response.json({ ok: true })
+}

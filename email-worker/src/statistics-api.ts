@@ -30,6 +30,7 @@ interface StorageMessageRow {
   trash_bytes: number
   failed_count: number
   failed_bytes: number
+  failed_attempts_today: number
 }
 
 interface StorageAttachmentRow {
@@ -65,6 +66,46 @@ interface StorageMailboxRow {
 export function normalizeStatisticsDays(value: string | null): 7 | 30 | 90 {
   const days = Number(value)
   return days === 7 || days === 90 ? days : 30
+}
+
+const FREE_WORKER_REQUESTS = 100_000
+const FREE_D1_ROWS_READ = 5_000_000
+const FREE_QUEUE_OPERATIONS = 10_000
+const FREE_R2_STORAGE = 10 * 1024 * 1024 * 1024
+
+export function platformUsageEstimate(input: {
+  refreshInterval: number
+  messageCount: number
+  userCount: number
+  todayReceived: number
+  failedAttemptsToday: number
+  usedBytes: number
+}) {
+  const polls = input.refreshInterval > 0
+    ? Math.ceil(86400 / input.refreshInterval)
+    : 0
+  const averageMessages = input.userCount > 0
+    ? Math.ceil(input.messageCount / input.userCount)
+    : 0
+  return {
+    refreshInterval: input.refreshInterval,
+    workerRequests: {
+      estimatedPerVisibleTab: polls,
+      dailyLimit: FREE_WORKER_REQUESTS,
+    },
+    d1RowsRead: {
+      estimatedPerVisibleTab: polls * (averageMessages + (polls ? 30 : 0)),
+      dailyLimit: FREE_D1_ROWS_READ,
+    },
+    queueOperations: {
+      estimatedToday: input.todayReceived * 3 + input.failedAttemptsToday,
+      dailyLimit: FREE_QUEUE_OPERATIONS,
+    },
+    r2Storage: {
+      estimatedPrimaryBytes: input.usedBytes,
+      freeBytes: FREE_R2_STORAGE,
+    },
+  }
 }
 
 function json(body: unknown, status = 200): Response {
@@ -136,9 +177,11 @@ export async function mailStatistics(
                 AS trash_bytes,
               SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
               COALESCE(SUM(CASE WHEN status = 'failed' THEN quota_bytes ELSE 0 END), 0)
-                AS failed_bytes
+                AS failed_bytes,
+              COALESCE(SUM(CASE WHEN last_failed_at >= ?
+                THEN processing_attempts ELSE 0 END), 0) AS failed_attempts_today
          FROM messages`,
-    ),
+    ).bind(today),
     env.DB.prepare(
       `SELECT COUNT(*) AS attachment_count,
               COALESCE(SUM(size), 0) AS attachment_bytes
@@ -177,6 +220,9 @@ export async function mailStatistics(
         ORDER BY used_bytes DESC, mb.address
         LIMIT 8`,
     ),
+    env.DB.prepare(
+      "SELECT value FROM settings WHERE key = 'mail_refresh_interval'",
+    ),
   ])
 
   const summary = (results[0].results[0] || {}) as unknown as Partial<SummaryRow>
@@ -189,6 +235,11 @@ export async function mailStatistics(
   const storageMessages = (results[4].results[0] || {}) as unknown as Partial<StorageMessageRow>
   const storageAttachments = (results[5].results[0] || {}) as unknown as Partial<StorageAttachmentRow>
   const storageQuotas = (results[6].results[0] || {}) as unknown as Partial<StorageQuotaRow>
+  const refreshSetting = (results[9].results[0] || {}) as unknown as { value?: string }
+  const configuredInterval = Number(refreshSetting.value ?? 30)
+  const refreshInterval = [0, 5, 10, 30, 60, 120].includes(configuredInterval)
+    ? configuredInterval
+    : 30
 
   return json({
     days,
@@ -202,6 +253,14 @@ export async function mailStatistics(
     daily,
     sourceDomains: results[2].results as unknown as SourceDomainRow[],
     topSenders: results[3].results as unknown as SenderRow[],
+    platform: platformUsageEstimate({
+      refreshInterval,
+      messageCount: Number(storageMessages.message_count || 0),
+      userCount: Number(storageQuotas.user_count || 0),
+      todayReceived: Number(summary.today_received || 0),
+      failedAttemptsToday: Number(storageMessages.failed_attempts_today || 0),
+      usedBytes: Number(storageMessages.used_bytes || 0),
+    }),
     storage: {
       messageCount: Number(storageMessages.message_count || 0),
       usedBytes: Number(storageMessages.used_bytes || 0),

@@ -89,6 +89,8 @@ export interface MessageRow {
   trashed_at: number | null
   purge_after: number | null
   processing_error: string | null
+  processing_attempts: number
+  last_failed_at: number | null
   created_at: number
   updated_at: number
 }

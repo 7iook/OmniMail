@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   baseMailboxAddress,
   consumeEmailQueue,
+  queueFailureStatus,
   replySubject,
   textPreview,
   textToHtml,
@@ -57,5 +58,11 @@ describe('mail helpers', () => {
 
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 30 })
     expect(message.ack).not.toHaveBeenCalled()
+  })
+
+  it('only exposes a failure after automatic Queue retries are exhausted', () => {
+    expect(queueFailureStatus(1)).toBe('processing')
+    expect(queueFailureStatus(2)).toBe('processing')
+    expect(queueFailureStatus(3)).toBe('failed')
   })
 })
