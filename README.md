@@ -343,7 +343,8 @@ Wrangler 构建产物不计入限制。
 
 ## 安全模型
 
-- 密码使用 Web Crypto PBKDF2-SHA256、210,000 次迭代和独立随机盐。
+- 密码使用 Web Crypto PBKDF2-SHA256、100,000 次迭代和独立随机盐（Cloudflare
+  Workers 运行时当前支持的上限）。
 - 浏览器会话只通过安全 Cookie 传递。
 - Access Token 短期有效，Refresh Token 轮换并仅保存摘要。
 - 登录、公开注册和邀请注册均有限速保护。

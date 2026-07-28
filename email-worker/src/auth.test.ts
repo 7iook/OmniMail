@@ -17,6 +17,12 @@ describe('password security', () => {
     await expect(verifyPassword('the wrong password', encoded)).resolves.toBe(false)
   })
 
+  it('rejects iteration counts unsupported by the Workers runtime', async () => {
+    const encoded = await hashPassword('a sufficiently long password')
+    const unsupported = encoded.replace('$100000$', '$100001$')
+    await expect(verifyPassword('a sufficiently long password', unsupported)).resolves.toBe(false)
+  })
+
   it('rejects short and excessively long passwords', () => {
     expect(validatePassword('short')).toContain('10')
     expect(validatePassword('x'.repeat(129))).toContain('128')

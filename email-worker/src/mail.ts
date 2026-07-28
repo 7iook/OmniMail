@@ -249,8 +249,7 @@ export async function consumeEmailQueue(batch: MessageBatch<ParseJob>, env: Env)
             SET status = 'failed', processing_error = ?, updated_at = unixepoch()
           WHERE id = ?`,
       ).bind(detail.slice(0, 500), message.body.messageId).run()
-      if (message.attempts >= 3) message.ack()
-      else message.retry({ delaySeconds: 30 })
+      message.retry({ delaySeconds: 30 })
     }
   }
 }

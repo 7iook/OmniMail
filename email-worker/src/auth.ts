@@ -69,6 +69,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
     algorithm !== 'pbkdf2-sha256'
     || !Number.isSafeInteger(iterations)
     || iterations < 100_000
+    || iterations > PASSWORD_ITERATIONS
     || !saltText
     || !hashText
   ) {

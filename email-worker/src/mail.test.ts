@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   baseMailboxAddress,
+  consumeEmailQueue,
   replySubject,
   textPreview,
   textToHtml,
 } from './mail'
+
+vi.mock('./schema', () => ({ ensureSchema: vi.fn() }))
 
 describe('mail helpers', () => {
   it('resolves plus addressing to the base mailbox', () => {
@@ -27,5 +30,32 @@ describe('mail helpers', () => {
     expect(textToHtml('<script>alert(1)</script>\nnext'))
       .toBe('<p>&lt;script&gt;alert(1)&lt;/script&gt;<br>next</p>')
   })
-})
 
+  it('retries exhausted parse failures so Queue can move them to the DLQ', async () => {
+    const message = {
+      body: { messageId: 'message-1' },
+      attempts: 3,
+      ack: vi.fn(),
+      retry: vi.fn(),
+    }
+    const db = {
+      prepare: (sql: string) => ({
+        bind() {
+          return this
+        },
+        first: async () => sql.includes('SELECT * FROM messages')
+          ? { status: 'queued', raw_key: null }
+          : null,
+        run: async () => ({ success: true }),
+      }),
+    }
+
+    await consumeEmailQueue(
+      { messages: [message] } as unknown as MessageBatch<{ messageId: string }>,
+      { DB: db } as unknown as Parameters<typeof consumeEmailQueue>[1],
+    )
+
+    expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 30 })
+    expect(message.ack).not.toHaveBeenCalled()
+  })
+})
