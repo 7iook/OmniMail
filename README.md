@@ -39,6 +39,7 @@
 - [安全模型](#安全模型)
 - [限制与路线图](#限制与路线图)
 - [贡献](#贡献)
+- [鸣谢](#鸣谢)
 - [许可证](#许可证)
 
 ## 为什么选择 OmniMail
@@ -120,7 +121,7 @@ flowchart LR
 | API | Cloudflare Workers、Hono |
 | 数据库 | Cloudflare D1 |
 | 对象存储 | Cloudflare R2 |
-| 异步任务 | Cloudflare Queues |
+| 异步任务 | Cloudflare Queues、Workflows |
 | 收件 | Cloudflare Email Routing |
 | 发信与回复 | Resend（可选） |
 | 防护 | Cloudflare Turnstile（邮箱密码注册或多人邀请时） |
@@ -165,7 +166,7 @@ API path       https://mail.example.com/api/*
 ### 1. Fork 仓库
 
 Fork [mibgb65-cloud/OmniMail](https://github.com/mibgb65-cloud/OmniMail)，
-然后让 Cloudflare Worker 连接你的 Fork。
+然后使用 GitHub Actions 将验证通过的提交部署到 Cloudflare。
 
 如果使用本地 Git：
 
@@ -174,7 +175,7 @@ git clone https://github.com/YOUR_NAME/OmniMail.git
 cd OmniMail
 ```
 
-### 2. 连接 Cloudflare Worker
+### 2. 首次创建 Cloudflare Worker
 
 在 Cloudflare Dashboard 中进入 **Workers & Pages → Create application →
 Import a repository**，选择你的 OmniMail 仓库：
@@ -199,6 +200,20 @@ Import a repository**，选择你的 OmniMail 仓库：
 `/api/*` 优先交给 Worker 脚本，其余路径由 Static Assets 提供；未匹配的浏览器
 导航会回退到 `index.html`，因此 React SPA 刷新不会出现 404。
 
+首次部署完成后，在 GitHub 仓库的 **Settings → Secrets and variables → Actions**
+配置：
+
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Secret | 仅授予该项目所需的 Workers、D1、R2、Queues 与 Workflows 编辑权限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Secret | Cloudflare Account ID |
+| `PRODUCTION_ORIGIN` | Variable | 生产站点来源，例如 `https://mail.example.com` |
+
+随后关闭 Cloudflare 仓库集成中的自动生产部署，避免它绕过测试直接发布。生产版本由
+`.github/workflows/ci.yml` 在单元测试、类型检查、端到端测试和 Wrangler dry-run
+全部通过后发布，并在发布后检查 `/api/health`。建议同时为 `main` 开启分支保护，
+要求 `verify` 检查通过后才能合并。不要同时保留两条生产部署链路。
+
 ### 3. 配置 Worker
 
 #### 必需配置
@@ -221,6 +236,8 @@ Import a repository**，选择你的 OmniMail 仓库：
 | `LINUX_DO_CLIENT_SECRET` | Secret | Linux DO Connect Client Secret |
 | `RESEND_API_KEY` | Secret | Resend 主动发信与回复 |
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
+| `RESEND_WEBHOOK_SECRET` | Secret | Resend 投递状态 Webhook 的 Signing Secret |
+| `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
@@ -229,6 +246,21 @@ Import a repository**，选择你的 OmniMail 仓库：
 未设置 `RESEND_FROM` 时，用户选择的邮箱会作为发件人，因此对应域名都需要在同一
 Resend 账户中完成验证；设置 `RESEND_FROM` 后统一从该固定地址发出，用户选择的
 邮箱仍作为 Reply-To。
+
+发信请求会先持久化并进入 Queue，再由后台任务使用幂等键调用 Resend。若要同步送达、
+延迟、退信、投诉和抑制状态，请在 Resend 创建 Webhook：
+
+```text
+https://你的域名/api/webhooks/resend
+```
+
+选择 `email.sent`、`email.delivered`、`email.delivery_delayed`、`email.bounced`、
+`email.complained`、`email.failed` 与 `email.suppressed`，再把 Signing Secret 保存为
+`RESEND_WEBHOOK_SECRET`。Webhook 未配置时仍可发信，但只能显示 Resend 已接受请求。
+
+管理员可在 **账号设置 → 管理员二次验证** 中启用验证器应用。启用时生成的恢复码只
+显示一次；TOTP 密钥经过 `TOTP_ENCRYPTION_KEY` 加密后才写入 D1。更换此 Secret 前
+应先让管理员停用二次验证，否则旧密钥无法解密；恢复码仍可用于解除锁定。
 
 同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
 Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
@@ -247,7 +279,8 @@ Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓�
 
 - 开启时每日导出 D1，并将新收邮件原文和已发送正文归档到备份桶。
 - D1 每日、每周、每月备份默认分别保留 30、84、365 天，邮件归档保留 90 天。
-- 垃圾箱、失败邮件、临时账号数据和操作日志保留期由管理员设置。
+- 垃圾箱、失败邮件、临时账号数据和操作日志由 Workflow 分批清理；超大积压会自动
+  延续到下一轮，不会在一次定时任务中无限执行。
 - 普通用户和临时用户有独立默认空间配额；单个账号可在用户管理中覆盖，垃圾箱内
   邮件在永久清理前仍计入配额。
 
@@ -375,7 +408,8 @@ npx wrangler deploy --dry-run
 ```
 
 最后一条命令只执行 Worker 打包验证，不会部署。CI 会在每次 Push 和 Pull Request
-中运行测试、类型检查、生产构建与 Wrangler dry-run。
+中运行测试、类型检查、生产构建与 Wrangler dry-run；只有 `main` 的验证任务全部
+通过后，`deploy` 任务才会发布并执行生产健康检查。
 
 项目要求手写代码、测试和配置文件单文件不超过 600 行。自动生成的依赖锁文件和
 Wrangler 构建产物不计入限制。
@@ -385,6 +419,8 @@ Wrangler 构建产物不计入限制。
 - 密码使用 Web Crypto PBKDF2-SHA256、100,000 次迭代和独立随机盐（Cloudflare
   Workers 运行时当前支持的上限）。
 - 浏览器会话只通过安全 Cookie 传递。
+- 管理员可启用 TOTP 二次验证；浏览器密码登录、Linux DO 登录和设备令牌签发使用
+  同一套验证与限速策略，恢复码只保存摘要。
 - Access Token 短期有效，Refresh Token 轮换并仅保存摘要。
 - 登录、邮箱密码公开注册和邀请注册均有限速保护。
 - 邮箱密码公开注册和多人邀请使用 Turnstile 服务端校验；Linux DO 注册使用一次性
@@ -409,7 +445,7 @@ Wrangler 构建产物不计入限制。
 ### 当前不提供
 
 - IMAP / POP3 / SMTP 客户端兼容
-- 新邮件撰写、群发、转发和通讯录
+- 群发、转发、发件附件和通讯录
 - 完整反垃圾、病毒扫描和邮件规则引擎
 - 自动修改 Cloudflare DNS、MX 或 Email Routing
 - 跨实例一键迁移与自动恢复
@@ -436,6 +472,12 @@ Wrangler 构建产物不计入限制。
 3. `npm test` 与 `npm run build` 通过。
 4. 单个手写代码文件不超过 600 行。
 5. 不提交 `.dev.vars`、`.env.local`、Token、邮件数据或其他敏感内容。
+
+## 鸣谢
+
+感谢 [LINUX DO 社区](https://linux.do/) 提供开放、友好的技术交流平台。
+OmniMail 支持通过 [LINUX DO Connect](https://connect.linux.do/) 完成第三方登录；
+该集成仅用于身份认证，OmniMail 是与 LINUX DO 社区相互独立的开源项目。
 
 ## 许可证
 

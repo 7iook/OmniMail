@@ -1,4 +1,6 @@
 import { ensureOAuthTables } from './schema-oauth'
+import { ensureReliabilitySchema } from './schema-reliability'
+import { ensureSecuritySchema } from './schema-security'
 
 const SCHEMA_SQL = String.raw`
 PRAGMA foreign_keys = ON;
@@ -157,6 +159,10 @@ CREATE TABLE IF NOT EXISTS messages (
   last_failed_at INTEGER,
   client_request_id TEXT UNIQUE,
   provider_id TEXT,
+  delivery_status TEXT CHECK (delivery_status IS NULL OR delivery_status IN (
+    'queued', 'sent', 'delivered', 'delayed', 'bounced', 'complained', 'failed', 'suppressed'
+  )),
+  provider_event_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE (mailbox_address, message_id)
@@ -216,7 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28-linux-do-auth-v1'
+const SCHEMA_VERSION = '2026-07-28-p0-security-v2'
 
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(
@@ -380,7 +386,8 @@ async function ensureMailStateVersions(db: D1Database): Promise<void> {
   await db.prepare(
     `CREATE TRIGGER IF NOT EXISTS trg_messages_mail_state_update
      AFTER UPDATE OF status, folder, sender_name, sender_address, subject, preview,
-       received_at, sent_at, attachment_count, is_read, is_starred, processing_error
+       received_at, sent_at, attachment_count, is_read, is_starred, processing_error,
+       delivery_status
      ON messages BEGIN ${upsert('NEW')} END`,
   ).run()
   await db.prepare(
@@ -553,6 +560,8 @@ export function ensureSchema(db: D1Database): Promise<void> {
       if (!exists) await ensureUnassignedMailColumns(db)
       await ensureMessageStorageColumns(db)
       await ensureMailStateVersions(db)
+      await ensureReliabilitySchema(db)
+      await ensureSecuritySchema(db)
       await ensureBackupRuns(db)
       await ensureDomains(db)
       await ensureTemporaryInvites(db)

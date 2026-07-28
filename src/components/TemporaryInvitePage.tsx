@@ -105,6 +105,7 @@ export function TemporaryInvitePage({
       setRegisteredEmail(result.email)
       try {
         const login = await api.login(result.email, password)
+        if ('mfaRequired' in login) throw new Error('Unexpected MFA challenge')
         window.history.replaceState(null, '', window.location.pathname)
         onAuthenticated(login.user)
       } catch {

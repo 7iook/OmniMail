@@ -15,3 +15,7 @@ LINUX_DO_CLIENT_SECRET=
 # RESEND_FROM can provide one fixed sender across all managed mailbox domains.
 RESEND_API_KEY=
 RESEND_FROM=
+RESEND_WEBHOOK_SECRET=
+
+# At least 32 random characters. Encrypts administrator TOTP secrets in D1.
+TOTP_ENCRYPTION_KEY=

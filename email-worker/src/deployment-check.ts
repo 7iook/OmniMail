@@ -108,8 +108,14 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
     }),
     check({
       id: 'queue', group: 'core', label: '邮件解析队列', ready: bindings.queueReady,
-      required: true, detail: 'MAIL_QUEUE 用于异步解析收到的邮件。',
+      required: true, detail: 'MAIL_QUEUE 用于异步解析收件并可靠投递发件。',
       action: '重新执行 Git 部署，确认队列 Producer 和 Consumer 已创建。',
+    }),
+    check({
+      id: 'cleanup-workflow', group: 'core', label: '分批清理工作流',
+      ready: bindingHasMethod(env.CLEANUP_WORKFLOW, 'create'), required: true,
+      detail: 'CLEANUP_WORKFLOW 分批清理过期邮件和已注销账号数据。',
+      action: '重新部署，确认 omni-mail-cleanup Workflow 已创建并绑定。',
     }),
     check({
       id: 'origins', group: 'core', label: '同源前后端', ready: true,
@@ -153,6 +159,13 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       action: '申请 Connect 应用，并配置 LINUX_DO_CLIENT_ID 和 LINUX_DO_CLIENT_SECRET。',
     }),
     check({
+      id: 'totp-key', group: 'security', label: '管理员二次验证密钥',
+      ready: (env.TOTP_ENCRYPTION_KEY?.trim().length || 0) >= 32,
+      required: false, missingState: 'warning',
+      detail: 'TOTP_ENCRYPTION_KEY 用于加密保存管理员的验证器密钥。',
+      action: '配置至少 32 个随机字符的 TOTP_ENCRYPTION_KEY Worker Secret。',
+    }),
+    check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,
       required: false, missingState: 'warning',
       detail: `OmniMail 中已管理 ${database.domains} 个收件域名。`,
@@ -169,6 +182,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       ready: Boolean(env.RESEND_API_KEY?.trim()), required: false, missingState: 'warning',
       detail: 'RESEND_API_KEY 已配置，具备主动发信与回复的条件。',
       action: '不需要发信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。',
+    }),
+    check({
+      id: 'resend-webhook', group: 'mail', label: 'Resend 投递回执',
+      ready: Boolean(env.RESEND_WEBHOOK_SECRET?.trim()), required: false, missingState: 'warning',
+      detail: '签名 Webhook 可同步送达、延迟、退信和投诉状态。',
+      action: '在 Resend 创建 /api/webhooks/resend 端点并配置其 Signing Secret。',
     }),
     {
       id: 'email-routing', group: 'mail', label: 'Email Routing',

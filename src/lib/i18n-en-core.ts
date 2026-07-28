@@ -140,6 +140,7 @@ export const enCore: Record<string, string> = {
   '搜索发件人或主题': 'Search sender or subject',
   '清除搜索': 'Clear search',
   '邮件已发送': 'Message sent',
+  '邮件已进入发送队列': 'Message queued for delivery',
   '新建邮件': 'New message',
   'Resend 发信': 'Send with Resend',
   '关闭新建邮件': 'Close new message',
@@ -153,6 +154,15 @@ export const enCore: Record<string, string> = {
   '写下邮件内容…': 'Write your message…',
   '发送邮件': 'Send message',
   '回复已发送': 'Reply sent',
+  '回复已进入发送队列': 'Reply queued for delivery',
+  '邮件已进入发送队列，系统正在可靠投递。':
+    'The message is queued and will be delivered reliably.',
+  '发送失败：{error}': 'Sending failed: {error}',
+  '收件服务器已确认送达。': 'The recipient server confirmed delivery.',
+  '收件服务器暂时延迟接收，Resend 会继续尝试投递。':
+    'The recipient server delayed the message. Resend will keep trying.',
+  '邮件未能送达，详情可在 Resend 控制台查看。':
+    'The message could not be delivered. See the Resend dashboard for details.',
   '发给 {recipients}': 'To {recipients}',
   '回复给': 'Reply to',
   '关闭回复': 'Close reply',

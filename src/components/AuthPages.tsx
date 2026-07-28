@@ -28,12 +28,14 @@ import type { SetupRequirements } from '../lib/api'
 import { emailAllowedByDomainPolicy } from '../lib/registration'
 import { t } from '../lib/i18n'
 import { LinuxDoAuthButton } from './LinuxDoAuthButton'
+import { MfaLoginForm } from './MfaLoginForm'
 import {
   getThemePreference,
   setThemePreference,
   subscribeTheme,
 } from '../lib/theme'
 import { TurnstileWidget } from './TurnstileWidget'
+import { useAuthModalLifecycle } from './useAuthModalLifecycle'
 import { OmniLogo } from './OmniLogo'
 import { LanguageToggle } from './LanguageToggle'
 
@@ -287,6 +289,10 @@ function AuthModal({
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaRequired, setMfaRequired] = useState(() => (
+    new URLSearchParams(window.location.search).has('mfa_required')
+  ))
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileAttempt, setTurnstileAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -298,42 +304,24 @@ function AuthModal({
   const registering = mode === 'register'
   const oauthOnly = registering && registrationMethod === 'linuxdo'
 
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    if (url.searchParams.has('auth_error')) {
-      url.searchParams.delete('auth_error')
-      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
-    }
-    const previousOverflow = document.body.style.overflow
-    const previousFocus = document.activeElement as HTMLElement | null
-    document.body.style.overflow = 'hidden'
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-      if (event.key !== 'Tab') return
-      const controls = modalRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled])',
-      )
-      if (!controls?.length) return
-      const first = controls[0]
-      const last = controls[controls.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
-      previousFocus?.focus()
-    }
-  }, [onClose])
+  useAuthModalLifecycle(modalRef, onClose)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (mfaRequired) {
+      if (!mfaCode.trim()) return
+      setSubmitting(true)
+      setError('')
+      try {
+        const result = await api.completeMfaLogin(mfaCode)
+        onAuthenticated(result.user)
+      } catch (submitError) {
+        setError(errorMessage(submitError))
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
     if (registering && password !== confirmPassword) {
       setError(t('两次输入的密码不一致。'))
       return
@@ -354,6 +342,11 @@ function AuthModal({
       const result = registering
         ? await api.register({ email, displayName, password, turnstileToken })
         : await api.login(email, password)
+      if ('mfaRequired' in result) {
+        setMfaRequired(true)
+        setPassword('')
+        return
+      }
       onAuthenticated(result.user)
     } catch (submitError) {
       setError(errorMessage(submitError))
@@ -382,10 +375,14 @@ function AuthModal({
         aria-labelledby={titleId}
       >
         <header>
-          <span>{registering ? <UserPlus size={21} /> : <LogIn size={21} />}</span>
+          <span>{mfaRequired
+            ? <ShieldCheck size={21} />
+            : registering ? <UserPlus size={21} /> : <LogIn size={21} />}</span>
           <div>
-            <p className="eyebrow">{registering ? 'CREATE ACCOUNT' : 'WELCOME BACK'}</p>
-            <h2 id={titleId}>{registering
+            <p className="eyebrow">{mfaRequired ? 'TWO-FACTOR AUTH' : registering ? 'CREATE ACCOUNT' : 'WELCOME BACK'}</p>
+            <h2 id={titleId}>{mfaRequired
+              ? t('完成二次验证')
+              : registering
               ? t('创建普通账户')
               : t('登录 {appName}', { appName })}</h2>
           </div>
@@ -394,7 +391,10 @@ function AuthModal({
           </button>
         </header>
 
-        <form className="auth-form" onSubmit={submit}>
+        {mfaRequired ? (
+          <MfaLoginForm code={mfaCode} submitting={submitting}
+            onCodeChange={setMfaCode} onSubmit={submit} />
+        ) : <form className="auth-form" onSubmit={submit}>
           {!oauthOnly && <>
           {registering && (
             <label>
@@ -467,10 +467,10 @@ function AuthModal({
           {linuxDoLoginEnabled && (!registering || oauthOnly) && (
             <LinuxDoAuthButton registering={oauthOnly} />
           )}
-          {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
-        </form>
+        </form>}
+        {error && <p className="form-error" role="alert"><AlertCircle size={16} />{error}</p>}
 
-        <footer>
+        {!mfaRequired && <footer>
           {t(registering ? '已经有账户？' : registrationEnabled ? '还没有账户？' : '当前未开放外部注册。')}
           {(registering || registrationEnabled) && (
             <button
@@ -480,7 +480,7 @@ function AuthModal({
               {t(registering ? '返回登录' : '创建账户')}
             </button>
           )}
-        </footer>
+        </footer>}
       </section>
     </div>
   )
@@ -504,7 +504,10 @@ export function PublicLanding({
   onAuthenticated: (user: User) => void
 }) {
   const [authMode, setAuthMode] = useState<AuthMode | null>(() => (
-    new URLSearchParams(window.location.search).has('auth_error') ? 'login' : null
+    new URLSearchParams(window.location.search).has('auth_error')
+      || new URLSearchParams(window.location.search).has('mfa_required')
+      ? 'login'
+      : null
   ))
   const closeModal = () => setAuthMode(null)
 

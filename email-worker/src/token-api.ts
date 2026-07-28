@@ -8,6 +8,7 @@ import {
 import { clientIp } from './api-helpers'
 import { writeAudit } from './audit'
 import { authenticatePassword } from './password-login'
+import { mfaEnabled, verifyMfaForLogin } from './mfa'
 import type { Env, SessionUser, UserRow } from './types'
 
 const ACCESS_TOKEN_SECONDS = 15 * 60
@@ -171,10 +172,12 @@ export async function issueDeviceToken(env: Env, request: Request): Promise<Resp
     email?: unknown
     password?: unknown
     deviceName?: unknown
+    mfaCode?: unknown
   }>().catch(() => ({} as {
     email?: unknown
     password?: unknown
     deviceName?: unknown
+    mfaCode?: unknown
   }))
   const name = deviceName(body.deviceName)
   if (!name) return json({ error: '设备名称需要在 1–80 个字符之间。' }, 400)
@@ -194,6 +197,23 @@ export async function issueDeviceToken(env: Env, request: Request): Promise<Resp
       { channel: 'token', reason: result.reason, deviceName: name },
     )
     return json({ error: result.error }, result.status)
+  }
+  if (await mfaEnabled(env.DB, result.user.id)) {
+    const code = typeof body.mfaCode === 'string' ? body.mfaCode : ''
+    const verified = await verifyMfaForLogin(
+      env, result.user.id, code, clientIp(request.headers),
+    )
+    if (!verified.ok) {
+      await writeAudit(
+        env,
+        result.user.id,
+        'auth.login_failed',
+        result.user.id,
+        clientIp(request.headers),
+        { channel: 'token', reason: 'invalid_mfa', deviceName: name },
+      )
+      return json({ error: '需要有效的二次验证码或恢复码。' }, 401)
+    }
   }
 
   const response = await createDeviceSession(env, result.user, name)

@@ -71,6 +71,13 @@ export interface User {
   temporaryExpiresAt: number | null
 }
 
+export interface MfaStatus {
+  ready: boolean
+  enabled: boolean
+  pending: boolean
+  recoveryCodesRemaining: number
+}
+
 export type AccountStatus = 'active' | 'disabled'
 
 export interface AdminUser extends User {
@@ -297,6 +304,7 @@ export interface MessageSummary {
   isRead: boolean
   isStarred: boolean
   processingError: string | null
+  deliveryStatus: 'queued' | 'sent' | 'delivered' | 'delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed' | null
   purgeAfter: number | null
 }
 

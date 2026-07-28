@@ -1,8 +1,9 @@
 import PostalMime from 'postal-mime'
 import { archiveIncomingMessage } from './mail-archive'
 import { releaseStorage, reserveStorage } from './message-storage'
+import { deliverOutboundMessage, OutboundDeliveryError } from './outbound-message'
 import { ensureSchema } from './schema'
-import type { Env, MessageRow, ParseJob, StoredBody } from './types'
+import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from './types'
 
 type ParsedAddress = {
   address?: string
@@ -199,7 +200,7 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
       console.error('Unable to archive incoming message', error)
     }
 
-    await env.MAIL_QUEUE.send({ messageId: id })
+    await env.MAIL_QUEUE.send({ kind: 'parse', messageId: id })
   } catch (error) {
     if (inserted) {
       await env.DB.prepare(
@@ -310,11 +311,45 @@ async function parseMessage(job: ParseJob, env: Env): Promise<void> {
   await env.DB.batch(attachmentStatements)
 }
 
-export async function consumeEmailQueue(batch: MessageBatch<ParseJob>, env: Env): Promise<void> {
+async function consumeOutboundJob(
+  message: Message<MailQueueJob>,
+  env: Env,
+): Promise<void> {
+  if (message.body.kind !== 'outbound') return
+  try {
+    await deliverOutboundMessage(env, message.body)
+    message.ack()
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unable to deliver outbound message'
+    const retryable = !(error instanceof OutboundDeliveryError) || error.retryable
+    await env.DB.prepare(
+      `UPDATE messages
+          SET status = ?, processing_error = ?,
+              processing_attempts = processing_attempts + 1,
+              last_failed_at = unixepoch(), updated_at = unixepoch()
+        WHERE id = ?`,
+    ).bind(
+      retryable ? queueFailureStatus(message.attempts) : 'failed',
+      detail.slice(0, 500),
+      message.body.messageId,
+    ).run()
+    if (retryable) {
+      message.retry({ delaySeconds: Math.min(300, 30 * 2 ** Math.max(0, message.attempts - 1)) })
+    } else {
+      message.ack()
+    }
+  }
+}
+
+export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: Env): Promise<void> {
   await ensureSchema(env.DB)
   for (const message of batch.messages) {
+    if (message.body.kind === 'outbound') {
+      await consumeOutboundJob(message, env)
+      continue
+    }
     try {
-      await parseMessage(message.body, env)
+      await parseMessage(message.body as ParseJob, env)
       message.ack()
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Unable to parse message'

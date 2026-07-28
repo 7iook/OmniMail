@@ -22,6 +22,7 @@ function environment(): Env {
     },
     MAIL_BUCKET: { get: async () => null },
     MAIL_QUEUE: { send: async () => undefined },
+    CLEANUP_WORKFLOW: { create: async () => ({}) },
     APP_ORIGINS: 'https://mail.example.com',
     SUPER_ADMIN_EMAIL: 'owner@example.com',
     SETUP_TOKEN: 'do-not-return-this-secret',

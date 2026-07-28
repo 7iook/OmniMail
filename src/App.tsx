@@ -431,7 +431,7 @@ function Mailbox({
               changeScope({ type: 'mailbox', value: mailbox.address })
               setNotice(t('已生成：{address}', { address: mailbox.address }))
             }}
-            onMessageSent={() => { setNotice(t('邮件已发送')); void loadMessages(true) }}
+            onMessageSent={() => { setNotice(t('邮件已进入发送队列')); void loadMessages(true) }}
           />
         </header>
         <label className="search-field">
@@ -484,7 +484,7 @@ function Mailbox({
           onTrash={() => void trashSelected()}
           onRestore={() => void restoreSelected()}
           onReplySent={() => {
-            setNotice(t('回复已发送'))
+            setNotice(t('回复已进入发送队列'))
             void loadMessages(true)
           }}
           onSelectThread={(message) => void selectMessage(message)}

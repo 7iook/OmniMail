@@ -1,9 +1,10 @@
 import { fetchApi } from './api'
 import { cleanup } from './cleanup'
 import { consumeEmailQueue, receiveEmail } from './mail'
-import type { Env, ParseJob } from './types'
+import type { Env, MailQueueJob } from './types'
 
 export { OmniMailBackupWorkflow } from './backup'
+export { OmniMailCleanupWorkflow } from './cleanup-workflow'
 
 async function fetchRequest(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
   const path = new URL(request.url).pathname
@@ -17,4 +18,4 @@ export default {
   email: receiveEmail,
   queue: consumeEmailQueue,
   scheduled: (_controller, env) => cleanup(env),
-} satisfies ExportedHandler<Env, ParseJob>
+} satisfies ExportedHandler<Env, MailQueueJob>

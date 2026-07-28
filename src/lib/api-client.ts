@@ -18,6 +18,7 @@ import type {
   MailCounts,
   MailRefreshInterval,
   MailStatistics,
+  MfaStatus,
   ManagedDomain,
   ManagedUserPolicy,
   MessageDetail,
@@ -84,11 +85,15 @@ export const api = {
     request<{ user: User }>('/api/setup', { method: 'POST', body: jsonBody(input) })
   ),
   login: (email: string, password: string) => (
-    request<{ user: User }>('/api/login', {
+    request<{ user: User } | { mfaRequired: true; email: string }>('/api/login', {
       method: 'POST',
       body: jsonBody({ email, password }),
     })
   ),
+  completeMfaLogin: (code: string) => request<{ user: User }>('/api/login/mfa', {
+    method: 'POST',
+    body: jsonBody({ code }),
+  }),
   register: (input: {
     email: string
     displayName: string
@@ -164,6 +169,21 @@ export const api = {
   }) => request<{ user: User }>('/api/account', {
     method: 'PATCH',
     body: jsonBody(input),
+  }),
+  mfaStatus: () => request<MfaStatus>('/api/account/mfa'),
+  startMfaSetup: () => request<{ secret: string; uri: string }>('/api/account/mfa/setup', {
+    method: 'POST',
+  }),
+  confirmMfaSetup: (code: string) => request<{
+    enabled: true
+    recoveryCodes: string[]
+  }>('/api/account/mfa/confirm', {
+    method: 'POST',
+    body: jsonBody({ code }),
+  }),
+  disableMfa: (code: string) => request<{ enabled: false }>('/api/account/mfa', {
+    method: 'DELETE',
+    body: jsonBody({ code }),
   }),
   deleteAccount: (input: {
     currentPassword?: string

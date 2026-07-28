@@ -29,6 +29,7 @@ describe('failed mail summaries', () => {
       updated_at: 101,
       size: 2048,
       raw_key: 'raw/private.eml',
+      body_key: null,
     })
     expect(summary.canRetry).toBe(true)
     expect(summary).not.toHaveProperty('rawKey')
@@ -43,8 +44,16 @@ describe('failed mail summaries', () => {
         statements.push(sql)
         const statement = {
           bind: () => statement,
-          first: async () => sql.includes('SELECT id, raw_key')
-            ? { id: 'message-1', raw_key: 'raw/message-1.eml' }
+          first: async () => sql.includes('SELECT m.id')
+            ? {
+                id: 'message-1',
+                direction: 'incoming',
+                raw_key: 'raw/message-1.eml',
+                body_key: null,
+                in_reply_to: null,
+                recipients_json: '[]',
+                user_id: 'user-1',
+              }
             : null,
           run: async () => ({ success: true }),
         }
@@ -66,7 +75,7 @@ describe('failed mail summaries', () => {
 
     expect(response.status).toBe(200)
     expect(head).toHaveBeenCalledWith('raw/message-1.eml')
-    expect(queue).toHaveBeenCalledWith({ messageId: 'message-1' })
+    expect(queue).toHaveBeenCalledWith({ kind: 'parse', messageId: 'message-1' })
     expect(statements.some((sql) => sql.includes('INSERT INTO audit_logs'))).toBe(true)
   })
 })

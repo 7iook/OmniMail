@@ -21,6 +21,7 @@ import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
 import { ThemeToggle } from './AuthPages'
 import { LanguageToggle } from './LanguageToggle'
+import { TotpSettings } from './TotpSettings'
 
 function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '保存账户设置时发生了未知错误。')
@@ -166,6 +167,7 @@ export function AccountSettings({
 
       <div className="account-settings-grid">
         <div className="account-settings-column">
+          {(user.role === 'super_admin' || user.role === 'admin') && <TotpSettings />}
           <section className="admin-card account-card">
             <header>
               <UserRound size={17} />

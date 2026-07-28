@@ -7,6 +7,7 @@ import {
 } from './auth'
 import { writeAudit } from './audit'
 import { isAllowedOrigin } from './origin-policy'
+import { createMfaChallenge, mfaEnabled } from './mfa'
 import {
   externalRegistrationEnabled,
   externalRegistrationMethod,
@@ -87,9 +88,10 @@ function safeReturnOrigin(env: Env, request: Request): string {
   return new URL(requested).origin
 }
 
-function redirectToApp(origin: string, failed = false): Response {
+function redirectToApp(origin: string, failed = false, mfaRequired = false): Response {
   const destination = new URL('/', origin)
   if (failed) destination.searchParams.set('auth_error', PROVIDER)
+  if (mfaRequired) destination.searchParams.set('mfa_required', '1')
   return Response.redirect(destination.toString(), 302)
 }
 
@@ -272,7 +274,7 @@ export async function finishLinuxDoAuth(
   request: Request,
   ip: string,
   oauthStateCookie = '',
-): Promise<{ response: Response; sessionToken?: string }> {
+): Promise<{ response: Response; sessionToken?: string; mfaChallengeToken?: string }> {
   const url = new URL(request.url)
   const stateRow = await consumeState(
     env,
@@ -296,6 +298,16 @@ export async function finishLinuxDoAuth(
     const profile = await exchangeProfile(env, request, code)
     const resolved = await resolveUser(env, profile)
     if (!resolved) throw new Error('registration_closed_or_user_disabled')
+    if (await mfaEnabled(env.DB, resolved.user.id)) {
+      const mfaChallengeToken = await createMfaChallenge(env.DB, resolved.user.id, 'linuxdo')
+      await writeAudit(env, resolved.user.id, 'auth.mfa.challenge', resolved.user.id, ip, {
+        channel: PROVIDER,
+      })
+      return {
+        mfaChallengeToken,
+        response: redirectToApp(stateRow.return_origin, false, true),
+      }
+    }
     const sessionToken = createSessionToken()
     await storeSession(env.DB, resolved.user.id, sessionToken)
     await writeAudit(

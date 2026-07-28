@@ -329,7 +329,7 @@ test('users can compose and send a new message', async ({ page }) => {
     mailboxAddress: 'inbox@example.com', to: 'friend@example.net',
     subject: 'Hello from OmniMail', text: 'This is a new message.',
   })
-  await expect(page.getByRole('status')).toHaveText('邮件已发送')
+  await expect(page.getByRole('status')).toHaveText('邮件已进入发送队列')
 })
 test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {
   const state = mockState()

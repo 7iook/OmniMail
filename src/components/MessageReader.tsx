@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Clock3,
+  CheckCircle2,
   Download,
   LoaderCircle,
   Mail,
@@ -307,11 +308,34 @@ export function MessageReader({
         )}
 
         {message.status === 'processing' && (
-          <div className="message-notice"><LoaderCircle className="spin" size={17} />{t('邮件正在安全解析，请稍后刷新。')}</div>
+          <div className="message-notice"><LoaderCircle className="spin" size={17} />
+            {t(message.direction === 'outgoing'
+              ? '邮件已进入发送队列，系统正在可靠投递。'
+              : '邮件正在安全解析，请稍后刷新。')}
+          </div>
         )}
         {message.status === 'failed' && (
           <div className="message-notice message-notice--error">
-            <AlertCircle size={17} />{t('解析失败：{error}', { error: message.processingError || t('未知错误') })}
+            <AlertCircle size={17} />{t(
+              message.direction === 'outgoing' ? '发送失败：{error}' : '解析失败：{error}',
+              { error: message.processingError || t('未知错误') },
+            )}
+          </div>
+        )}
+        {message.direction === 'outgoing' && message.deliveryStatus === 'delivered' && (
+          <div className="message-notice message-notice--success">
+            <CheckCircle2 size={17} />{t('收件服务器已确认送达。')}
+          </div>
+        )}
+        {message.direction === 'outgoing' && message.deliveryStatus === 'delayed' && (
+          <div className="message-notice">
+            <Clock3 size={17} />{t('收件服务器暂时延迟接收，Resend 会继续尝试投递。')}
+          </div>
+        )}
+        {message.direction === 'outgoing'
+          && ['bounced', 'complained', 'failed', 'suppressed'].includes(message.deliveryStatus || '') && (
+          <div className="message-notice message-notice--error">
+            <AlertCircle size={17} />{t('邮件未能送达，详情可在 Resend 控制台查看。')}
           </div>
         )}
 

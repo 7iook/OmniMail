@@ -1,6 +1,18 @@
 export interface ParseJob {
+  kind?: 'parse'
   messageId: string
 }
+
+export interface OutboundJob {
+  kind: 'outbound'
+  messageId: string
+  userId: string
+  ip: string
+  auditAction: 'message.reply' | 'message.send'
+  auditDetail: Record<string, unknown>
+}
+
+export type MailQueueJob = ParseJob | OutboundJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -8,13 +20,18 @@ export interface BackupWorkflowParams {
   includeMail?: boolean
 }
 
+export interface CleanupWorkflowParams {
+  startedAt: number
+}
+
 export interface Env {
   DB: D1Database
   MAIL_BUCKET: R2Bucket
-  MAIL_QUEUE: Queue<ParseJob>
+  MAIL_QUEUE: Queue<MailQueueJob>
   ASSETS: Fetcher
   BACKUP_BUCKET?: R2Bucket
   BACKUP_WORKFLOW?: Workflow<BackupWorkflowParams>
+  CLEANUP_WORKFLOW?: Workflow<CleanupWorkflowParams>
   APP_NAME?: string
   APP_ORIGINS?: string
   SUPER_ADMIN_EMAIL?: string
@@ -22,6 +39,8 @@ export interface Env {
   SETUP_TOKEN?: string
   RESEND_API_KEY?: string
   RESEND_FROM?: string
+  RESEND_WEBHOOK_SECRET?: string
+  TOTP_ENCRYPTION_KEY?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string
@@ -94,6 +113,10 @@ export interface MessageRow {
   processing_error: string | null
   processing_attempts: number
   last_failed_at: number | null
+  client_request_id: string | null
+  provider_id: string | null
+  delivery_status: 'queued' | 'sent' | 'delivered' | 'delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed' | null
+  provider_event_at: number | null
   created_at: number
   updated_at: number
 }

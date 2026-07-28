@@ -338,6 +338,11 @@
   color: var(--danger);
 }
 
+.message-notice--success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
 .plain-body,
 .email-frame {
   display: block;

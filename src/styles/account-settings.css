@@ -371,6 +371,133 @@
   opacity: 0.52;
 }
 
+.mfa-loading,
+.mfa-warning,
+.mfa-state,
+.mfa-recovery {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.mfa-loading {
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mfa-warning,
+.mfa-recovery {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  color: var(--warning);
+}
+
+.mfa-warning p,
+.mfa-state p,
+.mfa-recovery > div {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+
+.mfa-warning strong,
+.mfa-state strong,
+.mfa-recovery strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.mfa-warning span,
+.mfa-state span,
+.mfa-recovery span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mfa-state {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mfa-state > .button {
+  margin-left: auto;
+}
+
+.mfa-state.is-enabled {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--line));
+  color: var(--success);
+}
+
+.mfa-setup,
+.mfa-enabled {
+  display: grid;
+  gap: 13px;
+}
+
+.mfa-setup-code {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  align-items: center;
+  gap: 15px;
+}
+
+.mfa-setup-code img {
+  width: 148px;
+  height: 148px;
+  border: 8px solid #fff;
+  border-radius: 10px;
+}
+
+.mfa-setup-code > div {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mfa-setup-code strong {
+  font-size: 13px;
+}
+
+.mfa-setup-code span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mfa-setup-code code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.mfa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mfa-recovery pre {
+  margin: 7px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: 12px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace;
+  user-select: text;
+}
+
 @media (max-width: 900px) {
   .account-settings-grid {
     grid-template-columns: 1fr;
@@ -378,6 +505,16 @@
 }
 
 @media (max-width: 440px) {
+  .mfa-setup-code {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .mfa-setup-code > div {
+    justify-items: stretch;
+    width: 100%;
+  }
+
   .account-summary-list {
     padding-inline: 12px;
   }

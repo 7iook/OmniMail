@@ -34,6 +34,11 @@
       "name": "omni-mail-backup",
       "binding": "BACKUP_WORKFLOW",
       "class_name": "OmniMailBackupWorkflow"
+    },
+    {
+      "name": "omni-mail-cleanup",
+      "binding": "CLEANUP_WORKFLOW",
+      "class_name": "OmniMailCleanupWorkflow"
     }
   ],
   "queues": {
