@@ -329,10 +329,14 @@
   min-width: 0;
 }
 
-.mailbox-domain-select__native {
+.mailbox-domain-select__trigger {
+  display: flex;
   width: 100%;
   height: 36px;
   min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -346,19 +350,94 @@
   transition: border-color 160ms ease, background 160ms ease;
 }
 
-.mailbox-domain-select__native:focus {
+.mailbox-domain-select__trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mailbox-domain-select__trigger > svg {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform 160ms ease;
+}
+
+.mailbox-domain-select__trigger:hover:not(:disabled),
+.mailbox-domain-select__trigger:focus-visible,
+.mailbox-domain-select.is-open .mailbox-domain-select__trigger {
   border-color: var(--line-strong);
   background: var(--surface);
 }
 
-.mailbox-domain-select__native:disabled {
+.mailbox-domain-select.is-open .mailbox-domain-select__trigger > svg {
+  transform: rotate(180deg);
+}
+
+.mailbox-domain-select__trigger:disabled {
   cursor: not-allowed;
   color: var(--text-tertiary);
 }
 
-.mailbox-domain-select__native option {
+.mailbox-domain-select__menu {
+  position: fixed;
+  z-index: 190;
+  display: grid;
+  gap: 3px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
   background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  scrollbar-width: thin;
+}
+
+.mailbox-domain-select__menu[data-placement="above"] {
+  transform: translateY(-100%);
+}
+
+.mailbox-domain-select__menu > button {
+  display: grid;
+  width: 100%;
+  min-height: 36px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  outline: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.mailbox-domain-select__menu > button:hover,
+.mailbox-domain-select__menu > button:focus-visible,
+.mailbox-domain-select__menu > button.is-selected {
+  background: var(--surface-muted);
   color: var(--text);
+}
+
+.mailbox-domain-select__menu > button > svg {
+  color: var(--text-tertiary);
+}
+
+.mailbox-domain-select__menu > button > svg:last-child {
+  color: var(--success);
+}
+
+.mailbox-domain-select__menu > button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mailbox-manager-note {

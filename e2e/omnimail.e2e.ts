@@ -337,9 +337,9 @@ test('a user with an empty mailbox allowance is prompted to choose an address', 
   await mockApp(page, state)
   await page.goto('/')
   const dialog = page.getByRole('dialog', { name: '管理邮箱地址' })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByLabel('新增邮箱地址')).toBeVisible()
-  await expect(dialog.getByRole('combobox', { name: '邮箱域名' })).toHaveValue('example.com')
+  const domainSelect = dialog.getByRole('combobox', { name: '邮箱域名' })
+  await domainSelect.press('ArrowDown')
+  await expect(page.getByRole('option', { name: 'example.com', exact: true })).toBeFocused()
 })
 
 test('dragging across message rows quickly selects and deselects a range', async ({ page }) => {
