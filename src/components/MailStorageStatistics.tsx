@@ -1,6 +1,8 @@
 import {
   AlertCircle,
   CheckCircle2,
+  Check,
+  ChevronDown,
   Database,
   HardDrive,
   LoaderCircle,
@@ -10,7 +12,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react'
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import {
   api,
   type MailCleanupFilter,
@@ -52,6 +54,76 @@ const initialFilter: MailCleanupFilter = {
   scopeValue: '',
   category: 'trash',
   olderThanDays: 30,
+}
+
+function CleanupSelect({
+  value,
+  label,
+  options,
+  onChange,
+}: {
+  value: string
+  label: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+  const selected = options.find((option) => option.value === value) || options[0]
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeWithEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside)
+      document.removeEventListener('keydown', closeWithEscape)
+    }
+  }, [open])
+
+  return (
+    <div className={`cleanup-select ${open ? 'is-open' : ''}`} ref={root}>
+      <button
+        className="cleanup-select__trigger"
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selected.label}</span>
+        <ChevronDown size={15} />
+      </button>
+      {open && (
+        <div className="cleanup-select__menu" id={menuId} role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <button
+              className={option.value === value ? 'is-selected' : ''}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              key={option.value}
+              onClick={() => {
+                onChange(option.value)
+                setOpen(false)
+              }}
+            >
+              <span>{option.label}</span>
+              {option.value === value && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function UsageLists({ storage }: { storage: MailStatistics['storage'] }) {
@@ -188,14 +260,19 @@ function MailCleanup({
       <form className="mail-cleanup-form" onSubmit={(event) => void loadPreview(event)}>
         <label>
           <span>{t('清理范围')}</span>
-          <select value={filter.scope} onChange={(event) => updateFilter({
-            scope: event.target.value as MailCleanupFilter['scope'],
-            scopeValue: '',
-          })}>
-            <option value="mailbox">{t('指定邮箱')}</option>
-            <option value="user">{t('指定用户')}</option>
-            <option value="all">{t('全站邮件')}</option>
-          </select>
+          <CleanupSelect
+            label={t('清理范围')}
+            value={filter.scope}
+            options={[
+              { value: 'mailbox', label: t('指定邮箱') },
+              { value: 'user', label: t('指定用户') },
+              { value: 'all', label: t('全站邮件') },
+            ]}
+            onChange={(value) => updateFilter({
+              scope: value as MailCleanupFilter['scope'],
+              scopeValue: '',
+            })}
+          />
         </label>
         {filter.scope !== 'all' && (
           <label>
@@ -215,25 +292,32 @@ function MailCleanup({
         )}
         <label>
           <span>{t('邮件类型')}</span>
-          <select value={filter.category} onChange={(event) => updateFilter({
-            category: event.target.value as MailCleanupFilter['category'],
-          })}>
-            <option value="trash">{t('垃圾箱邮件')}</option>
-            <option value="failed">{t('处理失败邮件')}</option>
-            <option value="incoming">{t('全部收件')}</option>
-            <option value="sent">{t('全部已发送')}</option>
-            <option value="all">{t('所有类型')}</option>
-          </select>
+          <CleanupSelect
+            label={t('邮件类型')}
+            value={filter.category}
+            options={[
+              { value: 'trash', label: t('垃圾箱邮件') },
+              { value: 'failed', label: t('处理失败邮件') },
+              { value: 'incoming', label: t('全部收件') },
+              { value: 'sent', label: t('全部已发送') },
+              { value: 'all', label: t('所有类型') },
+            ]}
+            onChange={(value) => updateFilter({
+              category: value as MailCleanupFilter['category'],
+            })}
+          />
         </label>
         <label>
           <span>{t('邮件时间早于')}</span>
-          <select value={filter.olderThanDays} onChange={(event) => updateFilter({
-            olderThanDays: Number(event.target.value),
-          })}>
-            {[1, 7, 30, 90, 180, 365].map((days) => (
-              <option value={days} key={days}>{t('{days} 天', { days })}</option>
-            ))}
-          </select>
+          <CleanupSelect
+            label={t('邮件时间早于')}
+            value={String(filter.olderThanDays)}
+            options={[1, 7, 30, 90, 180, 365].map((days) => ({
+              value: String(days),
+              label: t('{days} 天', { days }),
+            }))}
+            onChange={(value) => updateFilter({ olderThanDays: Number(value) })}
+          />
         </label>
         <button className="button button--secondary button--small" type="submit"
           disabled={previewing || cleaning || !scopeReady}>

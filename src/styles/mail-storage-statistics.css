@@ -199,7 +199,7 @@
 }
 
 .mail-cleanup-form input,
-.mail-cleanup-form select {
+.cleanup-select__trigger {
   width: 100%;
   min-width: 0;
   height: 38px;
@@ -209,14 +209,104 @@
   outline: 0;
   background: var(--surface-muted);
   color: var(--text);
+  cursor: pointer;
   font: inherit;
   font-size: 11px;
 }
 
 .mail-cleanup-form input:focus,
-.mail-cleanup-form select:focus {
+.cleanup-select__trigger:focus-visible {
   border-color: var(--accent);
   background: var(--surface);
+}
+
+.mail-cleanup-form input {
+  cursor: text;
+}
+
+.cleanup-select {
+  position: relative;
+  min-width: 0;
+}
+
+.cleanup-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.cleanup-select__trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cleanup-select__trigger > svg {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform 180ms ease;
+}
+
+.cleanup-select.is-open .cleanup-select__trigger {
+  border-color: var(--text-tertiary);
+  background: var(--surface);
+}
+
+.cleanup-select.is-open .cleanup-select__trigger > svg {
+  transform: rotate(180deg);
+}
+
+.cleanup-select__menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 3px;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.cleanup-select__menu > button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.cleanup-select__menu > button:hover,
+.cleanup-select__menu > button:focus-visible,
+.cleanup-select__menu > button.is-selected {
+  outline: 0;
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.cleanup-select__menu > button > svg {
+  flex: none;
+  color: var(--success);
 }
 
 .mail-cleanup-form .button {
@@ -368,5 +458,13 @@
 
   .storage-ranking-list > div {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cleanup-select__trigger,
+  .cleanup-select__trigger > svg,
+  .cleanup-select__menu > button {
+    transition: none;
   }
 }
