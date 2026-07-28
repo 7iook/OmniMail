@@ -1,19 +1,24 @@
 import type { Page } from '@playwright/test'
 
-export async function dragAcrossMessageRows(
-  page: Page,
-  startIndex: number,
-  endIndex: number,
-) {
-  const rows = page.locator('.message-row__main')
-  const start = await rows.nth(startIndex).boundingBox()
-  if (!start) throw new Error('Drag selection start row is not visible')
-  await page.mouse.move(start.x + 24, start.y + start.height / 2)
+async function messageRowCenter(page: Page, index: number) {
+  const box = await page.locator('.message-row__main').nth(index).boundingBox()
+  if (!box) throw new Error(`Drag selection row ${index} is not visible`)
+  return { x: box.x + 24, y: box.y + box.height / 2 }
+}
+
+export async function beginMessageRowDrag(page: Page, index: number) {
+  const start = await messageRowCenter(page, index)
+  await page.mouse.move(start.x, start.y)
   await page.mouse.down()
-  await page.mouse.move(start.x + 24, start.y + start.height / 2 + 8)
+  await page.mouse.move(start.x, start.y + 8)
   await page.locator('.message-list.is-bulk-mode').waitFor()
-  const end = await rows.nth(endIndex).boundingBox()
-  if (!end) throw new Error('Drag selection end row is not visible')
-  await page.mouse.move(end.x + 24, end.y + end.height / 2)
+}
+
+export async function moveMessageRowDrag(page: Page, index: number) {
+  const position = await messageRowCenter(page, index)
+  await page.mouse.move(position.x, position.y)
+}
+
+export async function endMessageRowDrag(page: Page) {
   await page.mouse.up()
 }

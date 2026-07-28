@@ -1,5 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { dragAcrossMessageRows } from './drag-selection'
+import { beginMessageRowDrag, endMessageRowDrag, moveMessageRowDrag } from './drag-selection'
 
 const user = {
   id: 'user-1',
@@ -350,14 +350,13 @@ test('dragging across message rows quickly selects and deselects a range', async
   ]
   await mockApp(page, state)
   await page.goto('/')
-  await page.getByRole('button', { name: '批量操作' }).click()
-  await page.getByRole('checkbox', { name: '选择邮件：Second message' }).check()
-  await dragAcrossMessageRows(page, 0, 2)
+  await beginMessageRowDrag(page, 0)
+  await moveMessageRowDrag(page, 2)
+  await expect(page.locator('.message-row.is-checked')).toHaveCount(3)
+  await moveMessageRowDrag(page, 1)
   await expect(page.locator('.message-row.is-checked')).toHaveCount(2)
-  await expect(page.locator('.message-row.is-checked', { hasText: 'Second message' })).toHaveCount(0)
-  await dragAcrossMessageRows(page, 0, 2)
-  await expect(page.locator('.message-row.is-checked')).toHaveCount(1)
-  await expect(page.locator('.message-row.is-checked')).toContainText('Second message')
+  await expect(page.locator('.message-row.is-checked', { hasText: 'Third message' })).toHaveCount(0)
+  await endMessageRowDrag(page)
 })
 test('single-message deletion requires confirmation', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })

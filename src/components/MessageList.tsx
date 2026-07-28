@@ -122,6 +122,7 @@ export function MessageList({
   loadingMore,
   onSelect,
   onToggleSelection,
+  onSetSelection,
   onSelectAll,
   onBulkAction,
   onStar,
@@ -138,6 +139,7 @@ export function MessageList({
   loadingMore: boolean
   onSelect: (message: MessageSummary) => void
   onToggleSelection: (message: MessageSummary) => void
+  onSetSelection: (message: MessageSummary, selected: boolean) => void
   onSelectAll: () => void
   onBulkAction: (action: BulkMessageAction) => void
   onStar: (message: MessageSummary) => void
@@ -150,21 +152,30 @@ export function MessageList({
     pointerId: number
     startX: number
     startY: number
+    anchorIndex: number
     lastIndex: number
     active: boolean
-    visited: Set<number>
+    select: boolean
+    initialSelectedIds: Set<string>
   } | null>(null)
 
   function applyDragSelection(index: number) {
     const current = drag.current
     if (!current || index < 0 || index >= messages.length) return
-    const step = index >= current.lastIndex ? 1 : -1
-    for (let cursor = current.lastIndex; ; cursor += step) {
-      if (!current.visited.has(cursor)) {
-        current.visited.add(cursor)
-        onToggleSelection(messages[cursor])
+    const previousStart = Math.min(current.anchorIndex, current.lastIndex)
+    const previousEnd = Math.max(current.anchorIndex, current.lastIndex)
+    const nextStart = Math.min(current.anchorIndex, index)
+    const nextEnd = Math.max(current.anchorIndex, index)
+    for (let cursor = previousStart; cursor <= previousEnd; cursor += 1) {
+      if (cursor < nextStart || cursor > nextEnd) {
+        const message = messages[cursor]
+        onSetSelection(message, current.initialSelectedIds.has(message.id))
       }
-      if (cursor === index) break
+    }
+    for (let cursor = nextStart; cursor <= nextEnd; cursor += 1) {
+      if (cursor < previousStart || cursor > previousEnd) {
+        onSetSelection(messages[cursor], current.select)
+      }
     }
     current.lastIndex = index
   }
@@ -179,9 +190,11 @@ export function MessageList({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      anchorIndex: index,
       lastIndex: index,
       active: false,
-      visited: new Set(),
+      select: !selectedIds.has(messages[index].id),
+      initialSelectedIds: new Set(selectedIds),
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -199,7 +212,7 @@ export function MessageList({
       suppressClick.current = true
       setBulkMode(true)
       setDragSelecting(true)
-      applyDragSelection(current.lastIndex)
+      onSetSelection(messages[current.anchorIndex], current.select)
     }
     event.preventDefault()
     const target = document.elementFromPoint(event.clientX, event.clientY)
