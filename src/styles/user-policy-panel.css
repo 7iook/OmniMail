@@ -10,6 +10,37 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+.user-policy-backdrop {
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: opacity 160ms ease-in;
+}
+
+.user-policy-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition-timing-function: ease-out;
+}
+
+.user-policy-backdrop .user-panel {
+  opacity: 0;
+  transform: translateY(8px) scale(0.992);
+  transition:
+    opacity 140ms ease-in,
+    transform 180ms ease-in;
+}
+
+.user-policy-backdrop.is-visible .user-panel {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 170ms ease-out,
+    transform 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .user-panel {
   width: min(100%, 510px);
   max-height: min(90vh, 760px);
@@ -345,4 +376,11 @@
   box-shadow: var(--shadow-lg);
   cursor: pointer;
   font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-policy-backdrop,
+  .user-policy-backdrop .user-panel {
+    transition: none;
+  }
 }

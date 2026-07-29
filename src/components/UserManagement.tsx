@@ -29,6 +29,7 @@ import { roleLabel } from '../lib/roles'
 import { AdminPageHeader } from './AdminPageHeader'
 import { TemporaryUserExpiry } from './TemporaryUserExpiry'
 import { UserBanDialog } from './UserBanDialog'
+import { UserPolicyPanel } from './UserPolicyPanel'
 
 const initialCreate: CreateManagedUser = {
   email: '',
@@ -506,10 +507,7 @@ export function UserManagement({
         )}
       </section>
 
-      {(selected || creating) && (
-        <div className="user-panel-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closePanel()
-        }}>
+      <UserPolicyPanel open={Boolean(selected || creating)} onClose={closePanel}>
           <section className="user-panel" role="dialog" aria-modal="true" aria-labelledby="user-panel-title">
             <header>
               <div>
@@ -574,8 +572,7 @@ export function UserManagement({
               </form>
             ) : null}
           </section>
-        </div>
-      )}
+      </UserPolicyPanel>
 
       {confirmingBan && selected && (
         <UserBanDialog

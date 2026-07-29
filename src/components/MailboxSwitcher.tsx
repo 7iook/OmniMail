@@ -569,9 +569,11 @@ export function MailboxSwitcher({
                 ))}
               </div>
             )}
-
             {(error || notice) && (
-              <p className={error ? 'switcher-feedback is-error' : 'switcher-feedback'} role={error ? 'alert' : 'status'}>
+              <p
+                className={`switcher-feedback${error ? ' is-error' : ''}${!managing && canManage ? ' is-above-footer' : ''}`}
+                role={error ? 'alert' : 'status'} onAnimationEnd={(event) => { if (event.animationName === 'switcher-feedback-out') setNotice('') }}
+              >
                 {error || notice}
               </p>
             )}

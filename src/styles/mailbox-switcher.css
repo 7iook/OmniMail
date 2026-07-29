@@ -507,20 +507,6 @@
   font-size: 11px;
 }
 
-.switcher-feedback {
-  margin: 0;
-  padding: 9px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--success-soft);
-  color: var(--success);
-  font-size: 12px;
-}
-
-.switcher-feedback.is-error {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
 .mailbox-hint {
   display: inline-flex;
   width: fit-content;
