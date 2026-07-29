@@ -27,6 +27,7 @@ import {
   type MailboxScope,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import { MailboxAddressOption } from './MailboxAddressOption'
 
 const SWITCHER_EXIT_MS = 190
 
@@ -332,6 +333,7 @@ export function MailboxSwitcher({
       setOpen(false)
       setManaging(false)
       setError('')
+      setNotice('')
       closeTimerRef.current = null
     }, reducedMotion ? 0 : SWITCHER_EXIT_MS)
   }
@@ -339,6 +341,17 @@ export function MailboxSwitcher({
   function select(nextScope: MailboxScope) {
     onScopeChange(nextScope)
     close()
+  }
+
+  async function copyMailbox(address: string) {
+    setError('')
+    setNotice('')
+    try {
+      await navigator.clipboard.writeText(address)
+      setNotice(t('已复制：{address}', { address }))
+    } catch {
+      setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
+    }
   }
 
   async function add(event: FormEvent) {
@@ -544,22 +557,13 @@ export function MailboxSwitcher({
                       {scopeMatches(scope, 'domain', domain) && <Check size={16} />}
                     </button>
                     <div className="mailbox-address-list">
-                      {addresses.map((mailbox) => (
-                        <button
-                          className={scopeMatches(scope, 'mailbox', mailbox.address)
-                            ? 'is-selected'
-                            : ''}
-                          type="button"
-                          key={mailbox.address}
-                          aria-pressed={scopeMatches(scope, 'mailbox', mailbox.address)}
-                          onClick={() => select({ type: 'mailbox', value: mailbox.address })}
-                        >
-                          <AtSign size={15} />
-                          <span>{mailbox.address}</span>
-                          {mailbox.isPrimary && <small>{t('主邮箱')}</small>}
-                          {scopeMatches(scope, 'mailbox', mailbox.address) && <Check size={15} />}
-                        </button>
-                      ))}
+                      {addresses.map((mailbox) => <MailboxAddressOption
+                        key={mailbox.address}
+                        mailbox={mailbox}
+                        selected={scopeMatches(scope, 'mailbox', mailbox.address)}
+                        onSelect={() => select({ type: 'mailbox', value: mailbox.address })}
+                        onCopy={() => void copyMailbox(mailbox.address)}
+                      />)}
                     </div>
                   </section>
                 ))}

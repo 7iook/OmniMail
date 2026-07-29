@@ -232,6 +232,7 @@ export const enCore: Record<string, string> = {
   '正在生成…': 'Creating…',
   '一键生成邮箱': 'Create mailbox',
   '复制当前邮箱': 'Copy current mailbox',
+  '复制邮箱地址：{address}': 'Copy mailbox address: {address}',
   '暂无可复制邮箱': 'No mailbox to copy',
   '刷新邮件': 'Refresh messages',
   '刷新': 'Refresh',

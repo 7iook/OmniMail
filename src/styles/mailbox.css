@@ -266,7 +266,6 @@
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-  animation: list-content-enter 220ms ease both;
 }
 
 .message-list:hover,
@@ -292,14 +291,6 @@
 .message-list:hover::-webkit-scrollbar-thumb,
 .message-list.is-scrollbar-active::-webkit-scrollbar-thumb {
   background-color: var(--line-strong);
-}
-
-.list-state {
-  animation: list-content-enter 220ms ease both;
-}
-
-@keyframes list-content-enter {
-  from { opacity: 0.58; }
 }
 
 .message-row {

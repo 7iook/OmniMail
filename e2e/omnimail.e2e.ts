@@ -504,10 +504,14 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()
 })
 test('workspace navigation has durable URLs and browser history', async ({ page }) => {
-  await mockApp(page)
+  await mockApp(page); await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
+  const mailTransition = page.locator('.page-content-enter'); await expect(mailTransition).toHaveCSS('animation-name', 'page-content-settle')
+  expect(await mailTransition.evaluate((element) => element.getAnimations()[0]?.effect?.getKeyframes().every((frame) => !('opacity' in frame)))).toBe(true)
+  await expect(page.locator('.message-list')).toHaveCSS('animation-name', 'none')
   await expect(page).toHaveURL(/\/mail\/inbox$/)
   await page.getByRole('button', { name: '用户' }).click()
+  await expect(page.locator('.admin-workspace')).toHaveCSS('animation-name', 'page-content-settle')
   await expect(page).toHaveURL(/\/admin\/users$/)
   await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
   await page.getByRole('button', { name: '系统设置' }).click()
@@ -547,14 +551,12 @@ test('disabling a user uses the in-app safety dialog', async ({ page }) => {
   expect(await page.evaluate(() => (
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true)
-
   await dialog.getByRole('button', { name: '取消' }).click()
   await expect(dialog).toHaveCount(0)
   await page.getByRole('button', { name: '保存权限' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: '确认封禁' }).click()
   await expect(page.getByText('账户已封禁')).toBeVisible()
 })
-
 test('invitation lifecycle has a dedicated responsive admin page', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -578,7 +580,6 @@ test('invitation lifecycle has a dedicated responsive admin page', async ({ page
     ))).toBe(true)
   }
 })
-
 test('administrators can generate regular user invitation links', async ({ page }) => {
   const state = await mockApp(page)
   await page.goto('/admin/invites')
@@ -590,7 +591,6 @@ test('administrators can generate regular user invitation links', async ({ page 
   await expect(page.locator('.invite-card').first()).toContainText('普通用户')
   await expect(page.locator('.invite-card').first()).toContainText('长期有效')
 })
-
 test('administrators can enable unassigned mail from system settings', async ({ page }) => {
   const state = await mockApp(page)
   await page.goto('/admin/settings')
