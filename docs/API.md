@@ -305,6 +305,8 @@ Authorization: Bearer om_at_...
 - `limit` 范围为 1–100；邮件默认 30，用户默认 50，邀请默认 30。
 - `cursor` 是不透明值，客户端不应解析、修改或长期保存。
 - 翻页期间必须保持 `folder`、`q`、`mailbox` 和 `domain` 等筛选参数不变。
+- 邮件列表的 `q` 会匹配发件人、主题和已建立索引的正文；历史邮件索引由定时
+  任务逐步补齐。
 - `nextCursor` 为 `null` 或 `hasMore` 为 `false` 时已经到达最后一页。
 - 排序使用“时间 + 唯一 ID”，新邮件到达时不会导致已读取页面重复或跳项。
 
@@ -339,6 +341,39 @@ Content-Type: application/json
 接口同时保存纯文本和安全生成的 HTML 正文，并将结果写入“已发送”；同一个
 `idempotencyKey` 不会重复投递。
 
+### 草稿与发件附件
+
+每个用户保存一份服务端草稿：
+
+```http
+GET /api/draft
+PUT /api/draft
+DELETE /api/draft
+```
+
+`PUT` 的 JSON 字段为 `mailboxAddress`、`to`、`subject` 和 `text`。草稿允许收件人、
+主题或正文暂未填写完整；真正发送时仍执行完整邮件校验。
+
+附件使用 `multipart/form-data` 上传，字段名为 `file`：
+
+```http
+POST /api/draft/attachments
+DELETE /api/draft/attachments/{attachmentId}
+```
+
+单个附件最多 5 MiB，每封最多 5 个且合计最多 10 MiB。上传时即计入用户空间；
+删除或丢弃草稿会释放空间。完成草稿后提交幂等请求：
+
+```http
+POST /api/draft/send
+Content-Type: application/json
+
+{ "idempotencyKey": "request_12345678" }
+```
+
+服务端会原子地把草稿附件转入已发送邮件，再异步交给 Resend 投递。首次入队失败时，
+使用相同 `idempotencyKey` 重试不会重复创建邮件。
+
 ### 批量邮件操作
 
 ```http
@@ -366,6 +401,23 @@ Content-Type: application/json
 | `GET /api/messages` | `messages` | 当前用户自己的邮箱 |
 | `GET /api/admin/users` | `users` | 管理员 |
 | `GET /api/admin/invites` | `invites` | 管理员 |
+
+## 备份浏览与只读演练
+
+管理员可以按固定分类分页浏览私有备份桶：
+
+```http
+GET /api/admin/backups/objects?prefix=d1/daily/&limit=30
+GET /api/admin/backups/download?key=d1%2Fdaily%2F2026-07-29.sql
+POST /api/admin/backups/drill
+Content-Type: application/json
+
+{ "key": "d1/daily/2026-07-29.sql" }
+```
+
+允许的分类为 `d1/daily/`、`d1/weekly/`、`d1/monthly/`、`mail/raw/` 和
+`mail/sent/`。演练只读取对象样本并检查 D1 导出、原始邮件或发件正文结构，
+不会导入数据、修改 D1 或覆盖生产对象；执行结果会写入操作日志。
 
 ## 操作日志
 
@@ -412,6 +464,10 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
 | `GET /api/messages` | 邮件列表、筛选与分页 |
 | `POST /api/messages` | 使用 Resend 主动发送邮件 |
+| `GET/PUT/DELETE /api/draft` | 读取、保存或丢弃当前用户草稿 |
+| `POST /api/draft/attachments` | 上传草稿附件 |
+| `DELETE /api/draft/attachments/{id}` | 删除草稿附件 |
+| `POST /api/draft/send` | 幂等发送草稿及附件 |
 | `GET /api/messages/{id}` | 邮件正文和附件元数据 |
 | `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
 | `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
@@ -428,6 +484,9 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |
 | `PATCH /api/admin/settings/storage` | 更新备份开关、保留期和默认配额 |
 | `POST /api/admin/backups` | 手动启动一次备份 |
+| `GET /api/admin/backups/objects` | 分页浏览备份对象 |
+| `GET /api/admin/backups/download` | 下载指定备份对象 |
+| `POST /api/admin/backups/drill` | 对指定备份执行只读结构演练 |
 | `PATCH /api/admin/settings/registration` | 管理员开启或关闭外部注册 |
 | `PATCH /api/admin/settings/registration-domains` | 管理员设置注册邮箱允许/禁止规则 |
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |

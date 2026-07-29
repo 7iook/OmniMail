@@ -70,13 +70,14 @@ export async function addMailbox(
   }
   if (existing?.is_active) return json({ error: '这个邮箱地址已经启用。' }, 409)
 
+  const domain = await env.DB.prepare(
+    'SELECT is_active FROM domains WHERE name = ?',
+  ).bind(mailboxDomain(address)).first<{ is_active: number }>()
+  if (!domain?.is_active) {
+    return json({ error: '这个域名尚未在系统设置中启用。' }, 403)
+  }
+
   if (!existing) {
-    const domain = await env.DB.prepare(
-      'SELECT is_active FROM domains WHERE name = ?',
-    ).bind(mailboxDomain(address)).first<{ is_active: number }>()
-    if (!domain?.is_active) {
-      return json({ error: '这个域名尚未在系统设置中启用。' }, 403)
-    }
     const reservation = await env.DB.prepare(
       `SELECT 1 AS reserved FROM temporary_invites
         WHERE assigned_address = ? AND address_mode = 'assigned'
@@ -136,6 +137,14 @@ export async function updateMailbox(
   if (!mailbox) return json({ error: '邮箱地址不存在。' }, 404)
   if (mailbox.is_primary && !body.isActive) {
     return json({ error: '主邮箱不能停用。' }, 409)
+  }
+  if (body.isActive) {
+    const domain = await env.DB.prepare(
+      'SELECT is_active FROM domains WHERE name = ?',
+    ).bind(mailboxDomain(address)).first<{ is_active: number }>()
+    if (!domain?.is_active) {
+      return json({ error: '这个域名尚未在系统设置中启用。' }, 403)
+    }
   }
 
   await env.DB.prepare(

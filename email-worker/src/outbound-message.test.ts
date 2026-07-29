@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deliverOutboundMessage, sendOutboundMessage } from './outbound-message'
+import {
+  arrayBufferToBase64,
+  deliverOutboundMessage,
+  sendOutboundMessage,
+} from './outbound-message'
 import type { Env, SessionUser } from './types'
 
 const user: SessionUser = {
@@ -15,7 +19,10 @@ const user: SessionUser = {
   temporaryExpiresAt: null,
 }
 
-function environment(firstResult: unknown = null) {
+function environment(
+  firstResult: unknown = null,
+  attachmentRows: Array<{ filename: string; r2_key: string }> = [],
+) {
   const statements: Array<{ sql: string; bindings: unknown[] }> = []
   const put = vi.fn(async () => undefined)
   const send = vi.fn(async () => undefined)
@@ -28,6 +35,9 @@ function environment(firstResult: unknown = null) {
         return this
       },
       first: async () => firstResult,
+      all: async () => ({
+        results: sql.includes('FROM attachments') ? attachmentRows : [],
+      }),
       run: async () => ({ meta: { changes: 1 } }),
     }
     return statement
@@ -49,6 +59,10 @@ function environment(firstResult: unknown = null) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('outbound delivery', () => {
+  it('encodes binary attachment content for Resend', () => {
+    expect(arrayBufferToBase64(new Uint8Array([0, 1, 2, 255]).buffer)).toBe('AAEC/w==')
+  })
+
   it('stores and queues a new outgoing message before returning', async () => {
     const { env, put, send } = environment()
     const response = await sendOutboundMessage(env, user, {
@@ -71,6 +85,59 @@ describe('outbound delivery', () => {
     }))
   })
 
+  it('atomically transfers draft attachments into the outgoing message', async () => {
+    const { env, statements } = environment()
+    const response = await sendOutboundMessage(env, user, {
+      mailboxAddress: 'owner@example.com',
+      recipients: ['friend@example.net'],
+      subject: 'Files',
+      text: 'Attached',
+      idempotencyKey: 'request_attachments',
+      draftUserId: user.id,
+      attachments: [{
+        id: 'attachment-1',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 100,
+        r2Key: 'drafts/user-1/attachment-1',
+      }],
+      auditAction: 'message.send',
+      auditDetail: { attachmentCount: 1 },
+    }, '127.0.0.1')
+
+    expect(response.status).toBe(202)
+    expect(statements.some(({ sql }) => sql.includes('INSERT INTO attachments'))).toBe(true)
+    expect(statements.some(({ sql }) => sql.includes('DELETE FROM drafts'))).toBe(true)
+    expect(statements.some(({ sql }) => sql.includes('attachment_count'))).toBe(true)
+  })
+
+  it('requeues an idempotent send after its first queue attempt failed', async () => {
+    const { env, send } = environment({
+      id: 'out-retry',
+      status: 'failed',
+      provider_id: null,
+      body_key: 'bodies/out-retry.json',
+    })
+    const response = await sendOutboundMessage(env, user, {
+      mailboxAddress: 'owner@example.com',
+      recipients: ['friend@example.net'],
+      subject: 'Retry',
+      text: 'Message body',
+      idempotencyKey: 'request_retry',
+      auditAction: 'message.send',
+      auditDetail: { recipient: 'friend@example.net' },
+    }, '127.0.0.1')
+
+    expect(response.status).toBe(202)
+    expect(await response.json()).toMatchObject({
+      message: { id: 'out-retry', status: 'processing' },
+    })
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'outbound',
+      messageId: 'out-retry',
+    }))
+  })
+
   it('sends a queued message idempotently and records the provider id', async () => {
     const { env, statements } = environment({
       id: 'out-1',
@@ -83,6 +150,7 @@ describe('outbound delivery', () => {
       in_reply_to: null,
       references_header: null,
       client_request_id: 'request_12345678',
+      domain_is_active: 1,
     })
     env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
       text: 'Message body',
@@ -113,5 +181,76 @@ describe('outbound delivery', () => {
     expect(statements.some(({ sql, bindings }) => (
       sql.includes('INSERT INTO audit_logs') && bindings.includes('message.send')
     ))).toBe(true)
+  })
+
+  it('does not deliver a queued message after its domain is disabled', async () => {
+    const { env } = environment({
+      id: 'out-1',
+      status: 'processing',
+      mailbox_address: 'owner@example.com',
+      sender_name: 'Owner',
+      recipients_json: '["friend@example.net"]',
+      subject: 'Hello',
+      body_key: 'bodies/out-1.json',
+      in_reply_to: null,
+      references_header: null,
+      client_request_id: 'request_12345678',
+      domain_is_active: 0,
+    })
+    const resend = vi.fn()
+    vi.stubGlobal('fetch', resend)
+
+    await expect(deliverOutboundMessage(env, {
+      kind: 'outbound',
+      messageId: 'out-1',
+      userId: user.id,
+      ip: '127.0.0.1',
+      auditAction: 'message.send',
+      auditDetail: { recipient: 'friend@example.net' },
+    })).rejects.toMatchObject({
+      message: 'Outbound mailbox domain is disabled',
+      retryable: false,
+    })
+    expect(resend).not.toHaveBeenCalled()
+  })
+
+  it('includes stored attachments in the Resend payload', async () => {
+    const { env } = environment({
+      id: 'out-1',
+      status: 'processing',
+      mailbox_address: 'owner@example.com',
+      sender_name: 'Owner',
+      recipients_json: '["friend@example.net"]',
+      subject: 'Files',
+      body_key: 'bodies/out-1.json',
+      in_reply_to: null,
+      references_header: null,
+      client_request_id: 'request_attachments',
+      domain_is_active: 1,
+    }, [{ filename: 'report.bin', r2_key: 'drafts/user-1/attachment-1' }])
+    env.MAIL_BUCKET.get = vi.fn(async (key: string) => (
+      key === 'bodies/out-1.json'
+        ? new Response(JSON.stringify({ text: 'Attached', html: '<p>Attached</p>' }))
+        : new Response(new Uint8Array([0, 1, 2, 255]))
+    )) as typeof env.MAIL_BUCKET.get
+    const resend = vi.fn(async () => Response.json({ id: 'resend-attachment' }))
+    vi.stubGlobal('fetch', resend)
+
+    await deliverOutboundMessage(env, {
+      kind: 'outbound',
+      messageId: 'out-1',
+      userId: user.id,
+      ip: '127.0.0.1',
+      auditAction: 'message.send',
+      auditDetail: { attachmentCount: 1 },
+    })
+
+    const payload = JSON.parse(String(resend.mock.calls[0][1]?.body)) as {
+      attachments: Array<{ filename: string; content: string }>
+    }
+    expect(payload.attachments).toEqual([{
+      filename: 'report.bin',
+      content: 'AAEC/w==',
+    }])
   })
 })

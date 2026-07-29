@@ -26,6 +26,7 @@ interface SenderRow {
 interface StorageMessageRow {
   message_count: number
   used_bytes: number
+  primary_bytes: number
   trash_count: number
   trash_bytes: number
   failed_count: number
@@ -36,6 +37,7 @@ interface StorageMessageRow {
 interface StorageAttachmentRow {
   attachment_count: number
   attachment_bytes: number
+  draft_attachment_bytes: number
 }
 
 interface StorageQuotaRow {
@@ -172,6 +174,7 @@ export async function mailStatistics(
     env.DB.prepare(
       `SELECT COUNT(*) AS message_count,
               COALESCE(SUM(quota_bytes), 0) AS used_bytes,
+              COALESCE(SUM(stored_bytes), 0) AS primary_bytes,
               SUM(CASE WHEN folder = 'trash' THEN 1 ELSE 0 END) AS trash_count,
               COALESCE(SUM(CASE WHEN folder = 'trash' THEN quota_bytes ELSE 0 END), 0)
                 AS trash_bytes,
@@ -183,9 +186,12 @@ export async function mailStatistics(
          FROM messages`,
     ).bind(today),
     env.DB.prepare(
-      `SELECT COUNT(*) AS attachment_count,
-              COALESCE(SUM(size), 0) AS attachment_bytes
-         FROM attachments`,
+      `SELECT
+        (SELECT COUNT(*) FROM attachments)
+          + (SELECT COUNT(*) FROM draft_attachments) AS attachment_count,
+        (SELECT COALESCE(SUM(size), 0) FROM attachments)
+          + (SELECT COALESCE(SUM(size), 0) FROM draft_attachments) AS attachment_bytes,
+        (SELECT COALESCE(SUM(size), 0) FROM draft_attachments) AS draft_attachment_bytes`,
     ),
     env.DB.prepare(
       `SELECT COUNT(*) AS user_count,
@@ -262,7 +268,8 @@ export async function mailStatistics(
       userCount: Number(storageQuotas.user_count || 0),
       todayReceived: Number(summary.today_received || 0),
       failedAttemptsToday: Number(storageMessages.failed_attempts_today || 0),
-      usedBytes: Number(storageMessages.used_bytes || 0),
+      usedBytes: Number(storageMessages.primary_bytes || 0)
+        + Number(storageAttachments.draft_attachment_bytes || 0),
     }),
     storage: {
       messageCount: Number(storageMessages.message_count || 0),

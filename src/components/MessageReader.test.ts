@@ -12,11 +12,14 @@ import {
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
-    expect(emailImageSources(false)).toBe('data: cid:')
+    expect(emailImageSources(false)).toBe('data:')
   })
 
-  it('allows HTTPS image requests only when enabled', () => {
-    expect(emailImageSources(true)).toBe('data: cid: https:')
+  it('allows only proxied same-origin images when enabled', () => {
+    expect(emailImageSources(
+      true,
+      'https://mail.example.com/api/remote-images',
+    )).toBe('data: https://mail.example.com/api/remote-images')
   })
 
   it('proxies public HTTPS images through OmniMail', () => {

@@ -32,6 +32,7 @@ import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
 import { errorMessage } from './lib/errorMessage'
 import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
 import { useSessionExpiry } from './lib/useSessionExpiry'
+import { useNewMailNotifications } from './lib/useNewMailNotifications'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
@@ -76,12 +77,10 @@ function Mailbox({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
-  const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(
-    () => deploymentGuideUnseen(user),
-  )
+  const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
+  const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
   function closeDeploymentWizard() {
-    markDeploymentGuideSeen()
-    setDeploymentWizardOpen(false)
+    markDeploymentGuideSeen(); setDeploymentWizardOpen(false)
   }
   const loadMailboxes = useCallback(async () => {
     try {
@@ -130,6 +129,7 @@ function Mailbox({
         folder, deferredQuery, scope, undefined, quiet ? messageVersion : undefined,
       )
       if (result.unchanged) return false
+      await mailNotifications.track(quiet, result.messages, folder === 'inbox' && !deferredQuery && scope.type === 'all')
       setMessageVersion(result.version)
       setMessages(result.messages)
       setSelectedMessageIds((current) => new Set(
@@ -152,7 +152,7 @@ function Mailbox({
       setListLoading(false)
       setRefreshing(false)
     }
-  }, [deferredQuery, folder, messageVersion, onLogout, scope, selectedId])
+  }, [deferredQuery, folder, mailNotifications.track, messageVersion, onLogout, scope, selectedId])
 
   async function loadMoreMessages() {
     if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
@@ -420,6 +420,7 @@ function Mailbox({
             canGenerate={isAdminRole(user.role) || user.canCreateMailboxes}
             canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
             refreshing={refreshing}
+            notifications={mailNotifications}
             onRefresh={() => void loadMessages(true)}
             onCopied={(address) => {
               setError('')
@@ -440,7 +441,7 @@ function Mailbox({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('搜索发件人或主题')}
+            placeholder={t('搜索发件人、主题或正文')}
             type="search"
           />
           {query && (

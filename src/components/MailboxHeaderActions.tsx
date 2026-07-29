@@ -1,4 +1,4 @@
-import { Copy, RefreshCw, SquarePen } from 'lucide-react'
+import { Bell, BellOff, Copy, RefreshCw, SquarePen } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ManagedDomain,
@@ -6,6 +6,7 @@ import type {
   MailboxScope,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import type { MailNotificationControls } from '../lib/useNewMailNotifications'
 import { ComposeDialog } from './ComposeDialog'
 import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
@@ -16,6 +17,7 @@ interface Props {
   canGenerate: boolean
   canCompose: boolean
   refreshing: boolean
+  notifications: MailNotificationControls
   onRefresh: () => void
   onCopied: (address: string) => void
   onCopyError: () => void
@@ -30,6 +32,7 @@ export function MailboxHeaderActions({
   canGenerate,
   canCompose,
   refreshing,
+  notifications,
   onRefresh,
   onCopied,
   onCopyError,
@@ -77,6 +80,17 @@ export function MailboxHeaderActions({
         disabled={!canGenerate}
         onCreated={onMailboxCreated}
       />
+      {notifications.supported && (
+        <button
+          className="icon-button"
+          type="button"
+          onClick={notifications.toggle}
+          aria-label={t(notifications.enabled ? '关闭新邮件通知' : '开启新邮件通知')}
+          data-tooltip={t(notifications.enabled ? '关闭新邮件通知' : '开启新邮件通知')}
+        >
+          {notifications.enabled ? <Bell size={17} /> : <BellOff size={17} />}
+        </button>
+      )}
       <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>

@@ -3,6 +3,8 @@ import {
   baseMailboxAddress,
   consumeEmailQueue,
   mailboxForRecipient,
+  MAX_INBOUND_MESSAGE_BYTES,
+  parseMessage,
   queueFailureStatus,
   receiveEmail,
   replySubject,
@@ -49,8 +51,30 @@ describe('mail helpers', () => {
       deliveredTo: 'unknown@example.com',
     })
     const ownerLookup = statements.find(({ sql }) => sql.includes('FROM users u'))
+    const mailboxLookup = statements.find(({ sql }) => sql.includes('FROM mailboxes mb'))
+    expect(mailboxLookup?.sql).toContain('FROM domains d')
+    expect(mailboxLookup?.bindings).toContain('example.com')
     expect(ownerLookup?.sql).toContain("s.key = 'unassigned_mail_enabled'")
     expect(ownerLookup?.sql).toContain('FROM domains d')
+  })
+
+  it('rejects oversized messages before reading or storing the raw stream', async () => {
+    const database = { prepare: vi.fn() }
+    const message = {
+      to: 'owner@example.com',
+      from: 'sender@example.net',
+      rawSize: MAX_INBOUND_MESSAGE_BYTES + 1,
+      raw: new Response('not read').body,
+      headers: new Headers(),
+      setReject: vi.fn(),
+    }
+
+    await receiveEmail(message as unknown as ForwardableEmailMessage, {
+      DB: database,
+    } as unknown as Env)
+
+    expect(message.setReject).toHaveBeenCalledWith('Message exceeds the 20 MiB OmniMail limit')
+    expect(database.prepare).not.toHaveBeenCalled()
   })
 
   it('stores unassigned mail with its original recipient', async () => {
@@ -151,5 +175,102 @@ describe('mail helpers', () => {
     expect(queueFailureStatus(1)).toBe('processing')
     expect(queueFailureStatus(2)).toBe('processing')
     expect(queueFailureStatus(3)).toBe('failed')
+  })
+
+  it('persists Reply-To and physical object bytes after parsing', async () => {
+    const rawMessage = [
+      'From: Sender <sender@example.net>',
+      'Reply-To: Support <support@example.org>',
+      'To: owner@example.com',
+      'Subject: Test',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'Hello',
+    ].join('\r\n')
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const database = {
+      prepare(sql: string) {
+        const entry = { sql, bindings: [] as unknown[] }
+        const statement = {
+          bind(...bindings: unknown[]) {
+            entry.bindings = bindings
+            statements.push(entry)
+            return statement
+          },
+          first: async () => ({
+            id: 'message-1',
+            status: 'processing',
+            raw_key: 'raw/message-1.eml',
+            sender_address: 'sender@example.net',
+            subject: 'Test',
+            received_at: 1,
+            size: rawMessage.length,
+          }),
+        }
+        return statement
+      },
+      batch: vi.fn().mockResolvedValue([]),
+    }
+    const bucket = {
+      get: vi.fn().mockResolvedValue(new Response(rawMessage)),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    }
+
+    await parseMessage(
+      { messageId: 'message-1' },
+      { DB: database, MAIL_BUCKET: bucket } as unknown as Env,
+    )
+
+    const update = statements.find(({ sql }) => sql.includes('UPDATE messages SET'))
+    expect(update?.sql).toContain('reply_to_json = ?')
+    expect(update?.sql).toContain('stored_bytes = ?')
+    expect(update?.bindings).toContain('["support@example.org"]')
+    expect(update?.bindings).toContainEqual(expect.any(Number))
+  })
+
+  it('removes newly written R2 objects when the parse transaction fails', async () => {
+    const rawMessage = [
+      'From: sender@example.net',
+      'To: owner@example.com',
+      'Subject: Test',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'Hello',
+    ].join('\r\n')
+    const database = {
+      prepare(sql: string) {
+        const statement = {
+          bind() {
+            return statement
+          },
+          first: async () => sql.includes('SELECT * FROM messages')
+            ? {
+                id: 'message-1',
+                status: 'processing',
+                raw_key: 'raw/message-1.eml',
+                sender_address: 'sender@example.net',
+                subject: 'Test',
+                received_at: 1,
+                size: rawMessage.length,
+              }
+            : null,
+        }
+        return statement
+      },
+      batch: vi.fn().mockRejectedValue(new Error('D1 transaction failed')),
+    }
+    const bucket = {
+      get: vi.fn().mockResolvedValue(new Response(rawMessage)),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    }
+
+    await expect(parseMessage(
+      { messageId: 'message-1' },
+      { DB: database, MAIL_BUCKET: bucket } as unknown as Env,
+    )).rejects.toThrow('D1 transaction failed')
+
+    expect(bucket.delete).toHaveBeenCalledWith(['bodies/message-1.json'])
   })
 })

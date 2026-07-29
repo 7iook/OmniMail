@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { validateNewMessage, type NewMessageInput } from './send-message'
+import { sendMessage, validateNewMessage, type NewMessageInput } from './send-message'
+import type { Env, SessionUser } from './types'
 
 const validInput: NewMessageInput = {
   mailboxAddress: ' Owner@Example.COM ',
@@ -33,5 +34,37 @@ describe('validateNewMessage', () => {
     [{ ...validInput, idempotencyKey: 'short' }, '无效的请求标识。'],
   ] satisfies Array<[NewMessageInput, string]>)('rejects invalid input', (input, error) => {
     expect(validateNewMessage(input)).toEqual({ error })
+  })
+
+  it('does not send from a mailbox whose domain is disabled', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const database = {
+      prepare(sql: string) {
+        const entry = { sql, bindings: [] as unknown[] }
+        const statement = {
+          bind(...bindings: unknown[]) {
+            entry.bindings = bindings
+            statements.push(entry)
+            return statement
+          },
+          first: async () => null,
+        }
+        return statement
+      },
+    }
+    const response = await sendMessage(
+      { DB: database, RESEND_API_KEY: 're_test' } as unknown as Env,
+      {
+        id: 'user-1',
+        role: 'user',
+        canReply: true,
+      } as SessionUser,
+      validInput,
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(404)
+    expect(statements[0]?.sql).toContain('FROM domains d')
+    expect(statements[0]?.bindings).toContain('example.com')
   })
 })

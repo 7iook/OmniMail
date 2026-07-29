@@ -1,5 +1,6 @@
 import PostalMime from 'postal-mime'
 import { archiveIncomingMessage } from './mail-archive'
+import { indexStoredMessage, messageSearchStatement } from './message-search'
 import { releaseStorage, reserveStorage } from './message-storage'
 import { deliverOutboundMessage, OutboundDeliveryError } from './outbound-message'
 import { ensureSchema } from './schema'
@@ -11,6 +12,7 @@ type ParsedAddress = {
 }
 
 const UNASSIGNED_MAILBOX = '__unassigned__@omnimail.invalid'
+export const MAX_INBOUND_MESSAGE_BYTES = 20 * 1024 * 1024
 
 function normalizeAddress(value: string): string {
   return value.trim().toLowerCase()
@@ -85,6 +87,8 @@ export async function mailboxForRecipient(
 ): Promise<{ address: string; userId: string; deliveredTo: string | null } | null> {
   const exact = normalizeAddress(recipient)
   const base = baseMailboxAddress(recipient)
+  const at = exact.lastIndexOf('@')
+  const domain = at > 0 ? exact.slice(at + 1) : ''
   const row = await env.DB.prepare(
     `SELECT mb.address, mb.user_id
        FROM mailboxes mb
@@ -94,13 +98,14 @@ export async function mailboxForRecipient(
         AND mb.address IN (?, ?)
         AND u.status = 'active'
         AND u.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM domains d WHERE d.name = ? AND d.is_active = 1
+        )
       ORDER BY CASE WHEN mb.address = ? THEN 0 ELSE 1 END
       LIMIT 1`,
-  ).bind(exact, base, exact).first<{ address: string; user_id: string }>()
+  ).bind(exact, base, domain, exact).first<{ address: string; user_id: string }>()
   if (row) return { address: row.address, userId: row.user_id, deliveredTo: null }
 
-  const at = exact.lastIndexOf('@')
-  const domain = at > 0 ? exact.slice(at + 1) : ''
   const ownerEmail = normalizeAddress(env.SUPER_ADMIN_EMAIL || '')
   if (!domain || !ownerEmail) return null
   const catchAllOwner = await env.DB.prepare(
@@ -135,6 +140,10 @@ export async function mailboxForRecipient(
 
 export async function receiveEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   await ensureSchema(env.DB)
+  if (message.rawSize > MAX_INBOUND_MESSAGE_BYTES) {
+    message.setReject('Message exceeds the 20 MiB OmniMail limit')
+    return
+  }
   const mailbox = await mailboxForRecipient(env, message.to)
   if (!mailbox) {
     message.setReject('Mailbox unavailable')
@@ -172,8 +181,8 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
       `INSERT OR IGNORE INTO messages (
         id, mailbox_address, direction, status, folder, message_id,
         sender_address, delivered_to, recipients_json, subject, received_at,
-        raw_key, size, quota_bytes
-      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        raw_key, size, quota_bytes, stored_bytes
+      ) VALUES (?, ?, 'incoming', 'processing', 'inbox', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       mailbox.address,
@@ -185,6 +194,7 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
       now,
       rawKey,
       message.rawSize,
+      quotaBytes,
       quotaBytes,
     ).run()
 
@@ -217,7 +227,7 @@ export async function receiveEmail(message: ForwardableEmailMessage, env: Env): 
   }
 }
 
-async function parseMessage(job: ParseJob, env: Env): Promise<void> {
+export async function parseMessage(job: ParseJob, env: Env): Promise<void> {
   const record = await env.DB.prepare(
     'SELECT * FROM messages WHERE id = ?',
   ).bind(job.messageId).first<MessageRow>()
@@ -232,83 +242,115 @@ async function parseMessage(job: ParseJob, env: Env): Promise<void> {
   const html = parsed.html?.trim() ?? ''
   const bodyKey = `bodies/${record.id}.json`
   const body: StoredBody = { text, html }
-  await env.MAIL_BUCKET.put(bodyKey, JSON.stringify(body), {
-    httpMetadata: { contentType: 'application/json; charset=utf-8' },
-  })
-
-  const attachmentStatements: D1PreparedStatement[] = [
-    env.DB.prepare('DELETE FROM attachments WHERE message_id = ?').bind(record.id),
-  ]
-  for (const [index, attachment] of (parsed.attachments ?? []).entries()) {
-    const attachmentId = `${record.id}-${index}`
-    const attachmentKey = `attachments/${record.id}/${index}`
-    const attachmentSize = typeof attachment.content === 'string'
-      ? new TextEncoder().encode(attachment.content).byteLength
-      : attachment.content.byteLength
-    await env.MAIL_BUCKET.put(attachmentKey, attachment.content, {
-      httpMetadata: {
-        contentType: attachment.mimeType || 'application/octet-stream',
-      },
+  const storedBody = JSON.stringify(body)
+  const bodyBytes = new TextEncoder().encode(storedBody).byteLength
+  const writtenKeys: string[] = []
+  try {
+    await env.MAIL_BUCKET.put(bodyKey, storedBody, {
+      httpMetadata: { contentType: 'application/json; charset=utf-8' },
     })
+    writtenKeys.push(bodyKey)
+
+    let attachmentBytes = 0
+    const attachmentStatements: D1PreparedStatement[] = [
+      env.DB.prepare('DELETE FROM attachments WHERE message_id = ?').bind(record.id),
+    ]
+    for (const [index, attachment] of (parsed.attachments ?? []).entries()) {
+      const attachmentId = `${record.id}-${index}`
+      const attachmentKey = `attachments/${record.id}/${index}`
+      const attachmentSize = typeof attachment.content === 'string'
+        ? new TextEncoder().encode(attachment.content).byteLength
+        : attachment.content.byteLength
+      await env.MAIL_BUCKET.put(attachmentKey, attachment.content, {
+        httpMetadata: {
+          contentType: attachment.mimeType || 'application/octet-stream',
+        },
+      })
+      writtenKeys.push(attachmentKey)
+      attachmentBytes += attachmentSize
+      attachmentStatements.push(env.DB.prepare(
+        `INSERT INTO attachments (
+          id, message_id, filename, content_type, size, r2_key, content_id, disposition
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        attachmentId,
+        record.id,
+        attachment.filename || `附件-${index + 1}`,
+        attachment.mimeType || 'application/octet-stream',
+        attachmentSize,
+        attachmentKey,
+        attachment.contentId || null,
+        attachment.disposition || 'attachment',
+      ))
+    }
+
+    const parsedDate = parsed.date ? Math.floor(new Date(parsed.date).getTime() / 1000) : NaN
+    const sender = addressValue(parsed.from) || record.sender_address
+    const senderDisplayName = addressName(parsed.from)
+    const subject = parsed.subject?.trim() || record.subject || '无主题'
+    const references = referenceValue(parsed.references)
+    const storedBytes = Math.max(0, record.size) + bodyBytes + attachmentBytes
+
     attachmentStatements.push(env.DB.prepare(
-      `INSERT INTO attachments (
-        id, message_id, filename, content_type, size, r2_key, content_id, disposition
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `UPDATE messages SET
+         status = 'ready',
+         message_id = COALESCE(?, message_id),
+         in_reply_to = ?,
+         references_header = ?,
+         sender_name = ?,
+         sender_address = ?,
+         recipients_json = ?,
+         cc_json = ?,
+         reply_to_json = ?,
+         subject = ?,
+         preview = ?,
+         received_at = ?,
+         body_key = ?,
+         stored_bytes = ?,
+         attachment_count = ?,
+         has_html = ?,
+         processing_error = NULL,
+         updated_at = unixepoch()
+       WHERE id = ?`,
     ).bind(
-      attachmentId,
+      parsed.messageId?.trim() || null,
+      parsed.inReplyTo?.trim() || null,
+      references || null,
+      senderDisplayName || null,
+      sender,
+      JSON.stringify(addressList(parsed.to)),
+      JSON.stringify(addressList(parsed.cc)),
+      JSON.stringify(addressList(parsed.replyTo)),
+      subject,
+      textPreview(text || subject),
+      Number.isFinite(parsedDate) ? parsedDate : record.received_at,
+      bodyKey,
+      storedBytes,
+      parsed.attachments?.length ?? 0,
+      html ? 1 : 0,
       record.id,
-      attachment.filename || `附件-${index + 1}`,
-      attachment.mimeType || 'application/octet-stream',
-      attachmentSize,
-      attachmentKey,
-      attachment.contentId || null,
-      attachment.disposition || 'attachment',
     ))
+    attachmentStatements.push(messageSearchStatement(env.DB, record.id, {
+      subject,
+      sender,
+      recipients: [
+        ...addressList(parsed.to),
+        ...addressList(parsed.cc),
+      ],
+      body: text,
+    }))
+
+    await env.DB.batch(attachmentStatements)
+  } catch (error) {
+    if (writtenKeys.length) {
+      try {
+        await env.MAIL_BUCKET.delete(writtenKeys)
+      } catch (cleanupError) {
+        console.error('Unable to remove objects from failed message parse', cleanupError)
+      }
+    }
+    throw error
   }
-
-  const parsedDate = parsed.date ? Math.floor(new Date(parsed.date).getTime() / 1000) : NaN
-  const sender = addressValue(parsed.from) || record.sender_address
-  const senderDisplayName = addressName(parsed.from)
-  const subject = parsed.subject?.trim() || record.subject || '无主题'
-  const references = referenceValue(parsed.references)
-
-  attachmentStatements.push(env.DB.prepare(
-    `UPDATE messages SET
-       status = 'ready',
-       message_id = COALESCE(?, message_id),
-       in_reply_to = ?,
-       references_header = ?,
-       sender_name = ?,
-       sender_address = ?,
-       recipients_json = ?,
-       cc_json = ?,
-       subject = ?,
-       preview = ?,
-       received_at = ?,
-       body_key = ?,
-       attachment_count = ?,
-       has_html = ?,
-       processing_error = NULL,
-       updated_at = unixepoch()
-     WHERE id = ?`,
-  ).bind(
-    parsed.messageId?.trim() || null,
-    parsed.inReplyTo?.trim() || null,
-    references || null,
-    senderDisplayName || null,
-    sender,
-    JSON.stringify(addressList(parsed.to)),
-    JSON.stringify(addressList(parsed.cc)),
-    subject,
-    textPreview(text || subject),
-    Number.isFinite(parsedDate) ? parsedDate : record.received_at,
-    bodyKey,
-    parsed.attachments?.length ?? 0,
-    html ? 1 : 0,
-    record.id,
-  ))
-
-  await env.DB.batch(attachmentStatements)
 }
 
 async function consumeOutboundJob(
@@ -341,11 +383,28 @@ async function consumeOutboundJob(
   }
 }
 
+async function consumeSearchIndexJob(
+  message: Message<MailQueueJob>,
+  env: Env,
+): Promise<void> {
+  if (message.body.kind !== 'index') return
+  try {
+    await indexStoredMessage(env, message.body.messageId)
+    message.ack()
+  } catch {
+    message.retry({ delaySeconds: 30 })
+  }
+}
+
 export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: Env): Promise<void> {
   await ensureSchema(env.DB)
   for (const message of batch.messages) {
     if (message.body.kind === 'outbound') {
       await consumeOutboundJob(message, env)
+      continue
+    }
+    if (message.body.kind === 'index') {
+      await consumeSearchIndexJob(message, env)
       continue
     }
     try {

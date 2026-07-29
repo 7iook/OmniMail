@@ -10,11 +10,13 @@ import {
   purgeMessagesBatch,
   releaseRetentionClaim,
 } from './cleanup'
+import { BACKUP_RETENTION_RULES, purgeBackupObjectsPage } from './backup-retention'
 import { ensureSchema } from './schema'
 import { retentionValues } from './storage-policy'
 import type { CleanupWorkflowParams, Env } from './types'
 
 const MAX_BATCHES_PER_PHASE = 100
+const MAX_BACKUP_PAGES_PER_RULE = 100
 
 export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWorkflowParams> {
   async run(
@@ -35,6 +37,7 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
         step,
         now - policy.temporaryDataRetentionDays * 24 * 60 * 60,
       ) || pending
+      pending = await this.purgeBackupPhase(step, now) || pending
       await step.do('Purge expired metadata', async () => {
         await this.env.DB.batch([
           this.env.DB.prepare(
@@ -90,5 +93,28 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
       if (!processed) return false
     }
     return true
+  }
+
+  private async purgeBackupPhase(step: WorkflowStep, now: number): Promise<boolean> {
+    if (!this.env.BACKUP_BUCKET) return false
+    let pending = false
+    for (const rule of BACKUP_RETENTION_RULES) {
+      let cursor: string | undefined
+      for (let index = 0; index < MAX_BACKUP_PAGES_PER_RULE; index += 1) {
+        const result = await step.do(
+          `Purge backup ${rule.prefix} ${index + 1}`,
+          () => purgeBackupObjectsPage(
+            this.env.BACKUP_BUCKET!,
+            rule.prefix,
+            (now - rule.days * 24 * 60 * 60) * 1000,
+            cursor,
+          ),
+        )
+        cursor = result.nextCursor || undefined
+        if (!cursor) break
+      }
+      pending = pending || Boolean(cursor)
+    }
+    return pending
   }
 }

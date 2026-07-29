@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { enCore } from './i18n-en-core'
 import { enAdmin } from './i18n-en-admin'
 import { enInvites } from './i18n-en-invites'
+import { enMailFeatures } from './i18n-en-mail-features'
 import { enErrors } from './i18n-en-errors'
 import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
@@ -34,7 +35,15 @@ function initialLocale(): Locale {
 }
 
 let currentLocale = initialLocale()
-const english = { ...enCore, ...enAdmin, ...enInvites, ...enErrors, ...enOauth, ...enSecurity }
+const english = {
+  ...enCore,
+  ...enAdmin,
+  ...enInvites,
+  ...enErrors,
+  ...enOauth,
+  ...enSecurity,
+  ...enMailFeatures,
+}
 const englishPlurals: Record<string, [string, string]> = {
   '{count} 个邮箱地址': ['{count} mailbox', '{count} mailboxes'],
   '{count} 个启用地址': ['{count} enabled address', '{count} enabled addresses'],

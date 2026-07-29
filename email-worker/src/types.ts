@@ -12,7 +12,12 @@ export interface OutboundJob {
   auditDetail: Record<string, unknown>
 }
 
-export type MailQueueJob = ParseJob | OutboundJob
+export interface SearchIndexJob {
+  kind: 'index'
+  messageId: string
+}
+
+export type MailQueueJob = ParseJob | OutboundJob | SearchIndexJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -96,6 +101,7 @@ export interface MessageRow {
   delivered_to: string | null
   recipients_json: string
   cc_json: string
+  reply_to_json: string
   subject: string
   preview: string
   received_at: number | null
@@ -104,6 +110,7 @@ export interface MessageRow {
   body_key: string | null
   size: number
   quota_bytes: number
+  stored_bytes: number
   attachment_count: number
   has_html: number
   is_read: number

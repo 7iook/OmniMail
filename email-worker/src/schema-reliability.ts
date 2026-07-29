@@ -1,3 +1,5 @@
+import { ensureMailFeatureSchema } from './schema-mail-features'
+
 export async function ensureReliabilitySchema(db: D1Database): Promise<void> {
   const { results } = await db.prepare(
     'PRAGMA table_info(messages)',
@@ -42,4 +44,5 @@ export async function ensureReliabilitySchema(db: D1Database): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_resend_webhook_events_provider
      ON resend_webhook_events(provider_id, created_at DESC)`,
   ).run()
+  await ensureMailFeatureSchema(db)
 }

@@ -171,6 +171,108 @@
   line-height: 1.5;
 }
 
+.backup-browser {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.backup-browser > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.backup-browser > header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.backup-browser > header strong {
+  font-size: 13px;
+}
+
+.backup-browser > header small,
+.backup-object-list article small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.backup-browser select {
+  min-height: 34px;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.backup-object-list {
+  display: grid;
+  gap: 6px;
+}
+
+.backup-object-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.backup-object-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.backup-object-list article strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-object-list > p {
+  margin: 4px 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.backup-drill {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  font-size: 11px;
+}
+
+.backup-drill strong,
+.backup-drill span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.backup-drill.is-passed strong,
+.backup-drill span svg {
+  color: var(--success);
+}
+
+.backup-drill.is-failed strong {
+  color: var(--danger);
+}
+
 .storage-policy-loading {
   display: flex;
   min-height: 180px;
@@ -203,6 +305,11 @@
 
   .storage-policy-footer,
   .backup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .backup-browser > header {
     align-items: stretch;
     flex-direction: column;
   }

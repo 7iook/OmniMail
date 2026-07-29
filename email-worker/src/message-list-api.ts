@@ -1,4 +1,5 @@
 import { normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
+import { searchLikePattern } from './message-search'
 import { pageResult, parsePageRequest } from './pagination'
 import type { Env, MessageRow, SessionUser } from './types'
 
@@ -113,11 +114,16 @@ export async function listMessages(
   }
 
   if (query) {
-    const escaped = query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
+    const pattern = searchLikePattern(query)
     conditions.push(
-      "(m.subject LIKE ? ESCAPE '\\' OR m.sender_address LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\')",
+      `(EXISTS (
+        SELECT 1 FROM message_search ms
+         WHERE ms.message_id = m.id AND ms.content LIKE ? ESCAPE '\\'
+      ) OR m.subject LIKE ? ESCAPE '\\'
+        OR m.sender_address LIKE ? ESCAPE '\\'
+        OR m.sender_name LIKE ? ESCAPE '\\')`,
     )
-    bindings.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`)
+    bindings.push(pattern, pattern, pattern, pattern)
   }
 
   if (pagination.cursor) {

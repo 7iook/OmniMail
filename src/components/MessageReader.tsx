@@ -39,8 +39,11 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function emailImageSources(remoteImagesEnabled: boolean): string {
-  return remoteImagesEnabled ? 'data: cid: https:' : 'data: cid:'
+export function emailImageSources(
+  remoteImagesEnabled: boolean,
+  proxySource = '',
+): string {
+  return remoteImagesEnabled && proxySource ? `data: ${proxySource}` : 'data:'
 }
 
 export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
@@ -164,7 +167,9 @@ function buildEmailDocument(
   remoteImagesEnabled: boolean,
   inlineImageSources: ReadonlyMap<string, string>,
 ): string {
-  const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled)}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
+  const proxyUrl = new URL(api.remoteImageUrl('https://example.invalid/image'), window.location.href)
+  const proxySource = `${proxyUrl.origin}${proxyUrl.pathname}`
+  const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled, proxySource)}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
   const document = new DOMParser().parseFromString(html, 'text/html')
   document.querySelectorAll('script, iframe, object, embed, form, base, meta[http-equiv]').forEach((node) => node.remove())
   document.querySelectorAll('*').forEach((node) => {

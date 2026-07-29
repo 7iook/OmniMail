@@ -7,9 +7,12 @@ import type {
   AuditDays,
   AuditLog,
   AuditSummary,
+  BackupDrillResult,
+  BackupObject,
   CreateManagedUser,
   CreateTemporaryInvite,
   DeploymentCheck,
+  DraftAttachment,
   Folder,
   MailboxAddress,
   MailboxScope,
@@ -17,6 +20,7 @@ import type {
   MailCleanupPreview,
   MailCounts,
   MailRefreshInterval,
+  MailDraft,
   MailStatistics,
   MfaStatus,
   ManagedDomain,
@@ -46,7 +50,9 @@ export const AUTH_REQUIRED_EVENT = 'omnimail:auth-required'
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
   let response: Response
   try {
     response = await fetch(`${API_ORIGIN}${path}`, {
@@ -162,6 +168,22 @@ export const api = {
   startBackup: () => request<{ id: string }>('/api/admin/backups', {
     method: 'POST',
   }),
+  backupObjects: (prefix: string, cursor?: string) => {
+    const search = new URLSearchParams({ prefix, limit: '30' })
+    if (cursor) search.set('cursor', cursor)
+    return request<{
+      prefix: string
+      objects: BackupObject[]
+      page: { hasMore: boolean; nextCursor: string | null }
+    }>(`/api/admin/backups/objects?${search}`)
+  },
+  backupDownloadUrl: (key: string) => (
+    `${API_ORIGIN}/api/admin/backups/download?key=${encodeURIComponent(key)}`
+  ),
+  runBackupDrill: (key: string) => request<{ result: BackupDrillResult }>(
+    '/api/admin/backups/drill',
+    { method: 'POST', body: jsonBody({ key }) },
+  ),
   updateAccount: (input: {
     displayName?: string
     currentPassword?: string
@@ -323,6 +345,32 @@ export const api = {
     if (version !== undefined) search.set('version', String(version))
     return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(`/api/messages?${search}`)
   },
+  draft: () => request<{ draft: MailDraft | null }>('/api/draft'),
+  saveDraft: (input: Pick<MailDraft, 'mailboxAddress' | 'to' | 'subject' | 'text'>) => (
+    request<{ draft: MailDraft }>('/api/draft', {
+      method: 'PUT',
+      body: jsonBody(input),
+    })
+  ),
+  discardDraft: () => request<{ ok: true }>('/api/draft', { method: 'DELETE' }),
+  uploadDraftAttachment: (file: File) => {
+    const body = new FormData()
+    body.set('file', file)
+    return request<{ attachment: DraftAttachment }>('/api/draft/attachments', {
+      method: 'POST',
+      body,
+    })
+  },
+  deleteDraftAttachment: (id: string) => request<{ ok: true }>(
+    `/api/draft/attachments/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  ),
+  sendDraft: (idempotencyKey: string) => request<{
+    message: { id: string; status: string; providerId?: string }
+  }>('/api/draft/send', {
+    method: 'POST',
+    body: jsonBody({ idempotencyKey }),
+  }),
   message: (id: string) => request<{ message: MessageDetail; thread: MessageSummary[] }>(`/api/messages/${id}`),
   updateMessage: (
     id: string,

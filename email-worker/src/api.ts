@@ -13,6 +13,7 @@ import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
 import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, updateMessage } from './message-detail-api'
 import { listMessages } from './message-list-api'
+import { mailFeatureRoutes } from './mail-feature-routes'
 import { confirmMfaSetup, disableMfa, mfaStatus, startMfaSetup } from './mfa-api'
 import { completeMfaChallenge, createMfaChallenge, mfaEnabled } from './mfa'
 import { clearMfaChallengeCookie, mfaChallengeCookie, setMfaChallengeCookie } from './mfa-cookie'
@@ -54,7 +55,7 @@ const PUBLIC_PATHS = new Set([
   '/api/webhooks/resend',
 ])
 
-type AppContext = {
+export type AppContext = {
   Bindings: Env
   Variables: {
     user: SessionUser
@@ -534,9 +535,8 @@ app.patch('/api/mailboxes/:address', (context) => (
   )
 ))
 
-app.get('/api/messages', (context) => (
-  listMessages(context.env, context.get('user'), context.req.raw)
-))
+app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
+app.route('/api', mailFeatureRoutes)
 app.post('/api/messages', async (context) => {
   const body = await context.req.json<NewMessageInput>()
     .catch(() => ({} as NewMessageInput))

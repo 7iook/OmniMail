@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from 'react'
 import { api, type StoragePolicy } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
+import { BackupBrowser } from './BackupBrowser'
 
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat(getLocale(), {
@@ -233,6 +234,8 @@ export function StoragePolicySettings() {
               </label>
             </div>
           </div>
+
+          <BackupBrowser enabled={policy.backupReady} />
 
           <footer className="storage-policy-footer">
             <small>{t('修改默认配额只影响之后创建的账户；单个用户配额可在用户管理中调整。')}</small>

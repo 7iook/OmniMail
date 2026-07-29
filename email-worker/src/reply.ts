@@ -1,4 +1,4 @@
-import { validEmail } from './api-helpers'
+import { safeJsonArray, validEmail } from './api-helpers'
 import { replySubject } from './mail'
 import { sendOutboundMessage } from './outbound-message'
 import type { Env, MessageRow, SessionUser } from './types'
@@ -19,9 +19,15 @@ async function ownedMessage(
 ): Promise<MessageRow | null> {
   return env.DB.prepare(
     `SELECT m.*
-       FROM messages m
-       JOIN mailboxes mb ON mb.address = m.mailbox_address
-      WHERE m.id = ? AND mb.user_id = ?`,
+      FROM messages m
+      JOIN mailboxes mb ON mb.address = m.mailbox_address
+      WHERE m.id = ? AND mb.user_id = ?
+        AND mb.is_active = 1 AND mb.is_hidden = 0
+        AND EXISTS (
+          SELECT 1 FROM domains d
+           WHERE d.name = LOWER(SUBSTR(m.mailbox_address, INSTR(m.mailbox_address, '@') + 1))
+             AND d.is_active = 1
+        )`,
   ).bind(messageId, userId).first<MessageRow>()
 }
 
@@ -60,9 +66,11 @@ export async function sendReply(
   const references = [original.references_header, original.message_id]
     .filter(Boolean)
     .join(' ')
+  const replyTo = safeJsonArray(original.reply_to_json).find(validEmail)
+    || original.sender_address
   return sendOutboundMessage(env, user, {
     mailboxAddress: original.mailbox_address,
-    recipients: [original.sender_address],
+    recipients: [replyTo],
     subject: replySubject(original.subject),
     text,
     idempotencyKey,

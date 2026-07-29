@@ -4,7 +4,12 @@ import {
   type WorkflowStep,
 } from 'cloudflare:workers'
 import { NonRetryableError } from 'cloudflare:workflows'
-import { copyStoredMail, type StoredMail } from './mail-archive'
+import {
+  copyStoredAttachments,
+  copyStoredMail,
+  type StoredAttachment,
+  type StoredMail,
+} from './mail-archive'
 import { validateBackupTarget } from './backup-target'
 import { backupEnabled } from './storage-policy'
 import type { BackupWorkflowParams, Env } from './types'
@@ -193,6 +198,19 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
         async () => {
           for (const message of messages) {
             await copyStoredMail(this.env.MAIL_BUCKET, this.env.BACKUP_BUCKET!, message)
+            if (message.direction === 'outgoing') {
+              const { results } = await this.env.DB.prepare(
+                `SELECT id, r2_key AS "r2Key", filename, content_type AS "contentType"
+                   FROM attachments WHERE message_id = ? ORDER BY id`,
+              ).bind(message.id).all<StoredAttachment>()
+              await copyStoredAttachments(
+                this.env.MAIL_BUCKET,
+                this.env.BACKUP_BUCKET!,
+                message.id,
+                results,
+                message.stored_at,
+              )
+            }
           }
         },
       )

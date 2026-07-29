@@ -1,5 +1,7 @@
 import { expireTemporaryAccounts } from './account-api'
+import { purgeUserDraft } from './draft-api'
 import { permanentlyDeleteMessage } from './message-storage'
+import { enqueueMissingMessageSearch } from './message-search'
 import { ensureSchema } from './schema'
 import { startScheduledBackup } from './storage-policy'
 import type { Env } from './types'
@@ -108,6 +110,7 @@ export async function purgeDeletedAccountBatch(env: Env, cutoff: number): Promis
     await permanentlyDeleteMessage(env, user.id, message)
   }
   if (messages.length) return true
+  await purgeUserDraft(env, user.id)
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO audit_logs (action, target_id, ip, detail_json)
@@ -149,6 +152,11 @@ export async function cleanup(env: Env): Promise<void> {
     env.DB.prepare('DELETE FROM registration_attempts WHERE window_started_at < ?')
       .bind(now - 2 * 24 * 60 * 60),
   ])
+  try {
+    await enqueueMissingMessageSearch(env)
+  } catch (error) {
+    console.error('Unable to enqueue message search backfill', error)
+  }
   await startScheduledBackup(env, now)
   await startRetentionCleanup(env, now)
 }

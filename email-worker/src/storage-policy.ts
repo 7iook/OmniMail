@@ -1,4 +1,5 @@
 import { writeAudit } from './audit'
+import { BACKUP_RETENTION_DAYS } from './backup-retention'
 import { validateBackupTarget } from './backup-target'
 import type { Env, SessionUser, UserRole } from './types'
 
@@ -124,10 +125,10 @@ export async function storagePolicy(env: Env): Promise<StoragePolicy> {
     backupReady: backupMissing.length === 0,
     backupMissing,
     backupRetention: {
-      dailyDays: 30,
-      weeklyDays: 84,
-      monthlyDays: 365,
-      mailDays: 90,
+      dailyDays: BACKUP_RETENTION_DAYS.daily,
+      weeklyDays: BACKUP_RETENTION_DAYS.weekly,
+      monthlyDays: BACKUP_RETENTION_DAYS.monthly,
+      mailDays: BACKUP_RETENTION_DAYS.mail,
     },
     trashRetentionDays: integerSetting(
       settings, SETTINGS.trashDays, DEFAULTS.trashDays, 1, 90,

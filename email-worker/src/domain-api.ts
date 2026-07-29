@@ -148,6 +148,9 @@ export async function deleteDomain(
   if (!validDomainName(name)) return json({ error: '域名格式无效。' }, 400)
   const existing = await domainRow(env, name)
   if (!existing) return json({ error: '域名不存在。' }, 404)
+  if (existing.mailbox_count > 0) {
+    return json({ error: '该域名仍有关联邮箱，请先删除这些邮箱。' }, 409)
+  }
 
   await env.DB.batch([
     env.DB.prepare(

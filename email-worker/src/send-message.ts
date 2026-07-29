@@ -61,10 +61,14 @@ export async function sendMessage(
   const validated = validateNewMessage(input)
   if ('error' in validated) return json({ error: validated.error }, 400)
   const message = validated.value
+  const domain = message.mailboxAddress.slice(message.mailboxAddress.lastIndexOf('@') + 1)
   const mailbox = await env.DB.prepare(
     `SELECT address FROM mailboxes
-      WHERE address = ? AND user_id = ? AND is_active = 1 AND is_hidden = 0`,
-  ).bind(message.mailboxAddress, user.id).first<{ address: string }>()
+      WHERE address = ? AND user_id = ? AND is_active = 1 AND is_hidden = 0
+        AND EXISTS (
+          SELECT 1 FROM domains d WHERE d.name = ? AND d.is_active = 1
+        )`,
+  ).bind(message.mailboxAddress, user.id, domain).first<{ address: string }>()
   if (!mailbox) return json({ error: '发件邮箱不存在或已停用。' }, 404)
 
   return sendOutboundMessage(env, user, {

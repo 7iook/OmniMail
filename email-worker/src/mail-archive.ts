@@ -9,6 +9,13 @@ export type StoredMail = {
   stored_at: number
 }
 
+export type StoredAttachment = {
+  id: string
+  r2Key: string
+  filename: string
+  contentType: string
+}
+
 function backupMonth(timestamp: Date | number): string {
   return new Date(timestamp).toISOString().slice(0, 7)
 }
@@ -72,4 +79,45 @@ export async function archiveSentMessage(
     httpMetadata: { contentType: 'application/json; charset=utf-8' },
     customMetadata: { messageId, direction: 'outgoing' },
   })
+}
+
+export async function archiveSentAttachments(
+  env: Env,
+  messageId: string,
+  attachments: StoredAttachment[],
+  sentAt: number,
+): Promise<void> {
+  if (!attachments.length || !env.BACKUP_BUCKET || !await backupEnabled(env.DB)) return
+  await copyStoredAttachments(
+    env.MAIL_BUCKET,
+    env.BACKUP_BUCKET,
+    messageId,
+    attachments,
+    sentAt,
+  )
+}
+
+export async function copyStoredAttachments(
+  sourceBucket: R2Bucket,
+  backupBucket: R2Bucket,
+  messageId: string,
+  attachments: StoredAttachment[],
+  storedAt: number,
+): Promise<void> {
+  const prefix = `mail/sent/${backupMonth(storedAt * 1000)}/${messageId}/attachments`
+  for (const attachment of attachments) {
+    const destination = `${prefix}/${attachment.id}`
+    if (await backupBucket.head(destination)) continue
+    const object = await sourceBucket.get(attachment.r2Key)
+    if (!object) throw new Error(`发件附件备份源文件不存在：${attachment.r2Key}`)
+    await backupBucket.put(destination, object.body, {
+      httpMetadata: { contentType: attachment.contentType },
+      customMetadata: {
+        messageId,
+        attachmentId: attachment.id,
+        filename: attachment.filename,
+        direction: 'outgoing',
+      },
+    })
+  }
 }

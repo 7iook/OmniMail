@@ -1,5 +1,6 @@
-import { archiveSentMessage } from './mail-archive'
+import { archiveSentAttachments, archiveSentMessage } from './mail-archive'
 import { textPreview, textToHtml } from './mail'
+import { messageSearchStatement } from './message-search'
 import { releaseStorage, reserveStorage } from './message-storage'
 import { reconcileResendEvents } from './resend-webhook'
 import type { Env, OutboundJob, SessionUser, StoredBody } from './types'
@@ -12,8 +13,18 @@ export type OutboundMessage = {
   idempotencyKey: string
   inReplyTo?: string | null
   references?: string
+  attachments?: OutboundAttachment[]
+  draftUserId?: string
   auditAction: 'message.reply' | 'message.send'
   auditDetail: Record<string, unknown>
+}
+
+export type OutboundAttachment = {
+  id: string
+  filename: string
+  contentType: string
+  size: number
+  r2Key: string
 }
 
 function json(body: unknown, status = 200): Response {
@@ -61,6 +72,15 @@ export class OutboundDeliveryError extends Error {
   }
 }
 
+export function arrayBufferToBase64(value: ArrayBuffer): string {
+  const bytes = new Uint8Array(value)
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+  }
+  return btoa(binary)
+}
+
 async function queueOutbound(
   env: Env,
   messageId: string,
@@ -76,6 +96,39 @@ async function queueOutbound(
     auditAction: input.auditAction,
     auditDetail: input.auditDetail,
   })
+}
+
+export async function requeueFailedOutbound(
+  env: Env,
+  messageId: string,
+  userId: string,
+  ip: string,
+  auditAction: OutboundJob['auditAction'],
+  auditDetail: Record<string, unknown>,
+): Promise<Response> {
+  await env.DB.prepare(
+    `UPDATE messages
+        SET status = 'processing', processing_error = NULL, updated_at = unixepoch()
+      WHERE id = ? AND status = 'failed'`,
+  ).bind(messageId).run()
+  try {
+    await env.MAIL_QUEUE.send({
+      kind: 'outbound',
+      messageId,
+      userId,
+      ip,
+      auditAction,
+      auditDetail,
+    })
+    return json({ message: { id: messageId, status: 'processing' } }, 202)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unable to queue outbound message'
+    await env.DB.prepare(
+      `UPDATE messages SET status = 'failed', processing_error = ?,
+          last_failed_at = unixepoch(), updated_at = unixepoch() WHERE id = ?`,
+    ).bind(detail.slice(0, 500), messageId).run()
+    return json({ error: '发送任务暂时无法入队，请稍后重试。' }, 503)
+  }
 }
 
 export async function sendOutboundMessage(
@@ -94,26 +147,20 @@ export async function sendOutboundMessage(
     body_key: string | null
   }>()
   if (existing) {
-    let status = existing.status
     if (existing.status === 'failed' && existing.body_key) {
-      await env.DB.prepare(
-        `UPDATE messages
-            SET status = 'processing', processing_error = NULL, updated_at = unixepoch()
-          WHERE id = ? AND status = 'failed'`,
-      ).bind(existing.id).run()
-      try {
-        await queueOutbound(env, existing.id, user.id, input, ip)
-        status = 'processing'
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : 'Unable to queue outbound message'
-        await env.DB.prepare(
-          `UPDATE messages SET status = 'failed', processing_error = ?,
-              last_failed_at = unixepoch(), updated_at = unixepoch() WHERE id = ?`,
-        ).bind(detail.slice(0, 500), existing.id).run()
-        return json({ error: '发送任务暂时无法入队，请稍后重试。' }, 503)
-      }
+      return requeueFailedOutbound(
+        env,
+        existing.id,
+        user.id,
+        ip,
+        input.auditAction,
+        input.auditDetail,
+      )
     }
-    return json({ message: messageResult({ ...existing, status }) }, status === 'sent' ? 200 : 202)
+    return json(
+      { message: messageResult(existing) },
+      existing.status === 'sent' ? 200 : 202,
+    )
   }
 
   const outboundId = crypto.randomUUID()
@@ -122,19 +169,34 @@ export async function sendOutboundMessage(
     text: input.text,
     html: textToHtml(input.text),
   } satisfies StoredBody)
-  const quotaBytes = new TextEncoder().encode(storedBody).byteLength
-  if (!await reserveStorage(env.DB, user.id, quotaBytes)) {
+  const bodyBytes = new TextEncoder().encode(storedBody).byteLength
+  const attachments = input.attachments ?? []
+  const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
+  const quotaBytes = bodyBytes + attachmentBytes
+  const reserveBytes = input.draftUserId ? bodyBytes : quotaBytes
+  if (!await reserveStorage(env.DB, user.id, reserveBytes)) {
     return json({ error: '邮箱存储空间已满，请清理邮件后重试。' }, 409)
   }
   const now = Math.floor(Date.now() / 1000)
 
   try {
-    await env.DB.prepare(
+    await env.MAIL_BUCKET.put(bodyKey, storedBody, {
+      httpMetadata: { contentType: 'application/json; charset=utf-8' },
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unable to store outbound message'
+    await releaseStorage(env.DB, user.id, reserveBytes)
+    return json({ error: `保存发件失败：${detail}` }, 502)
+  }
+
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
       `INSERT INTO messages (
         id, mailbox_address, direction, status, folder, in_reply_to, references_header,
         sender_name, sender_address, recipients_json, subject, preview, sent_at,
-        body_key, size, quota_bytes, has_html, is_read, client_request_id, delivery_status
-      ) VALUES (?, ?, 'outgoing', 'processing', 'sent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, 'queued')`,
+        body_key, size, quota_bytes, stored_bytes, attachment_count, has_html, is_read,
+        client_request_id, delivery_status
+      ) VALUES (?, ?, 'outgoing', 'processing', 'sent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, 'queued')`,
     ).bind(
       outboundId,
       input.mailboxAddress,
@@ -149,8 +211,39 @@ export async function sendOutboundMessage(
       bodyKey,
       quotaBytes,
       quotaBytes,
+      quotaBytes,
+      attachments.length,
       input.idempotencyKey,
-    ).run()
+    ),
+    ...attachments.map((attachment) => env.DB.prepare(
+      `INSERT INTO attachments (
+         id, message_id, filename, content_type, size, r2_key, disposition
+       ) VALUES (?, ?, ?, ?, ?, ?, 'attachment')`,
+    ).bind(
+      attachment.id,
+      outboundId,
+      attachment.filename,
+      attachment.contentType,
+      attachment.size,
+      attachment.r2Key,
+    )),
+    messageSearchStatement(env.DB, outboundId, {
+      subject: input.subject,
+      sender: input.mailboxAddress,
+      recipients: input.recipients,
+      body: input.text,
+    }),
+  ]
+  if (input.draftUserId) {
+    statements.push(
+      env.DB.prepare('DELETE FROM draft_attachments WHERE user_id = ?')
+        .bind(input.draftUserId),
+      env.DB.prepare('DELETE FROM drafts WHERE user_id = ?')
+        .bind(input.draftUserId),
+    )
+  }
+  try {
+    await env.DB.batch(statements)
   } catch {
     const duplicate = await env.DB.prepare(
       `SELECT id, status, provider_id FROM messages
@@ -160,24 +253,17 @@ export async function sendOutboundMessage(
       status: string
       provider_id: string | null
     }>()
-    await releaseStorage(env.DB, user.id, quotaBytes)
+    await env.MAIL_BUCKET.delete(bodyKey).catch((error) => {
+      console.error('Unable to remove unused outbound body', error)
+    })
+    await releaseStorage(env.DB, user.id, reserveBytes)
     if (duplicate) return json({ message: messageResult(duplicate) })
     return json({ error: '无法创建待发送邮件。' }, 409)
   }
 
   try {
-    await env.MAIL_BUCKET.put(bodyKey, storedBody, {
-      httpMetadata: { contentType: 'application/json; charset=utf-8' },
-    })
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Unable to store outbound message'
-    await env.DB.prepare('DELETE FROM messages WHERE id = ?').bind(outboundId).run()
-    await releaseStorage(env.DB, user.id, quotaBytes)
-    return json({ error: `保存发件失败：${detail}` }, 502)
-  }
-
-  try {
     await archiveSentMessage(env, outboundId, storedBody, now)
+    await archiveSentAttachments(env, outboundId, attachments, now)
   } catch (error) {
     console.error('Unable to archive outbound message', error)
   }
@@ -208,15 +294,25 @@ type OutboundRecord = {
   in_reply_to: string | null
   references_header: string | null
   client_request_id: string | null
+  domain_is_active: number
 }
 
 export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promise<void> {
   const record = await env.DB.prepare(
     `SELECT id, status, mailbox_address, sender_name, recipients_json, subject,
-            body_key, in_reply_to, references_header, client_request_id
+            body_key, in_reply_to, references_header, client_request_id,
+            EXISTS (
+              SELECT 1 FROM domains d
+               WHERE d.name = LOWER(SUBSTR(messages.mailbox_address,
+                 INSTR(messages.mailbox_address, '@') + 1))
+                 AND d.is_active = 1
+            ) AS domain_is_active
        FROM messages WHERE id = ? AND direction = 'outgoing'`,
   ).bind(job.messageId).first<OutboundRecord>()
   if (!record || record.status === 'sent') return
+  if (!record.domain_is_active) {
+    throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
+  }
   if (!env.RESEND_API_KEY?.trim()) {
     throw new OutboundDeliveryError('RESEND_API_KEY is not configured', false)
   }
@@ -236,6 +332,23 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   if (!Array.isArray(recipients) || !recipients.every((value) => typeof value === 'string')) {
     throw new OutboundDeliveryError('Outbound recipients are invalid', false)
   }
+  const { results: attachmentRows } = await env.DB.prepare(
+    `SELECT filename, r2_key FROM attachments
+      WHERE message_id = ? ORDER BY id`,
+  ).bind(record.id).all<{ filename: string; r2_key: string }>()
+  const attachments = await Promise.all(attachmentRows.map(async (attachment) => {
+    const object = await env.MAIL_BUCKET.get(attachment.r2_key)
+    if (!object) {
+      throw new OutboundDeliveryError(
+        `Outbound attachment is missing: ${attachment.filename}`,
+        false,
+      )
+    }
+    return {
+      filename: attachment.filename,
+      content: arrayBufferToBase64(await object.arrayBuffer()),
+    }
+  }))
   const from = env.RESEND_FROM?.trim()
     || `${(record.sender_name || record.mailbox_address).replace(/[\r\n<>"]/g, '')} <${record.mailbox_address}>`
   const headers: Record<string, string> = {}
@@ -258,6 +371,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
         subject: record.subject,
         text: body.text,
         html: body.html,
+        attachments: attachments.length ? attachments : undefined,
         headers,
       }),
       signal: AbortSignal.timeout(15_000),

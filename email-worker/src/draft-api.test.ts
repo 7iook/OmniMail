@@ -1,0 +1,87 @@
+import { describe, expect, it, vi } from 'vitest'
+import {
+  MAX_DRAFT_ATTACHMENT_BYTES,
+  normalizeDraftFilename,
+  sendDraft,
+  validateDraftInput,
+} from './draft-api'
+import type { Env, SessionUser } from './types'
+
+describe('mail draft validation', () => {
+  it('allows an incomplete draft while normalizing addresses', () => {
+    expect(validateDraftInput({
+      mailboxAddress: ' Owner@Example.COM ',
+      to: '',
+      subject: ' Partial ',
+      text: ' Body ',
+    })).toEqual({
+      value: {
+        mailboxAddress: 'owner@example.com',
+        to: '',
+        subject: 'Partial',
+        text: 'Body',
+      },
+    })
+  })
+
+  it('keeps partial recipients but rejects header injection', () => {
+    expect(validateDraftInput({
+      mailboxAddress: 'owner@example.com',
+      to: 'friend@',
+      subject: 'Hello',
+      text: '',
+    })).toMatchObject({ value: { to: 'friend@' } })
+    expect(validateDraftInput({
+      mailboxAddress: 'owner@example.com',
+      to: 'friend@example.com\r\nBcc: hidden@example.com',
+      subject: 'Hello\r\nBcc: hidden@example.com',
+      text: '',
+    })).toEqual({ error: '草稿收件人不能超过 254 个字符或包含换行。' })
+  })
+
+  it('sanitizes attachment names and exposes the upload limit', () => {
+    expect(normalizeDraftFilename(' report\r\n.pdf ')).toBe('report.pdf')
+    expect(MAX_DRAFT_ATTACHMENT_BYTES).toBe(5 * 1024 * 1024)
+  })
+
+  it('requeues a failed idempotent draft send after the draft was transferred', async () => {
+    const send = vi.fn(async () => undefined)
+    const existing = {
+      id: 'out-1',
+      status: 'failed',
+      provider_id: null,
+      body_key: 'bodies/out-1.json',
+    }
+    const statement = {
+      bind: vi.fn(function bind() { return this }),
+      first: vi.fn(async () => existing),
+      run: vi.fn(async () => ({ meta: { changes: 1 } })),
+    }
+    const env = {
+      DB: { prepare: vi.fn(() => statement) },
+      MAIL_QUEUE: { send },
+      RESEND_API_KEY: 're_test',
+    } as unknown as Env
+    const user = {
+      id: 'user-1',
+      role: 'user',
+      canReply: true,
+    } as SessionUser
+    const response = await sendDraft(
+      env,
+      user,
+      new Request('https://mail.example/api/draft/send', {
+        method: 'POST',
+        body: JSON.stringify({ idempotencyKey: 'request_retry' }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(202)
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'outbound',
+      messageId: 'out-1',
+      userId: 'user-1',
+    }))
+  })
+})

@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_address TEXT NOT NULL,
   delivered_to TEXT COLLATE NOCASE,
   recipients_json TEXT NOT NULL DEFAULT '[]',
-  cc_json TEXT NOT NULL DEFAULT '[]',
+  cc_json TEXT NOT NULL DEFAULT '[]', reply_to_json TEXT NOT NULL DEFAULT '[]',
   subject TEXT NOT NULL DEFAULT '',
   preview TEXT NOT NULL DEFAULT '',
   received_at INTEGER,
@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS messages (
   body_key TEXT,
   size INTEGER NOT NULL DEFAULT 0,
   quota_bytes INTEGER NOT NULL DEFAULT 0 CHECK (quota_bytes >= 0),
+  stored_bytes INTEGER NOT NULL DEFAULT 0 CHECK (stored_bytes >= 0),
   attachment_count INTEGER NOT NULL DEFAULT 0,
   has_html INTEGER NOT NULL DEFAULT 0 CHECK (has_html IN (0, 1)),
   is_read INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
@@ -222,7 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-29-p1-backup-identity'
+const SCHEMA_VERSION = '2026-07-29-p3-mail-features'
 
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(
@@ -333,6 +334,8 @@ async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
       'ALTER TABLE messages ADD COLUMN quota_bytes INTEGER NOT NULL DEFAULT 0',
     ))
   }
+  if (!columns.has('stored_bytes')) statements.push(db.prepare('ALTER TABLE messages ADD COLUMN stored_bytes INTEGER NOT NULL DEFAULT 0'))
+  if (!columns.has('reply_to_json')) statements.push(db.prepare("ALTER TABLE messages ADD COLUMN reply_to_json TEXT NOT NULL DEFAULT '[]'"))
   if (!columns.has('trashed_at')) {
     statements.push(db.prepare('ALTER TABLE messages ADD COLUMN trashed_at INTEGER'))
   }
@@ -351,6 +354,9 @@ async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
   await db.prepare(
     'UPDATE messages SET quota_bytes = size WHERE quota_bytes = 0 AND size > 0',
   ).run()
+  await db.prepare(`UPDATE messages SET stored_bytes = MAX(size, quota_bytes) + COALESCE((
+    SELECT SUM(a.size) FROM attachments a WHERE a.message_id = messages.id
+  ), 0) WHERE stored_bytes = 0`).run()
   await db.prepare(
     `UPDATE messages
         SET trashed_at = COALESCE(trashed_at, updated_at, created_at),

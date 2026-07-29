@@ -130,6 +130,25 @@ export interface StoragePolicy {
   } | null
 }
 
+export interface BackupObject {
+  key: string
+  size: number
+  uploadedAt: number
+  etag: string
+}
+
+export interface BackupDrillResult {
+  key: string
+  status: 'passed' | 'failed'
+  size: number
+  checkedAt: number
+  checks: Array<{
+    label: string
+    passed: boolean
+    detail: string
+  }>
+}
+
 export interface MailCounts {
   unread: number
   starred: number
@@ -315,6 +334,22 @@ export interface Attachment {
   size: number
   contentId: string | null
   disposition: string
+}
+
+export interface DraftAttachment {
+  id: string
+  filename: string
+  contentType: string
+  size: number
+}
+
+export interface MailDraft {
+  mailboxAddress: string
+  to: string
+  subject: string
+  text: string
+  updatedAt: number
+  attachments: DraftAttachment[]
 }
 
 export interface MessageDetail extends MessageSummary {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { messageSummary, parseSyncVersion } from './message-list-api'
+import { searchLikePattern } from './message-search'
 
 describe('message sync version', () => {
   it('accepts non-negative integer versions', () => {
@@ -12,6 +13,10 @@ describe('message sync version', () => {
     expect(parseSyncVersion('-1')).toBeUndefined()
     expect(parseSyncVersion('1.5')).toBeUndefined()
     expect(parseSyncVersion('latest')).toBeUndefined()
+  })
+
+  it('builds a literal full-text search pattern', () => {
+    expect(searchLikePattern('invoice_50%')).toBe('%invoice\\_50\\%%')
   })
 
   it('shows the original recipient for unassigned mail', () => {
