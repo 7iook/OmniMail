@@ -9,10 +9,6 @@ export function messageReferenceIds(
   return [...new Set(ids)].slice(0, 20)
 }
 
-function escapeLike(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
-}
-
 export async function listMessageThread(
   env: Env,
   user: SessionUser,
@@ -29,9 +25,12 @@ export async function listMessageThread(
     conditions.push(
       'm.message_id = ?',
       'm.in_reply_to = ?',
-      `( ' ' || COALESCE(m.references_header, '') || ' ' ) LIKE ? ESCAPE '\\'`,
+      `instr(
+        ' ' || COALESCE(m.references_header, '') || ' ',
+        ' ' || ? || ' '
+      ) > 0`,
     )
-    bindings.push(reference, reference, `% ${escapeLike(reference)} %`)
+    bindings.push(reference, reference, reference)
   }
   const { results } = await env.DB.prepare(
     `SELECT m.*

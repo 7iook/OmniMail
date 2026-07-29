@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 
 const MAX_REFRESH_DELAY = 120
 const REFRESH_LOCK = 'omnimail-mail-refresh-leader'
+const PROCESSING_REFRESH_SECONDS = 2
+
+type ProcessingMessage = {
+  id: string
+  status: string
+}
 
 export function nextRefreshDelay(
   current: number,
@@ -11,6 +17,19 @@ export function nextRefreshDelay(
   return changed === false
     ? Math.min(MAX_REFRESH_DELAY, Math.max(base, current * 2))
     : base
+}
+
+export function hasProcessingMail(messages: ProcessingMessage[]): boolean {
+  return messages.some((message) => message.status === 'processing')
+}
+
+export function processingMessageReady(
+  detailStatus: string | undefined,
+  selected: ProcessingMessage | undefined,
+): boolean {
+  return detailStatus === 'processing'
+    && Boolean(selected)
+    && selected?.status !== 'processing'
 }
 
 function useRefreshLeadership(enabled: boolean): boolean {
@@ -77,6 +96,7 @@ export function useAutoRefresh(
   seconds: number,
   refresh: () => Promise<boolean | void>,
   enabled: boolean,
+  adaptive = true,
 ) {
   const callback = useRef(refresh)
   const leader = useRefreshLeadership(enabled)
@@ -103,7 +123,8 @@ export function useAutoRefresh(
       }
       running = true
       try {
-        delay = nextRefreshDelay(delay, seconds, await callback.current())
+        const changed = await callback.current()
+        delay = adaptive ? nextRefreshDelay(delay, seconds, changed) : seconds
       } finally {
         running = false
         schedule()
@@ -125,5 +146,36 @@ export function useAutoRefresh(
       document.removeEventListener('visibilitychange', refreshVisiblePage)
       window.removeEventListener('focus', refreshVisiblePage)
     }
-  }, [enabled, leader, seconds])
+  }, [adaptive, enabled, leader, seconds])
+}
+
+export function useMailboxRefresh<T extends ProcessingMessage>(
+  seconds: number,
+  refresh: () => Promise<boolean | void>,
+  enabled: boolean,
+  messages: T[],
+  selectedId: string | null,
+  detailStatus: string | undefined,
+  reload: (message: T) => Promise<void>,
+) {
+  const processing = hasProcessingMail(messages)
+  useAutoRefresh(
+    processing ? PROCESSING_REFRESH_SECONDS : seconds,
+    refresh,
+    enabled,
+    !processing,
+  )
+  const reloadCallback = useRef(reload)
+  useEffect(() => {
+    reloadCallback.current = reload
+  }, [reload])
+
+  const selected = selectedId
+    ? messages.find((message) => message.id === selectedId)
+    : undefined
+  useEffect(() => {
+    if (selected && processingMessageReady(detailStatus, selected)) {
+      void reloadCallback.current(selected)
+    }
+  }, [detailStatus, selected])
 }

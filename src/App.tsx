@@ -25,7 +25,7 @@ import {
 } from './lib/api'
 import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
-import { useAutoRefresh } from './lib/useAutoRefresh'
+import { useMailboxRefresh } from './lib/useAutoRefresh'
 import { openingSplashDelay } from './lib/initialSplash'
 import { t, useLocale } from './lib/i18n'
 import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
@@ -192,7 +192,7 @@ function Mailbox({
     void loadMailboxData()
   }, [loadMailboxData])
 
-  useAutoRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView)
+  useMailboxRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView, messages, selectedId, detail?.status, selectMessage)
 
   useEffect(() => {
     if (!notice) return

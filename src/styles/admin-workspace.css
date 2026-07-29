@@ -399,6 +399,8 @@
   min-height: 230px;
 }
 
+.admin-card--settings > header + .policy-toggle { margin-top: 13px; }
+
 .settings-list {
   display: grid;
   gap: 1px;

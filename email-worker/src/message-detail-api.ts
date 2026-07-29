@@ -36,11 +36,17 @@ export async function getMessageDetail(
     `SELECT id, message_id, filename, content_type, size, r2_key, content_id, disposition
        FROM attachments WHERE message_id = ? ORDER BY id`,
   ).bind(message.id).all<AttachmentRow>()
-  const thread = await listMessageThread(env, user, message)
+  const summary = messageSummary(message)
+  let thread = [summary]
+  try {
+    thread = await listMessageThread(env, user, message)
+  } catch (error) {
+    console.error('Unable to load message thread', { messageId: message.id }, error)
+  }
 
   return Response.json({
     message: {
-      ...messageSummary(message),
+      ...summary,
       messageId: message.message_id,
       inReplyTo: message.in_reply_to,
       references: message.references_header,
