@@ -85,7 +85,7 @@
 .admin-workspace,
 .page-content-enter {
   backface-visibility: hidden;
-  animation: page-content-settle 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: page-content-settle 180ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 @keyframes page-content-settle {
   from { transform: translate3d(3px, 0, 0); }

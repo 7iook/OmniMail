@@ -533,10 +533,11 @@
     position: fixed;
     top: auto;
     right: 10px;
-    bottom: calc(78px + env(safe-area-inset-bottom));
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
     left: 10px;
     width: auto;
-    max-height: calc(100dvh - 100px);
+    max-height: calc(100vh - 98px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100svh - 98px - env(safe-area-inset-bottom, 0px));
     border-radius: 20px;
     transform: translateY(14px) scale(0.985);
   }

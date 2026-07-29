@@ -81,7 +81,7 @@ async function mockApp(page: Page, state = mockState()) {
       message: {
         ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
         cc: [], text: 'Visit https://example.com',
-        html: '<div style="width:800px"><p><a href="https://example.com/account">Visit account</a></p></div>', attachments: [],
+        html: '<table role="presentation" width="100%"><tr><td><div style="width:640px;min-width:640px"><p><a href="https://example.com/account">Visit account</a></p></div></td></tr></table>', attachments: [],
       },
       thread: [message, reply],
     })
@@ -286,7 +286,7 @@ test('reselecting the inbox quietly refreshes without hiding the list', async ({
 test('email links open the safety dialog instead of navigating the iframe', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 }); await mockApp(page); await page.goto('/')
   await page.getByText('Welcome to OmniMail').click()
-  await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate((body) => body.scrollWidth <= body.clientWidth)).toBe(true)
+  for (const width of [320, 360, 393, 430]) { await page.setViewportSize({ width, height: 700 }); await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate((body) => [...body.querySelectorAll('*')].every((element) => { const rect = element.getBoundingClientRect(); return rect.left >= -1 && rect.right <= body.ownerDocument.documentElement.clientWidth + 1 }))).toBe(true) }
   const link = page.frameLocator('iframe').getByRole('link', { name: 'Visit account' })
   await link.click()
   const dialog = page.getByRole('alertdialog')
@@ -507,7 +507,7 @@ test('workspace navigation has durable URLs and browser history', async ({ page 
   await mockApp(page); await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
   const mailTransition = page.locator('.page-content-enter'); await expect(mailTransition).toHaveCSS('animation-name', 'page-content-settle')
-  expect(await mailTransition.evaluate((element) => element.getAnimations()[0]?.effect?.getKeyframes().every((frame) => !('opacity' in frame)))).toBe(true)
+  expect(await mailTransition.evaluate(() => [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).filter((rule): rule is CSSKeyframesRule => rule instanceof CSSKeyframesRule && rule.name === 'page-content-settle').every((rule) => [...rule.cssRules].every((frame) => !frame.style.opacity)))).toBe(true)
   await expect(page.locator('.message-list')).toHaveCSS('animation-name', 'none')
   await expect(page).toHaveURL(/\/mail\/inbox$/)
   await page.getByRole('button', { name: '用户' }).click()

@@ -58,6 +58,42 @@ export function emailDocumentHeight(document: Document): number {
   )
 }
 
+export function fitEmailDocument(document: Document): number {
+  const { body, documentElement } = document
+  body.style.removeProperty('transform')
+  body.style.removeProperty('transform-origin')
+
+  const viewportWidth = documentElement.clientWidth
+  if (viewportWidth <= 0) return emailDocumentHeight(document)
+
+  const bodyLeft = body.getBoundingClientRect().left
+  let minLeft = 0
+  let maxRight = viewportWidth
+  for (const element of [body, ...body.querySelectorAll('*')]) {
+    const rect = element.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) continue
+    minLeft = Math.min(minLeft, rect.left - bodyLeft)
+    maxRight = Math.max(maxRight, rect.right - bodyLeft)
+  }
+
+  const contentWidth = Math.max(
+    viewportWidth,
+    body.scrollWidth,
+    documentElement.scrollWidth,
+    maxRight - minLeft,
+  )
+  const naturalHeight = emailDocumentHeight(document)
+  if (contentWidth <= viewportWidth + 1) return naturalHeight
+
+  const scale = viewportWidth / contentWidth
+  body.style.setProperty('transform-origin', 'top left')
+  body.style.setProperty(
+    'transform',
+    minLeft < 0 ? `scale(${scale}) translateX(${-minLeft}px)` : `scale(${scale})`,
+  )
+  return Math.max(EMAIL_FRAME_MIN_HEIGHT, Math.ceil(naturalHeight * scale))
+}
+
 export function emailFrameReady(
   messageId: string,
   html: string,
@@ -412,7 +448,7 @@ export function MessageReader({
               document.addEventListener('keydown', handleEmailLinkKeyDown)
 
               const resize = () => {
-                const height = `${emailDocumentHeight(document)}px`
+                const height = `${fitEmailDocument(document)}px`
                 if (frame.style.height !== height) frame.style.height = height
               }
               frameResizeObserverRef.current?.disconnect()
