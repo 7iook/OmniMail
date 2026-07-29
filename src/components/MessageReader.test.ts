@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMAIL_FRAME_SANDBOX,
   emailDocumentHeight,
+  emailFrameReady,
   emailImageSources,
   emailLinkHref,
   normalizeContentId,
@@ -36,6 +37,16 @@ describe('email frame layout', () => {
       body: { offsetHeight: 100, scrollHeight: 100 },
       documentElement: { offsetHeight: 100, scrollHeight: 100 },
     } as unknown as Document)).toBe(470)
+  })
+
+  it('reveals only the prepared version of the current HTML message', () => {
+    const prepared = { messageId: 'message-1', document: '<p>Ready</p>' }
+    expect(emailFrameReady('message-1', '', '', false, null)).toBe(true)
+    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', false, null)).toBe(false)
+    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', true, prepared)).toBe(false)
+    expect(emailFrameReady('message-2', '<p>Ready</p>', '<p>Ready</p>', false, prepared)).toBe(false)
+    expect(emailFrameReady('message-1', '<p>Updated</p>', '<p>Updated</p>', false, prepared)).toBe(false)
+    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', false, prepared)).toBe(true)
   })
 })
 

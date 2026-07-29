@@ -15,6 +15,8 @@ export const enCore: Record<string, string> = {
   'English': 'English',
   '切换为 {language}': 'Switch to {language}',
   '界面语言': 'Interface language',
+  '邮件详情': 'Message details',
+  '正在准备邮件布局': 'Preparing message layout',
   'D1 数据库': 'D1 database',
   'R2 邮件存储': 'R2 mail storage',
   '邮件解析队列': 'Mail parsing queue',

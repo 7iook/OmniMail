@@ -43,6 +43,11 @@ export function emailImageSources(remoteImagesEnabled: boolean): string {
 export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
 const EMAIL_FRAME_MIN_HEIGHT = 470
 
+type PreparedEmailFrame = {
+  messageId: string
+  document: string
+}
+
 export function emailDocumentHeight(document: Document): number {
   return Math.max(
     EMAIL_FRAME_MIN_HEIGHT,
@@ -51,6 +56,18 @@ export function emailDocumentHeight(document: Document): number {
     document.documentElement.offsetHeight,
     document.documentElement.scrollHeight,
   )
+}
+
+export function emailFrameReady(
+  messageId: string,
+  html: string,
+  frameDocument: string,
+  inlineImagesLoading: boolean,
+  prepared: PreparedEmailFrame | null,
+): boolean {
+  return !html || (!inlineImagesLoading
+    && prepared?.messageId === messageId
+    && prepared.document === frameDocument)
 }
 
 export function normalizeContentId(value: string): string {
@@ -194,6 +211,8 @@ export function MessageReader({
 }) {
   const [replying, setReplying] = useState(false)
   const [inlineImageSources, setInlineImageSources] = useState<ReadonlyMap<string, string>>(new Map())
+  const [inlineImagesLoading, setInlineImagesLoading] = useState(false)
+  const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
   const [externalLink, setExternalLink] = useState<string | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const frameResizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -215,6 +234,7 @@ export function MessageReader({
   useEffect(() => {
     setReplying(false)
     setExternalLink(null)
+    setPreparedFrame(null)
   }, [message?.id])
   useEffect(() => () => {
     frameResizeObserverRef.current?.disconnect()
@@ -226,6 +246,7 @@ export function MessageReader({
       attachment.contentId && attachment.contentType.startsWith('image/')
     )) ?? []
     setInlineImageSources(new Map())
+    setInlineImagesLoading(inlineAttachments.length > 0)
 
     if (!message || inlineAttachments.length === 0) return () => controller.abort()
     void Promise.all(inlineAttachments.map(async (attachment) => {
@@ -245,6 +266,7 @@ export function MessageReader({
     })).then((entries) => {
       if (controller.signal.aborted) return
       setInlineImageSources(new Map(entries.filter((entry): entry is readonly [string, string] => entry !== null)))
+      setInlineImagesLoading(false)
     })
     return () => controller.abort()
   }, [message])
@@ -278,12 +300,24 @@ export function MessageReader({
     )
   }
 
+  const frameIsReady = emailFrameReady(
+    message.id,
+    message.html,
+    emailDocument,
+    inlineImagesLoading,
+    preparedFrame,
+  )
+
   return (
-    <article className="message-reader">
+    <article
+      className={`message-reader${frameIsReady ? '' : ' message-reader--preparing'}`}
+      aria-busy={!frameIsReady}
+    >
       <header className="reader-toolbar">
         <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}>
           <ArrowLeft size={18} />
         </button>
+        <h2 className="reader-toolbar__title">{t('邮件详情')}</h2>
         <div className="reader-toolbar__spacer" />
         {message.folder === 'trash' && (
           <button className="toolbar-button" type="button" onClick={onRestore}>
@@ -384,7 +418,14 @@ export function MessageReader({
               const observer = new ResizeObserver(() => requestAnimationFrame(resize))
               if (frame.parentElement) observer.observe(frame.parentElement)
               frameResizeObserverRef.current = observer
-              requestAnimationFrame(resize)
+              requestAnimationFrame(() => {
+                resize()
+                setPreparedFrame((current) => (
+                  current?.messageId === message.id && current.document === emailDocument
+                    ? current
+                    : { messageId: message.id, document: emailDocument }
+                ))
+              })
               document.querySelectorAll('img').forEach((image) => {
                 if (!image.complete) image.addEventListener('load', resize, { once: true })
               })
@@ -450,6 +491,17 @@ export function MessageReader({
             setExternalLink(null)
           }}
         />
+      )}
+      {!frameIsReady && (
+        <div className="reader-state reader-state--loading reader-frame-preparing" role="status" aria-live="polite">
+          <span className="reader-loading-visual" aria-hidden="true">
+            <span className="reader-loading-mail"><Mail size={23} /></span>
+          </span>
+          <span className="reader-loading-copy">
+            <strong>{t('正在打开邮件')}</strong>
+            <small>{t('正在准备邮件布局')}</small>
+          </span>
+        </div>
       )}
     </article>
   )

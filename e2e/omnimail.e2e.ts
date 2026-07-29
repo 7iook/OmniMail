@@ -388,21 +388,21 @@ test('permanent bulk deletion explains that it cannot be undone', async ({ page 
   await expect(dialog).toContainText('此操作无法撤销')
   await expect(dialog.getByRole('button', { name: '永久删除' })).toBeVisible()
 })
-
 test('bulk controls remain usable at common responsive widths', async ({ page }) => {
-  await mockApp(page)
+  const [state, toolbar] = [await mockApp(page), page.locator('.bulk-toolbar')]
   await page.goto('/')
+  const [idleHeight, requestsBefore] = [await toolbar.evaluate((element) => element.getBoundingClientRect().height), state.messageRequests]
+  await expect(page.locator('.message-row__check')).toHaveCount(1)
   await page.getByRole('button', { name: '批量操作' }).click()
+  await expect.poll(() => toolbar.evaluate((element) => element.getBoundingClientRect().height)).toBe(idleHeight)
+  expect(state.messageRequests).toBe(requestsBefore)
   await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible()
-    expect(await page.evaluate(() => (
-      document.documentElement.scrollWidth <= document.documentElement.clientWidth
-    ))).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   }
 })
-
 test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {
   const subject = 'Secure link to log in to Claude.ai | 2026-07-28 09:52:24'
   await page.setViewportSize({ width: 375, height: 900 })

@@ -21,6 +21,7 @@ describe('translation', () => {
       .toBe('Copied: hello@example.com')
     expect(translate('切换为 {language}', { language: 'English' }, 'en-US'))
       .toBe('Switch to English')
+    expect(translate('邮件详情', {}, 'en-US')).toBe('Message details')
   })
 
   it('keeps unknown strings as a safe fallback', () => {

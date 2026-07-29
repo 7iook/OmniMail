@@ -23,11 +23,13 @@ import { formatMessageDate, senderLabel } from '../lib/mailFormatting'
 function SelectionCheckbox({
   checked,
   indeterminate = false,
+  disabled = false,
   label,
   onChange,
 }: {
   checked: boolean
   indeterminate?: boolean
+  disabled?: boolean
   label: string
   onChange: () => void
 }) {
@@ -41,6 +43,7 @@ function SelectionCheckbox({
       className="selection-checkbox"
       type="checkbox"
       checked={checked}
+      disabled={disabled}
       aria-label={label}
       onChange={onChange}
     />
@@ -82,7 +85,7 @@ function BulkToolbar({
       ]
 
   return (
-    <div className={`bulk-toolbar${someSelected ? ' is-active' : ''}`} aria-label={t('批量邮件操作')}>
+    <>
       <label>
         <SelectionCheckbox
           checked={allSelected}
@@ -106,7 +109,7 @@ function BulkToolbar({
           <X size={15} />
         </button>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -280,30 +283,34 @@ export function MessageList({
     role="listbox" aria-label={t('邮件列表')}
     onPointerDown={startDragSelection} onPointerMove={continueDragSelection}
     onPointerUp={finishDragSelection} onPointerCancel={cancelDragSelection}>
-    {bulkMode ? (
-      <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
-        loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction}
-        onCancel={closeBulkMode} />
-    ) : (
-      <div className="bulk-toolbar bulk-toolbar--idle">
+    <div
+      className={`bulk-toolbar${bulkMode ? ' is-bulk-mode' : ' bulk-toolbar--idle'}${selectedIds.size ? ' is-active' : ''}`}
+      aria-label={t('批量邮件操作')}
+    >
+      {bulkMode ? (
+        <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
+          loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction}
+          onCancel={closeBulkMode} />
+      ) : (
         <button className="bulk-mode-trigger" type="button" onClick={() => setBulkMode(true)}>
           <ListChecks size={15} />{t('批量操作')}
         </button>
-      </div>
-    )}
+      )}
+    </div>
     {messages.map((message, index) => (
       <article
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
         key={message.id} role="option" aria-selected={selectedId === message.id}
         data-message-index={index}
       >
-        {bulkMode && (
-          <span className="message-row__check">
-            <SelectionCheckbox checked={selectedIds.has(message.id)}
-              label={t('选择邮件：{subject}', { subject: message.subject })}
-              onChange={() => onToggleSelection(message)} />
-          </span>
-        )}
+        <span className="message-row__check" aria-hidden={!bulkMode}>
+          <SelectionCheckbox
+            checked={selectedIds.has(message.id)}
+            disabled={!bulkMode}
+            label={t('选择邮件：{subject}', { subject: message.subject })}
+            onChange={() => onToggleSelection(message)}
+          />
+        </span>
         <button className="message-row__main" type="button"
           onClick={() => selectOrOpen(message)}
           data-tooltip={message.subject.length > 40 ? message.subject : undefined}>
