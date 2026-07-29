@@ -1,7 +1,3 @@
-.invitation-management {
-  --admin-content-width: min(100%, 1360px);
-}
-
 .invite-summary {
   display: grid;
   width: var(--admin-content-width);
