@@ -70,7 +70,7 @@
   height: 100%;
   padding: 0;
   border: 0;
-  background: rgba(10, 10, 12, 0.2);
+  background: transparent;
   cursor: default;
   opacity: 0;
   transition: opacity 150ms ease-in;
@@ -555,9 +555,7 @@
   }
 
   .switcher-backdrop {
-    background: rgba(8, 8, 10, 0.42);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    background: transparent;
   }
 }
 

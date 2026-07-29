@@ -207,8 +207,8 @@
 
 .admin-workspace__header.is-stuck::before {
   border-color: color-mix(in srgb, var(--line) 82%, transparent);
-  background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--surface-muted) 98%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
   opacity: 1;
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
   backdrop-filter: blur(18px) saturate(1.2);

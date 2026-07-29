@@ -61,6 +61,9 @@ test('mailbox rows copy addresses without changing the current scope', async ({ 
   const trigger = page.getByRole('button', { name: /^当前邮箱/ })
   await trigger.click()
   const panel = page.locator('.mailbox-switcher__panel')
+  const backdrop = page.locator('.switcher-backdrop')
+  await expect(backdrop).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(backdrop).toHaveCSS('backdrop-filter', 'none')
   const copy = page.getByRole('button', { name: '复制邮箱地址：inbox@example.com' })
   await expect(copy).toBeVisible()
   const geometry = await copy.evaluate((element) => ({
