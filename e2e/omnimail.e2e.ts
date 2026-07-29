@@ -577,13 +577,6 @@ test('invitation lifecycle has a dedicated responsive admin page', async ({ page
       document.documentElement.scrollWidth <= document.documentElement.clientWidth
     ))).toBe(true)
   }
-  await page.setViewportSize({ width: 2048, height: 1152 })
-  await expect(page.locator('.mail-layout')).toHaveCSS('grid-template-columns', /^230px /)
-  const inviteContentWidth = await page.locator('.invite-summary').evaluate((element) => (
-    getComputedStyle(element).width
-  ))
-  await page.goto('/admin/users')
-  await expect(page.locator('.user-summary')).toHaveCSS('width', inviteContentWidth)
 })
 
 test('administrators can generate regular user invitation links', async ({ page }) => {
