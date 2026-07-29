@@ -109,12 +109,22 @@
     height: 68px;
     flex-direction: row;
     align-items: center;
+    gap: 4px;
     padding: 7px 9px max(7px, env(safe-area-inset-bottom));
+    overflow-x: auto;
+    overflow-y: hidden;
     border-top: 1px solid var(--line);
     border-right: 0;
     background: color-mix(in srgb, var(--surface) 92%, transparent);
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    touch-action: pan-x;
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
+  }
+
+  .mail-sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .sidebar-brand {
@@ -123,9 +133,10 @@
 
   .folder-nav {
     display: grid;
-    flex: 4;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 3px;
+    width: max-content;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(4, 64px);
+    gap: 4px;
   }
 
   .folder-nav button,
@@ -148,9 +159,10 @@
 
   .admin-nav {
     display: grid;
-    flex: 5;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 3px;
+    width: max-content;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(5, 64px);
+    gap: 4px;
     margin: 0;
     padding: 0;
     border: 0;
@@ -174,7 +186,8 @@
 
   .account-nav {
     display: grid;
-    flex: 1;
+    width: max-content;
+    flex: 0 0 64px;
     margin: 0;
     padding: 0;
     border: 0;
@@ -197,7 +210,7 @@
   }
 
   .mail-sidebar.is-admin .folder-nav {
-    flex: 4;
+    flex: 0 0 auto;
   }
 
   .mail-sidebar .sidebar-account {
@@ -271,11 +284,13 @@
   }
 
   .reader-content {
-    padding: 27px 19px 42px;
+    padding: 22px 14px 36px;
+    overflow-x: hidden;
   }
 
   .message-heading h1 {
-    font-size: 29px;
+    margin-bottom: 21px;
+    font-size: clamp(24px, 7.5vw, 29px);
   }
 
   .sender-block {
@@ -289,6 +304,11 @@
 
   .plain-body {
     padding: 21px 18px;
+  }
+
+  .plain-body,
+  .email-frame {
+    max-width: 100%;
   }
 
   .reply-composer {
@@ -307,6 +327,24 @@
 
   @keyframes toast-in {
     from { opacity: 0; transform: translate(50%, 8px); }
+  }
+}
+
+@media (max-width: 360px) {
+  .list-header {
+    min-height: 154px;
+    flex-wrap: wrap;
+    align-content: flex-end;
+    gap: 10px;
+  }
+
+  .list-header > div:first-child,
+  .list-header__actions {
+    width: 100%;
+  }
+
+  .list-header__actions {
+    justify-content: flex-end;
   }
 }
 

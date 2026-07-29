@@ -157,22 +157,24 @@ function buildEmailDocument(
     link.removeAttribute('target')
     link.removeAttribute('rel')
   })
-  const head = `
+  const securityHead = `
     <meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="${policy}">
     <meta name="referrer" content="no-referrer">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">`
+  const layoutStyles = `
     <style>
       :root { color-scheme: light; }
-      html { overflow: hidden; }
-      body { margin: 0; padding: 2px; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
-      img { max-width: 100%; height: auto; }
-      table { max-width: 100% !important; }
-      pre { white-space: pre-wrap; }
+      html, body { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
+      body { min-width: 0 !important; margin: 0 !important; padding: 2px !important; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
+      body *, body *::before, body *::after { box-sizing: border-box; }
+      body > *, table, tbody, tr, td { min-width: 0 !important; max-width: 100% !important; }
+      img, video { max-width: 100% !important; height: auto !important; }
+      pre, code { max-width: 100% !important; white-space: pre-wrap !important; overflow-wrap: anywhere; }
       a { color: #1d1d1f; text-decoration: underline; }
       a[data-omnimail-href] { cursor: pointer; }
     </style>`
-  return `<!doctype html><html><head>${head}${document.head.innerHTML}</head><body>${document.body.innerHTML}</body></html>`
+  return `<!doctype html><html><head>${securityHead}${document.head.innerHTML}${layoutStyles}</head><body>${document.body.innerHTML}</body></html>`
 }
 
 function blobDataUrl(blob: Blob): Promise<string> {

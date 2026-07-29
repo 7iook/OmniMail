@@ -81,7 +81,7 @@ async function mockApp(page: Page, state = mockState()) {
       message: {
         ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
         cc: [], text: 'Visit https://example.com',
-        html: '<p><a href="https://example.com/account">Visit account</a></p>', attachments: [],
+        html: '<div style="width:800px"><p><a href="https://example.com/account">Visit account</a></p></div>', attachments: [],
       },
       thread: [message, reply],
     })
@@ -284,9 +284,9 @@ test('reselecting the inbox quietly refreshes without hiding the list', async ({
   await expect(page.getByText('正在读取邮件')).toHaveCount(0)
 })
 test('email links open the safety dialog instead of navigating the iframe', async ({ page }) => {
-  await mockApp(page)
-  await page.goto('/')
+  await page.setViewportSize({ width: 320, height: 700 }); await mockApp(page); await page.goto('/')
   await page.getByText('Welcome to OmniMail').click()
+  await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate((body) => body.scrollWidth <= body.clientWidth)).toBe(true)
   const link = page.frameLocator('iframe').getByRole('link', { name: 'Visit account' })
   await link.click()
   const dialog = page.getByRole('alertdialog')
@@ -408,10 +408,10 @@ test('bulk controls remain usable at common responsive widths', async ({ page })
   await expect.poll(() => toolbar.evaluate((element) => element.getBoundingClientRect().height)).toBe(idleHeight)
   expect(state.messageRequests).toBe(requestsBefore)
   await page.getByRole('checkbox', { name: '选择邮件：Welcome to OmniMail' }).check()
-  for (const width of [375, 768, 1024, 1440]) {
+  for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth > nav.clientWidth, Math.min(...[...nav.querySelectorAll('nav button')].map((button) => button.getBoundingClientRect().width))])).toEqual([true, 64])
   }
 })
 test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {

@@ -525,6 +525,10 @@
 }
 
 @media (max-width: 760px) {
+  .mailbox-scope-trigger[aria-expanded="true"] {
+    z-index: auto;
+  }
+
   .mailbox-switcher__panel {
     position: fixed;
     top: auto;

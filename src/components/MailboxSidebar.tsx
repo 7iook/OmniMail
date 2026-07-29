@@ -11,6 +11,7 @@ import {
   UserCog,
   Users,
 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { type Folder, type MailCounts, type User } from '../lib/api'
 import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
@@ -66,9 +67,17 @@ export function MailboxSidebar({
   onLogout: () => Promise<void>
 }) {
   const showAdmin = isAdminRole(user.role)
+  const sidebarRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    sidebarRef.current?.querySelector<HTMLElement>('.is-active')?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    })
+  }, [adminView, folder])
 
   return (
-    <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`}>
+    <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`} ref={sidebarRef}>
       <div className="sidebar-brand"><Brand /></div>
       <div className="sidebar-theme">
         <ThemeToggle />
