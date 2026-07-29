@@ -81,7 +81,7 @@ async function mockApp(page: Page, state = mockState()) {
       message: {
         ...message, messageId: '<message-1@example.net>', inReplyTo: null, references: null,
         cc: [], text: 'Visit https://example.com',
-        html: '<table role="presentation" width="100%"><tr><td><div style="width:640px;min-width:640px"><p><a href="https://example.com/account">Visit account</a></p></div></td></tr></table>', attachments: [],
+        html: '<div data-email-canvas style="width:100%;background:#f5f0e8"><table role="presentation" width="100%"><tr><td><div style="width:640px;min-width:640px"><p><a href="https://example.com/account">Visit account</a></p></div></td></tr></table></div>', attachments: [],
       },
       thread: [message, reply],
     })
@@ -285,8 +285,8 @@ test('reselecting the inbox quietly refreshes without hiding the list', async ({
 })
 test('email links open the safety dialog instead of navigating the iframe', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 }); await mockApp(page); await page.goto('/')
-  await page.getByText('Welcome to OmniMail').click()
-  for (const width of [320, 360, 393, 430]) { await page.setViewportSize({ width, height: 700 }); await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate((body) => [...body.querySelectorAll('*')].every((element) => { const rect = element.getBoundingClientRect(); return rect.left >= -1 && rect.right <= body.ownerDocument.documentElement.clientWidth + 1 }))).toBe(true) }
+  await page.getByText('Welcome to OmniMail').click(); expect(await page.locator('.message-reader').evaluate(() => [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).filter((rule): rule is CSSKeyframesRule => rule instanceof CSSKeyframesRule && rule.name === 'message-reader-in').every((rule) => [...rule.cssRules].every((frame) => !frame.style.transform)))).toBe(true)
+  for (const width of [320, 360, 393, 430]) { await page.setViewportSize({ width, height: 700 }); await expect.poll(() => page.frameLocator('iframe').locator('body').evaluate((body) => { const viewportWidth = body.ownerDocument.documentElement.clientWidth; const canvas = body.querySelector('[data-email-canvas]')?.getBoundingClientRect(); return [...body.querySelectorAll('*')].every((element) => { const rect = element.getBoundingClientRect(); return rect.left >= -1 && rect.right <= viewportWidth + 2 }) && Boolean(canvas && canvas.right >= viewportWidth - 4) })).toBe(true) }
   const link = page.frameLocator('iframe').getByRole('link', { name: 'Visit account' })
   await link.click()
   const dialog = page.getByRole('alertdialog')
@@ -411,7 +411,7 @@ test('bulk controls remain usable at common responsive widths', async ({ page })
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth > nav.clientWidth, Math.min(...[...nav.querySelectorAll('nav button')].map((button) => button.getBoundingClientRect().width))])).toEqual([true, 64])
+    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth <= nav.clientWidth, nav.querySelectorAll('.folder-nav > button, .account-nav > button').length])).toEqual([true, 5])
   }
 })
 test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {
@@ -536,7 +536,7 @@ test('an expired or disabled session returns to the public home page', async ({ 
 })
 test('disabling a user uses the in-app safety dialog', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 }); await mockApp(page); await page.goto('/')
-  await page.getByRole('button', { name: '用户' }).click(); await expect(page.locator('.managed-user-list .temporary-user-expiry')).toContainText('剩余 1 天 1 小时')
+  await page.getByRole('button', { name: '展开管理员功能' }).click(); await page.getByRole('button', { name: '用户' }).click(); await expect(page.locator('.managed-user-list .temporary-user-expiry')).toContainText('剩余 1 天 1 小时')
   await page.getByRole('button', { name: /Test User/ }).click()
   const policyBackdrop = page.locator('.user-policy-backdrop'); const policyPanel = page.locator('.user-panel')
   await expect(policyBackdrop).toHaveAttribute('data-state', 'open'); await expect(policyBackdrop).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)'); await expect(policyBackdrop).toHaveCSS('backdrop-filter', 'none'); await expect(policyPanel).toHaveCSS('transition-property', 'opacity, transform'); await expect(policyPanel).toHaveCSS('transform', 'none')

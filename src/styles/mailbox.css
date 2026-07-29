@@ -77,6 +77,10 @@
   border-top: 1px solid var(--line);
 }
 
+.admin-nav-toggle {
+  display: none;
+}
+
 .account-nav {
   display: grid;
   gap: 5px;

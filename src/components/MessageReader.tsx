@@ -62,6 +62,8 @@ export function fitEmailDocument(document: Document): number {
   const { body, documentElement } = document
   body.style.removeProperty('transform')
   body.style.removeProperty('transform-origin')
+  body.style.removeProperty('--omnimail-body-width')
+  body.style.removeProperty('--omnimail-body-max-width')
 
   const viewportWidth = documentElement.clientWidth
   if (viewportWidth <= 0) return emailDocumentHeight(document)
@@ -82,10 +84,12 @@ export function fitEmailDocument(document: Document): number {
     documentElement.scrollWidth,
     maxRight - minLeft,
   )
-  const naturalHeight = emailDocumentHeight(document)
-  if (contentWidth <= viewportWidth + 1) return naturalHeight
+  if (contentWidth <= viewportWidth + 1) return emailDocumentHeight(document)
 
+  body.style.setProperty('--omnimail-body-width', `${contentWidth}px`)
+  body.style.setProperty('--omnimail-body-max-width', 'none')
   const scale = viewportWidth / contentWidth
+  const naturalHeight = emailDocumentHeight(document)
   body.style.setProperty('transform-origin', 'top left')
   body.style.setProperty(
     'transform',
@@ -201,7 +205,8 @@ function buildEmailDocument(
   const layoutStyles = `
     <style>
       :root { color-scheme: light; }
-      html, body { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
+      html { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
+      body { width: var(--omnimail-body-width, 100%) !important; max-width: var(--omnimail-body-max-width, 100%) !important; overflow-x: hidden !important; }
       body { min-width: 0 !important; margin: 0 !important; padding: 2px !important; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
       body *, body *::before, body *::after { box-sizing: border-box; }
       body > *, table, tbody, tr, td { min-width: 0 !important; max-width: 100% !important; }

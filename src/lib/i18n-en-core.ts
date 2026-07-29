@@ -101,6 +101,8 @@ export const enCore: Record<string, string> = {
   '账号设置': 'Account settings',
   '邮箱文件夹': 'Mailbox folders',
   '管理员功能': 'Administrator tools',
+  '展开管理员功能': 'Expand administrator tools',
+  '收起管理员功能': 'Collapse administrator tools',
   '个人账户': 'Personal account',
   '退出登录': 'Sign out',
   '正在读取邮件': 'Loading messages',

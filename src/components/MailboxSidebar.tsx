@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  ChevronUp,
   Inbox,
   Link2,
   LogOut,
@@ -11,7 +12,7 @@ import {
   UserCog,
   Users,
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { type Folder, type MailCounts, type User } from '../lib/api'
 import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
@@ -68,8 +69,10 @@ export function MailboxSidebar({
 }) {
   const showAdmin = isAdminRole(user.role)
   const sidebarRef = useRef<HTMLElement>(null)
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
 
   useEffect(() => {
+    if (window.matchMedia('(max-width: 760px)').matches) return
     sidebarRef.current?.querySelector<HTMLElement>('.is-active')?.scrollIntoView({
       block: 'nearest',
       inline: 'nearest',
@@ -92,7 +95,10 @@ export function MailboxSidebar({
               className={!adminView && folder === item.id ? 'is-active' : ''}
               type="button"
               key={item.id}
-              onClick={() => onFolderChange(item.id)}
+              onClick={() => {
+                setAdminMenuOpen(false)
+                onFolderChange(item.id)
+              }}
             >
               <Icon
                 size={18}
@@ -108,29 +114,51 @@ export function MailboxSidebar({
       </nav>
 
       {showAdmin && (
-        <nav className="admin-nav" aria-label={t('管理员功能')}>
-          {adminItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                className={adminView === item.id ? 'is-active' : ''}
-                type="button"
-                key={item.id}
-                onClick={() => onAdminViewChange(item.id)}
-              >
-                <Icon size={18} />
-                <span>{t(item.label)}</span>
-              </button>
-            )
-          })}
-        </nav>
+        <>
+          <button
+            className={`admin-nav-toggle${adminView && adminView !== 'account' ? ' has-active-admin' : ''}`}
+            type="button"
+            aria-controls="mobile-admin-navigation"
+            aria-expanded={adminMenuOpen}
+            aria-label={t(adminMenuOpen ? '收起管理员功能' : '展开管理员功能')}
+            onClick={() => setAdminMenuOpen((open) => !open)}
+          >
+            <ChevronUp size={17} aria-hidden="true" />
+          </button>
+          <nav
+            id="mobile-admin-navigation"
+            className={`admin-nav${adminMenuOpen ? ' is-open' : ''}`}
+            aria-label={t('管理员功能')}
+          >
+            {adminItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  className={adminView === item.id ? 'is-active' : ''}
+                  type="button"
+                  key={item.id}
+                  onClick={() => {
+                    setAdminMenuOpen(false)
+                    onAdminViewChange(item.id)
+                  }}
+                >
+                  <Icon size={18} />
+                  <span>{t(item.label)}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </>
       )}
 
       <nav className="account-nav" aria-label={t('个人账户')}>
         <button
           className={adminView === 'account' ? 'is-active' : ''}
           type="button"
-          onClick={() => onAdminViewChange('account')}
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('account')
+          }}
         >
           <UserCog size={18} />
           <span>{t('账号设置')}</span>

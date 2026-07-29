@@ -109,16 +109,13 @@
     height: 68px;
     flex-direction: row;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     padding: 7px 9px max(7px, env(safe-area-inset-bottom));
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible;
     border-top: 1px solid var(--line);
     border-right: 0;
     background: color-mix(in srgb, var(--surface) 92%, transparent);
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    touch-action: pan-x;
+    touch-action: manipulation;
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
   }
@@ -133,10 +130,11 @@
 
   .folder-nav {
     display: grid;
-    width: max-content;
-    flex: 0 0 auto;
-    grid-template-columns: repeat(4, 64px);
-    gap: 4px;
+    width: auto;
+    min-width: 0;
+    flex: 4 1 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
   }
 
   .folder-nav button,
@@ -158,14 +156,39 @@
   }
 
   .admin-nav {
+    position: absolute;
+    z-index: 2;
+    right: 9px;
+    bottom: calc(100% + 8px);
+    left: 9px;
     display: grid;
-    width: max-content;
-    flex: 0 0 auto;
-    grid-template-columns: repeat(5, 64px);
-    gap: 4px;
+    width: auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
     margin: 0;
-    padding: 0;
-    border: 0;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px) scale(0.985);
+    transform-origin: bottom center;
+    visibility: hidden;
+    transition: opacity 150ms ease-in, transform 180ms ease-in,
+      visibility 0s linear 180ms;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .admin-nav.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    visibility: visible;
+    transition: opacity 180ms ease-out,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s;
   }
 
   .admin-nav button {
@@ -186,8 +209,9 @@
 
   .account-nav {
     display: grid;
-    width: max-content;
-    flex: 0 0 64px;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
     margin: 0;
     padding: 0;
     border: 0;
@@ -209,8 +233,40 @@
     font-size: 9px;
   }
 
-  .mail-sidebar.is-admin .folder-nav {
-    flex: 0 0 auto;
+  .admin-nav-toggle {
+    position: absolute;
+    z-index: 3;
+    bottom: calc(100% - 5px);
+    left: 50%;
+    display: grid;
+    width: 46px;
+    height: 30px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 15px 15px 8px 8px;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    color: var(--text-secondary);
+    cursor: pointer;
+    box-shadow: 0 -5px 16px color-mix(in srgb, #000 8%, transparent);
+    transform: translateX(-50%);
+    transition: color 180ms ease, background 180ms ease;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .admin-nav-toggle svg {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .admin-nav-toggle[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+
+  .admin-nav-toggle.has-active-admin {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
   }
 
   .mail-sidebar .sidebar-account {

@@ -33,7 +33,7 @@
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  animation: message-reader-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: message-reader-in 200ms ease-out both;
 }
 
 .message-reader--preparing > :not(.reader-frame-preparing) {
@@ -115,10 +115,7 @@
 }
 
 @keyframes message-reader-in {
-  from {
-    opacity: 0.42;
-    transform: translateY(7px);
-  }
+  from { opacity: 0.55; }
 }
 
 @keyframes reader-loading-in {
