@@ -33,6 +33,7 @@ import type {
   RegistrationDomainPolicy,
   RegistrationMethod,
   StoragePolicy,
+  SystemVersion,
   TemporaryInvite,
   User,
 } from './api-types'
@@ -115,6 +116,7 @@ export const api = {
   ),
   logout: () => request<{ ok: true }>('/api/logout', { method: 'POST' }),
   deploymentCheck: () => request<DeploymentCheck>('/api/admin/deployment-check'),
+  systemVersion: () => request<SystemVersion>('/api/admin/version'),
   updateRegistrationSetting: (enabled: boolean, method: RegistrationMethod) => (
     request<{ registrationEnabled: boolean; registrationMethod: RegistrationMethod }>('/api/admin/settings/registration', {
       method: 'PATCH',

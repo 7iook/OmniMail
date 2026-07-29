@@ -261,6 +261,7 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/admin/invites/invite-1/revoke' && request.method() === 'PATCH') {
       return json(route, { ok: true })
     }
+    if (path === '/api/admin/version') return json(route, { currentVersion: '0.1.0', latestVersion: '0.2.0', updateAvailable: true, checkFailed: false, checkedAt: Date.now(), releaseUrl: 'https://github.com/mibgb65-cloud/OmniMail/releases/latest' })
     return json(route, { error: `Unhandled test route: ${request.method()} ${path}` }, 500)
   })
   return state
@@ -595,4 +596,5 @@ test('administrators can enable unassigned mail from system settings', async ({ 
   await page.getByRole('checkbox', { name: '开启无人收件' }).click()
   await expect.poll(() => state.unassignedMailEnabled).toBe(true)
   await expect(page.getByText('无人收件已开启')).toBeVisible()
+  await expect(page.getByText('发现新版本 v0.2.0')).toBeVisible()
 })

@@ -1,3 +1,4 @@
+import packageMetadata from '../../package.json'
 import { writeAudit } from './audit'
 import type { Env, SessionUser } from './types'
 
@@ -8,6 +9,9 @@ const REMOTE_IMAGES_SETTING = 'remote_images_enabled'
 const UNASSIGNED_MAIL_SETTING = 'unassigned_mail_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
+const CURRENT_VERSION = packageMetadata.version
+const LATEST_RELEASE_API = 'https://api.github.com/repos/mibgb65-cloud/OmniMail/releases/latest'
+const LATEST_RELEASE_URL = 'https://github.com/mibgb65-cloud/OmniMail/releases/latest'
 
 function json(body: unknown, status = 200): Response {
   return Response.json(body, { status })
@@ -15,6 +19,74 @@ function json(body: unknown, status = 200): Response {
 
 function isAdministrator(user: SessionUser): boolean {
   return user.role === 'super_admin' || user.role === 'admin'
+}
+
+function stableVersion(value: unknown): { value: string; parts: [number, number, number] } | null {
+  if (typeof value !== 'string') return null
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value.trim())
+  if (!match) return null
+  return {
+    value: `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}`,
+    parts: [Number(match[1]), Number(match[2]), Number(match[3])],
+  }
+}
+
+export function isNewerVersion(candidate: string, current: string): boolean {
+  const next = stableVersion(candidate)
+  const installed = stableVersion(current)
+  if (!next || !installed) return false
+  for (let index = 0; index < next.parts.length; index += 1) {
+    if (next.parts[index] > installed.parts[index]) return true
+    if (next.parts[index] < installed.parts[index]) return false
+  }
+  return false
+}
+
+export async function systemVersion(
+  actor: SessionUser,
+  releaseFetch: typeof fetch = fetch,
+): Promise<Response> {
+  if (!isAdministrator(actor)) {
+    return json({ error: '只有管理员可以检查系统版本。' }, 403)
+  }
+  const base = {
+    currentVersion: CURRENT_VERSION,
+    releaseUrl: LATEST_RELEASE_URL,
+    checkedAt: Date.now(),
+  }
+  try {
+    const response = await releaseFetch(LATEST_RELEASE_API, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': `OmniMail/${CURRENT_VERSION}`,
+        'X-GitHub-Api-Version': '2026-03-10',
+      },
+      signal: AbortSignal.timeout(5_000),
+      cf: {
+        cacheEverything: true,
+        cacheTtlByStatus: { '200-299': 3600, 404: 300, '500-599': 0 },
+      },
+    })
+    if (response.status === 404) {
+      return json({
+        ...base, latestVersion: null, updateAvailable: false, checkFailed: false,
+      })
+    }
+    if (!response.ok) throw new Error(`GitHub release request failed: ${response.status}`)
+    const release = await response.json() as { tag_name?: unknown }
+    const latest = stableVersion(release.tag_name)
+    if (!latest) throw new Error('GitHub release tag is not a stable version')
+    return json({
+      ...base,
+      latestVersion: latest.value,
+      updateAvailable: isNewerVersion(latest.value, CURRENT_VERSION),
+      checkFailed: false,
+    })
+  } catch {
+    return json({
+      ...base, latestVersion: null, updateAvailable: false, checkFailed: true,
+    })
+  }
 }
 
 export function parseMailRefreshInterval(value: unknown): MailRefreshInterval | null {

@@ -468,6 +468,19 @@ Authorization: Bearer om_at_...
 API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker 直接读取，
 因此始终标记为需要管理员人工确认。
 
+## 版本与更新
+
+管理员打开系统设置时可以查询当前安装版本与 GitHub 最新 Release：
+
+```http
+GET /api/admin/version
+Authorization: Bearer om_at_...
+```
+
+响应包含 `currentVersion`、`latestVersion`、`updateAvailable`、`checkFailed`、
+`checkedAt` 和固定的官方 `releaseUrl`。成功结果最多缓存一小时；GitHub
+暂时不可用不会影响其他系统功能，也不会自动安装更新。
+
 ## 常用资源
 
 | 方法与路径 | 说明 |
@@ -496,6 +509,7 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `POST /api/admin/mail-cleanup` | 经数量复核后每批永久清理最多 50 封邮件 |
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
+| `GET /api/admin/version` | 当前版本与 GitHub Release 更新状态 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员邀请列表 |
 | `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |

@@ -46,6 +46,15 @@ export interface DeploymentCheck {
   checks: DeploymentCheckItem[]
 }
 
+export interface SystemVersion {
+  currentVersion: string
+  latestVersion: string | null
+  updateAvailable: boolean
+  checkFailed: boolean
+  checkedAt: number
+  releaseUrl: string
+}
+
 export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'
 export type RegistrationMethod = 'password' | 'linuxdo'
 

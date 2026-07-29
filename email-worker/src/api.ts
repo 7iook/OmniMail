@@ -32,7 +32,7 @@ import { ensureSchema } from './schema'
 import { mailStatistics } from './statistics-api'
 import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
-import { updateMailRefreshInterval, updateRemoteImagesSetting, updateUnassignedMailSetting } from './system-settings'
+import { systemVersion, updateMailRefreshInterval, updateRemoteImagesSetting, updateUnassignedMailSetting } from './system-settings'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
@@ -65,7 +65,6 @@ export type AppContext = {
 }
 
 const app = new Hono<AppContext>()
-
 function setSessionCookie(context: Parameters<typeof setCookie>[0], env: Env, token: string): void {
   setCookie(context, SESSION_COOKIE, token, {
     httpOnly: true,
@@ -466,6 +465,7 @@ app.post('/api/admin/mail-cleanup', (context) => runAdminMailCleanup(
 ))
 app.get('/api/admin/audit-logs', (context) => listAuditLogs(context.env, context.get('user'), context.req.raw))
 app.get('/api/admin/deployment-check', (context) => deploymentCheck(context.env, context.get('user')))
+app.get('/api/admin/version', (context) => systemVersion(context.get('user')))
 app.get('/api/admin/users', (context) => listManagedUsers(
   context.env,
   context.get('user'),

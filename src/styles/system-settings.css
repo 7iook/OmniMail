@@ -214,6 +214,67 @@
   flex: none;
 }
 
+.version-card > header .icon-button {
+  margin-left: auto;
+}
+
+.version-overview {
+  display: flex;
+  min-height: 65px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.version-number {
+  display: grid;
+  gap: 3px;
+}
+
+.version-number small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.version-number strong {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.version-state {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.version-state.has-update {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.version-state.is-unavailable {
+  background: var(--surface-muted);
+  color: var(--text-tertiary);
+}
+
+.version-state svg {
+  flex: none;
+}
+
+.version-release-link {
+  width: 100%;
+  margin-top: 13px;
+}
+
 @media (max-width: 440px) {
   .refresh-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -226,6 +287,15 @@
 
   .registration-domain-mode {
     grid-template-columns: 1fr;
+  }
+
+  .version-overview {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .version-state {
+    text-align: left;
   }
 }
 

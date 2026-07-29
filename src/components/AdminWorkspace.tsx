@@ -21,6 +21,7 @@ import { MailStatistics } from './MailStatistics'
 import { OutboundRateLimitSettings } from './OutboundRateLimitSettings'
 import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
+import { VersionStatusCard } from './VersionStatusCard'
 
 const refreshOptions: Array<{ value: MailRefreshInterval; label: string }> = [
   { value: 5, label: '5 秒' },
@@ -219,6 +220,8 @@ export function AdminWorkspace({
         <StoragePolicySettings />
 
         <OutboundRateLimitSettings />
+
+        <VersionStatusCard />
 
         <section className="admin-card admin-card--settings">
           <header>
