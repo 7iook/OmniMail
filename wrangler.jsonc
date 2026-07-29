@@ -5,10 +5,6 @@
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
-  "vars": {
-    "CLOUDFLARE_ACCOUNT_ID": "aa3f485e440f2eca7037dfd2b7ba1880",
-    "D1_DATABASE_ID": "7dfb47df-dff7-47e0-94e6-ecba5a1b8cb4"
-  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -267,6 +267,12 @@ Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓�
 管理员可以在 **系统设置 → 备份、保留与配额** 中自行开启或关闭备份；资源不完整时
 开关会保持不可用，不会显示虚假的成功状态。
 
+仓库默认配置不会包含任何固定的 Cloudflare Account ID 或 D1 Database ID。Fork
+部署需要在 Worker 的 **Variables & Secrets** 中配置自己的 `CLOUDFLARE_ACCOUNT_ID`
+和 `D1_DATABASE_ID`；`D1_REST_API_TOKEN` 必须保存为 Secret。启用或手动运行备份前，
+OmniMail 会使用 D1 Query API 对比目标数据库与当前 `DB` 绑定的内部身份标识，不一致、
+无权限或目标不存在时会拒绝备份。
+
 - 开启时每日导出 D1，并将新收邮件原文和已发送正文归档到备份桶。
 - D1 每日、每周、每月备份默认分别保留 30、84、365 天，邮件归档保留 90 天。
 - 垃圾箱、失败邮件、临时账号数据和操作日志由 Workflow 分批清理；超大积压会自动

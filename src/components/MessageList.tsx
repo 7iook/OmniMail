@@ -14,11 +14,115 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react'
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
 import type { Folder, MessageSummary, PageInfo } from '../lib/api'
 import type { BulkMessageAction } from '../lib/messageActions'
 import { t } from '../lib/i18n'
 import { formatMessageDate, senderLabel } from '../lib/mailFormatting'
+
+type MessageContextMenuState = {
+  message: MessageSummary
+  x: number
+  y: number
+}
+
+function contextActions(folder: Folder, message: MessageSummary) {
+  if (folder === 'trash') {
+    return [
+      ['restore', t('恢复邮件'), RotateCcw],
+      ['delete', t('永久删除'), Trash2],
+    ] as const
+  }
+  return [
+    [message.isRead ? 'unread' : 'read', t(message.isRead ? '标记为未读' : '标记为已读'),
+      message.isRead ? Mail : MailOpen],
+    [message.isStarred ? 'unstar' : 'star', t(message.isStarred ? '取消星标' : '添加星标'),
+      message.isStarred ? StarOff : Star],
+    ['trash', t('移入垃圾箱'), Trash2],
+  ] as const
+}
+
+function MessageContextMenu({
+  state,
+  folder,
+  onAction,
+  onClose,
+}: {
+  state: MessageContextMenuState
+  folder: Folder
+  onAction: (action: BulkMessageAction, ids?: string[]) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const actions = contextActions(folder, state.message)
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+    function closeFromOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !ref.current?.contains(event.target)) onClose()
+    }
+    function closeFromKeyboard(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('pointerdown', closeFromOutside, true)
+    document.addEventListener('keydown', closeFromKeyboard)
+    window.addEventListener('blur', onClose)
+    window.addEventListener('resize', onClose)
+    window.addEventListener('scroll', onClose, true)
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside, true)
+      document.removeEventListener('keydown', closeFromKeyboard)
+      window.removeEventListener('blur', onClose)
+      window.removeEventListener('resize', onClose)
+      window.removeEventListener('scroll', onClose, true)
+    }
+  }, [onClose])
+
+  function moveFocus(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const offset = event.key === 'ArrowDown' ? 1 : -1
+    items[(current + offset + items.length) % items.length]?.focus()
+  }
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="message-context-menu"
+      role="menu"
+      aria-label={t('邮件操作')}
+      style={{ left: state.x, top: state.y }}
+      onContextMenu={(event) => event.preventDefault()}
+      onKeyDown={moveFocus}
+    >
+      {actions.map(([action, label, Icon]) => (
+        <button
+          className={action === 'trash' || action === 'delete' ? 'is-danger' : ''}
+          key={action}
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onClose()
+            onAction(action, [state.message.id])
+          }}
+        >
+          <Icon size={16} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>,
+    document.body,
+  )
+}
 
 function SelectionCheckbox({
   checked,
@@ -144,13 +248,14 @@ export function MessageList({
   onToggleSelection: (message: MessageSummary) => void
   onSetSelection: (message: MessageSummary, selected: boolean) => void
   onSelectAll: () => void
-  onBulkAction: (action: BulkMessageAction) => void
+  onBulkAction: (action: BulkMessageAction, ids?: string[]) => void
   onStar: (message: MessageSummary) => void
   onLoadMore: () => void
 }) {
   const [bulkMode, setBulkMode] = useState(false)
   const [dragSelecting, setDragSelecting] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
+  const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null)
   const suppressClick = useRef(false)
   const scrollbarTimer = useRef<number | null>(null)
   const drag = useRef<{
@@ -275,6 +380,26 @@ export function MessageList({
     else onSelect(message)
   }
 
+  function openContextMenu(
+    event: ReactMouseEvent<HTMLElement>,
+    message: MessageSummary,
+  ) {
+    if (window.matchMedia('(max-width: 760px), (hover: none) and (pointer: coarse)').matches) return
+    event.preventDefault()
+    if (bulkMode || bulkLoading) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const actions = contextActions(folder, message)
+    const width = 196
+    const height = actions.length * 40 + 12
+    const requestedX = event.clientX || rect.left + 24
+    const requestedY = event.clientY || rect.top + 24
+    setContextMenu({
+      message,
+      x: Math.max(8, Math.min(requestedX, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(requestedY, window.innerHeight - height - 8)),
+    })
+  }
+
   function closeBulkMode() {
     messages
       .filter((message) => selectedIds.has(message.id))
@@ -294,7 +419,8 @@ export function MessageList({
     </div>
   }
 
-  return <div className="message-list-shell">
+  return <>
+  <div className="message-list-shell">
     <div
       className={`bulk-toolbar${bulkMode ? ' is-bulk-mode' : ' bulk-toolbar--idle'}${selectedIds.size ? ' is-active' : ''}`}
       aria-label={t('批量邮件操作')}
@@ -319,6 +445,7 @@ export function MessageList({
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
         key={message.id} role="option" aria-selected={selectedId === message.id}
         data-message-index={index}
+        onContextMenu={(event) => openContextMenu(event, message)}
       >
         <span className="message-row__check" aria-hidden={!bulkMode}>
           <SelectionCheckbox
@@ -361,4 +488,13 @@ export function MessageList({
     </button>}
     </div>
   </div>
+  {contextMenu && (
+    <MessageContextMenu
+      state={contextMenu}
+      folder={folder}
+      onAction={onBulkAction}
+      onClose={() => setContextMenu(null)}
+    />
+  )}
+  </>
 }

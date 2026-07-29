@@ -222,7 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-28-p0-security-v2'
+const SCHEMA_VERSION = '2026-07-29-p1-backup-identity'
 
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(
@@ -576,6 +576,10 @@ export function ensureSchema(db: D1Database): Promise<void> {
         `CREATE INDEX IF NOT EXISTS idx_audit_cursor
          ON audit_logs(created_at DESC, id DESC)`,
       ).run()
+      await db.prepare(
+        `INSERT OR IGNORE INTO settings (key, value, updated_at)
+         VALUES ('backup_database_identity', ?, unixepoch())`,
+      ).bind(crypto.randomUUID()).run()
       await db.prepare(
         `INSERT INTO settings (key, value, updated_at)
          VALUES ('schema_version', ?, unixepoch())

@@ -274,8 +274,8 @@ function Mailbox({
     }
   }
 
-  async function runBulkAction(action: BulkMessageAction) {
-    const ids = [...selectedMessageIds]
+  async function runBulkAction(action: BulkMessageAction, selectedIds = [...selectedMessageIds]) {
+    const ids = selectedIds
     if (!ids.length) return
     if (action === 'trash' || action === 'delete') {
       setPendingMailDelete({ kind: 'bulk', action, ids })
@@ -462,7 +462,7 @@ function Mailbox({
           onToggleSelection={toggleMessageSelection}
           onSetSelection={toggleMessageSelection}
           onSelectAll={selectAllLoadedMessages}
-          onBulkAction={(action) => void runBulkAction(action)}
+          onBulkAction={(action, ids) => void runBulkAction(action, ids)}
           onStar={(message) => void toggleStar(message)}
           onLoadMore={() => void loadMoreMessages()}
         />

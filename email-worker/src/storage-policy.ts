@@ -1,4 +1,5 @@
 import { writeAudit } from './audit'
+import { validateBackupTarget } from './backup-target'
 import type { Env, SessionUser, UserRole } from './types'
 
 const SETTINGS = {
@@ -239,6 +240,15 @@ export async function updateStoragePolicy(
   if (input.backupEnabled && missing.length) {
     return json({ error: `备份资源尚未配置：${missing.join('、')}` }, 503)
   }
+  if (input.backupEnabled && !previous.backupEnabled) {
+    try {
+      await validateBackupTarget(env)
+    } catch (error) {
+      return json({
+        error: error instanceof Error ? error.message : '无法验证备份目标数据库。',
+      }, 503)
+    }
+  }
 
   const values: Array<[string, string]> = [
     [SETTINGS.backupEnabled, input.backupEnabled ? '1' : '0'],
@@ -298,6 +308,13 @@ export async function startManualBackup(
   if (!policy.backupEnabled) return json({ error: '请先开启自动备份。' }, 409)
   if (!policy.backupReady || !env.BACKUP_WORKFLOW) {
     return json({ error: `备份资源尚未配置：${policy.backupMissing.join('、')}` }, 503)
+  }
+  try {
+    await validateBackupTarget(env)
+  } catch (error) {
+    return json({
+      error: error instanceof Error ? error.message : '无法验证备份目标数据库。',
+    }, 503)
   }
   const id = `manual-${Date.now()}-${crypto.randomUUID()}`
   await env.BACKUP_WORKFLOW.create({

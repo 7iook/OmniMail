@@ -5,6 +5,7 @@ import {
 } from 'cloudflare:workers'
 import { NonRetryableError } from 'cloudflare:workflows'
 import { copyStoredMail, type StoredMail } from './mail-archive'
+import { validateBackupTarget } from './backup-target'
 import { backupEnabled } from './storage-policy'
 import type { BackupWorkflowParams, Env } from './types'
 
@@ -58,6 +59,15 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
     })
 
     try {
+      await step.do('Validate D1 backup target', async () => {
+        try {
+          await validateBackupTarget(this.env)
+        } catch (error) {
+          throw new NonRetryableError(
+            error instanceof Error ? error.message : '无法验证备份目标数据库。',
+          )
+        }
+      })
       if (event.payload?.includeMail) {
         await this.backfillMail(step)
       }
