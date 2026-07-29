@@ -28,6 +28,8 @@ import {
 } from '../lib/api'
 import { t } from '../lib/i18n'
 
+const SWITCHER_EXIT_MS = 190
+
 interface Props {
   mailboxes: MailboxAddress[]
   loaded: boolean
@@ -228,6 +230,7 @@ export function MailboxSwitcher({
   onMailboxesChanged,
 }: Props) {
   const [open, setOpen] = useState(false)
+  const [panelVisible, setPanelVisible] = useState(false)
   const [managing, setManaging] = useState(false)
   const [localPart, setLocalPart] = useState('')
   const [domainName, setDomainName] = useState('')
@@ -236,6 +239,8 @@ export function MailboxSwitcher({
   const [notice, setNotice] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<number | null>(null)
+  const openingRef = useRef(false)
   const onboardingShown = useRef(false)
 
   const activeMailboxes = useMemo(
@@ -265,12 +270,12 @@ export function MailboxSwitcher({
   useEffect(() => {
     if (onboardingShown.current || !loaded || !canManage || mailboxes.length) return
     onboardingShown.current = true
-    setOpen(true)
+    show()
     setManaging(true)
   }, [canManage, loaded, mailboxes.length])
 
   useEffect(() => {
-    if (!open) return
+    if (!panelVisible) return
     panelRef.current?.focus()
     function keydown(event: KeyboardEvent) {
       if (event.key === 'Escape') close()
@@ -291,13 +296,44 @@ export function MailboxSwitcher({
     }
     document.addEventListener('keydown', keydown)
     return () => document.removeEventListener('keydown', keydown)
+  }, [panelVisible])
+
+  useEffect(() => {
+    if (!open || !openingRef.current) return
+    const frame = window.requestAnimationFrame(() => {
+      if (!openingRef.current) return
+      openingRef.current = false
+      setPanelVisible(true)
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [open])
 
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+  }, [])
+
+  function show() {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+    if (open) setPanelVisible(true)
+    else {
+      openingRef.current = true
+      setOpen(true)
+    }
+  }
+
   function close() {
-    setOpen(false)
-    setManaging(false)
-    setError('')
-    window.setTimeout(() => triggerRef.current?.focus(), 0)
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    openingRef.current = false
+    setPanelVisible(false)
+    triggerRef.current?.focus()
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false)
+      setManaging(false)
+      setError('')
+      closeTimerRef.current = null
+    }, reducedMotion ? 0 : SWITCHER_EXIT_MS)
   }
 
   function select(nextScope: MailboxScope) {
@@ -351,8 +387,8 @@ export function MailboxSwitcher({
         className="mailbox-scope-trigger"
         type="button"
         aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
+        aria-expanded={panelVisible}
+        onClick={() => panelVisible ? close() : show()}
       >
         <span>{t('当前邮箱')}</span>
         <strong>{scopeLabel}</strong>
@@ -362,7 +398,7 @@ export function MailboxSwitcher({
       {open && (
         <>
           <button
-            className="switcher-backdrop"
+            className={`switcher-backdrop${panelVisible ? ' is-open' : ''}`}
             type="button"
             tabIndex={-1}
             aria-hidden="true"
@@ -370,10 +406,12 @@ export function MailboxSwitcher({
           />
           <div
             ref={panelRef}
-            className="mailbox-switcher__panel"
+            className={`mailbox-switcher__panel${panelVisible ? ' is-open' : ''}`}
             role="dialog"
             aria-modal="true"
+            aria-hidden={!panelVisible}
             aria-labelledby="mailbox-switcher-title"
+            data-state={panelVisible ? 'open' : 'closing'}
             tabIndex={-1}
           >
             <header className="switcher-header">

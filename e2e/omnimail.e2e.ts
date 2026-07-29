@@ -1,7 +1,6 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
 import { beginMessageRowDrag, endMessageRowDrag, moveMessageRowDrag } from './drag-selection'
 import { message, reply, user } from './omnimail-fixtures'
-
 type MockState = {
   messageRequests: number
   conditionalRequests: number
@@ -19,7 +18,6 @@ type MockState = {
   hasMailbox: boolean
   sentMessage: Record<string, string> | null
 }
-
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
   return {
     messageRequests: 0,
@@ -39,11 +37,9 @@ function mockState(refreshInterval = 30, subject = message.subject): MockState {
     sentMessage: null,
   }
 }
-
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
-
 async function mockApp(page: Page, state = mockState()) {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.addInitScript(() => {
@@ -271,10 +267,15 @@ async function mockApp(page: Page, state = mockState()) {
   })
   return state
 }
-
 test('reselecting the inbox quietly refreshes without hiding the list', async ({ page }) => {
-  const state = await mockApp(page)
+  const state = await mockApp(page); await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
+  const trigger = page.getByRole('button', { name: /^当前邮箱/ })
+  const triggerHeight = await trigger.evaluate((element) => element.getBoundingClientRect().height)
+  await trigger.click(); const panel = page.locator('.mailbox-switcher__panel')
+  await expect(panel).toHaveAttribute('data-state', 'open'); await expect.poll(() => trigger.evaluate((element) => element.getBoundingClientRect().height)).toBe(triggerHeight)
+  await trigger.click(); await expect(panel).toHaveAttribute('data-state', 'closing')
+  await expect(panel).toHaveCount(0)
   await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
   const requestsBeforeReselect = state.messageRequests
   await page.getByRole('button', { name: '收件箱' }).click()
@@ -282,7 +283,6 @@ test('reselecting the inbox quietly refreshes without hiding the list', async ({
   await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
   await expect(page.getByText('正在读取邮件')).toHaveCount(0)
 })
-
 test('email links open the safety dialog instead of navigating the iframe', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -294,7 +294,6 @@ test('email links open the safety dialog instead of navigating the iframe', asyn
   await expect(dialog.getByRole('button', { name: '复制链接' })).toBeVisible()
   await expect(page).toHaveURL('http://127.0.0.1:4173/mail/inbox')
 })
-
 test('users can apply a bulk action to selected messages', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -311,7 +310,6 @@ test('users can apply a bulk action to selected messages', async ({ page }) => {
   await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
-
 test('users can compose and send a new message', async ({ page }) => {
   const state = mockState()
   state.replyEnabled = true
@@ -341,7 +339,6 @@ test('a user with an empty mailbox allowance is prompted to choose an address', 
   await domainSelect.press('ArrowDown')
   await expect(page.getByRole('option', { name: 'example.com', exact: true })).toBeFocused()
 })
-
 test('dragging across message rows quickly selects and deselects a range', async ({ page }) => {
   const state = mockState()
   state.messages = [message,
@@ -376,7 +373,6 @@ test('single-message deletion requires confirmation', async ({ page }) => {
   await dialog.getByRole('button', { name: '移入垃圾箱' }).click()
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
-
 test('permanent bulk deletion explains that it cannot be undone', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -389,10 +385,25 @@ test('permanent bulk deletion explains that it cannot be undone', async ({ page 
   await expect(dialog.getByRole('button', { name: '永久删除' })).toBeVisible()
 })
 test('bulk controls remain usable at common responsive widths', async ({ page }) => {
-  const [state, toolbar] = [await mockApp(page), page.locator('.bulk-toolbar')]
+  const state = await mockApp(page)
+  state.messages = Array.from({ length: 12 }, (_, index) => ({ ...message,
+    id: `message-${index + 1}`, subject: index === 0 ? message.subject : `Message ${index + 1}` }))
+  const [toolbar, list] = [page.locator('.bulk-toolbar'), page.locator('.message-list')]
   await page.goto('/')
+  const layout = await list.evaluate((element) => {
+    const toolbarElement = element.previousElementSibling as HTMLElement
+    return { listTop: element.getBoundingClientRect().top,
+      toolbarBottom: toolbarElement.getBoundingClientRect().bottom,
+      gutter: getComputedStyle(element).scrollbarGutter,
+      scrollbar: getComputedStyle(element).scrollbarColor, width: element.clientWidth }
+  })
+  expect(layout.listTop).toBeCloseTo(layout.toolbarBottom, 1); expect(layout.gutter).toContain('stable')
+  await list.hover(); expect(await list.evaluate((element) => element.clientWidth)).toBe(layout.width)
+  await expect.poll(() => list.evaluate((element) => getComputedStyle(element).scrollbarColor)).not.toBe(layout.scrollbar)
+  await page.locator('.list-header').hover(); await list.evaluate((element) => { element.scrollTop = 80 })
+  await expect(list).toHaveClass(/is-scrollbar-active/)
   const [idleHeight, requestsBefore] = [await toolbar.evaluate((element) => element.getBoundingClientRect().height), state.messageRequests]
-  await expect(page.locator('.message-row__check')).toHaveCount(1)
+  await expect(page.locator('.message-row__check')).toHaveCount(12)
   await page.getByRole('button', { name: '批量操作' }).click()
   await expect.poll(() => toolbar.evaluate((element) => element.getBoundingClientRect().height)).toBe(idleHeight)
   expect(state.messageRequests).toBe(requestsBefore)
@@ -425,7 +436,6 @@ test('long subjects wrap to two stable lines without horizontal overflow', async
   expect(metrics.pageOverflow).toBe(false)
   await expect(page.locator('.message-row__main')).toHaveAttribute('data-tooltip', subject)
 })
-
 test('tooltips finish their exit animation before unmounting', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await mockApp(page)
@@ -459,7 +469,6 @@ test('tooltips finish their exit animation before unmounting', async ({ page }) 
     (window as typeof window & { __tooltipExitEvents?: string[] }).__tooltipExitEvents
   ))).toEqual(['closing', 'removed'])
 })
-
 test('related messages are available as a conversation thread', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -468,7 +477,6 @@ test('related messages are available as a conversation thread', async ({ page })
   await page.getByRole('button', { name: /发给 sender@example.net/ }).click()
   await expect(page.locator('.plain-body')).toHaveText('Thanks from OmniMail.')
 })
-
 test('visible tabs share one automatic refresh leader', async ({ page, context }) => {
   const state = mockState(5)
   await mockApp(page, state)
@@ -486,7 +494,6 @@ test('visible tabs share one automatic refresh leader', async ({ page, context }
     { timeout: 9000 },
   ).toBe(1)
 })
-
 test('administrators can review usage estimates and retry failed mail', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
@@ -496,16 +503,13 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await page.getByRole('button', { name: '重新处理' }).click()
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()
 })
-
 test('workspace navigation has durable URLs and browser history', async ({ page }) => {
   await mockApp(page)
   await page.goto('/')
   await expect(page).toHaveURL(/\/mail\/inbox$/)
-
   await page.getByRole('button', { name: '用户' }).click()
   await expect(page).toHaveURL(/\/admin\/users$/)
   await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
-
   await page.getByRole('button', { name: '系统设置' }).click()
   await expect(page).toHaveURL(/\/admin\/settings$/)
   await page.goBack()
@@ -513,11 +517,9 @@ test('workspace navigation has durable URLs and browser history', async ({ page 
   await expect(page.getByRole('heading', { name: '用户管理' })).toBeVisible()
   await page.goForward()
   await expect(page).toHaveURL(/\/admin\/settings$/)
-
   await page.goto('/admin/invites')
   await expect(page.getByRole('heading', { name: '邀请管理' })).toBeVisible()
 })
-
 test('an expired or disabled session returns to the public home page', async ({ page }) => {
   const state = await mockApp(page)
   await page.goto('/admin/users')
@@ -528,7 +530,6 @@ test('an expired or disabled session returns to the public home page', async ({ 
   await expect(page.getByRole('button', { name: '进入邮箱' })).toBeVisible()
   await expect(page.getByText('test11@snipxn.com')).toHaveCount(0)
 })
-
 test('disabling a user uses the in-app safety dialog', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
   await mockApp(page)
@@ -539,7 +540,6 @@ test('disabling a user uses the in-app safety dialog', async ({ page }) => {
   await expect(page.locator('.user-panel .temporary-user-expiry')).toContainText('剩余 1 天 1 小时')
   await page.getByRole('checkbox', { name: /封禁账户/ }).check()
   await page.getByRole('button', { name: '保存权限' }).click()
-
   const dialog = page.getByRole('alertdialog')
   await expect(dialog.getByRole('heading')).toHaveText('封禁 test11@snipxn.com？')
   await expect(dialog).toContainText('所有现有会话都将失效')

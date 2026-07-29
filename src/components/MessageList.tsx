@@ -150,7 +150,9 @@ export function MessageList({
 }) {
   const [bulkMode, setBulkMode] = useState(false)
   const [dragSelecting, setDragSelecting] = useState(false)
+  const [scrollbarActive, setScrollbarActive] = useState(false)
   const suppressClick = useRef(false)
+  const scrollbarTimer = useRef<number | null>(null)
   const drag = useRef<{
     pointerId: number
     startX: number
@@ -161,6 +163,19 @@ export function MessageList({
     select: boolean
     initialSelectedIds: Set<string>
   } | null>(null)
+
+  useEffect(() => () => {
+    if (scrollbarTimer.current !== null) window.clearTimeout(scrollbarTimer.current)
+  }, [])
+
+  function showScrollbarWhileScrolling() {
+    setScrollbarActive(true)
+    if (scrollbarTimer.current !== null) window.clearTimeout(scrollbarTimer.current)
+    scrollbarTimer.current = window.setTimeout(() => {
+      setScrollbarActive(false)
+      scrollbarTimer.current = null
+    }, 700)
+  }
 
   function applyDragSelection(index: number) {
     const current = drag.current
@@ -279,10 +294,7 @@ export function MessageList({
     </div>
   }
 
-  return <div className={`message-list${bulkMode ? ' is-bulk-mode' : ''}${dragSelecting ? ' is-drag-selecting' : ''}`}
-    role="listbox" aria-label={t('邮件列表')}
-    onPointerDown={startDragSelection} onPointerMove={continueDragSelection}
-    onPointerUp={finishDragSelection} onPointerCancel={cancelDragSelection}>
+  return <div className="message-list-shell">
     <div
       className={`bulk-toolbar${bulkMode ? ' is-bulk-mode' : ' bulk-toolbar--idle'}${selectedIds.size ? ' is-active' : ''}`}
       aria-label={t('批量邮件操作')}
@@ -297,6 +309,11 @@ export function MessageList({
         </button>
       )}
     </div>
+    <div
+      className={`message-list${bulkMode ? ' is-bulk-mode' : ''}${dragSelecting ? ' is-drag-selecting' : ''}${scrollbarActive ? ' is-scrollbar-active' : ''}`}
+      role="listbox" aria-label={t('邮件列表')} onScroll={showScrollbarWhileScrolling}
+      onPointerDown={startDragSelection} onPointerMove={continueDragSelection}
+      onPointerUp={finishDragSelection} onPointerCancel={cancelDragSelection}>
     {messages.map((message, index) => (
       <article
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
@@ -342,5 +359,6 @@ export function MessageList({
       {loadingMore && <LoaderCircle className="spin" size={15} />}
       {t(loadingMore ? '正在加载…' : '加载更多邮件')}
     </button>}
+    </div>
   </div>
 }
