@@ -223,7 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-07-29-p3-mail-features'
+const SCHEMA_VERSION = '2026-07-29-p5-outbound-rate-limit-admin'
 
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(

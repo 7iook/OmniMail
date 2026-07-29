@@ -1,6 +1,7 @@
 import { archiveSentAttachments, archiveSentMessage } from './mail-archive'
 import { textPreview, textToHtml } from './mail'
 import { messageSearchStatement } from './message-search'
+import { claimOutboundSend } from './outbound-rate-limit'
 import { releaseStorage, reserveStorage } from './message-storage'
 import { reconcileResendEvents } from './resend-webhook'
 import type { Env, OutboundJob, SessionUser, StoredBody } from './types'
@@ -160,6 +161,17 @@ export async function sendOutboundMessage(
     return json(
       { message: messageResult(existing) },
       existing.status === 'sent' ? 200 : 202,
+    )
+  }
+
+  const rateLimit = await claimOutboundSend(env.DB, user.id)
+  if (!rateLimit.allowed) {
+    return Response.json(
+      { error: '发信过于频繁，请稍后再试。' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfter) },
+      },
     )
   }
 

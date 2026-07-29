@@ -83,8 +83,24 @@ export type AccountStatus = 'active' | 'disabled'
 export interface AdminUser extends User {
   status: AccountStatus
   mailboxCount: number
+  outboundRateLimit: OutboundRateLimitState
   createdAt: number
   updatedAt: number
+}
+
+export interface OutboundRateLimitSettings {
+  enabled: boolean
+  minuteLimit: number
+  dayLimit: number
+}
+
+export interface OutboundRateLimitState extends OutboundRateLimitSettings {
+  minuteLimitOverride: number | null
+  dayLimitOverride: number | null
+  minuteUsed: number
+  dayUsed: number
+  minuteResetsAt: number
+  dayResetsAt: number
 }
 
 export interface ManagedUserPolicy {

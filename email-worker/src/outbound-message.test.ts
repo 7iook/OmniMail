@@ -22,6 +22,10 @@ const user: SessionUser = {
 function environment(
   firstResult: unknown = null,
   attachmentRows: Array<{ filename: string; r2_key: string }> = [],
+  rateLimit: {
+    changes: number
+    row?: Record<string, number>
+  } = { changes: 1 },
 ) {
   const statements: Array<{ sql: string; bindings: unknown[] }> = []
   const put = vi.fn(async () => undefined)
@@ -34,11 +38,19 @@ function environment(
         statements.push({ sql, bindings })
         return this
       },
-      first: async () => firstResult,
+      first: async () => (
+        sql.includes('FROM outbound_rate_limits') ? rateLimit.row ?? null : firstResult
+      ),
       all: async () => ({
         results: sql.includes('FROM attachments') ? attachmentRows : [],
       }),
-      run: async () => ({ meta: { changes: 1 } }),
+      run: async () => ({
+        meta: {
+          changes: sql.includes('INSERT INTO outbound_rate_limits')
+            ? rateLimit.changes
+            : 1,
+        },
+      }),
     }
     return statement
   }
@@ -64,7 +76,7 @@ describe('outbound delivery', () => {
   })
 
   it('stores and queues a new outgoing message before returning', async () => {
-    const { env, put, send } = environment()
+    const { env, put, send, statements } = environment()
     const response = await sendOutboundMessage(env, user, {
       mailboxAddress: 'owner@example.com',
       recipients: ['friend@example.net'],
@@ -83,6 +95,8 @@ describe('outbound delivery', () => {
       userId: user.id,
       auditAction: 'message.send',
     }))
+    expect(statements.some(({ sql }) => sql.includes('INSERT INTO outbound_rate_limits')))
+      .toBe(true)
   })
 
   it('atomically transfers draft attachments into the outgoing message', async () => {
@@ -111,8 +125,37 @@ describe('outbound delivery', () => {
     expect(statements.some(({ sql }) => sql.includes('attachment_count'))).toBe(true)
   })
 
+  it('returns Retry-After without storing or queueing when the user is rate limited', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const minuteStartedAt = Math.floor(now / 60) * 60
+    const { env, put, send } = environment(null, [], {
+      changes: 0,
+      row: {
+        minute_started_at: minuteStartedAt,
+        minute_count: 10,
+        day_started_at: Math.floor(now / 86_400) * 86_400,
+        day_count: 20,
+      },
+    })
+
+    const response = await sendOutboundMessage(env, user, {
+      mailboxAddress: 'owner@example.com',
+      recipients: ['friend@example.net'],
+      subject: 'Limited',
+      text: 'Message body',
+      idempotencyKey: 'request_limited',
+      auditAction: 'message.send',
+      auditDetail: { recipient: 'friend@example.net' },
+    }, '127.0.0.1')
+
+    expect(response.status).toBe(429)
+    expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(put).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('requeues an idempotent send after its first queue attempt failed', async () => {
-    const { env, send } = environment({
+    const { env, send, statements } = environment({
       id: 'out-retry',
       status: 'failed',
       provider_id: null,
@@ -136,6 +179,7 @@ describe('outbound delivery', () => {
       kind: 'outbound',
       messageId: 'out-retry',
     }))
+    expect(statements.some(({ sql }) => sql.includes('outbound_rate_limits'))).toBe(false)
   })
 
   it('sends a queued message idempotently and records the provider id', async () => {

@@ -28,6 +28,8 @@ import type {
   MessageDetail,
   MessageSummary,
   PageInfo,
+  OutboundRateLimitSettings,
+  OutboundRateLimitState,
   RegistrationDomainPolicy,
   RegistrationMethod,
   StoragePolicy,
@@ -149,6 +151,15 @@ export const api = {
       body: jsonBody({ enabled }),
     })
   ),
+  outboundRateLimitSettings: () => request<{
+    outboundRateLimit: OutboundRateLimitSettings
+  }>('/api/admin/settings/outbound-rate-limit'),
+  updateOutboundRateLimitSettings: (input: OutboundRateLimitSettings) => request<{
+    outboundRateLimit: OutboundRateLimitSettings
+  }>('/api/admin/settings/outbound-rate-limit', {
+    method: 'PATCH',
+    body: jsonBody(input),
+  }),
   storagePolicy: () => request<{ storagePolicy: StoragePolicy }>(
     '/api/admin/settings/storage',
   ),
@@ -278,6 +289,16 @@ export const api = {
       body: jsonBody(input),
     })
   ),
+  updateUserOutboundRateLimit: (
+    id: string,
+    input: { minuteLimit: number | null; dayLimit: number | null },
+  ) => request<{ outboundRateLimit: OutboundRateLimitState }>(
+    `/api/admin/users/${id}/outbound-rate-limit`,
+    { method: 'PATCH', body: jsonBody(input) },
+  ),
+  resetUserOutboundRateLimit: (id: string) => request<{
+    outboundRateLimit: OutboundRateLimitState
+  }>(`/api/admin/users/${id}/outbound-rate-limit/reset`, { method: 'POST' }),
   domains: () => request<{ domains: ManagedDomain[] }>('/api/domains'),
   createDomain: (name: string) => request<{ domain: ManagedDomain }>('/api/admin/domains', {
     method: 'POST',

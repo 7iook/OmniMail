@@ -69,6 +69,8 @@ export interface UserRow {
   storage_used_bytes: number
   can_create_mailboxes: number
   can_reply: number
+  outbound_minute_limit: number | null
+  outbound_day_limit: number | null
   temporary_expires_at: number | null
   deleted_at: number | null
   created_at: number

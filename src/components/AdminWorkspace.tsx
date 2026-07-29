@@ -18,6 +18,7 @@ import { DomainManagement } from './DomainManagement'
 import { InvitationManagement } from './InvitationManagement'
 import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
+import { OutboundRateLimitSettings } from './OutboundRateLimitSettings'
 import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
 
@@ -216,6 +217,8 @@ export function AdminWorkspace({
         <DomainManagement domains={domains} onChanged={onDomainsChanged} />
 
         <StoragePolicySettings />
+
+        <OutboundRateLimitSettings />
 
         <section className="admin-card admin-card--settings">
           <header>

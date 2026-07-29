@@ -1,5 +1,10 @@
 import { hashPassword, validatePassword } from './auth'
 import { normalizeEmail, validEmail } from './api-helpers'
+import {
+  outboundRateLimitSettings,
+  outboundRateLimitState,
+  type OutboundRateLimitSettings,
+} from './outbound-rate-limit'
 import { pageResult, parsePageRequest } from './pagination'
 import type { Env, SessionUser, UserRole, UserRow } from './types'
 
@@ -9,6 +14,10 @@ type EditableRole = Exclude<UserRole, 'super_admin'>
 interface AdminUserRow extends UserRow {
   updated_at: number
   mailbox_count: number
+  minute_started_at: number | null
+  minute_count: number | null
+  day_started_at: number | null
+  day_count: number | null
 }
 
 interface RankedAdminUserRow extends AdminUserRow {
@@ -75,7 +84,12 @@ function validPolicy(input: UserPolicyInput): input is Required<UserPolicyInput>
   )
 }
 
-function userJson(row: AdminUserRow, configuredEmail: string) {
+function userJson(
+  row: AdminUserRow,
+  configuredEmail: string,
+  rateSettings: OutboundRateLimitSettings,
+  now: number,
+) {
   const superAdmin = isConfiguredSuperAdmin(row.email, configuredEmail)
   return {
     id: row.id,
@@ -89,6 +103,20 @@ function userJson(row: AdminUserRow, configuredEmail: string) {
     storageUsedBytes: row.storage_used_bytes,
     canCreateMailboxes: superAdmin || row.role === 'admin' || Boolean(row.can_create_mailboxes),
     canReply: superAdmin || Boolean(row.can_reply),
+    outboundRateLimit: outboundRateLimitState(
+      rateSettings,
+      {
+        minuteLimit: row.outbound_minute_limit,
+        dayLimit: row.outbound_day_limit,
+      },
+      {
+        minuteStartedAt: row.minute_started_at,
+        minuteCount: row.minute_count,
+        dayStartedAt: row.day_started_at,
+        dayCount: row.day_count,
+      },
+      now,
+    ),
     temporaryExpiresAt: row.temporary_expires_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -111,9 +139,11 @@ async function audit(
 
 async function findUser(env: Env, id: string): Promise<AdminUserRow | null> {
   return env.DB.prepare(
-    `SELECT u.*, COUNT(m.address) AS mailbox_count
+    `SELECT u.*, COUNT(m.address) AS mailbox_count,
+            rl.minute_started_at, rl.minute_count, rl.day_started_at, rl.day_count
        FROM users u
        LEFT JOIN mailboxes m ON m.user_id = u.id AND m.is_hidden = 0
+       LEFT JOIN outbound_rate_limits rl ON rl.user_id = u.id
       WHERE u.id = ? AND u.deleted_at IS NULL
       GROUP BY u.id`,
   ).bind(id).first<AdminUserRow>()
@@ -126,6 +156,8 @@ export async function listManagedUsers(
   request: Request,
 ): Promise<Response> {
   if (!isAdministrator(actor)) return json({ error: '只有管理员可以查看用户。' }, 403)
+  const now = Math.floor(Date.now() / 1000)
+  const rateSettings = await outboundRateLimitSettings(env.DB)
   const pagination = parsePageRequest(request, 3, 50)
   if (!pagination) return json({ error: '分页参数无效，limit 需要在 1–100 之间。' }, 400)
   const bindings: Array<string | number> = [configuredEmail]
@@ -154,6 +186,7 @@ export async function listManagedUsers(
   const { results } = await env.DB.prepare(
     `SELECT * FROM (
        SELECT u.*, COUNT(m.address) AS mailbox_count,
+              rl.minute_started_at, rl.minute_count, rl.day_started_at, rl.day_count,
               CASE
                 WHEN lower(u.email) = lower(?) THEN 0
                 WHEN u.role = 'admin' THEN 1
@@ -162,6 +195,7 @@ export async function listManagedUsers(
               END AS sort_role
          FROM users u
          LEFT JOIN mailboxes m ON m.user_id = u.id AND m.is_hidden = 0
+         LEFT JOIN outbound_rate_limits rl ON rl.user_id = u.id
         WHERE u.deleted_at IS NULL
         GROUP BY u.id
      ) ranked
@@ -181,7 +215,7 @@ export async function listManagedUsers(
        FROM users WHERE deleted_at IS NULL`,
   ).first<{ total: number; active: number | null; disabled: number | null }>()
   return json({
-    users: result.items.map((row) => userJson(row, configuredEmail)),
+    users: result.items.map((row) => userJson(row, configuredEmail, rateSettings, now)),
     page: result.page,
     totals: {
       total: totals?.total ?? 0,
@@ -255,7 +289,12 @@ export async function createManagedUser(
     storageQuotaMiB: policy.storageQuotaMiB,
   })
   const created = await findUser(env, id)
-  return json({ user: created ? userJson(created, configuredEmail) : null }, 201)
+  const rateSettings = await outboundRateLimitSettings(env.DB)
+  return json({
+    user: created
+      ? userJson(created, configuredEmail, rateSettings, Math.floor(Date.now() / 1000))
+      : null,
+  }, 201)
 }
 
 export async function updateManagedUser(
@@ -326,5 +365,10 @@ export async function updateManagedUser(
   })
 
   const updated = await findUser(env, target.id)
-  return json({ user: updated ? userJson(updated, configuredEmail) : null })
+  const rateSettings = await outboundRateLimitSettings(env.DB)
+  return json({
+    user: updated
+      ? userJson(updated, configuredEmail, rateSettings, Math.floor(Date.now() / 1000))
+      : null,
+  })
 }

@@ -30,6 +30,7 @@ import { AdminPageHeader } from './AdminPageHeader'
 import { TemporaryUserExpiry } from './TemporaryUserExpiry'
 import { UserBanDialog } from './UserBanDialog'
 import { UserPolicyPanel } from './UserPolicyPanel'
+import { UserOutboundRateLimit } from './UserOutboundRateLimit'
 
 const initialCreate: CreateManagedUser = {
   email: '',
@@ -354,7 +355,11 @@ export function UserManagement({
     setConfirmingBan(false)
     setError('')
   }
-
+  function updateRateLimit(outboundRateLimit: AdminUser['outboundRateLimit']) {
+    const update = (item: AdminUser) => item.id === selected?.id ? { ...item, outboundRateLimit } : item
+    setSelected((current) => current ? update(current) : current)
+    setUsers((items) => items.map(update))
+  }
   function savePolicy(event: FormEvent) {
     event.preventDefault()
     if (!selected || !policy || protectedTarget) return
@@ -540,7 +545,7 @@ export function UserManagement({
                 </button>
               </form>
             ) : policy && selected ? (
-              <form onSubmit={(event) => void savePolicy(event)}>
+              <><form onSubmit={(event) => void savePolicy(event)}>
                 <div className="user-panel-meta">
                   <span><UserRound size={15} />{t('创建于 {date}', { date: formatDate(selected.createdAt) })}</span>
                   <span><MailPlus size={15} />{t('已使用 {count} 个邮箱', { count: selected.mailboxCount })}</span>
@@ -569,7 +574,7 @@ export function UserManagement({
                     <ShieldCheck size={16} />{t(saving ? '正在保存…' : '保存权限')}
                   </button>
                 )}
-              </form>
+              </form><UserOutboundRateLimit user={selected} disabled={protectedTarget} onUpdate={updateRateLimit} /></>
             ) : null}
           </section>
       </UserPolicyPanel>

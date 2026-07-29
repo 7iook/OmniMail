@@ -1,3 +1,5 @@
+import { ensureOutboundRateLimitSchema } from './schema-outbound-rate-limit'
+
 export async function ensureMailFeatureSchema(db: D1Database): Promise<void> {
   await db.batch([
     db.prepare(
@@ -34,4 +36,5 @@ export async function ensureMailFeatureSchema(db: D1Database): Promise<void> {
        ON draft_attachments(user_id, created_at)`,
     ),
   ])
+  await ensureOutboundRateLimitSchema(db)
 }

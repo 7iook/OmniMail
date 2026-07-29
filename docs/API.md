@@ -341,6 +341,23 @@ Content-Type: application/json
 接口同时保存纯文本和安全生成的 HTML 正文，并将结果写入“已发送”；同一个
 `idempotencyKey` 不会重复投递。
 
+主动发件、草稿发送和线程回复共享用户级限速：默认每分钟最多 10 封、每个 UTC
+自然日最多 200 封。超过限制时返回 `429`，`Retry-After` 响应头给出建议等待秒数；
+相同 `idempotencyKey` 的重试不会重复计数。
+
+管理员通过以下接口管理限速：
+
+```http
+GET /api/admin/settings/outbound-rate-limit
+PATCH /api/admin/settings/outbound-rate-limit
+PATCH /api/admin/users/{id}/outbound-rate-limit
+POST /api/admin/users/{id}/outbound-rate-limit/reset
+```
+
+全局设置包含 `enabled`、`minuteLimit`（1–100）和 `dayLimit`（1–10,000）。用户设置
+包含可为 `null` 的 `minuteLimit` 与 `dayLimit`，`null` 表示继承全局默认值。用户列表
+同时返回有效限额、当前分钟/UTC 日用量及重置时间。修改配置和清零操作都会写入审计日志。
+
 ### 草稿与发件附件
 
 每个用户保存一份服务端草稿：
@@ -492,6 +509,10 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |
 | `PATCH /api/admin/settings/remote-images` | 管理员设置邮件远程图片默认策略 |
 | `PATCH /api/admin/settings/unassigned-mail` | 管理员开启或关闭无人收件 |
+| `GET /api/admin/settings/outbound-rate-limit` | 查询全局发信限速设置 |
+| `PATCH /api/admin/settings/outbound-rate-limit` | 更新全局发信限速设置 |
+| `PATCH /api/admin/users/{id}/outbound-rate-limit` | 设置用户发信限速覆盖值 |
+| `POST /api/admin/users/{id}/outbound-rate-limit/reset` | 清零用户当前发信计数 |
 
 附件和原始邮件接口同样支持 Bearer Token。桌面端下载文件时需要通过 HTTP
 客户端设置 `Authorization` 请求头，不能把 Token 拼接到 URL 查询参数中。

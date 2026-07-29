@@ -33,6 +33,7 @@ import './styles/invitation-history.css'
 import './styles/temporary-invite-page.css'
 import './styles/system-settings.css'
 import './styles/storage-policy.css'
+import './styles/outbound-rate-limit.css'
 import './styles/deployment-wizard.css'
 
 createRoot(document.getElementById('root')!).render(

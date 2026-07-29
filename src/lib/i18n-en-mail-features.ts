@@ -47,6 +47,7 @@ export const enMailFeatures: Record<string, string> = {
     'The draft subject cannot exceed 500 characters.',
   '草稿正文不能超过 50,000 个字符。':
     'The draft body cannot exceed 50,000 characters.',
+  '发信过于频繁，请稍后再试。': 'Too many outgoing messages. Please try again later.',
   '请先保存草稿。': 'Save the draft before adding attachments.',
   '请选择要上传的附件。': 'Choose an attachment to upload.',
   '单个附件不能超过 5 MiB。': 'Each attachment must be 5 MiB or smaller.',

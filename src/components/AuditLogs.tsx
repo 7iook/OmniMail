@@ -87,6 +87,9 @@ const actionLabels: Record<string, string> = {
   'system.mail_refresh.update': '修改邮件自动刷新',
   'system.remote_images.update': '修改远程图片策略',
   'system.unassigned_mail.update': '修改无人收件设置',
+  'system.outbound_rate_limit.update': '修改全局发信限速',
+  'user.outbound_rate_limit.update': '修改用户发信限速',
+  'user.outbound_rate_limit.reset': '清零用户发信计数',
   'system.storage_policy.update': '修改备份与存储策略',
   'system.backup.start': '手动启动备份',
   'account.purge': '清理已注销账号数据',
@@ -142,6 +145,25 @@ function detailText(log: AuditLog): string {
   }
   if (log.action === 'system.unassigned_mail.update' && typeof detail.enabled === 'boolean') {
     parts.push(t(detail.enabled ? '已开启' : '已关闭'))
+  }
+  if (log.action === 'system.outbound_rate_limit.update') {
+    if (typeof detail.enabled === 'boolean') {
+      parts.push(t(detail.enabled ? '限速已开启' : '限速已关闭'))
+    }
+    if (typeof detail.minuteLimit === 'number') {
+      parts.push(t('每分钟 {count} 封', { count: detail.minuteLimit }))
+    }
+    if (typeof detail.dayLimit === 'number') {
+      parts.push(t('每天 {count} 封', { count: detail.dayLimit }))
+    }
+  }
+  if (log.action === 'user.outbound_rate_limit.update') {
+    parts.push(detail.minuteLimit === null
+      ? t('继承全局')
+      : t('每分钟 {count} 封', { count: Number(detail.minuteLimit) }))
+    parts.push(detail.dayLimit === null
+      ? t('继承全局')
+      : t('每天 {count} 封', { count: Number(detail.dayLimit) }))
   }
   return parts.join(' · ')
 }

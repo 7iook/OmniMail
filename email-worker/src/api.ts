@@ -23,6 +23,7 @@ import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
 import { proxyRemoteImage } from './remote-image'
 import { handleResendWebhook } from './resend-webhook'
+import { outboundRateLimitRoutes } from './outbound-rate-limit-routes'
 import { externalRegistrationEnabled, registerExternalUser, registrationDomainPolicy, updateExternalRegistration, updateRegistrationDomainPolicy } from './registration-api'
 import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
@@ -36,7 +37,6 @@ import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, r
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
 import type { Env, SessionUser } from './types'
-
 const SESSION_COOKIE = 'omnimail_session'
 const OAUTH_STATE_COOKIE = 'omnimail_oauth_state'
 const PUBLIC_PATHS = new Set([
@@ -537,6 +537,7 @@ app.patch('/api/mailboxes/:address', (context) => (
 
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
 app.route('/api', mailFeatureRoutes)
+app.route('/api', outboundRateLimitRoutes)
 app.post('/api/messages', async (context) => {
   const body = await context.req.json<NewMessageInput>()
     .catch(() => ({} as NewMessageInput))

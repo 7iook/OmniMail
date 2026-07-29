@@ -3,6 +3,7 @@ import { enCore } from './i18n-en-core'
 import { enAdmin } from './i18n-en-admin'
 import { enInvites } from './i18n-en-invites'
 import { enMailFeatures } from './i18n-en-mail-features'
+import { enRateLimit } from './i18n-en-rate-limit'
 import { enErrors } from './i18n-en-errors'
 import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
@@ -43,6 +44,7 @@ const english = {
   ...enOauth,
   ...enSecurity,
   ...enMailFeatures,
+  ...enRateLimit,
 }
 const englishPlurals: Record<string, [string, string]> = {
   '{count} 个邮箱地址': ['{count} mailbox', '{count} mailboxes'],
