@@ -41,6 +41,17 @@ export function emailImageSources(remoteImagesEnabled: boolean): string {
 }
 
 export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
+const EMAIL_FRAME_MIN_HEIGHT = 470
+
+export function emailDocumentHeight(document: Document): number {
+  return Math.max(
+    EMAIL_FRAME_MIN_HEIGHT,
+    document.body.offsetHeight,
+    document.body.scrollHeight,
+    document.documentElement.offsetHeight,
+    document.documentElement.scrollHeight,
+  )
+}
 
 export function normalizeContentId(value: string): string {
   let normalized = value.trim().replace(/^cid:/i, '')
@@ -75,12 +86,14 @@ export function emailLinkHref(target: EventTarget | null): string | null {
 export function shouldProxyRemoteImage(value: string): boolean {
   try {
     const url = new URL(value)
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
     return url.protocol === 'https:'
-      && url.hostname === 'claude.ai'
       && url.port === ''
       && url.username === ''
       && url.password === ''
-      && url.pathname === '/images/claude_logo_full.png'
+      && hostname.includes('.')
+      && !hostname.includes(':')
+      && !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
   } catch {
     return false
   }
@@ -103,6 +116,7 @@ function buildEmailDocument(
   })
   document.querySelectorAll('img[src]').forEach((image) => {
     const source = image.getAttribute('src') ?? ''
+    image.removeAttribute('srcset')
     if (/^cid:/i.test(source)) {
       const replacement = inlineImageSources.get(normalizeContentId(source))
       if (replacement) image.setAttribute('src', replacement)
@@ -112,6 +126,7 @@ function buildEmailDocument(
       image.setAttribute('src', api.remoteImageUrl(source))
     }
   })
+  document.querySelectorAll('source[srcset]').forEach((source) => source.removeAttribute('srcset'))
   document.querySelectorAll('a[href]').forEach((link) => {
     const href = safeEmailHref(link.getAttribute('href') ?? '')
     if (!href) {
@@ -132,6 +147,7 @@ function buildEmailDocument(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       :root { color-scheme: light; }
+      html { overflow: hidden; }
       body { margin: 0; padding: 2px; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
       img { max-width: 100%; height: auto; }
       table { max-width: 100% !important; }
@@ -180,6 +196,7 @@ export function MessageReader({
   const [inlineImageSources, setInlineImageSources] = useState<ReadonlyMap<string, string>>(new Map())
   const [externalLink, setExternalLink] = useState<string | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const frameResizeObserverRef = useRef<ResizeObserver | null>(null)
   const closeExternalLink = useCallback(() => setExternalLink(null), [])
   const handleEmailLinkClick = useCallback((event: Event) => {
     const href = emailLinkHref(event.target)
@@ -198,6 +215,10 @@ export function MessageReader({
   useEffect(() => {
     setReplying(false)
     setExternalLink(null)
+  }, [message?.id])
+  useEffect(() => () => {
+    frameResizeObserverRef.current?.disconnect()
+    frameResizeObserverRef.current = null
   }, [message?.id])
   useEffect(() => {
     const controller = new AbortController()
@@ -344,11 +365,29 @@ export function MessageReader({
             ref={frameRef}
             className="email-frame"
             sandbox={EMAIL_FRAME_SANDBOX}
+            scrolling="no"
             srcDoc={emailDocument}
             title={t('邮件正文：{subject}', { subject: message.subject })}
             onLoad={(event) => {
-              event.currentTarget.contentDocument?.addEventListener('click', handleEmailLinkClick)
-              event.currentTarget.contentDocument?.addEventListener('keydown', handleEmailLinkKeyDown)
+              const frame = event.currentTarget
+              const document = frame.contentDocument
+              if (!document) return
+              document.addEventListener('click', handleEmailLinkClick)
+              document.addEventListener('keydown', handleEmailLinkKeyDown)
+
+              const resize = () => {
+                const height = `${emailDocumentHeight(document)}px`
+                if (frame.style.height !== height) frame.style.height = height
+              }
+              frameResizeObserverRef.current?.disconnect()
+              resize()
+              const observer = new ResizeObserver(() => requestAnimationFrame(resize))
+              if (frame.parentElement) observer.observe(frame.parentElement)
+              frameResizeObserverRef.current = observer
+              requestAnimationFrame(resize)
+              document.querySelectorAll('img').forEach((image) => {
+                if (!image.complete) image.addEventListener('load', resize, { once: true })
+              })
             }}
           />
         ) : (

@@ -291,10 +291,6 @@
     padding: 21px 18px;
   }
 
-  .email-frame {
-    height: 58vh;
-  }
-
   .reply-composer {
     position: fixed;
     right: 10px;

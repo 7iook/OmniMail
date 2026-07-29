@@ -285,8 +285,8 @@ export function AdminWorkspace({
           <header>
             <ImageIcon size={17} />
             <div>
-              <h2>{t('远程图片')}</h2>
-              <p>{t('设置所有用户查看 HTML 邮件时的默认策略')}</p>
+              <h2>{t('邮件外部内容')}</h2>
+              <p>{t('设置所有用户查看 HTML 邮件时的默认加载策略')}</p>
             </div>
           </header>
           <label className="policy-toggle">
@@ -295,9 +295,9 @@ export function AdminWorkspace({
                 ? <LoaderCircle className="spin" size={17} />
                 : <ImageIcon size={17} />}
               <span>
-                <strong>{t(config.remoteImagesEnabled ? '默认加载远程图片' : '默认阻止远程图片')}</strong>
+                <strong>{t(config.remoteImagesEnabled ? '默认加载安全外部内容' : '默认阻止外部内容')}</strong>
                 <small>{t(config.remoteImagesEnabled
-                  ? '邮件中的 HTTPS 远程图片会自动请求'
+                  ? 'HTTPS 图片会通过 OmniMail 代理自动加载'
                   : '保护用户隐私，避免触发发件人的追踪像素')}</small>
               </span>
             </span>
@@ -305,7 +305,7 @@ export function AdminWorkspace({
               type="checkbox"
               checked={config.remoteImagesEnabled}
               disabled={remoteImagesSaving}
-              aria-label={t('默认加载邮件中的远程图片')}
+              aria-label={t('默认加载安全外部内容')}
               onChange={() => void toggleRemoteImages()}
             />
           </label>
@@ -314,7 +314,7 @@ export function AdminWorkspace({
               <AlertCircle size={15} />{remoteImagesError}
             </p>
           )}
-          <p className="admin-note">{t('开启后可能向图片服务器暴露访问时间和网络信息；邮件脚本、表单与嵌入页面仍会被阻止。')}</p>
+          <p className="admin-note">{t('仅加载图片等被动内容；邮件脚本、表单与嵌入页面始终会被阻止。')}</p>
         </section>
 
         <section className="admin-card admin-card--settings">

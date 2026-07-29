@@ -35,18 +35,17 @@ export const enAdmin: Record<string, string> = {
   '正在保存全局设置…': 'Saving global settings…',
   '页面处于后台时会暂停刷新，返回后继续。':
     'Refreshing pauses while the page is in the background and resumes when you return.',
-  '远程图片': 'Remote images',
-  '设置所有用户查看 HTML 邮件时的默认策略':
-    'Set the default policy for HTML messages across all users',
-  '默认加载远程图片': 'Load remote images by default',
-  '默认阻止远程图片': 'Block remote images by default',
-  '邮件中的 HTTPS 远程图片会自动请求':
-    'HTTPS remote images in messages are requested automatically',
+  '邮件外部内容': 'External message content',
+  '设置所有用户查看 HTML 邮件时的默认加载策略':
+    'Set the default loading policy for HTML messages across all users',
+  '默认加载安全外部内容': 'Load safe external content by default',
+  '默认阻止外部内容': 'Block external content by default',
+  'HTTPS 图片会通过 OmniMail 代理自动加载':
+    'HTTPS images are loaded automatically through the OmniMail proxy',
   '保护用户隐私，避免触发发件人的追踪像素':
     'Protect user privacy and avoid triggering sender tracking pixels',
-  '默认加载邮件中的远程图片': 'Load remote images in messages by default',
-  '开启后可能向图片服务器暴露访问时间和网络信息；邮件脚本、表单与嵌入页面仍会被阻止。':
-    'Enabling this may expose access time and network information to image servers. Scripts, forms, and embedded pages remain blocked.',
+  '仅加载图片等被动内容；邮件脚本、表单与嵌入页面始终会被阻止。':
+    'Only passive content such as images is loaded. Scripts, forms, and embedded pages are always blocked.',
   '无人收件': 'Unassigned mail',
   '接收尚未创建邮箱地址的邮件':
     'Receive messages sent to mailbox addresses that have not been created',

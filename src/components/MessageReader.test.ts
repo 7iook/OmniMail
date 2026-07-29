@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   EMAIL_FRAME_SANDBOX,
+  emailDocumentHeight,
   emailImageSources,
   emailLinkHref,
   normalizeContentId,
@@ -17,10 +18,24 @@ describe('email remote image policy', () => {
     expect(emailImageSources(true)).toBe('data: cid: https:')
   })
 
-  it('proxies the Claude image path blocked by its cross-origin resource policy', () => {
+  it('proxies public HTTPS images through OmniMail', () => {
     expect(shouldProxyRemoteImage('https://claude.ai/images/claude_logo_full.png')).toBe(true)
-    expect(shouldProxyRemoteImage('https://claude.ai/account')).toBe(false)
-    expect(shouldProxyRemoteImage('https://example.com/images/logo.png')).toBe(false)
+    expect(shouldProxyRemoteImage('https://emails.resend.com/static/logo-v2.png')).toBe(true)
+    expect(shouldProxyRemoteImage('http://example.com/images/logo.png')).toBe(false)
+    expect(shouldProxyRemoteImage('https://user@example.com/images/logo.png')).toBe(false)
+  })
+})
+
+describe('email frame layout', () => {
+  it('uses the full document height with a stable minimum', () => {
+    expect(emailDocumentHeight({
+      body: { offsetHeight: 790, scrollHeight: 820 },
+      documentElement: { offsetHeight: 800, scrollHeight: 810 },
+    } as unknown as Document)).toBe(820)
+    expect(emailDocumentHeight({
+      body: { offsetHeight: 100, scrollHeight: 100 },
+      documentElement: { offsetHeight: 100, scrollHeight: 100 },
+    } as unknown as Document)).toBe(470)
   })
 })
 

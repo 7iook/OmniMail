@@ -366,7 +366,8 @@
 }
 
 .email-frame {
-  height: min(62vh, 760px);
+  height: 470px;
+  overflow: hidden;
 }
 
 .attachments {
