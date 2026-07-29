@@ -8,12 +8,15 @@ import {
   Mail,
   Paperclip,
   Reply,
+  RotateCcw,
   Star,
   Trash2,
   Undo2,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type MessageDetail, type MessageSummary } from '../lib/api'
+import { errorMessage } from '../lib/errorMessage'
+import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageThread } from './MessageThread'
@@ -238,6 +241,8 @@ export function MessageReader({
   onTrash,
   onRestore,
   onReplySent,
+  canRetryFailedMessage,
+  onRetryFailedMessage,
   onSelectThread,
 }: {
   message: MessageDetail | null
@@ -250,9 +255,13 @@ export function MessageReader({
   onTrash: () => void
   onRestore: () => void
   onReplySent: () => void
+  canRetryFailedMessage: boolean
+  onRetryFailedMessage: () => void
   onSelectThread: (message: MessageSummary) => void
 }) {
   const [replying, setReplying] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState('')
   const [inlineImageSources, setInlineImageSources] = useState<ReadonlyMap<string, string>>(new Map())
   const [inlineImagesLoading, setInlineImagesLoading] = useState(false)
   const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
@@ -276,6 +285,8 @@ export function MessageReader({
 
   useEffect(() => {
     setReplying(false)
+    setRetrying(false)
+    setRetryError('')
     setExternalLink(null)
     setPreparedFrame(null)
   }, [message?.id])
@@ -320,6 +331,21 @@ export function MessageReader({
       : '',
     [inlineImageSources, message?.html, remoteImagesEnabled],
   )
+
+  const retryFailedMessage = useCallback(async () => {
+    if (retrying) return
+    setRetryError('')
+    setRetrying(true)
+    try {
+      if (!message) return
+      await failedMailApi.retry(message.id)
+      onRetryFailedMessage()
+    } catch (error) {
+      setRetryError(errorMessage(error))
+    } finally {
+      setRetrying(false)
+    }
+  }, [message, onRetryFailedMessage, retrying])
 
   if (loading) {
     return (
@@ -414,9 +440,21 @@ export function MessageReader({
         )}
         {message.status === 'failed' && (
           <div className="message-notice message-notice--error">
-            <AlertCircle size={17} />{t(
+            <AlertCircle size={17} />
+            <span className="message-notice__copy">{t(
               message.direction === 'outgoing' ? '发送失败：{error}' : '解析失败：{error}',
-              { error: message.processingError || t('未知错误') },
+              { error: retryError || message.processingError || t('未知错误') },
+            )}</span>
+            {message.direction === 'outgoing' && canRetryFailedMessage && (
+              <button
+                className="message-notice__action"
+                type="button"
+                onClick={() => void retryFailedMessage()}
+                disabled={retrying}
+              >
+                {retrying ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />}
+                {t(retrying ? '正在重新发送…' : '重新发送')}
+              </button>
             )}
           </div>
         )}

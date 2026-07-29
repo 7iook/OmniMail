@@ -311,22 +311,22 @@ test('users can apply a bulk action to selected messages', async ({ page }) => {
   await expect(page.getByText('这里还是空的')).toBeVisible()
 })
 test('users can compose and send a new message', async ({ page }) => {
-  const state = mockState()
-  state.replyEnabled = true
-  await mockApp(page, state)
-  await page.goto('/')
-  await page.getByRole('button', { name: '新建邮件' }).click()
+  const state = mockState(); state.replyEnabled = true
+  await page.setViewportSize({ width: 1280, height: 800 }); await page.emulateMedia({ colorScheme: 'dark' }); await mockApp(page, state)
+  await page.goto('/'); await page.getByRole('button', { name: '新建邮件' }).click()
   const dialog = page.getByRole('dialog', { name: '新建邮件' })
+  const geometry = await dialog.evaluate((element) => { const rect = element.getBoundingClientRect(); const editor = element.querySelector('textarea')!.getBoundingClientRect(); return { rightGap: innerWidth - rect.right, bottomGap: innerHeight - rect.bottom, editorHeight: editor.height } })
+  expect(geometry.rightGap).toBeLessThanOrEqual(32)
+  expect(geometry.bottomGap).toBeLessThanOrEqual(32)
+  expect(geometry.editorHeight).toBeGreaterThan(280)
   await expect(dialog.getByLabel('发件人')).toHaveValue('inbox@example.com')
+  await expect(dialog.getByLabel('收件人')).toHaveCSS('border-top-width', '0px')
   await dialog.getByLabel('收件人').fill('friend@example.net')
   await dialog.getByLabel('主题').fill('Hello from OmniMail')
   await dialog.getByLabel('邮件正文').fill('This is a new message.')
   await dialog.getByRole('button', { name: '发送邮件' }).click()
-  await expect(dialog).toBeHidden()
-  expect(state.sentMessage).toMatchObject({
-    mailboxAddress: 'inbox@example.com', to: 'friend@example.net',
-    subject: 'Hello from OmniMail', text: 'This is a new message.',
-  })
+  await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'inbox@example.com',
+    to: 'friend@example.net', subject: 'Hello from OmniMail', text: 'This is a new message.' })
   await expect(page.getByRole('status')).toHaveText('邮件已进入发送队列')
 })
 test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {

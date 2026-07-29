@@ -483,10 +483,9 @@ function Mailbox({
           onStar={() => detail && void toggleStar(detail)}
           onTrash={() => void trashSelected()}
           onRestore={() => void restoreSelected()}
-          onReplySent={() => {
-            setNotice(t('回复已进入发送队列'))
-            void loadMessages(true)
-          }}
+          onReplySent={() => { setNotice(t('回复已进入发送队列')); void loadMessages(true) }}
+          canRetryFailedMessage={isAdminRole(user.role)}
+          onRetryFailedMessage={() => { setDetail((current) => current ? { ...current, status: 'processing', processingError: null, deliveryStatus: 'queued' } : current); setNotice(t('邮件已重新进入发送队列')); void loadMessages(true) }}
           onSelectThread={(message) => void selectMessage(message)}
         />
       </main>

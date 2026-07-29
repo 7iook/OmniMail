@@ -164,6 +164,9 @@ export const enCore: Record<string, string> = {
   '邮件已进入发送队列，系统正在可靠投递。':
     'The message is queued and will be delivered reliably.',
   '发送失败：{error}': 'Sending failed: {error}',
+  '重新发送': 'Retry send',
+  '正在重新发送…': 'Retrying…',
+  '邮件已重新进入发送队列': 'Message requeued for delivery',
   '收件服务器已确认送达。': 'The recipient server confirmed delivery.',
   '收件服务器暂时延迟接收，Resend 会继续尝试投递。':
     'The recipient server delayed the message. Resend will keep trying.',
