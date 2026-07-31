@@ -70,7 +70,7 @@ describe('system version', () => {
     const response = await systemVersion(administrator, releaseFetch as typeof fetch)
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.1.0',
+      currentVersion: '0.1.1',
       latestVersion: '0.2.0',
       updateAvailable: true,
       checkFailed: false,
@@ -89,7 +89,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.1.0',
+      currentVersion: '0.1.1',
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,
