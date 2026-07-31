@@ -11,7 +11,7 @@ import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
-import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, updateMessage } from './message-detail-api'
+import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, previewMessageAttachment, updateMessage } from './message-detail-api'
 import { listMessages } from './message-list-api'
 import { mailFeatureRoutes } from './mail-feature-routes'
 import { confirmMfaSetup, disableMfa, mfaStatus, startMfaSetup } from './mfa-api'
@@ -149,7 +149,7 @@ app.use('*', async (context, next) => {
   context.header('X-Content-Type-Options', 'nosniff')
   context.header('Referrer-Policy', 'no-referrer')
   context.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  context.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'")
+  context.header('Content-Security-Policy', context.res.headers.get('Content-Security-Policy') ?? "default-src 'none'; frame-ancestors 'none'")
 })
 
 app.use('/api/*', async (context, next) => {
@@ -565,7 +565,7 @@ app.delete('/api/messages/:id', (context) => deleteMessage(
   clientIp(context.req.raw.headers),
 ))
 app.get('/api/messages/:messageId/attachments/:attachmentId', (context) => (
-  getMessageAttachment(
+  (context.req.query('preview') === '1' ? previewMessageAttachment : getMessageAttachment)(
     context.env,
     context.get('user'),
     context.req.param('messageId'),

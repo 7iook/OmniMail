@@ -23,7 +23,15 @@ export function safeJsonArray(value: string): string[] {
   }
 }
 
-export function attachmentDisposition(filename: string): string {
+function fileDisposition(type: 'attachment' | 'inline', filename: string): string {
   const fallback = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_')
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+  return `${type}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+}
+
+export function attachmentDisposition(filename: string): string {
+  return fileDisposition('attachment', filename)
+}
+
+export function inlineDisposition(filename: string): string {
+  return fileDisposition('inline', filename)
 }

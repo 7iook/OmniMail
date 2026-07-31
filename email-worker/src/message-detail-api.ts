@@ -1,4 +1,4 @@
-import { attachmentDisposition, safeJsonArray } from './api-helpers'
+import { attachmentDisposition, inlineDisposition, safeJsonArray } from './api-helpers'
 import { writeAudit } from './audit'
 import { messageSummary } from './message-list-api'
 import { listMessageThread } from './message-thread'
@@ -127,32 +127,95 @@ export async function deleteMessage(
   return Response.json({ ok: true })
 }
 
+const PREVIEWABLE_ATTACHMENT_TYPES = new Set([
+  'application/pdf',
+  'image/avif',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
+
+function previewableAttachmentType(contentType: string): string | null {
+  const normalized = contentType.split(';', 1)[0].trim().toLowerCase()
+  return PREVIEWABLE_ATTACHMENT_TYPES.has(normalized) ? normalized : null
+}
+
+async function ownedAttachment(
+  env: Env,
+  userId: string,
+  messageId: string,
+  attachmentId: string,
+): Promise<AttachmentRow | null> {
+  return env.DB.prepare(
+    `SELECT a.id, a.message_id, a.filename, a.content_type, a.size, a.r2_key, a.content_id, a.disposition
+       FROM attachments a
+       JOIN messages m ON m.id = a.message_id
+       JOIN mailboxes mb ON mb.address = m.mailbox_address
+      WHERE a.id = ? AND a.message_id = ? AND mb.user_id = ?`,
+  ).bind(attachmentId, messageId, userId).first<AttachmentRow>()
+}
+
+async function storedAttachmentResponse(
+  env: Env,
+  row: AttachmentRow,
+  contentType: string,
+  disposition: string,
+  preview = false,
+): Promise<Response> {
+  const object = await env.MAIL_BUCKET.get(row.r2_key)
+  if (!object) return Response.json({ error: '附件文件不存在。' }, { status: 404 })
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Length': String(row.size),
+    'Content-Disposition': disposition,
+    'Cache-Control': 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (preview) {
+    headers['Content-Security-Policy'] = "default-src 'none'; frame-ancestors 'self'"
+    headers['X-Frame-Options'] = 'SAMEORIGIN'
+  }
+  return new Response(object.body, { headers })
+}
+
 export async function getMessageAttachment(
   env: Env,
   user: SessionUser,
   messageId: string,
   attachmentId: string,
 ): Promise<Response> {
-  const row = await env.DB.prepare(
-    `SELECT a.id, a.message_id, a.filename, a.content_type, a.size, a.r2_key, a.content_id, a.disposition
-       FROM attachments a
-       JOIN messages m ON m.id = a.message_id
-       JOIN mailboxes mb ON mb.address = m.mailbox_address
-      WHERE a.id = ? AND a.message_id = ? AND mb.user_id = ?`,
-  ).bind(attachmentId, messageId, user.id).first<AttachmentRow>()
+  const row = await ownedAttachment(env, user.id, messageId, attachmentId)
   if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
 
-  const object = await env.MAIL_BUCKET.get(row.r2_key)
-  if (!object) return Response.json({ error: '附件文件不存在。' }, { status: 404 })
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': row.content_type || 'application/octet-stream',
-      'Content-Length': String(row.size),
-      'Content-Disposition': attachmentDisposition(row.filename),
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  })
+  return storedAttachmentResponse(
+    env,
+    row,
+    row.content_type || 'application/octet-stream',
+    attachmentDisposition(row.filename),
+  )
+}
+
+export async function previewMessageAttachment(
+  env: Env,
+  user: SessionUser,
+  messageId: string,
+  attachmentId: string,
+): Promise<Response> {
+  const row = await ownedAttachment(env, user.id, messageId, attachmentId)
+  if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
+
+  const contentType = previewableAttachmentType(row.content_type)
+  if (!contentType) {
+    return Response.json({ error: '此附件类型不支持预览。' }, { status: 415 })
+  }
+  return storedAttachmentResponse(
+    env,
+    row,
+    contentType,
+    inlineDisposition(row.filename),
+    true,
+  )
 }
 
 export async function getRawMessage(

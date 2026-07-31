@@ -412,6 +412,7 @@
 
 .attachment-card {
   display: grid;
+  width: 100%;
   min-width: 0;
   min-height: 66px;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -421,7 +422,11 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
+  color: var(--text);
   cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
   transition: border-color 180ms ease, background 180ms ease;
 }
 

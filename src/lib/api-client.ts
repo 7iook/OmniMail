@@ -427,6 +427,9 @@ export const api = {
   attachmentUrl: (messageId: string, attachmentId: string) => (
     `${API_ORIGIN}/api/messages/${messageId}/attachments/${attachmentId}`
   ),
+  attachmentPreviewUrl: (messageId: string, attachmentId: string) => (
+    `${API_ORIGIN}/api/messages/${messageId}/attachments/${attachmentId}?preview=1`
+  ),
   remoteImageUrl: (source: string) => (
     `${API_ORIGIN}/api/remote-images?url=${encodeURIComponent(source)}`
   ),

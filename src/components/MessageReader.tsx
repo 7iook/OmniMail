@@ -6,7 +6,6 @@ import {
   Download,
   LoaderCircle,
   Mail,
-  Paperclip,
   Reply,
   RotateCcw,
   Star,
@@ -24,6 +23,7 @@ import { errorMessage } from '../lib/errorMessage'
 import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
+import { MessageAttachments } from './MessageAttachments'
 import { MessageThread } from './MessageThread'
 import { ReplyComposer } from './ReplyComposer'
 
@@ -36,12 +36,6 @@ function formatFullDate(timestamp: number): string {
     minute: '2-digit',
     hour12: false,
   }).format(new Date(timestamp))
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function emailImageSources(
@@ -520,26 +514,7 @@ export function MessageReader({
         )}
 
         {message.attachments.length > 0 && (
-          <section className="attachments" aria-labelledby="attachments-title">
-            <h2 id="attachments-title"><Paperclip size={16} />{t('附件')}</h2>
-            <div className="attachment-grid">
-              {message.attachments.map((attachment) => (
-                <a
-                  className="attachment-card"
-                  key={attachment.id}
-                  href={api.attachmentUrl(message.id, attachment.id)}
-                  download
-                >
-                  <span><Paperclip size={17} /></span>
-                  <div>
-                    <strong>{attachment.filename}</strong>
-                    <small>{formatSize(attachment.size)}</small>
-                  </div>
-                  <Download size={16} />
-                </a>
-              ))}
-            </div>
-          </section>
+          <MessageAttachments messageId={message.id} attachments={message.attachments} />
         )}
 
         <div className="message-footer-actions">

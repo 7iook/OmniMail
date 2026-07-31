@@ -22,6 +22,7 @@ export const enErrors: Record<string, string> = {
     'The server cannot process this request right now.',
   '附件不存在。': 'The attachment does not exist.',
   '附件文件不存在。': 'The attachment file does not exist.',
+  '此附件类型不支持预览。': 'This attachment type cannot be previewed.',
   '接口不存在。': 'The API endpoint does not exist.',
   '请先登录。': 'Sign in first.',
   '请先将邮件移入垃圾箱。': 'Move the message to Trash first.',
