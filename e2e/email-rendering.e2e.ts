@@ -9,7 +9,7 @@ function json(route: Route, body: unknown) {
 }
 
 test('slow remote images do not block readable email content', async ({ page }) => {
-  let remoteImageRequested = false
+  let proxiedImageSource = ''
   let releaseRemoteImage!: () => void
   const remoteImageGate = new Promise<void>((resolve) => {
     releaseRemoteImage = resolve
@@ -55,7 +55,7 @@ test('slow remote images do not block readable email content', async ({ page }) 
           </style>
           <div class="content" style="background:#fff">
             Readable before the image
-            <img src="https://images.example.com/slow.gif" alt="Slow image">
+            <img src="http://assets.vodafone.co.uk/slow.gif" alt="Slow image">
           </div>`,
         attachments: [],
       },
@@ -67,7 +67,7 @@ test('slow remote images do not block readable email content', async ({ page }) 
       page: { hasMore: false, nextCursor: null, limit: 30 },
     })
     if (path === '/api/remote-images') {
-      remoteImageRequested = true
+      proxiedImageSource = new URL(request.url()).searchParams.get('url') ?? ''
       await remoteImageGate
       return route.fulfill({
         contentType: 'image/gif',
@@ -84,7 +84,9 @@ test('slow remote images do not block readable email content', async ({ page }) 
     await expect(content).toBeVisible()
     await expect(content).toHaveCSS('color', 'rgb(34, 34, 34)')
     await expect(content).toHaveCSS('background-color', 'rgb(255, 255, 255)')
-    await expect.poll(() => remoteImageRequested).toBe(true)
+    await expect.poll(() => proxiedImageSource).toBe(
+      'https://assets.vodafone.co.uk/slow.gif',
+    )
     releaseRemoteImage()
     await expect.poll(() => content.locator('img').evaluate((image) => (
       (image as HTMLImageElement).naturalWidth

@@ -5,6 +5,26 @@ export function forceLightEmailColorScheme(css: string): string {
   )
 }
 
+export function normalizeRemoteImageSource(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'http:') url.protocol = 'https:'
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
+    if (
+      url.protocol !== 'https:'
+      || url.port !== ''
+      || url.username !== ''
+      || url.password !== ''
+      || !hostname.includes('.')
+      || hostname.includes(':')
+      || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+    ) return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
 export function forceLightEmailDocument(document: Document): void {
   document.querySelectorAll('meta[name="color-scheme"], meta[name="supported-color-schemes"]')
     .forEach((node) => node.remove())

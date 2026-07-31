@@ -15,7 +15,11 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type MessageDetail, type MessageSummary } from '../lib/api'
-import { forceLightEmailDocument, loadDeferredRemoteImages } from '../lib/emailContent'
+import {
+  forceLightEmailDocument,
+  loadDeferredRemoteImages,
+  normalizeRemoteImageSource,
+} from '../lib/emailContent'
 import { errorMessage } from '../lib/errorMessage'
 import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
@@ -148,19 +152,7 @@ export function emailLinkHref(target: EventTarget | null): string | null {
 }
 
 export function shouldProxyRemoteImage(value: string): boolean {
-  try {
-    const url = new URL(value)
-    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
-    return url.protocol === 'https:'
-      && url.port === ''
-      && url.username === ''
-      && url.password === ''
-      && hostname.includes('.')
-      && !hostname.includes(':')
-      && !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
-  } catch {
-    return false
-  }
+  return normalizeRemoteImageSource(value) !== null
 }
 
 function buildEmailDocument(
@@ -190,9 +182,10 @@ function buildEmailDocument(
       if (replacement) image.setAttribute('src', replacement)
       return
     }
-    if (remoteImagesEnabled && shouldProxyRemoteImage(source)) {
+    const remoteSource = remoteImagesEnabled ? normalizeRemoteImageSource(source) : null
+    if (remoteSource) {
       image.removeAttribute('src')
-      image.setAttribute('data-omnimail-src', api.remoteImageUrl(source))
+      image.setAttribute('data-omnimail-src', api.remoteImageUrl(remoteSource))
     }
   })
   document.querySelectorAll('source[srcset]').forEach((source) => source.removeAttribute('srcset'))

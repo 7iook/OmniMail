@@ -9,7 +9,7 @@ import {
   safeEmailHref,
   shouldProxyRemoteImage,
 } from './MessageReader'
-import { forceLightEmailColorScheme } from '../lib/emailContent'
+import { forceLightEmailColorScheme, normalizeRemoteImageSource } from '../lib/emailContent'
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
@@ -23,10 +23,13 @@ describe('email remote image policy', () => {
     )).toBe('data: https://mail.example.com/api/remote-images')
   })
 
-  it('proxies public HTTPS images through OmniMail', () => {
+  it('proxies public web images through HTTPS', () => {
     expect(shouldProxyRemoteImage('https://claude.ai/images/claude_logo_full.png')).toBe(true)
     expect(shouldProxyRemoteImage('https://emails.resend.com/static/logo-v2.png')).toBe(true)
-    expect(shouldProxyRemoteImage('http://example.com/images/logo.png')).toBe(false)
+    expect(shouldProxyRemoteImage('http://assets.vodafone.co.uk/logo.gif')).toBe(true)
+    expect(normalizeRemoteImageSource('http://assets.vodafone.co.uk/logo.gif')).toBe(
+      'https://assets.vodafone.co.uk/logo.gif',
+    )
     expect(shouldProxyRemoteImage('https://user@example.com/images/logo.png')).toBe(false)
   })
 })
