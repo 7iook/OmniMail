@@ -9,6 +9,7 @@ import {
   safeEmailHref,
   shouldProxyRemoteImage,
 } from './MessageReader'
+import { forceLightEmailColorScheme } from '../lib/emailContent'
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
@@ -62,6 +63,16 @@ describe('email content safety', () => {
   it('normalizes content IDs used by inline images', () => {
     expect(normalizeContentId('cid:%3Cclaude-logo%40mail%3E')).toBe('claude-logo@mail')
     expect(normalizeContentId('<claude-logo@mail>')).toBe('claude-logo@mail')
+  })
+
+  it('keeps sender dark-mode rules from conflicting with the light email canvas', () => {
+    expect(forceLightEmailColorScheme(`
+      @media (prefers-color-scheme: dark) { .content { color: white; } }
+      @media (PREFERS-COLOR-SCHEME : LIGHT) { .content { color: black; } }
+    `)).toContain('@media (prefers-color-scheme: omnimail-disabled)')
+    expect(forceLightEmailColorScheme(
+      '@media (PREFERS-COLOR-SCHEME : DARK) {}',
+    )).toContain('(prefers-color-scheme: omnimail-disabled)')
   })
 
   it('allows absolute web links and rejects active or relative URLs', () => {

@@ -1,0 +1,95 @@
+import { expect, type Route, test } from '@playwright/test'
+import { message, user } from './omnimail-fixtures'
+
+function json(route: Route, body: unknown) {
+  return route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  })
+}
+
+test('slow remote images do not block readable email content', async ({ page }) => {
+  let remoteImageRequested = false
+  let releaseRemoteImage!: () => void
+  const remoteImageGate = new Promise<void>((resolve) => {
+    releaseRemoteImage = resolve
+  })
+
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' })
+  await page.addInitScript(() => {
+    localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
+    localStorage.setItem('omnimail-locale', 'zh-CN')
+  })
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/config') return json(route, {
+      appName: 'OmniMail', setupComplete: true, replyEnabled: false,
+      registrationEnabled: false, registrationAvailable: false,
+      registrationMethod: 'password', linuxDoLoginEnabled: false,
+      registrationDomainPolicy: { mode: 'blocklist', domains: [] },
+      registrationProtectionReady: false, turnstileSiteKey: '',
+      mailRefreshInterval: 30, remoteImagesEnabled: true,
+      unassignedMailEnabled: false, superAdminEmail: user.email,
+      setupRequirements: {
+        databaseReady: true, storageReady: true, queueReady: true,
+        superAdminReady: true, setupTokenReady: false,
+      },
+    })
+    if (path === '/api/session') return json(route, { user })
+    if (path === '/api/mailboxes') return json(route, { mailboxes: [{
+      address: 'inbox@example.com', domain: 'example.com',
+      isPrimary: true, isActive: true,
+    }] })
+    if (path === '/api/domains') return json(route, { domains: [] })
+    if (path === '/api/draft') return json(route, { draft: null })
+    if (path === '/api/messages/message-1') return json(route, {
+      message: {
+        ...message, messageId: null, inReplyTo: null, references: null,
+        cc: [], text: 'Readable before the image',
+        html: `
+          <style>
+            @media (prefers-color-scheme: dark) {
+              .content { color: white !important; }
+            }
+          </style>
+          <div class="content" style="background:#fff">
+            Readable before the image
+            <img src="https://images.example.com/slow.gif" alt="Slow image">
+          </div>`,
+        attachments: [],
+      },
+      thread: [message],
+    })
+    if (path === '/api/messages') return json(route, {
+      unchanged: false, version: 1, messages: [message],
+      counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
+      page: { hasMore: false, nextCursor: null, limit: 30 },
+    })
+    if (path === '/api/remote-images') {
+      remoteImageRequested = true
+      await remoteImageGate
+      return route.fulfill({
+        contentType: 'image/gif',
+        body: Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=', 'base64'),
+      })
+    }
+    return route.fulfill({ status: 500, body: `Unhandled route: ${path}` })
+  })
+
+  try {
+    await page.goto('/')
+    await page.getByText('Welcome to OmniMail').click()
+    const content = page.frameLocator('iframe').locator('.content')
+    await expect(content).toBeVisible()
+    await expect(content).toHaveCSS('color', 'rgb(34, 34, 34)')
+    await expect(content).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    await expect.poll(() => remoteImageRequested).toBe(true)
+    releaseRemoteImage()
+    await expect.poll(() => content.locator('img').evaluate((image) => (
+      (image as HTMLImageElement).naturalWidth
+    ))).toBe(1)
+  } finally {
+    releaseRemoteImage()
+  }
+})

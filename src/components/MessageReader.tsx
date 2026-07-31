@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type MessageDetail, type MessageSummary } from '../lib/api'
+import { forceLightEmailDocument, loadDeferredRemoteImages } from '../lib/emailContent'
 import { errorMessage } from '../lib/errorMessage'
 import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
@@ -172,6 +173,7 @@ function buildEmailDocument(
   const policy = `default-src 'none'; img-src ${emailImageSources(remoteImagesEnabled, proxySource)}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
   const document = new DOMParser().parseFromString(html, 'text/html')
   document.querySelectorAll('script, iframe, object, embed, form, base, meta[http-equiv]').forEach((node) => node.remove())
+  forceLightEmailDocument(document)
   document.querySelectorAll('*').forEach((node) => {
     for (const attribute of [...node.attributes]) {
       if (attribute.name.toLowerCase().startsWith('on') || attribute.name.toLowerCase() === 'srcdoc') {
@@ -182,13 +184,15 @@ function buildEmailDocument(
   document.querySelectorAll('img[src]').forEach((image) => {
     const source = image.getAttribute('src') ?? ''
     image.removeAttribute('srcset')
+    image.removeAttribute('data-omnimail-src')
     if (/^cid:/i.test(source)) {
       const replacement = inlineImageSources.get(normalizeContentId(source))
       if (replacement) image.setAttribute('src', replacement)
       return
     }
     if (remoteImagesEnabled && shouldProxyRemoteImage(source)) {
-      image.setAttribute('src', api.remoteImageUrl(source))
+      image.removeAttribute('src')
+      image.setAttribute('data-omnimail-src', api.remoteImageUrl(source))
     }
   })
   document.querySelectorAll('source[srcset]').forEach((source) => source.removeAttribute('srcset'))
@@ -511,6 +515,7 @@ export function MessageReader({
                     ? current
                     : { messageId: message.id, document: emailDocument }
                 ))
+                requestAnimationFrame(() => loadDeferredRemoteImages(document, resize))
               })
               document.querySelectorAll('img').forEach((image) => {
                 if (!image.complete) image.addEventListener('load', resize, { once: true })
