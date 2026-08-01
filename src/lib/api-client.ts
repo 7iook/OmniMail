@@ -35,6 +35,7 @@ import type {
   RegistrationMethod,
   StoragePolicy,
   SystemVersion,
+  SystemUpdateBuild,
   TemporaryInvite,
   TranslationTargetLanguage,
   User,
@@ -119,6 +120,13 @@ export const api = {
   logout: () => request<{ ok: true }>('/api/logout', { method: 'POST' }),
   deploymentCheck: () => request<DeploymentCheck>('/api/admin/deployment-check'),
   systemVersion: () => request<SystemVersion>('/api/admin/version'),
+  startSystemUpdate: (targetVersion: string) => request<{ build: SystemUpdateBuild }>(
+    '/api/admin/version/update',
+    { method: 'POST', body: jsonBody({ targetVersion }) },
+  ),
+  systemUpdateStatus: (buildId: string) => request<{ build: SystemUpdateBuild }>(
+    `/api/admin/version/update/${encodeURIComponent(buildId)}`,
+  ),
   updateRegistrationSetting: (enabled: boolean, method: RegistrationMethod) => (
     request<{ registrationEnabled: boolean; registrationMethod: RegistrationMethod }>('/api/admin/settings/registration', {
       method: 'PATCH',

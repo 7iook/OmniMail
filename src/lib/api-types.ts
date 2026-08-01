@@ -53,6 +53,15 @@ export interface SystemVersion {
   checkFailed: boolean
   checkedAt: number
   releaseUrl: string
+  releaseRepository: string
+  automaticUpdate: boolean
+  automaticUpdateReason: 'not_configured' | 'super_admin_required' | null
+}
+
+export interface SystemUpdateBuild {
+  id: string
+  targetVersion?: string
+  state: 'queued' | 'running' | 'succeeded' | 'failed'
 }
 
 export type RegistrationDomainPolicyMode = 'blocklist' | 'allowlist'

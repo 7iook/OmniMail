@@ -481,8 +481,25 @@ Authorization: Bearer om_at_...
 ```
 
 响应包含 `currentVersion`、`latestVersion`、`updateAvailable`、`checkFailed`、
-`checkedAt` 和固定的官方 `releaseUrl`。成功结果最多缓存一小时；GitHub
-暂时不可用不会影响其他系统功能，也不会自动安装更新。
+`checkedAt`、`releaseUrl`、`releaseRepository`、`automaticUpdate` 和
+`automaticUpdateReason`。成功结果最多缓存一小时；GitHub 暂时不可用不会影响
+其他系统功能。
+
+配置 Cloudflare Workers Builds 后，主管理员可以启动并查询精确 Release Tag 更新：
+
+```http
+POST /api/admin/version/update
+Content-Type: application/json
+
+{ "targetVersion": "0.2.0" }
+
+GET /api/admin/version/update/{buildId}
+```
+
+POST 接口会重新确认最新 Release 并解析 Tag 的提交 SHA，再使用 production branch
+和该 SHA 触发构建。GET 返回 `queued`、`running`、`succeeded` 或 `failed`；Token、
+Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置远程构建的 Clone
+部署继续使用手动更新模式。
 
 ## 常用资源
 
@@ -513,6 +530,8 @@ Authorization: Bearer om_at_...
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/version` | 当前版本与 GitHub Release 更新状态 |
+| `POST /api/admin/version/update` | 主管理员按最新 Release Tag 启动 Cloudflare 构建 |
+| `GET /api/admin/version/update/{buildId}` | 主管理员查询更新构建状态 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员邀请列表 |
 | `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |

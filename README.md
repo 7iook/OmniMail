@@ -232,7 +232,11 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
 | `RESEND_WEBHOOK_SECRET` | Secret | Resend 投递状态 Webhook 的 Signing Secret |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
-| `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
+| `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份或自动更新所需的 Cloudflare Account ID |
+| `CLOUDFLARE_BUILDS_TRIGGER_ID` | Text | 自动更新使用的 production build trigger UUID |
+| `CLOUDFLARE_BUILDS_BRANCH` | Text | 自动更新对应的生产分支，默认 `main` |
+| `CLOUDFLARE_BUILDS_API_TOKEN` | Secret | 仅用于触发并读取 Workers Builds 的专用 Token |
+| `UPDATE_REPOSITORY` | Text | Release 来源仓库，默认 `mibgb65-cloud/OmniMail` |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
 
@@ -264,6 +268,22 @@ https://你的域名/api/webhooks/resend
 同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
 Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
+
+### Release Tag 自动更新
+
+连接 Cloudflare Workers Builds 的部署可以在 **系统设置 → 系统版本** 中安装最新正式
+Release。OmniMail 会在服务端重新读取 Release Tag、解析其提交 SHA，并让 production
+trigger 同时使用生产分支和该 SHA 构建，避免误装 Tag 之后的 `main` 分支代码。
+
+自动更新只对主管理员开放，需要配置上表中的 `CLOUDFLARE_ACCOUNT_ID`、
+`CLOUDFLARE_BUILDS_TRIGGER_ID` 和 `CLOUDFLARE_BUILDS_API_TOKEN`。Token 应使用独立的
+user-scoped API Token，只授予 **Workers Builds Configuration: Edit**；不要复用全局
+API Key。连接仓库还必须包含 Release Tag 对应的提交，因此 Fork 或镜像仓库需要先
+同步该 Tag。
+
+本地 Clone 后直接运行 `wrangler deploy` 的安装没有远程构建执行器，版本检查仍然
+可用，但界面会自动降级为“查看更新”。修改过源码的 Fork 也建议手动合并、测试并
+部署，避免上游 Release 覆盖自定义改动。
 
 若要启用 Linux DO 登录，请在 [Linux DO Connect](https://connect.linux.do) 申请应用，
 将回调地址设置为 `https://你的域名/api/auth/linux-do/callback`，再配置上表两个变量。
