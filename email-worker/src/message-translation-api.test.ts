@@ -26,17 +26,21 @@ type MockOptions = {
   cachedValue?: StoredTranslation
   rateChanges?: number
   ownedMessage?: typeof message | null
+  storedBody?: StoredBody
+  runAi?: (_model: string, input: { text: string }) => Promise<{ translated_text: string }>
 }
 
 function translationEnv(options: MockOptions = {}) {
   const calls: Array<{ sql: string; bindings: unknown[] }> = []
-  const aiRun = vi.fn(async (_model: string, input: { text: string }) => ({
+  const aiRun = vi.fn(options.runAi ?? (async (_model: string, input: { text: string }) => ({
     translated_text: `译：${input.text}`,
-  }))
+  })))
   const put = vi.fn(async () => undefined)
   const remove = vi.fn(async () => undefined)
   const get = vi.fn(async (key: string) => {
-    if (key === message.body_key) return new Response(JSON.stringify(body))
+    if (key === message.body_key) {
+      return new Response(JSON.stringify(options.storedBody ?? body))
+    }
     if (options.cachedValue && key === options.cacheRow?.r2_key) {
       return new Response(JSON.stringify(options.cachedValue))
     }
@@ -177,6 +181,43 @@ describe('message translation endpoint', () => {
     expect(response.status).toBe(429)
     expect(response.headers.get('Retry-After')).toBe('60')
     expect(mocked.aiRun).not.toHaveBeenCalled()
+  })
+
+  it('limits concurrent HTML inference below the Worker connection ceiling', async () => {
+    let activeRuns = 0
+    let maximumRuns = 0
+    const paragraphs = Array.from(
+      { length: 22 },
+      (_, index) => `<p>Squarespace message section ${index}</p>`,
+    ).join('')
+    const mocked = translationEnv({
+      storedBody: {
+        text: 'Welcome to Squarespace',
+        html: `<html lang="en"><body>${paragraphs}</body></html>`,
+      },
+      runAi: async (_model, input) => {
+        activeRuns += 1
+        maximumRuns = Math.max(maximumRuns, activeRuns)
+        await new Promise((resolve) => setTimeout(resolve, 1))
+        activeRuns -= 1
+        return { translated_text: `译：${input.text}` }
+      },
+    })
+
+    const response = await translateMessage(mocked.env, user, message.id, request())
+
+    expect(response.status).toBe(200)
+    expect(maximumRuns).toBeLessThanOrEqual(5)
+  })
+
+  it('measures visible HTML instead of markup duplicated in plain text', async () => {
+    const html = `<html lang="en"><body><p>Your upgraded SIM plan is ready.</p><!--${'x'.repeat(25_000)}--></body></html>`
+    const mocked = translationEnv({ storedBody: { text: html, html } })
+
+    const response = await translateMessage(mocked.env, user, message.id, request())
+
+    expect(response.status).toBe(200)
+    expect(mocked.aiRun).toHaveBeenCalledTimes(2)
   })
 
   it('does not expose messages owned by another user', async () => {

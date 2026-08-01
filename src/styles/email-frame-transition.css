@@ -24,9 +24,14 @@
 }
 
 .email-frame-stack .email-frame--buffer.is-active {
-  z-index: 1;
+  z-index: 2;
   opacity: 1;
   pointer-events: auto;
+}
+
+.email-frame-stack .email-frame--buffer.is-retiring {
+  z-index: 1;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

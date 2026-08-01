@@ -450,21 +450,26 @@ export function MessageReader({
               className="email-frame-stack"
               style={{ height: `${emailFrame.activeHeight}px` }}
             >
-              {emailFrame.documents.map((document, index) => document && (
-                <iframe
-                  key={index}
-                  ref={emailFrame.frameRefs[index]}
-                  className={`email-frame email-frame--buffer${emailFrame.activeIndex === index ? ' is-active' : ''}`}
-                  data-frame-slot={index}
-                  sandbox={EMAIL_FRAME_SANDBOX}
-                  scrolling="no"
-                  srcDoc={document}
-                  title={t('邮件正文：{subject}', { subject: displayedSubject })}
-                  aria-hidden={emailFrame.activeIndex !== index}
-                  tabIndex={emailFrame.activeIndex === index ? 0 : -1}
-                  onLoad={(event) => emailFrame.onLoad(index as 0 | 1, document, event)}
-                />
-              ))}
+              {emailFrame.documents.map((document, index) => {
+                if (!document) return null
+                const isActive = emailFrame.activeIndex === index
+                const isRetiring = emailFrame.retiringIndex === index && !isActive
+                return (
+                  <iframe
+                    key={index}
+                    ref={emailFrame.frameRefs[index]}
+                    className={`email-frame email-frame--buffer${isActive ? ' is-active' : ''}${isRetiring ? ' is-retiring' : ''}`}
+                    data-frame-slot={index}
+                    sandbox={EMAIL_FRAME_SANDBOX}
+                    scrolling="no"
+                    srcDoc={document}
+                    title={t('邮件正文：{subject}', { subject: displayedSubject })}
+                    aria-hidden={!isActive}
+                    tabIndex={isActive ? 0 : -1}
+                    onLoad={(event) => emailFrame.onLoad(index as 0 | 1, document, event)}
+                  />
+                )
+              })}
             </div>
           ) : (
             <div className="plain-body">{displayedText || t('这封邮件没有可显示的正文。')}</div>

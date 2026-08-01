@@ -10,6 +10,7 @@ import { loadDeferredRemoteImages } from '../lib/emailContent'
 
 export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
 const EMAIL_FRAME_MIN_HEIGHT = 470
+const EMAIL_FRAME_RETIRE_MS = 240
 
 type FrameIndex = 0 | 1
 type FrameDocuments = [string, string]
@@ -110,20 +111,39 @@ export function useSmoothEmailFrame({
   const heights = useRef<[number, number]>([EMAIL_FRAME_MIN_HEIGHT, EMAIL_FRAME_MIN_HEIGHT])
   const desiredDocument = useRef(displayedDocument)
   const activeIndexRef = useRef<FrameIndex>(0)
+  const retireTimer = useRef<number | null>(null)
   const [documents, setDocuments] = useState<FrameDocuments>([initialDocument, ''])
   const [activeIndex, setActiveIndex] = useState<FrameIndex>(0)
+  const [retiringIndex, setRetiringIndex] = useState<FrameIndex | null>(null)
   const [activeHeight, setActiveHeight] = useState(EMAIL_FRAME_MIN_HEIGHT)
   const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
 
   desiredDocument.current = displayedDocument
 
+  const cancelRetirement = useCallback(() => {
+    if (retireTimer.current !== null) window.clearTimeout(retireTimer.current)
+    retireTimer.current = null
+  }, [])
+
   const promote = useCallback((index: FrameIndex) => {
+    const previous = activeIndexRef.current
+    if (previous === index) {
+      setActiveHeight(heights.current[index])
+      return
+    }
+    cancelRetirement()
+    setRetiringIndex(previous)
     activeIndexRef.current = index
     setActiveIndex(index)
     setActiveHeight(heights.current[index])
-  }, [])
+    retireTimer.current = window.setTimeout(() => {
+      retireTimer.current = null
+      setRetiringIndex((current) => current === previous ? null : current)
+    }, EMAIL_FRAME_RETIRE_MS)
+  }, [cancelRetirement])
 
   useLayoutEffect(() => {
+    cancelRetirement()
     const next: FrameDocuments = [initialDocument, '']
     documentsRef.current = next
     loadedDocuments.current = ['', '']
@@ -131,13 +151,15 @@ export function useSmoothEmailFrame({
     activeIndexRef.current = 0
     setDocuments(next)
     setActiveIndex(0)
+    setRetiringIndex(null)
     setActiveHeight(EMAIL_FRAME_MIN_HEIGHT)
     setPreparedFrame(null)
-  }, [initialDocument, messageId])
+  }, [cancelRetirement, initialDocument, messageId])
 
   useEffect(() => () => {
+    cancelRetirement()
     for (const observer of resizeObservers.current) observer?.disconnect()
-  }, [])
+  }, [cancelRetirement])
 
   useEffect(() => {
     if (!preparedFrame || !displayedDocument) return
@@ -200,6 +222,7 @@ export function useSmoothEmailFrame({
     documents,
     frameRefs: [firstFrameRef, secondFrameRef] as const,
     activeIndex,
+    retiringIndex,
     activeHeight,
     onLoad,
     preparedFrame,

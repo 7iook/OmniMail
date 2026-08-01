@@ -7,7 +7,7 @@ const TRANSLATION_MODEL_VERSION = 'm2m100-1.2b-html-v2'
 const MAX_TRANSLATION_CHARACTERS = 20_000
 const TRANSLATION_CHUNK_CHARACTERS = 2_500
 const TRANSLATION_REQUESTS_PER_MINUTE = 10
-const TRANSLATION_CONCURRENCY = 6
+const TRANSLATION_CONCURRENCY = 4
 const ignoredHtmlElements = new Set(['head', 'script', 'style', 'noscript', 'template'])
 
 const targetLanguages = new Set(['en', 'zh'])
@@ -355,7 +355,8 @@ export async function translateMessage(
   const text = body.text.trim()
   if (!text) return json({ error: '邮件正文为空，无法翻译。' }, 422)
   const htmlPlan = body.html ? prepareTranslationHtml(body.html) : null
-  if (Math.max(text.length, htmlPlan?.characters ?? 0) > MAX_TRANSLATION_CHARACTERS) {
+  const sourceCharacters = htmlPlan ? htmlPlan.characters : text.length
+  if (sourceCharacters > MAX_TRANSLATION_CHARACTERS) {
     return json({ error: '邮件正文过长，暂不支持翻译。' }, 413)
   }
   const requestedSource = typeof input.sourceLanguage === 'string'

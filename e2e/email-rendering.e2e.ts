@@ -177,10 +177,29 @@ test('translates a message and switches back to the original', async ({ page }) 
   })
   await stack.evaluate((element) => {
     element.setAttribute('data-active-frame-gap-seen', 'false')
+    element.setAttribute('data-brightness-gap-seen', 'false')
+    let activeSlot = element.querySelector('iframe.is-active')?.getAttribute('data-frame-slot')
     new MutationObserver(() => {
-      if (!element.querySelector('iframe.is-active')) {
+      const active = element.querySelector<HTMLIFrameElement>('iframe.is-active')
+      if (!active) {
         element.setAttribute('data-active-frame-gap-seen', 'true')
+        return
       }
+      const nextSlot = active.getAttribute('data-frame-slot')
+      if (nextSlot === activeSlot) return
+      activeSlot = nextSlot
+      let samples = 0
+      const sampleTransition = () => {
+        const currentActive = element.querySelector<HTMLIFrameElement>('iframe.is-active')
+        const retiring = element.querySelector<HTMLIFrameElement>('iframe.is-retiring')
+        if (currentActive && Number.parseFloat(getComputedStyle(currentActive).opacity) < 0.999
+          && (!retiring || Number.parseFloat(getComputedStyle(retiring).opacity) < 0.999)) {
+          element.setAttribute('data-brightness-gap-seen', 'true')
+        }
+        samples += 1
+        if (samples < 20) requestAnimationFrame(sampleTransition)
+      }
+      requestAnimationFrame(sampleTransition)
     }).observe(element, { subtree: true, attributes: true, attributeFilter: ['class'] })
   })
   const originalSlot = await originalFrame.getAttribute('data-frame-slot')
@@ -197,6 +216,7 @@ test('translates a message and switches back to the original', async ({ page }) 
   )
   expect(await translatedFrameElement.getAttribute('data-frame-slot')).not.toBe(originalSlot)
   await expect(stack).toHaveAttribute('data-active-frame-gap-seen', 'false')
+  await expect(stack).toHaveAttribute('data-brightness-gap-seen', 'false')
   await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
   expect(requestedTarget).toBe('zh')
 
@@ -209,5 +229,6 @@ test('translates a message and switches back to the original', async ({ page }) 
     'Tvoj A1 eSIM je spreman.',
   )
   await expect(stack).toHaveAttribute('data-active-frame-gap-seen', 'false')
+  await expect(stack).toHaveAttribute('data-brightness-gap-seen', 'false')
   await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
 })
