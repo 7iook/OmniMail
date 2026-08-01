@@ -14,6 +14,7 @@ import {
   sendDraft,
   uploadDraftAttachment,
 } from './draft-api'
+import { translateMessage } from './message-translation-api'
 
 export const mailFeatureRoutes = new Hono<AppContext>()
 
@@ -53,5 +54,14 @@ mailFeatureRoutes.post('/draft/send', (context) => (
     context.get('user'),
     context.req.raw,
     clientIp(context.req.raw.headers),
+  )
+))
+
+mailFeatureRoutes.post('/messages/:id/translation', (context) => (
+  translateMessage(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    context.req.raw,
   )
 ))

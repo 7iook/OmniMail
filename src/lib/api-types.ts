@@ -386,3 +386,13 @@ export interface MessageDetail extends MessageSummary {
   html: string
   attachments: Attachment[]
 }
+
+export type TranslationTargetLanguage = 'en' | 'zh'
+
+export interface MessageTranslation {
+  sourceLanguage: string
+  targetLanguage: TranslationTargetLanguage
+  subject: string
+  text: string
+  cached: boolean
+}

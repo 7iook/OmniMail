@@ -95,3 +95,70 @@ test('slow remote images do not block readable email content', async ({ page }) 
     releaseRemoteImage()
   }
 })
+
+test('translates a message and switches back to the original', async ({ page }) => {
+  let requestedTarget = ''
+  await page.addInitScript(() => {
+    localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
+    localStorage.setItem('omnimail-locale', 'zh-CN')
+  })
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/config') return json(route, {
+      appName: 'OmniMail', setupComplete: true, replyEnabled: false,
+      registrationEnabled: false, registrationAvailable: false,
+      registrationMethod: 'password', linuxDoLoginEnabled: false,
+      registrationDomainPolicy: { mode: 'blocklist', domains: [] },
+      registrationProtectionReady: false, turnstileSiteKey: '',
+      mailRefreshInterval: 30, remoteImagesEnabled: false,
+      unassignedMailEnabled: false, superAdminEmail: user.email,
+      setupRequirements: {
+        databaseReady: true, storageReady: true, queueReady: true,
+        superAdminReady: true, setupTokenReady: false,
+      },
+    })
+    if (path === '/api/session') return json(route, { user })
+    if (path === '/api/mailboxes') return json(route, { mailboxes: [{
+      address: 'inbox@example.com', domain: 'example.com',
+      isPrimary: true, isActive: true,
+    }] })
+    if (path === '/api/domains') return json(route, { domains: [] })
+    if (path === '/api/draft') return json(route, { draft: null })
+    if (path === '/api/messages/message-1/translation') {
+      requestedTarget = request.postDataJSON().targetLanguage
+      return json(route, { translation: {
+        sourceLanguage: 'hr', targetLanguage: 'zh', cached: false,
+        subject: '你的新 A1 eSIM', text: '你的 A1 eSIM 已准备就绪。',
+      } })
+    }
+    if (path === '/api/messages/message-1') return json(route, {
+      message: {
+        ...message, messageId: null, inReplyTo: null, references: null,
+        cc: [], text: 'Tvoj A1 eSIM je spreman.',
+        html: '<html lang="hr"><body><p class="original-copy">Tvoj A1 eSIM je spreman.</p></body></html>',
+        attachments: [],
+      },
+      thread: [message],
+    })
+    if (path === '/api/messages') return json(route, {
+      unchanged: false, version: 1, messages: [message],
+      counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
+      page: { hasMore: false, nextCursor: null, limit: 30 },
+    })
+    return route.fulfill({ status: 500, body: `Unhandled route: ${path}` })
+  })
+
+  await page.goto('/')
+  await page.getByText('Welcome to OmniMail').click()
+  await page.getByRole('button', { name: '翻译为 简体中文' }).click()
+
+  await expect(page.locator('.translation-body')).toContainText('你的新 A1 eSIM')
+  await expect(page.locator('.translation-body')).toContainText('你的 A1 eSIM 已准备就绪。')
+  expect(requestedTarget).toBe('zh')
+
+  await page.getByRole('button', { name: '显示原文' }).click()
+  await expect(page.frameLocator('iframe').locator('.original-copy')).toContainText(
+    'Tvoj A1 eSIM je spreman.',
+  )
+})

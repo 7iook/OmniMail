@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { releaseStorage, reserveStorage } from './message-storage'
+import { permanentlyDeleteMessage, releaseStorage, reserveStorage } from './message-storage'
+import type { Env } from './types'
 
 function database(changes: number) {
   const run = vi.fn().mockResolvedValue({ meta: { changes } })
@@ -29,5 +30,42 @@ describe('message storage quota', () => {
     await releaseStorage(mocked.db, 'user-1', 4096)
     expect(String(mocked.prepare.mock.calls[0][0])).toContain('MAX(0, storage_used_bytes - ?)')
     expect(mocked.bind).toHaveBeenCalledWith(4096, 'user-1')
+  })
+})
+
+describe('permanent message deletion', () => {
+  it('removes cached translations together with the message objects', async () => {
+    const remove = vi.fn(async () => undefined)
+    const db = {
+      prepare(sql: string) {
+        const statement = {
+          bind: () => statement,
+          all: async () => ({
+            results: sql.includes('message_translations')
+              ? [{ r2_key: 'translations/message-1/zh.json' }]
+              : [{ r2_key: 'attachments/message-1/file' }],
+          }),
+        }
+        return statement
+      },
+      batch: vi.fn(async () => undefined),
+    }
+    await permanentlyDeleteMessage(
+      { DB: db, MAIL_BUCKET: { delete: remove } } as unknown as Env,
+      'user-1',
+      {
+        id: 'message-1',
+        raw_key: 'raw/message-1.eml',
+        body_key: 'bodies/message-1.json',
+        quota_bytes: 1024,
+      },
+    )
+
+    expect(remove).toHaveBeenCalledWith([
+      'raw/message-1.eml',
+      'bodies/message-1.json',
+      'attachments/message-1/file',
+      'translations/message-1/zh.json',
+    ])
   })
 })

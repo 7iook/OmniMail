@@ -26,6 +26,7 @@ import type {
   ManagedDomain,
   ManagedUserPolicy,
   MessageDetail,
+  MessageTranslation,
   MessageSummary,
   PageInfo,
   OutboundRateLimitSettings,
@@ -35,6 +36,7 @@ import type {
   StoragePolicy,
   SystemVersion,
   TemporaryInvite,
+  TranslationTargetLanguage,
   User,
 } from './api-types'
 
@@ -395,6 +397,13 @@ export const api = {
     body: jsonBody({ idempotencyKey }),
   }),
   message: (id: string) => request<{ message: MessageDetail; thread: MessageSummary[] }>(`/api/messages/${id}`),
+  translateMessage: (id: string, targetLanguage: TranslationTargetLanguage) => request<{
+    translation: MessageTranslation
+  }>(`/api/messages/${id}/translation`, {
+    method: 'POST',
+    body: jsonBody({ targetLanguage }),
+    signal: AbortSignal.timeout(60_000),
+  }),
   updateMessage: (
     id: string,
     input: { isRead?: boolean; isStarred?: boolean; folder?: 'inbox' | 'sent' | 'trash' },

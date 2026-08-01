@@ -25,6 +25,7 @@ import { getLocale, t } from '../lib/i18n'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageAttachments } from './MessageAttachments'
 import { MessageThread } from './MessageThread'
+import { MessageTranslation } from './MessageTranslation'
 import { ReplyComposer } from './ReplyComposer'
 
 function formatFullDate(timestamp: number): string {
@@ -471,20 +472,26 @@ export function MessageReader({
           </div>
         )}
 
-        {message.html ? (
-          <iframe
-            ref={frameRef}
-            className="email-frame"
-            sandbox={EMAIL_FRAME_SANDBOX}
-            scrolling="no"
-            srcDoc={emailDocument}
-            title={t('邮件正文：{subject}', { subject: message.subject })}
-            onLoad={(event) => {
-              const frame = event.currentTarget
-              const document = frame.contentDocument
-              if (!document) return
-              document.addEventListener('click', handleEmailLinkClick)
-              document.addEventListener('keydown', handleEmailLinkKeyDown)
+        <MessageTranslation
+          key={message.id}
+          messageId={message.id}
+          subject={message.subject}
+          enabled={Boolean(message.text.trim()) && ['ready', 'sent'].includes(message.status)}
+        >
+          {message.html ? (
+            <iframe
+              ref={frameRef}
+              className="email-frame"
+              sandbox={EMAIL_FRAME_SANDBOX}
+              scrolling="no"
+              srcDoc={emailDocument}
+              title={t('邮件正文：{subject}', { subject: message.subject })}
+              onLoad={(event) => {
+                const frame = event.currentTarget
+                const document = frame.contentDocument
+                if (!document) return
+                document.addEventListener('click', handleEmailLinkClick)
+                document.addEventListener('keydown', handleEmailLinkKeyDown)
 
               const resize = () => {
                 const height = `${fitEmailDocument(document)}px`
@@ -507,11 +514,12 @@ export function MessageReader({
               document.querySelectorAll('img').forEach((image) => {
                 if (!image.complete) image.addEventListener('load', resize, { once: true })
               })
-            }}
-          />
-        ) : (
-          <div className="plain-body">{message.text || t('这封邮件没有可显示的正文。')}</div>
-        )}
+              }}
+            />
+          ) : (
+            <div className="plain-body">{message.text || t('这封邮件没有可显示的正文。')}</div>
+          )}
+        </MessageTranslation>
 
         {message.attachments.length > 0 && (
           <MessageAttachments messageId={message.id} attachments={message.attachments} />

@@ -13,10 +13,14 @@ export async function permanentlyDeleteMessage(
   const { results: attachments } = await env.DB.prepare(
     'SELECT r2_key FROM attachments WHERE message_id = ?',
   ).bind(message.id).all<{ r2_key: string }>()
+  const { results: translations } = await env.DB.prepare(
+    'SELECT r2_key FROM message_translations WHERE message_id = ?',
+  ).bind(message.id).all<{ r2_key: string }>()
   const objectKeys = [
     message.raw_key,
     message.body_key,
     ...attachments.map((attachment) => attachment.r2_key),
+    ...translations.map((translation) => translation.r2_key),
   ].filter((key): key is string => Boolean(key))
   if (objectKeys.length) await env.MAIL_BUCKET.delete(objectKeys)
   await env.DB.batch([

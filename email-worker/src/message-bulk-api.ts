@@ -60,9 +60,13 @@ async function deleteOwnedMessages(
   const { results: attachments } = await env.DB.prepare(
     `SELECT r2_key FROM attachments WHERE message_id IN (${ownedMarks})`,
   ).bind(...ownedIds).all<{ r2_key: string }>()
+  const { results: translations } = await env.DB.prepare(
+    `SELECT r2_key FROM message_translations WHERE message_id IN (${ownedMarks})`,
+  ).bind(...ownedIds).all<{ r2_key: string }>()
   const objectKeys = [
     ...messages.flatMap((message) => [message.raw_key, message.body_key]),
     ...attachments.map((attachment) => attachment.r2_key),
+    ...translations.map((translation) => translation.r2_key),
   ].filter((key): key is string => Boolean(key))
   for (let index = 0; index < objectKeys.length; index += 1000) {
     await env.MAIL_BUCKET.delete(objectKeys.slice(index, index + 1000))

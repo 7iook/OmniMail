@@ -33,6 +33,7 @@ export interface Env {
   DB: D1Database
   MAIL_BUCKET: R2Bucket
   MAIL_QUEUE: Queue<MailQueueJob>
+  AI?: Ai
   ASSETS: Fetcher
   BACKUP_BUCKET?: R2Bucket
   BACKUP_WORKFLOW?: Workflow<BackupWorkflowParams>
