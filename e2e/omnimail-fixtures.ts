@@ -8,6 +8,7 @@ export const user = {
   storageUsedBytes: 2048,
   canCreateMailboxes: true,
   canReply: true,
+  canTranslate: true,
   temporaryExpiresAt: null,
 }
 

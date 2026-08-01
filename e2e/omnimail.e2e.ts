@@ -172,7 +172,7 @@ async function mockApp(page: Page, state = mockState()) {
           storageQuotaBytes: 1024 ** 3,
           storageUsedBytes: 2048,
           canCreateMailboxes: false,
-          canReply: false,
+          canReply: false, canTranslate: true,
           temporaryExpiresAt: Math.floor(Date.now() / 1000) + 25 * 60 * 60,
           createdAt: 1_700_000_000,
           updatedAt: 1_700_000_000,
@@ -192,7 +192,7 @@ async function mockApp(page: Page, state = mockState()) {
         mailboxLimit: number
         storageQuotaMiB: number
         canCreateMailboxes: boolean
-        canReply: boolean
+        canReply: boolean; canTranslate: boolean
       }
       state.adminUserStatus = input.status
       return json(route, {
@@ -207,7 +207,7 @@ async function mockApp(page: Page, state = mockState()) {
           storageQuotaBytes: input.storageQuotaMiB * 1024 ** 2,
           storageUsedBytes: 2048,
           canCreateMailboxes: input.canCreateMailboxes,
-          canReply: input.canReply,
+          canReply: input.canReply, canTranslate: input.canTranslate,
           temporaryExpiresAt: Math.floor(Date.now() / 1000) + 25 * 60 * 60,
           createdAt: 1_700_000_000,
           updatedAt: 1_700_000_001,
@@ -228,7 +228,7 @@ async function mockApp(page: Page, state = mockState()) {
           accountLifetimeHours: 24,
           mailboxLimit: 1,
           canCreateMailboxes: false,
-          canReply: false,
+          canReply: false, canTranslate: false,
           createdAt: Math.floor(Date.now() / 1000),
           state: 'active',
         }],
@@ -236,7 +236,7 @@ async function mockApp(page: Page, state = mockState()) {
       })
     }
     if (path === '/api/admin/invites' && request.method() === 'POST') {
-      const input = request.postDataJSON() as { accountRole: 'user' | 'temporary' }
+      const input = request.postDataJSON() as { accountRole: 'user' | 'temporary'; canTranslate: boolean }
       state.createdInviteRole = input.accountRole
       return json(route, {
         invite: {
@@ -251,7 +251,7 @@ async function mockApp(page: Page, state = mockState()) {
           accountLifetimeHours: input.accountRole === 'temporary' ? 24 : null,
           mailboxLimit: 1,
           canCreateMailboxes: false,
-          canReply: false,
+          canReply: false, canTranslate: input.canTranslate,
           createdAt: Math.floor(Date.now() / 1000),
           state: 'active',
         },

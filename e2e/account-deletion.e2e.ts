@@ -51,6 +51,7 @@ async function mockAccountPage(page: Page, role: AccountRole) {
       storageUsedBytes: 0,
       canCreateMailboxes: false,
       canReply: false,
+      canTranslate: true,
       temporaryExpiresAt: null,
     } })
     if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
