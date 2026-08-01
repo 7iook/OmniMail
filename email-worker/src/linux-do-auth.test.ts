@@ -33,6 +33,7 @@ function testEnvironment(options: {
     storage_used_bytes: 0,
     can_create_mailboxes: 1,
     can_reply: 0,
+    can_translate: 1,
     temporary_expires_at: null,
     deleted_at: null,
   }

@@ -169,6 +169,7 @@ export function MessageReader({
   message,
   loading,
   replyEnabled,
+  translationEnabled,
   remoteImagesEnabled,
   thread,
   onBack,
@@ -183,6 +184,7 @@ export function MessageReader({
   message: MessageDetail | null
   loading: boolean
   replyEnabled: boolean
+  translationEnabled: boolean
   remoteImagesEnabled: boolean
   thread: MessageSummary[]
   onBack: () => void
@@ -442,7 +444,8 @@ export function MessageReader({
         <MessageTranslation
           key={message.id}
           messageId={message.id}
-          enabled={Boolean(message.text.trim()) && ['ready', 'sent'].includes(message.status)}
+          enabled={translationEnabled && Boolean(message.text.trim())
+            && ['ready', 'sent'].includes(message.status)}
           onDisplayChange={displayTranslation}
         >
           {displayedHtml ? (

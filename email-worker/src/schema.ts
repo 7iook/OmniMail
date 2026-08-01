@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
     CHECK (storage_quota_bytes BETWEEN 0 AND 1099511627776),
   storage_used_bytes INTEGER NOT NULL DEFAULT 0 CHECK (storage_used_bytes >= 0),
   can_create_mailboxes INTEGER NOT NULL DEFAULT 0 CHECK (can_create_mailboxes IN (0, 1)),
-  can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)),
+  can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)), can_translate INTEGER NOT NULL DEFAULT 1 CHECK (can_translate IN (0, 1)),
   temporary_expires_at INTEGER,
   deleted_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS temporary_invites (
     CHECK (account_lifetime_hours BETWEEN 1 AND 720),
   mailbox_limit INTEGER NOT NULL DEFAULT 1 CHECK (mailbox_limit BETWEEN 1 AND 100),
   can_create_mailboxes INTEGER NOT NULL DEFAULT 0 CHECK (can_create_mailboxes IN (0, 1)),
-  can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)),
+  can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)), can_translate INTEGER NOT NULL DEFAULT 1 CHECK (can_translate IN (0, 1)),
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   revoked_at INTEGER
@@ -223,8 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_runs_started
 `
 
 let schemaReady: Promise<void> | undefined
-const SCHEMA_VERSION = '2026-08-01-p1-message-translation'
-
+const SCHEMA_VERSION = '2026-08-01-p2-translation-permissions'
 async function ensureUnassignedMailColumns(db: D1Database): Promise<void> {
   const mailboxColumns = await db.prepare(
     'PRAGMA table_info(mailboxes)',
@@ -273,6 +272,7 @@ async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
       'ALTER TABLE users ADD COLUMN can_reply INTEGER NOT NULL DEFAULT 0',
     ))
   }
+  if (!columns.has('can_translate')) statements.push(db.prepare('ALTER TABLE users ADD COLUMN can_translate INTEGER NOT NULL DEFAULT 1'))
   if (!columns.has('temporary_expires_at')) {
     statements.push(db.prepare('ALTER TABLE users ADD COLUMN temporary_expires_at INTEGER'))
   }
@@ -322,7 +322,6 @@ async function ensureUserPolicyColumns(db: D1Database): Promise<void> {
             can_reply = CASE WHEN role IN ('super_admin', 'admin') THEN 1 ELSE 0 END`,
   ).run()
 }
-
 async function ensureMessageStorageColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare(
     'PRAGMA table_info(messages)',
@@ -464,7 +463,7 @@ async function ensureTemporaryInvites(db: D1Database): Promise<void> {
         CHECK (account_lifetime_hours BETWEEN 1 AND 720),
       mailbox_limit INTEGER NOT NULL DEFAULT 1 CHECK (mailbox_limit BETWEEN 1 AND 100),
       can_create_mailboxes INTEGER NOT NULL DEFAULT 0 CHECK (can_create_mailboxes IN (0, 1)),
-      can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)),
+      can_reply INTEGER NOT NULL DEFAULT 0 CHECK (can_reply IN (0, 1)), can_translate INTEGER NOT NULL DEFAULT 1 CHECK (can_translate IN (0, 1)),
       created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       revoked_at INTEGER
@@ -497,6 +496,7 @@ async function ensureTemporaryInvites(db: D1Database): Promise<void> {
        INTEGER NOT NULL DEFAULT 24 CHECK (account_lifetime_hours BETWEEN 1 AND 720)`,
     ).run()
   }
+  if (!columns.has('can_translate')) await db.prepare('ALTER TABLE temporary_invites ADD COLUMN can_translate INTEGER NOT NULL DEFAULT 1').run()
   await db.prepare(
     'CREATE INDEX IF NOT EXISTS idx_temporary_invites_token ON temporary_invites(token_hash)',
   ).run()

@@ -6,6 +6,7 @@ import {
   Clock3,
   Copy,
   Globe2,
+  Languages,
   Link2,
   LoaderCircle,
   MailPlus,
@@ -36,6 +37,7 @@ const initialDraft: CreateTemporaryInvite = {
   mailboxLimit: 1,
   canCreateMailboxes: false,
   canReply: false,
+  canTranslate: false,
 }
 
 const stateLabels: Record<TemporaryInvite['state'], string> = {
@@ -277,7 +279,9 @@ export function InvitationManagement({
                       type="radio"
                       name="account-role"
                       checked={draft.accountRole === 'user'}
-                      onChange={() => setDraft({ ...draft, accountRole: 'user' })}
+                      onChange={() => setDraft({
+                        ...draft, accountRole: 'user', canTranslate: true,
+                      })}
                     />
                     <span><strong>{t('普通用户')}</strong><small>{t('账号长期有效，使用普通用户默认存储配额。')}</small></span>
                   </label>
@@ -286,7 +290,9 @@ export function InvitationManagement({
                       type="radio"
                       name="account-role"
                       checked={draft.accountRole === 'temporary'}
-                      onChange={() => setDraft({ ...draft, accountRole: 'temporary' })}
+                      onChange={() => setDraft({
+                        ...draft, accountRole: 'temporary', canTranslate: false,
+                      })}
                     />
                     <span><strong>{t('临时用户')}</strong><small>{t('账号按设定时间到期，使用临时用户默认存储配额。')}</small></span>
                   </label>
@@ -477,6 +483,16 @@ export function InvitationManagement({
                       onChange={(event) => setDraft({ ...draft, canReply: event.target.checked })}
                     />
                   </label>
+                  <label className="policy-toggle">
+                    <span><Languages size={17} /><span><strong>{t('允许使用 AI 翻译邮件')}</strong><small>{t('允许查看缓存译文并请求新的 AI 翻译')}</small></span></span>
+                    <input
+                      type="checkbox"
+                      checked={draft.canTranslate}
+                      onChange={(event) => setDraft({
+                        ...draft, canTranslate: event.target.checked,
+                      })}
+                    />
+                  </label>
                 </div>
               </section>
 
@@ -524,7 +540,7 @@ export function InvitationManagement({
                       <dl className="invite-card__details">
                         <div><dt><Clock3 size={14} />{t('链接截止')}</dt><dd className="invite-expiry">{formatDate(invite.expiresAt)}</dd></div>
                         <div><dt><UserRoundPlus size={14} />{t('账号有效期')}</dt><dd>{invite.accountLifetimeHours === null ? t('长期有效') : formatDuration(invite.accountLifetimeHours)}</dd></div>
-                        <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可发信')}` : ''}</dd></div>
+                        <div><dt><ShieldCheck size={14} />{t('邮箱权限')}</dt><dd>{invite.canCreateMailboxes ? t('最多 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅首个邮箱')}{invite.canReply ? ` · ${t('可发信')}` : ''}{invite.canTranslate ? ` · ${t('可翻译')}` : ''}</dd></div>
                       </dl>
                       <footer>
                         <span>{t('创建于 {date}', { date: formatDate(invite.createdAt) })}</span>

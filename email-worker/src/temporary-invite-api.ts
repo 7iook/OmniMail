@@ -28,6 +28,7 @@ interface InviteRow {
   mailbox_limit: number
   can_create_mailboxes: number
   can_reply: number
+  can_translate: number
   created_at: number
   revoked_at: number | null
 }
@@ -43,6 +44,7 @@ interface InvitePolicyInput {
   mailboxLimit?: unknown
   canCreateMailboxes?: unknown
   canReply?: unknown
+  canTranslate?: unknown
 }
 
 export type InviteState = 'active' | 'expired' | 'used' | 'revoked' | 'domain_disabled'
@@ -109,6 +111,7 @@ function inviteJson(row: InviteRow, now: number) {
     mailboxLimit: row.mailbox_limit,
     canCreateMailboxes: Boolean(row.can_create_mailboxes),
     canReply: Boolean(row.can_reply),
+    canTranslate: Boolean(row.can_translate),
     createdAt: row.created_at,
     state: inviteState(row, now),
   }
@@ -118,7 +121,7 @@ const INVITE_SELECT = `
   SELECT i.id, i.domain_name, i.account_role, i.expires_at, i.max_uses, i.use_count,
          i.address_mode, i.assigned_address,
          i.account_lifetime_hours,
-         i.mailbox_limit, i.can_create_mailboxes, i.can_reply,
+         i.mailbox_limit, i.can_create_mailboxes, i.can_reply, i.can_translate,
          i.created_at, i.revoked_at, COALESCE(d.is_active, 0) AS domain_active
     FROM temporary_invites i
     LEFT JOIN domains d ON d.name = i.domain_name`
@@ -219,6 +222,7 @@ export async function createTemporaryInvite(
     || mailboxLimit > 100
     || typeof body.canCreateMailboxes !== 'boolean'
     || typeof body.canReply !== 'boolean'
+    || typeof body.canTranslate !== 'boolean'
   ) {
     return json({ error: '邀请配置无效。' }, 400)
   }
@@ -262,8 +266,8 @@ export async function createTemporaryInvite(
     `INSERT INTO temporary_invites (
       id, token_hash, domain_name, account_role, expires_at, max_uses, address_mode,
       assigned_address, account_lifetime_hours, mailbox_limit,
-      can_create_mailboxes, can_reply, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      can_create_mailboxes, can_reply, can_translate, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id,
     await sha256(token),
@@ -277,6 +281,7 @@ export async function createTemporaryInvite(
     effectiveLimit,
     Number(canCreateMailboxes),
     Number(body.canReply),
+    Number(body.canTranslate),
     user.id,
   ).run()
   await audit(env, user.id, 'temporary_invite.create', id, ip, {
@@ -286,6 +291,9 @@ export async function createTemporaryInvite(
     assignedAddress,
     accountLifetimeHours,
     multiUse: body.multiUse,
+    canCreateMailboxes,
+    canReply: body.canReply,
+    canTranslate: body.canTranslate,
   })
   const created = await env.DB.prepare(
     `${INVITE_SELECT} WHERE i.id = ?`,
@@ -442,8 +450,9 @@ export async function registerTemporaryInvite(
       env.DB.prepare(
         `INSERT INTO users (
           id, email, display_name, password_hash, role, status, mailbox_limit,
-          storage_quota_bytes, can_create_mailboxes, can_reply, temporary_expires_at
-        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+          storage_quota_bytes, can_create_mailboxes, can_reply, can_translate,
+          temporary_expires_at
+        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
       ).bind(
         userId,
         address,
@@ -454,6 +463,7 @@ export async function registerTemporaryInvite(
         storageQuotaBytes,
         invite.can_create_mailboxes,
         invite.can_reply,
+        invite.can_translate,
         accountExpiresAt,
       ),
       env.DB.prepare(

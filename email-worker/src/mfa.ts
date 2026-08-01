@@ -254,7 +254,7 @@ export async function completeMfaChallenge(
     `SELECT c.channel, c.expires_at, c.attempts,
             u.id, u.email, u.display_name, u.password_hash, u.role, u.status,
             u.mailbox_limit, u.storage_quota_bytes, u.storage_used_bytes,
-            u.can_create_mailboxes, u.can_reply, u.temporary_expires_at,
+            u.can_create_mailboxes, u.can_reply, u.can_translate, u.temporary_expires_at,
             u.deleted_at, u.created_at
        FROM mfa_challenges c
        JOIN users u ON u.id = c.user_id

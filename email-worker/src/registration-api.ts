@@ -262,6 +262,7 @@ export async function registerExternalUser(
         storageUsedBytes: 0,
         canCreateMailboxes: true,
         canReply: false,
+        canTranslate: true,
         temporaryExpiresAt: null,
       },
     }, 201),

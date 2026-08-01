@@ -284,7 +284,7 @@ app.post('/api/setup', async (context) => {
       storageQuotaBytes: 5368709120,
       storageUsedBytes: 0,
       canCreateMailboxes: true,
-      canReply: true,
+      canReply: true, canTranslate: true,
       temporaryExpiresAt: null,
     },
   }, 201)

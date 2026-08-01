@@ -258,6 +258,9 @@ export const enAdmin: Record<string, string> = {
     'Allow adding, enabling, and disabling personal receiving addresses',
   '使用 Resend 发信与回复': 'Send and reply with Resend',
   '仍需 Worker 已配置 Resend 服务': 'The Worker must also have Resend configured',
+  '使用 AI 翻译邮件': 'Use AI message translation',
+  '允许查看缓存译文并请求新的 AI 翻译':
+    'Allow viewing cached translations and requesting new AI translations',
   '封禁账户': 'Disable account',
   '保存后立即注销该用户的所有会话':
     'Saving immediately invalidates all sessions for this user',
@@ -297,6 +300,7 @@ export const enAdmin: Record<string, string> = {
   '不限': 'Unlimited',
   '可管理邮箱': 'Can manage mailboxes',
   '可发信': 'Can send',
+  '可翻译': 'Can translate',
   '基础权限': 'Basic access',
   '正常': 'Active',
   '已封禁': 'Disabled',

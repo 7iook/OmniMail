@@ -3,6 +3,7 @@ import {
   applySuperAdminRole,
   activeUser,
   hashPassword,
+  sessionFromUser,
   secretsEqual,
   validatePassword,
   verifyPassword,
@@ -41,16 +42,39 @@ describe('password security', () => {
       displayName: 'Owner',
       role: 'user' as const,
       mailboxLimit: 1,
+      storageQuotaBytes: 1024,
+      storageUsedBytes: 0,
       canCreateMailboxes: false,
       canReply: false,
+      canTranslate: false,
       temporaryExpiresAt: null,
     }
     expect(applySuperAdminRole(user, 'owner@example.com')).toMatchObject({
       role: 'super_admin',
       canCreateMailboxes: true,
       canReply: true,
+      canTranslate: true,
     })
     expect(applySuperAdminRole(user, 'other@example.com').role).toBe('user')
+  })
+
+  it('always enables translation for administrators', () => {
+    const row = {
+      id: 'admin-1',
+      email: 'admin@example.com',
+      display_name: 'Admin',
+      role: 'admin' as const,
+      mailbox_limit: 1,
+      storage_quota_bytes: 1024,
+      storage_used_bytes: 0,
+      can_create_mailboxes: 1,
+      can_reply: 1,
+      can_translate: 0,
+      temporary_expires_at: null,
+    }
+
+    expect(sessionFromUser(row).canTranslate).toBe(true)
+    expect(sessionFromUser({ ...row, role: 'user' }).canTranslate).toBe(false)
   })
 
   it('rejects expired and deleted temporary users', () => {

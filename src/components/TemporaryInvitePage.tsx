@@ -4,6 +4,7 @@ import {
   Check,
   Clock3,
   Globe2,
+  Languages,
   LoaderCircle,
   MailPlus,
   Send,
@@ -169,6 +170,7 @@ export function TemporaryInvitePage({
               <div><ShieldCheck size={17} /><span><small>{t('链接类型')}</small><strong>{t(invite.multiUse ? '多人注册链接' : '单次使用链接')}</strong></span></div>
               <div><MailPlus size={17} /><span><small>{t('邮箱权限')}</small><strong>{invite.addressMode === 'assigned' ? t('固定邮箱，不能自行新增或更改') : invite.canCreateMailboxes ? t('最多创建 {count} 个邮箱', { count: invite.mailboxLimit }) : t('仅使用注册时创建的邮箱')}</strong></span></div>
               <div><Send size={17} /><span><small>{t('发信权限')}</small><strong>{t(invite.canReply ? '可以通过 Resend 发信与回复' : '仅接收与查看邮件')}</strong></span></div>
+              <div><Languages size={17} /><span><small>{t('翻译权限')}</small><strong>{t(invite.canTranslate ? '可以使用 AI 翻译邮件' : '不能使用 AI 翻译邮件')}</strong></span></div>
               <p><Check size={16} />{t(invite.accountRole === 'temporary'
                 ? '链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。'
                 : '链接到期只停止注册；已经创建的普通用户账号会长期有效。')}</p>

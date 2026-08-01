@@ -325,6 +325,12 @@ export async function translateMessage(
   messageId: string,
   request: Request,
 ): Promise<Response> {
+  if (!user.canTranslate) {
+    return json({
+      error: '管理员未为当前账户启用邮件翻译。',
+      code: 'translation_forbidden',
+    }, 403)
+  }
   const input = await request.json<{
     targetLanguage?: unknown
     sourceLanguage?: unknown

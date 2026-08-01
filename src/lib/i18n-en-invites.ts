@@ -83,6 +83,10 @@ export const enInvites: Record<string, string> = {
   '允许使用 Resend 发信与回复': 'Allow sending and replies with Resend',
   'Worker 仍需配置有效的 Resend 服务':
     'The Worker must also have a valid Resend configuration',
+  '允许使用 AI 翻译邮件': 'Allow AI message translation',
+  '翻译权限': 'Translation permission',
+  '可以使用 AI 翻译邮件': 'Can use AI message translation',
+  '不能使用 AI 翻译邮件': 'Cannot use AI message translation',
   '使用与权限': 'Usage and permissions',
   '控制链接使用人数，以及注册后可以使用的邮箱能力。':
     'Control how many people can use the link and which mailbox capabilities they receive.',
@@ -112,6 +116,7 @@ export const enInvites: Record<string, string> = {
   '最多 {count} 个邮箱': 'Up to {count} mailboxes',
   '仅首个邮箱': 'First mailbox only',
   '可发信': 'Can send',
+  '可翻译': 'Can translate',
   '撤销': 'Revoke',
   '加载更多邀请': 'Load more invitations',
   '账号 {email} 已创建，但自动登录失败，请返回登录页手动登录。':

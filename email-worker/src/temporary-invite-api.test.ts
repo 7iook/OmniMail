@@ -61,6 +61,7 @@ describe('temporary invites', () => {
       mailbox_limit: 2,
       can_create_mailboxes: 1,
       can_reply: 1,
+      can_translate: 0,
       created_at: now,
       revoked_at: null,
     }
@@ -115,6 +116,7 @@ describe('temporary invites', () => {
     expect(await response.json()).toEqual({ email: 'regular@example.com' })
     expect(userInsert?.bindings[4]).toBe('user')
     expect(userInsert?.bindings[6]).toBe(1024 * 1024 * 1024)
-    expect(userInsert?.bindings[9]).toBeNull()
+    expect(userInsert?.bindings[9]).toBe(0)
+    expect(userInsert?.bindings[10]).toBeNull()
   })
 })

@@ -1,10 +1,8 @@
 import {
   Ban,
-  Check,
-  ChevronDown,
   ChevronRight,
-  Clock3,
   HardDrive,
+  Languages,
   MailPlus,
   Search,
   Send,
@@ -14,7 +12,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   api,
   type AdminUserTotals,
@@ -30,6 +28,7 @@ import { AdminPageHeader } from './AdminPageHeader'
 import { TemporaryUserExpiry } from './TemporaryUserExpiry'
 import { UserBanDialog } from './UserBanDialog'
 import { UserPolicyPanel } from './UserPolicyPanel'
+import { UserRoleSelect } from './UserRoleSelect'
 import { UserOutboundRateLimit } from './UserOutboundRateLimit'
 
 const initialCreate: CreateManagedUser = {
@@ -42,6 +41,7 @@ const initialCreate: CreateManagedUser = {
   storageQuotaMiB: 1024,
   canCreateMailboxes: false,
   canReply: false,
+  canTranslate: true,
 }
 
 function policyFor(user: AdminUser): ManagedUserPolicy {
@@ -52,6 +52,7 @@ function policyFor(user: AdminUser): ManagedUserPolicy {
     storageQuotaMiB: Math.round(user.storageQuotaBytes / (1024 * 1024)),
     canCreateMailboxes: user.canCreateMailboxes,
     canReply: user.canReply,
+    canTranslate: user.canTranslate,
   }
 }
 
@@ -69,120 +70,26 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
 }
 
-const roleOptions = [
-  {
-    value: 'admin' as const,
-    label: '管理员',
-    description: '管理用户、域名与系统配置',
-    Icon: ShieldCheck,
-  },
-  {
-    value: 'user' as const,
-    label: '普通用户',
-    description: '长期使用的标准邮箱账户',
-    Icon: UserRound,
-  },
-  {
-    value: 'temporary' as const,
-    label: '临时用户',
-    description: '使用管理员配置的临时权限',
-    Icon: Clock3,
-  },
-]
-
-function RoleSelect({
-  value,
-  allowAdmin,
-  disabled,
-  onChange,
-}: {
-  value: ManagedUserPolicy['role']
-  allowAdmin: boolean
-  disabled: boolean
-  onChange: (role: ManagedUserPolicy['role']) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const menuId = useId()
-  const options = roleOptions.filter((option) => (
-    option.value !== 'admin' || allowAdmin || value === 'admin'
-  ))
-  const selected = options.find((option) => option.value === value) || options[0]
-
-  useEffect(() => {
-    if (!open) return
-    const closeOutside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
-    }
-    const closeWithEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOutside)
-    document.addEventListener('keydown', closeWithEscape)
-    return () => {
-      document.removeEventListener('pointerdown', closeOutside)
-      document.removeEventListener('keydown', closeWithEscape)
-    }
-  }, [open])
-
-  return (
-    <div className={`user-role-select ${open ? 'is-open' : ''}`} ref={root}>
-      <button
-        className="user-role-select__trigger"
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={menuId}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <selected.Icon size={16} />
-        <span>{t(selected.label)}</span>
-        <ChevronDown size={16} />
-      </button>
-      {open && (
-        <div className="user-role-select__menu" id={menuId} role="listbox">
-          {options.map(({ value: optionValue, label, description, Icon }) => (
-            <button
-              className={optionValue === value ? 'is-selected' : ''}
-              type="button"
-              role="option"
-              aria-selected={optionValue === value}
-              key={optionValue}
-              onClick={() => {
-                onChange(optionValue)
-                setOpen(false)
-              }}
-            >
-              <span className="user-role-select__icon"><Icon size={16} /></span>
-              <span><strong>{t(label)}</strong><small>{t(description)}</small></span>
-              {optionValue === value && <Check size={16} />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function PolicyFields({
   value,
   onChange,
   allowAdmin,
   showStatus,
+  useRoleDefaults = false,
   disabled = false,
 }: {
   value: ManagedUserPolicy
   onChange: (next: ManagedUserPolicy) => void
   allowAdmin: boolean
   showStatus: boolean
+  useRoleDefaults?: boolean
   disabled?: boolean
 }) {
   return (
     <div className="user-policy-fields">
       <label>
         <span>{t('账户角色')}</span>
-        <RoleSelect
+        <UserRoleSelect
           value={value.role}
           allowAdmin={allowAdmin}
           disabled={disabled}
@@ -191,6 +98,9 @@ function PolicyFields({
               ...value,
               role,
               canCreateMailboxes: role === 'admin' ? true : value.canCreateMailboxes,
+              canTranslate: role === 'admin'
+                ? true
+                : useRoleDefaults ? role !== 'temporary' : value.canTranslate,
             })
           }}
         />
@@ -247,6 +157,16 @@ function PolicyFields({
           checked={value.canReply}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, canReply: event.target.checked })}
+        />
+      </label>
+
+      <label className="policy-toggle">
+        <span><Languages size={17} /><span><strong>{t('使用 AI 翻译邮件')}</strong><small>{t(value.role === 'admin' ? '管理员默认拥有此权限' : '允许查看缓存译文并请求新的 AI 翻译')}</small></span></span>
+        <input
+          type="checkbox"
+          checked={value.role === 'admin' || value.canTranslate}
+          disabled={disabled || value.role === 'admin'}
+          onChange={(event) => onChange({ ...value, canTranslate: event.target.checked })}
         />
       </label>
 
@@ -488,7 +408,8 @@ export function UserManagement({
                 <span className="user-capabilities">
                   {user.canCreateMailboxes && <span data-tooltip={t('可管理邮箱')}><MailPlus size={14} /></span>}
                   {user.canReply && <span data-tooltip={t('可发信')}><Send size={14} /></span>}
-                  {!user.canCreateMailboxes && !user.canReply && <small>{t('基础权限')}</small>}
+                  {user.canTranslate && <span data-tooltip={t('可翻译')}><Languages size={14} /></span>}
+                  {!user.canCreateMailboxes && !user.canReply && !user.canTranslate && <small>{t('基础权限')}</small>}
                 </span>
                 <span className={`user-status ${user.status === 'active' ? 'is-active' : ''}`}>
                   <span aria-hidden="true" />{t(user.status === 'active' ? '正常' : '已封禁')}
@@ -539,6 +460,7 @@ export function UserManagement({
                   onChange={(next) => setCreateDraft({ ...createDraft, ...next })}
                   allowAdmin={currentUser.role === 'super_admin'}
                   showStatus={false}
+                  useRoleDefaults
                 />
                 <button className="button button--primary user-panel-submit" type="submit" disabled={saving}>
                   <UserPlus size={16} />{t(saving ? '正在创建…' : '创建用户')}

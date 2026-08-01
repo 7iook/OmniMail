@@ -224,6 +224,8 @@ export const enCore: Record<string, string> = {
   '无法可靠识别邮件语言。': 'The message language could not be detected reliably.',
   '翻译请求过于频繁，请稍后重试。': 'Too many translation requests. Try again shortly.',
   '翻译服务暂时不可用，请稍后重试。': 'Translation is temporarily unavailable. Try again shortly.',
+  '管理员未为当前账户启用邮件翻译。':
+    'An administrator has not enabled message translation for this account.',
   '即将离开 OmniMail': 'You are leaving OmniMail',
   '您将要访问外部网站。请先确认目标域名可信，并留意钓鱼或仿冒页面。':
     'You are about to visit an external website. Confirm that you trust the destination and watch for phishing or impersonation.',

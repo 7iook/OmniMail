@@ -28,6 +28,7 @@ type DeviceUserRow = Pick<
   | 'storage_used_bytes'
   | 'can_create_mailboxes'
   | 'can_reply'
+  | 'can_translate'
   | 'temporary_expires_at'
   | 'deleted_at'
 >
@@ -148,7 +149,7 @@ export async function authenticateAccessToken(
   const row = await env.DB.prepare(
     `SELECT d.id AS device_session_id, d.device_name,
             u.id, u.email, u.display_name, u.role, u.status,
-            u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.mailbox_limit, u.can_create_mailboxes, u.can_reply, u.can_translate,
             u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM device_sessions d
@@ -241,7 +242,7 @@ export async function refreshDeviceToken(env: Env, request: Request): Promise<Re
   const row = await env.DB.prepare(
     `SELECT d.id AS device_session_id, d.device_name,
             u.id, u.email, u.display_name, u.role, u.status,
-            u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.mailbox_limit, u.can_create_mailboxes, u.can_reply, u.can_translate,
             u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM device_sessions d

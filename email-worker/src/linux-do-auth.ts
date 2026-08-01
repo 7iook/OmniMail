@@ -47,6 +47,7 @@ type LinkedUser = Pick<
   | 'storage_used_bytes'
   | 'can_create_mailboxes'
   | 'can_reply'
+  | 'can_translate'
   | 'temporary_expires_at'
   | 'deleted_at'
 >
@@ -203,7 +204,8 @@ async function linkedUser(env: Env, subject: string): Promise<LinkedUser | null>
   return env.DB.prepare(
     `SELECT u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.storage_quota_bytes, u.storage_used_bytes,
-            u.can_create_mailboxes, u.can_reply, u.temporary_expires_at, u.deleted_at
+            u.can_create_mailboxes, u.can_reply, u.can_translate,
+            u.temporary_expires_at, u.deleted_at
        FROM oauth_identities oi
        JOIN users u ON u.id = oi.user_id
       WHERE oi.provider = ? AND oi.subject = ?`,
@@ -235,6 +237,7 @@ async function resolveUser(
       storage_used_bytes: 0,
       can_create_mailboxes: 1,
       can_reply: 0,
+      can_translate: 1,
       temporary_expires_at: null,
       deleted_at: null,
     }

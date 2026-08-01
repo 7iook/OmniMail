@@ -77,6 +77,7 @@ export interface User {
   storageUsedBytes: number
   canCreateMailboxes: boolean
   canReply: boolean
+  canTranslate: boolean
   temporaryExpiresAt: number | null
 }
 
@@ -119,6 +120,7 @@ export interface ManagedUserPolicy {
   storageQuotaMiB: number
   canCreateMailboxes: boolean
   canReply: boolean
+  canTranslate: boolean
 }
 
 export interface CreateManagedUser extends ManagedUserPolicy {
@@ -310,6 +312,7 @@ export interface TemporaryInvite {
   mailboxLimit: number
   canCreateMailboxes: boolean
   canReply: boolean
+  canTranslate: boolean
   createdAt: number
   state: InviteState
 }
@@ -325,6 +328,7 @@ export interface CreateTemporaryInvite {
   mailboxLimit: number
   canCreateMailboxes: boolean
   canReply: boolean
+  canTranslate: boolean
 }
 
 export type MailboxScope =

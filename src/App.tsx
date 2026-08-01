@@ -475,7 +475,7 @@ function Mailbox({
           loading={detailLoading}
           thread={thread}
           replyEnabled={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
-          remoteImagesEnabled={config.remoteImagesEnabled}
+          translationEnabled={user.canTranslate} remoteImagesEnabled={config.remoteImagesEnabled}
           onBack={() => {
             setSelectedId(null)
             setDetail(null)

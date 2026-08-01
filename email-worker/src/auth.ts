@@ -136,6 +136,7 @@ export function sessionFromUser(user: Pick<
   | 'storage_used_bytes'
   | 'can_create_mailboxes'
   | 'can_reply'
+  | 'can_translate'
   | 'temporary_expires_at'
 >): SessionUser {
   return {
@@ -148,6 +149,9 @@ export function sessionFromUser(user: Pick<
     storageUsedBytes: user.storage_used_bytes,
     canCreateMailboxes: Boolean(user.can_create_mailboxes),
     canReply: Boolean(user.can_reply),
+    canTranslate: user.role === 'super_admin'
+      || user.role === 'admin'
+      || Boolean(user.can_translate),
     temporaryExpiresAt: user.temporary_expires_at,
   }
 }
@@ -156,7 +160,7 @@ export async function sessionUser(db: D1Database, token: string): Promise<Sessio
   const now = Math.floor(Date.now() / 1000)
   const row = await db.prepare(
     `SELECT u.id, u.email, u.display_name, u.role, u.status,
-            u.mailbox_limit, u.can_create_mailboxes, u.can_reply,
+            u.mailbox_limit, u.can_create_mailboxes, u.can_reply, u.can_translate,
             u.storage_quota_bytes, u.storage_used_bytes,
             u.temporary_expires_at, u.deleted_at
        FROM sessions s
@@ -174,6 +178,7 @@ export async function sessionUser(db: D1Database, token: string): Promise<Sessio
     | 'storage_used_bytes'
     | 'can_create_mailboxes'
     | 'can_reply'
+    | 'can_translate'
     | 'temporary_expires_at'
     | 'deleted_at'
   >>()
@@ -193,6 +198,7 @@ export function applySuperAdminRole(
     role: 'super_admin',
     canCreateMailboxes: true,
     canReply: true,
+    canTranslate: true,
   }
 }
 

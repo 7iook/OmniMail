@@ -31,6 +31,7 @@ interface UserPolicyInput {
   storageQuotaMiB?: number
   canCreateMailboxes?: boolean
   canReply?: boolean
+  canTranslate?: boolean
 }
 
 interface CreateUserInput extends UserPolicyInput {
@@ -81,6 +82,7 @@ function validPolicy(input: UserPolicyInput): input is Required<UserPolicyInput>
     )
     && typeof input.canCreateMailboxes === 'boolean'
     && typeof input.canReply === 'boolean'
+    && typeof input.canTranslate === 'boolean'
   )
 }
 
@@ -103,6 +105,7 @@ function userJson(
     storageUsedBytes: row.storage_used_bytes,
     canCreateMailboxes: superAdmin || row.role === 'admin' || Boolean(row.can_create_mailboxes),
     canReply: superAdmin || Boolean(row.can_reply),
+    canTranslate: superAdmin || row.role === 'admin' || Boolean(row.can_translate),
     outboundRateLimit: outboundRateLimitState(
       rateSettings,
       {
@@ -244,6 +247,7 @@ export async function createManagedUser(
     storageQuotaMiB: body.storageQuotaMiB,
     canCreateMailboxes: body.role === 'admin' ? true : body.canCreateMailboxes,
     canReply: body.canReply,
+    canTranslate: body.role === 'admin' ? true : body.canTranslate,
   }
 
   if (!validEmail(email)) return json({ error: '请输入有效的登录邮箱。' }, 400)
@@ -265,8 +269,8 @@ export async function createManagedUser(
     await env.DB.prepare(
       `INSERT INTO users (
         id, email, display_name, password_hash, role, status, mailbox_limit,
-        storage_quota_bytes, can_create_mailboxes, can_reply
-      ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
+        storage_quota_bytes, can_create_mailboxes, can_reply, can_translate
+      ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       email,
@@ -277,6 +281,7 @@ export async function createManagedUser(
       Number(policy.storageQuotaMiB) * 1024 * 1024,
       Number(policy.canCreateMailboxes),
       Number(policy.canReply),
+      Number(policy.canTranslate),
     ).run()
   } catch {
     return json({ error: '创建失败，这个登录邮箱可能已经存在。' }, 409)
@@ -287,6 +292,9 @@ export async function createManagedUser(
     role: policy.role,
     mailboxLimit: policy.mailboxLimit,
     storageQuotaMiB: policy.storageQuotaMiB,
+    canCreateMailboxes: policy.canCreateMailboxes,
+    canReply: policy.canReply,
+    canTranslate: policy.canTranslate,
   })
   const created = await findUser(env, id)
   const rateSettings = await outboundRateLimitSettings(env.DB)
@@ -325,6 +333,7 @@ export async function updateManagedUser(
   const policy: UserPolicyInput = {
     ...input,
     canCreateMailboxes: input.role === 'admin' ? true : input.canCreateMailboxes,
+    canTranslate: input.role === 'admin' ? true : input.canTranslate,
   }
   if (!validPolicy(policy)) return json({ error: '用户权限配置无效。' }, 400)
   if (!canAssignManagedRole(actor.role, policy.role)) {
@@ -334,7 +343,8 @@ export async function updateManagedUser(
   await env.DB.prepare(
     `UPDATE users
         SET role = ?, status = ?, mailbox_limit = ?, storage_quota_bytes = ?,
-            can_create_mailboxes = ?, can_reply = ?, updated_at = unixepoch()
+            can_create_mailboxes = ?, can_reply = ?, can_translate = ?,
+            updated_at = unixepoch()
       WHERE id = ?`,
   ).bind(
     policy.role,
@@ -343,6 +353,7 @@ export async function updateManagedUser(
     Number(policy.storageQuotaMiB) * 1024 * 1024,
     Number(policy.canCreateMailboxes),
     Number(policy.canReply),
+    Number(policy.canTranslate),
     target.id,
   ).run()
   if (policy.status === 'disabled') {
@@ -362,6 +373,9 @@ export async function updateManagedUser(
     storageQuotaMiB: policy.storageQuotaMiB,
     canCreateMailboxes: policy.canCreateMailboxes,
     canReply: policy.canReply,
+    previousCanTranslate: targetRole === 'admin' || targetRole === 'super_admin'
+      || Boolean(target.can_translate),
+    canTranslate: policy.canTranslate,
   })
 
   const updated = await findUser(env, target.id)

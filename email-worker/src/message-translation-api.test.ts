@@ -9,7 +9,7 @@ import {
 } from './message-translation-api'
 import type { Env, SessionUser, StoredBody } from './types'
 
-const user = { id: 'user-1' } as SessionUser
+const user = { id: 'user-1', canTranslate: true } as SessionUser
 const message = {
   id: 'message-1',
   subject: 'Tvoj novi A1 eSIM',
@@ -129,6 +129,22 @@ describe('translation language handling', () => {
 })
 
 describe('message translation endpoint', () => {
+  it('rejects disabled users before reading message bodies or cached translations', async () => {
+    const mocked = translationEnv()
+    const response = await translateMessage(
+      mocked.env,
+      { ...user, canTranslate: false },
+      message.id,
+      request(),
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ code: 'translation_forbidden' })
+    expect(mocked.calls).toHaveLength(0)
+    expect(mocked.get).not.toHaveBeenCalled()
+    expect(mocked.aiRun).not.toHaveBeenCalled()
+  })
+
   it('translates owned stored text and persists a cache entry', async () => {
     const mocked = translationEnv()
     const response = await translateMessage(mocked.env, user, message.id, request())

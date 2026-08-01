@@ -148,9 +148,12 @@ Content-Type: application/json
   "addressMode": "self_selected",
   "mailboxLimit": 1,
   "canCreateMailboxes": false,
-  "canReply": false
+  "canReply": false,
+  "canTranslate": true
 }
 ```
+
+`canTranslate` 控制注册后的账户能否查看已有译文或请求新的 AI 翻译。
 
 邀请注册请求如下：
 
