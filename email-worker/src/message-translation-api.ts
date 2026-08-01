@@ -219,8 +219,7 @@ async function translatePart(
     target_lang: targetLanguage,
   })
   const translated = 'translated_text' in result ? result.translated_text?.trim() : ''
-  if (!translated) throw new Error('Workers AI returned an empty translation')
-  return translated
+  return translated || text
 }
 
 async function translateText(

@@ -220,6 +220,25 @@ describe('message translation endpoint', () => {
     expect(mocked.aiRun).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps a source fragment when Workers AI returns an empty translation', async () => {
+    const mocked = translationEnv({
+      storedBody: {
+        text: 'Welcome to Squarespace. TRIAL',
+        html: '<html lang="en"><body><p>Welcome to Squarespace.</p><p>TRIAL</p></body></html>',
+      },
+      runAi: async (_model, input) => ({
+        translated_text: input.text === 'TRIAL' ? '' : `译：${input.text}`,
+      }),
+    })
+
+    const response = await translateMessage(mocked.env, user, message.id, request())
+    const result = await response.json() as { translation: StoredTranslation }
+
+    expect(response.status).toBe(200)
+    expect(result.translation.html).toContain('<p>译：Welcome to Squarespace.</p>')
+    expect(result.translation.html).toContain('<p>TRIAL</p>')
+  })
+
   it('does not expose messages owned by another user', async () => {
     const mocked = translationEnv({ ownedMessage: null })
     const response = await translateMessage(mocked.env, user, message.id, request())
