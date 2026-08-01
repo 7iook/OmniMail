@@ -10,7 +10,9 @@ import { loadDeferredRemoteImages } from '../lib/emailContent'
 
 export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
 const EMAIL_FRAME_MIN_HEIGHT = 470
-const FADE_OUT_MS = 90
+
+type FrameIndex = 0 | 1
+type FrameDocuments = [string, string]
 
 export type PreparedEmailFrame = {
   messageId: string
@@ -100,98 +102,106 @@ export function useSmoothEmailFrame({
   onLinkKeyDown: (event: KeyboardEvent) => void
   onScrollActivity: () => void
 }) {
-  const frameRef = useRef<HTMLIFrameElement>(null)
-  const resizeObserver = useRef<ResizeObserver | null>(null)
-  const resizeFrame = useRef<(() => void) | null>(null)
-  const appliedDocument = useRef('')
-  const frameReady = useRef(false)
-  const timer = useRef<number | null>(null)
-  const animationFrames = useRef<number[]>([])
+  const firstFrameRef = useRef<HTMLIFrameElement>(null)
+  const secondFrameRef = useRef<HTMLIFrameElement>(null)
+  const resizeObservers = useRef<Array<ResizeObserver | null>>([null, null])
+  const documentsRef = useRef<FrameDocuments>([initialDocument, ''])
+  const loadedDocuments = useRef<FrameDocuments>(['', ''])
+  const heights = useRef<[number, number]>([EMAIL_FRAME_MIN_HEIGHT, EMAIL_FRAME_MIN_HEIGHT])
+  const desiredDocument = useRef(displayedDocument)
+  const activeIndexRef = useRef<FrameIndex>(0)
+  const [documents, setDocuments] = useState<FrameDocuments>([initialDocument, ''])
+  const [activeIndex, setActiveIndex] = useState<FrameIndex>(0)
+  const [activeHeight, setActiveHeight] = useState(EMAIL_FRAME_MIN_HEIGHT)
   const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
-  const [loadVersion, setLoadVersion] = useState(0)
 
-  const cancelTransition = useCallback(() => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    timer.current = null
-    for (const frame of animationFrames.current) window.cancelAnimationFrame(frame)
-    animationFrames.current = []
-    const body = frameRef.current?.contentDocument?.body
-    if (body) body.style.opacity = '1'
+  desiredDocument.current = displayedDocument
+
+  const promote = useCallback((index: FrameIndex) => {
+    activeIndexRef.current = index
+    setActiveIndex(index)
+    setActiveHeight(heights.current[index])
   }, [])
 
   useLayoutEffect(() => {
-    cancelTransition()
-    frameReady.current = false
-    appliedDocument.current = ''
-  }, [cancelTransition, initialDocument, messageId])
+    const next: FrameDocuments = [initialDocument, '']
+    documentsRef.current = next
+    loadedDocuments.current = ['', '']
+    heights.current = [EMAIL_FRAME_MIN_HEIGHT, EMAIL_FRAME_MIN_HEIGHT]
+    activeIndexRef.current = 0
+    setDocuments(next)
+    setActiveIndex(0)
+    setActiveHeight(EMAIL_FRAME_MIN_HEIGHT)
+    setPreparedFrame(null)
+  }, [initialDocument, messageId])
 
   useEffect(() => () => {
-    cancelTransition()
-    resizeObserver.current?.disconnect()
-  }, [cancelTransition])
+    for (const observer of resizeObservers.current) observer?.disconnect()
+  }, [])
 
   useEffect(() => {
-    if (!frameReady.current
-      || !displayedDocument
-      || appliedDocument.current === displayedDocument) return
-    const document = frameRef.current?.contentDocument
-    if (!document?.body) return
-    const next = new DOMParser().parseFromString(displayedDocument, 'text/html')
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    document.body.style.opacity = '0'
-    timer.current = window.setTimeout(() => {
-      document.head.innerHTML = next.head.innerHTML
-      document.body.innerHTML = next.body.innerHTML
-      document.body.style.opacity = '0'
-      appliedDocument.current = displayedDocument
-      const resize = resizeFrame.current
-      if (resize) {
-        resize()
-        watchImages(document, resize)
-        animationFrames.current.push(window.requestAnimationFrame(() => {
-          loadDeferredRemoteImages(document, resize)
-        }))
-      }
-      animationFrames.current.push(window.requestAnimationFrame(() => {
-        animationFrames.current.push(window.requestAnimationFrame(() => {
-          document.body.style.opacity = '1'
-        }))
-      }))
-    }, reducedMotion ? 0 : FADE_OUT_MS)
-    return cancelTransition
-  }, [cancelTransition, displayedDocument, loadVersion])
+    if (!preparedFrame || !displayedDocument) return
+    const current = activeIndexRef.current
+    if (loadedDocuments.current[current] === displayedDocument) return
+    const pending = (current === 0 ? 1 : 0) as FrameIndex
+    if (loadedDocuments.current[pending] === displayedDocument) {
+      promote(pending)
+      return
+    }
+    if (documentsRef.current[pending] === displayedDocument) return
+    const next = [...documentsRef.current] as FrameDocuments
+    next[pending] = displayedDocument
+    documentsRef.current = next
+    loadedDocuments.current[pending] = ''
+    setDocuments(next)
+  }, [displayedDocument, preparedFrame, promote])
 
-  const onLoad = useCallback((event: SyntheticEvent<HTMLIFrameElement>) => {
+  const onLoad = useCallback((
+    index: FrameIndex,
+    expectedDocument: string,
+    event: SyntheticEvent<HTMLIFrameElement>,
+  ) => {
+    if (documentsRef.current[index] !== expectedDocument) return
     const frame = event.currentTarget
     const document = frame.contentDocument
     if (!document) return
-    cancelTransition()
-    frameReady.current = true
-    appliedDocument.current = initialDocument
-    document.body.style.opacity = '1'
+    loadedDocuments.current[index] = expectedDocument
     document.addEventListener('click', onLinkClick)
     document.addEventListener('keydown', onLinkKeyDown)
     document.addEventListener('wheel', onScrollActivity, { passive: true })
     document.addEventListener('touchmove', onScrollActivity, { passive: true })
 
     const resize = () => {
-      const height = `${fitEmailDocument(document)}px`
-      if (frame.style.height !== height) frame.style.height = height
+      const height = fitEmailDocument(document)
+      heights.current[index] = height
+      const value = `${height}px`
+      if (frame.style.height !== value) frame.style.height = value
+      if (activeIndexRef.current === index) setActiveHeight(height)
     }
-    resizeFrame.current = resize
-    resizeObserver.current?.disconnect()
+    resizeObservers.current[index]?.disconnect()
     resize()
     const observer = new ResizeObserver(() => window.requestAnimationFrame(resize))
     if (frame.parentElement) observer.observe(frame.parentElement)
-    resizeObserver.current = observer
+    resizeObservers.current[index] = observer
     watchImages(document, resize)
     window.requestAnimationFrame(() => {
       resize()
-      setPreparedFrame({ messageId, document: initialDocument })
       window.requestAnimationFrame(() => loadDeferredRemoteImages(document, resize))
-      setLoadVersion((current) => current + 1)
+      window.requestAnimationFrame(() => {
+        if (expectedDocument === initialDocument) {
+          setPreparedFrame({ messageId, document: initialDocument })
+        }
+        if (desiredDocument.current === expectedDocument) promote(index)
+      })
     })
-  }, [cancelTransition, initialDocument, messageId, onLinkClick, onLinkKeyDown, onScrollActivity])
+  }, [initialDocument, messageId, onLinkClick, onLinkKeyDown, onScrollActivity, promote])
 
-  return { frameRef, onLoad, preparedFrame }
+  return {
+    documents,
+    frameRefs: [firstFrameRef, secondFrameRef] as const,
+    activeIndex,
+    activeHeight,
+    onLoad,
+    preparedFrame,
+  }
 }

@@ -146,14 +146,12 @@ function buildEmailDocument(
       html { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
       body { width: var(--omnimail-body-width, 100%) !important; max-width: var(--omnimail-body-max-width, 100%) !important; overflow-x: hidden !important; }
       body { min-width: 0 !important; margin: 0 !important; padding: 2px !important; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
-      body { transition: opacity 140ms ease; }
       body *, body *::before, body *::after { box-sizing: border-box; }
       body > *, table, tbody, tr, td { min-width: 0 !important; max-width: 100% !important; }
       img, video { max-width: 100% !important; height: auto !important; }
       pre, code { max-width: 100% !important; white-space: pre-wrap !important; overflow-wrap: anywhere; }
       a { color: #1d1d1f; text-decoration: underline; }
       a[data-omnimail-href] { cursor: pointer; }
-      @media (prefers-reduced-motion: reduce) { body { transition: none !important; } }
     </style>`
   return `<!doctype html><html><head>${securityHead}${document.head.innerHTML}${layoutStyles}</head><body>${document.body.innerHTML}</body></html>`
 }
@@ -448,15 +446,26 @@ export function MessageReader({
           onDisplayChange={displayTranslation}
         >
           {displayedHtml ? (
-            <iframe
-              ref={emailFrame.frameRef}
-              className="email-frame"
-              sandbox={EMAIL_FRAME_SANDBOX}
-              scrolling="no"
-              srcDoc={initialEmailDocument}
-              title={t('邮件正文：{subject}', { subject: displayedSubject })}
-              onLoad={emailFrame.onLoad}
-            />
+            <div
+              className="email-frame-stack"
+              style={{ height: `${emailFrame.activeHeight}px` }}
+            >
+              {emailFrame.documents.map((document, index) => document && (
+                <iframe
+                  key={index}
+                  ref={emailFrame.frameRefs[index]}
+                  className={`email-frame email-frame--buffer${emailFrame.activeIndex === index ? ' is-active' : ''}`}
+                  data-frame-slot={index}
+                  sandbox={EMAIL_FRAME_SANDBOX}
+                  scrolling="no"
+                  srcDoc={document}
+                  title={t('邮件正文：{subject}', { subject: displayedSubject })}
+                  aria-hidden={emailFrame.activeIndex !== index}
+                  tabIndex={emailFrame.activeIndex === index ? 0 : -1}
+                  onLoad={(event) => emailFrame.onLoad(index as 0 | 1, document, event)}
+                />
+              ))}
+            </div>
           ) : (
             <div className="plain-body">{displayedText || t('这封邮件没有可显示的正文。')}</div>
           )}

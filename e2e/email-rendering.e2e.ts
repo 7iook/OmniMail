@@ -164,7 +164,8 @@ test('translates a message and switches back to the original', async ({ page }) 
   await page.goto('/')
   await page.getByText('Welcome to OmniMail').click()
   const reader = page.locator('.message-reader')
-  const frame = page.locator('iframe')
+  const stack = page.locator('.email-frame-stack')
+  const originalFrame = page.locator('iframe.email-frame.is-active')
   await expect(reader).not.toHaveClass(/message-reader--preparing/)
   await reader.evaluate((element) => {
     element.setAttribute('data-translation-preparing-seen', 'false')
@@ -174,26 +175,39 @@ test('translates a message and switches back to the original', async ({ page }) 
       }
     }).observe(element, { attributes: true, attributeFilter: ['class'] })
   })
-  const originalSourceDocument = await frame.getAttribute('srcdoc')
+  await stack.evaluate((element) => {
+    element.setAttribute('data-active-frame-gap-seen', 'false')
+    new MutationObserver(() => {
+      if (!element.querySelector('iframe.is-active')) {
+        element.setAttribute('data-active-frame-gap-seen', 'true')
+      }
+    }).observe(element, { subtree: true, attributes: true, attributeFilter: ['class'] })
+  })
+  const originalSlot = await originalFrame.getAttribute('data-frame-slot')
   await page.getByRole('button', { name: '翻译为 简体中文' }).click()
 
   await expect(page.locator('.message-heading h1')).toHaveText('欢迎使用 OmniMail')
-  const translatedFrame = page.frameLocator('iframe')
+  const translatedFrameElement = page.locator('iframe.email-frame.is-active')
+  const translatedFrame = page.frameLocator('iframe.email-frame.is-active')
   await expect(translatedFrame.locator('table.translated-layout')).toBeVisible()
   await expect(translatedFrame.locator('strong')).toHaveText('你的 A1 eSIM')
   await expect(translatedFrame.locator('a')).toHaveAttribute(
     'data-omnimail-href',
     'https://example.com/activate',
   )
-  await expect(frame).toHaveAttribute('srcdoc', originalSourceDocument ?? '')
+  expect(await translatedFrameElement.getAttribute('data-frame-slot')).not.toBe(originalSlot)
+  await expect(stack).toHaveAttribute('data-active-frame-gap-seen', 'false')
   await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
   expect(requestedTarget).toBe('zh')
 
   await page.getByRole('button', { name: '显示原文' }).click()
   await expect(page.locator('.message-heading h1')).toHaveText('Welcome to OmniMail')
-  await expect(page.frameLocator('iframe').locator('.original-copy')).toContainText(
+  await expect(page.locator('iframe.email-frame.is-active')).toHaveAttribute(
+    'data-frame-slot', originalSlot ?? '',
+  )
+  await expect(page.frameLocator('iframe.email-frame.is-active').locator('.original-copy')).toContainText(
     'Tvoj A1 eSIM je spreman.',
   )
-  await expect(frame).toHaveAttribute('srcdoc', originalSourceDocument ?? '')
+  await expect(stack).toHaveAttribute('data-active-frame-gap-seen', 'false')
   await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
 })
