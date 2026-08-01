@@ -12,16 +12,21 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, type MessageDetail, type MessageSummary, type MessageTranslation as Translation } from '../lib/api'
 import {
   forceLightEmailDocument,
-  loadDeferredRemoteImages,
   normalizeRemoteImageSource,
 } from '../lib/emailContent'
 import { errorMessage } from '../lib/errorMessage'
 import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
+import {
+  EMAIL_FRAME_SANDBOX,
+  emailDocumentHeight,
+  emailFrameReady,
+  useSmoothEmailFrame,
+} from '../hooks/useSmoothEmailFrame'
 import { useTransientScrollbar } from '../hooks/useTransientScrollbar'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageAttachments } from './MessageAttachments'
@@ -47,75 +52,7 @@ export function emailImageSources(
   return remoteImagesEnabled && proxySource ? `data: ${proxySource}` : 'data:'
 }
 
-export const EMAIL_FRAME_SANDBOX = 'allow-same-origin'
-const EMAIL_FRAME_MIN_HEIGHT = 470
-
-type PreparedEmailFrame = {
-  messageId: string
-  document: string
-}
-
-export function emailDocumentHeight(document: Document): number {
-  return Math.max(
-    EMAIL_FRAME_MIN_HEIGHT,
-    document.body.offsetHeight,
-    document.body.scrollHeight,
-    document.documentElement.offsetHeight,
-    document.documentElement.scrollHeight,
-  )
-}
-
-export function fitEmailDocument(document: Document): number {
-  const { body, documentElement } = document
-  body.style.removeProperty('transform')
-  body.style.removeProperty('transform-origin')
-  body.style.removeProperty('--omnimail-body-width')
-  body.style.removeProperty('--omnimail-body-max-width')
-
-  const viewportWidth = documentElement.clientWidth
-  if (viewportWidth <= 0) return emailDocumentHeight(document)
-
-  const bodyLeft = body.getBoundingClientRect().left
-  let minLeft = 0
-  let maxRight = viewportWidth
-  for (const element of [body, ...body.querySelectorAll('*')]) {
-    const rect = element.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) continue
-    minLeft = Math.min(minLeft, rect.left - bodyLeft)
-    maxRight = Math.max(maxRight, rect.right - bodyLeft)
-  }
-
-  const contentWidth = Math.max(
-    viewportWidth,
-    body.scrollWidth,
-    documentElement.scrollWidth,
-    maxRight - minLeft,
-  )
-  if (contentWidth <= viewportWidth + 1) return emailDocumentHeight(document)
-
-  body.style.setProperty('--omnimail-body-width', `${contentWidth}px`)
-  body.style.setProperty('--omnimail-body-max-width', 'none')
-  const scale = viewportWidth / contentWidth
-  const naturalHeight = emailDocumentHeight(document)
-  body.style.setProperty('transform-origin', 'top left')
-  body.style.setProperty(
-    'transform',
-    minLeft < 0 ? `scale(${scale}) translateX(${-minLeft}px)` : `scale(${scale})`,
-  )
-  return Math.max(EMAIL_FRAME_MIN_HEIGHT, Math.ceil(naturalHeight * scale))
-}
-
-export function emailFrameReady(
-  messageId: string,
-  html: string,
-  frameDocument: string,
-  inlineImagesLoading: boolean,
-  prepared: PreparedEmailFrame | null,
-): boolean {
-  return !html || (!inlineImagesLoading
-    && prepared?.messageId === messageId
-    && prepared.document === frameDocument)
-}
+export { EMAIL_FRAME_SANDBOX, emailDocumentHeight, emailFrameReady }
 
 export function normalizeContentId(value: string): string {
   let normalized = value.trim().replace(/^cid:/i, '')
@@ -209,12 +146,14 @@ function buildEmailDocument(
       html { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
       body { width: var(--omnimail-body-width, 100%) !important; max-width: var(--omnimail-body-max-width, 100%) !important; overflow-x: hidden !important; }
       body { min-width: 0 !important; margin: 0 !important; padding: 2px !important; color: #222; background: #fff; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
+      body { transition: opacity 140ms ease; }
       body *, body *::before, body *::after { box-sizing: border-box; }
       body > *, table, tbody, tr, td { min-width: 0 !important; max-width: 100% !important; }
       img, video { max-width: 100% !important; height: auto !important; }
       pre, code { max-width: 100% !important; white-space: pre-wrap !important; overflow-wrap: anywhere; }
       a { color: #1d1d1f; text-decoration: underline; }
       a[data-omnimail-href] { cursor: pointer; }
+      @media (prefers-reduced-motion: reduce) { body { transition: none !important; } }
     </style>`
   return `<!doctype html><html><head>${securityHead}${document.head.innerHTML}${layoutStyles}</head><body>${document.body.innerHTML}</body></html>`
 }
@@ -262,13 +201,10 @@ export function MessageReader({
   const [retryError, setRetryError] = useState('')
   const [inlineImageSources, setInlineImageSources] = useState<ReadonlyMap<string, string>>(new Map())
   const [inlineImagesLoading, setInlineImagesLoading] = useState(false)
-  const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
   const [externalLink, setExternalLink] = useState<string | null>(null)
   const [displayedTranslation, setDisplayedTranslation] = useState<{
     messageId: string; value: Translation
   } | null>(null)
-  const frameRef = useRef<HTMLIFrameElement>(null)
-  const frameResizeObserverRef = useRef<ResizeObserver | null>(null)
   const readerScrollbar = useTransientScrollbar(message?.id ?? '')
   const displayTranslation = useCallback((messageId: string, value: Translation | null) => {
     setDisplayedTranslation(value ? { messageId, value } : null)
@@ -293,12 +229,7 @@ export function MessageReader({
     setRetrying(false)
     setRetryError('')
     setExternalLink(null)
-    setPreparedFrame(null)
     setDisplayedTranslation(null)
-  }, [message?.id])
-  useEffect(() => () => {
-    frameResizeObserverRef.current?.disconnect()
-    frameResizeObserverRef.current = null
   }, [message?.id])
   useEffect(() => {
     const controller = new AbortController()
@@ -336,12 +267,28 @@ export function MessageReader({
   const displayedHtml = activeTranslation?.html || message?.html || ''
   const displayedText = activeTranslation?.text || message?.text || ''
   const displayedSubject = activeTranslation?.subject || message?.subject || ''
+  const initialEmailDocument = useMemo(
+    () => message?.html
+      ? buildEmailDocument(message.html, remoteImagesEnabled, inlineImageSources)
+      : '',
+    [inlineImageSources, message?.html, remoteImagesEnabled],
+  )
   const emailDocument = useMemo(
-    () => displayedHtml
+    () => displayedHtml === message?.html
+      ? initialEmailDocument
+      : displayedHtml
       ? buildEmailDocument(displayedHtml, remoteImagesEnabled, inlineImageSources)
       : '',
-    [displayedHtml, inlineImageSources, remoteImagesEnabled],
+    [displayedHtml, initialEmailDocument, inlineImageSources, message?.html, remoteImagesEnabled],
   )
+  const emailFrame = useSmoothEmailFrame({
+    messageId: message?.id ?? '',
+    initialDocument: initialEmailDocument,
+    displayedDocument: emailDocument,
+    onLinkClick: handleEmailLinkClick,
+    onLinkKeyDown: handleEmailLinkKeyDown,
+    onScrollActivity: readerScrollbar.onWheel,
+  })
 
   const retryFailedMessage = useCallback(async () => {
     if (retrying) return
@@ -382,10 +329,10 @@ export function MessageReader({
 
   const frameIsReady = emailFrameReady(
     message.id,
-    displayedHtml,
-    emailDocument,
+    message.html,
+    initialEmailDocument,
     inlineImagesLoading,
-    preparedFrame,
+    emailFrame.preparedFrame,
   )
 
   return (
@@ -502,43 +449,13 @@ export function MessageReader({
         >
           {displayedHtml ? (
             <iframe
-              ref={frameRef}
+              ref={emailFrame.frameRef}
               className="email-frame"
               sandbox={EMAIL_FRAME_SANDBOX}
               scrolling="no"
-              srcDoc={emailDocument}
+              srcDoc={initialEmailDocument}
               title={t('邮件正文：{subject}', { subject: displayedSubject })}
-              onLoad={(event) => {
-                const frame = event.currentTarget
-                const document = frame.contentDocument
-                if (!document) return
-                document.addEventListener('click', handleEmailLinkClick)
-                document.addEventListener('keydown', handleEmailLinkKeyDown)
-                document.addEventListener('wheel', readerScrollbar.onWheel, { passive: true })
-                document.addEventListener('touchmove', readerScrollbar.onTouchMove, { passive: true })
-
-              const resize = () => {
-                const height = `${fitEmailDocument(document)}px`
-                if (frame.style.height !== height) frame.style.height = height
-              }
-              frameResizeObserverRef.current?.disconnect()
-              resize()
-              const observer = new ResizeObserver(() => requestAnimationFrame(resize))
-              if (frame.parentElement) observer.observe(frame.parentElement)
-              frameResizeObserverRef.current = observer
-              requestAnimationFrame(() => {
-                resize()
-                setPreparedFrame((current) => (
-                  current?.messageId === message.id && current.document === emailDocument
-                    ? current
-                    : { messageId: message.id, document: emailDocument }
-                ))
-                requestAnimationFrame(() => loadDeferredRemoteImages(document, resize))
-              })
-              document.querySelectorAll('img').forEach((image) => {
-                if (!image.complete) image.addEventListener('load', resize, { once: true })
-              })
-              }}
+              onLoad={emailFrame.onLoad}
             />
           ) : (
             <div className="plain-body">{displayedText || t('这封邮件没有可显示的正文。')}</div>

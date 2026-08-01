@@ -163,6 +163,18 @@ test('translates a message and switches back to the original', async ({ page }) 
 
   await page.goto('/')
   await page.getByText('Welcome to OmniMail').click()
+  const reader = page.locator('.message-reader')
+  const frame = page.locator('iframe')
+  await expect(reader).not.toHaveClass(/message-reader--preparing/)
+  await reader.evaluate((element) => {
+    element.setAttribute('data-translation-preparing-seen', 'false')
+    new MutationObserver(() => {
+      if (element.classList.contains('message-reader--preparing')) {
+        element.setAttribute('data-translation-preparing-seen', 'true')
+      }
+    }).observe(element, { attributes: true, attributeFilter: ['class'] })
+  })
+  const originalSourceDocument = await frame.getAttribute('srcdoc')
   await page.getByRole('button', { name: '翻译为 简体中文' }).click()
 
   await expect(page.locator('.message-heading h1')).toHaveText('欢迎使用 OmniMail')
@@ -173,6 +185,8 @@ test('translates a message and switches back to the original', async ({ page }) 
     'data-omnimail-href',
     'https://example.com/activate',
   )
+  await expect(frame).toHaveAttribute('srcdoc', originalSourceDocument ?? '')
+  await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
   expect(requestedTarget).toBe('zh')
 
   await page.getByRole('button', { name: '显示原文' }).click()
@@ -180,4 +194,6 @@ test('translates a message and switches back to the original', async ({ page }) 
   await expect(page.frameLocator('iframe').locator('.original-copy')).toContainText(
     'Tvoj A1 eSIM je spreman.',
   )
+  await expect(frame).toHaveAttribute('srcdoc', originalSourceDocument ?? '')
+  await expect(reader).toHaveAttribute('data-translation-preparing-seen', 'false')
 })
