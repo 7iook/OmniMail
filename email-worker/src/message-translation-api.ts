@@ -1,11 +1,14 @@
 import { franc } from 'franc'
+import { parse, serialize, type DefaultTreeAdapterTypes } from 'parse5'
 import type { Env, SessionUser, StoredBody } from './types'
 
 const TRANSLATION_MODEL = '@cf/meta/m2m100-1.2b'
-const TRANSLATION_MODEL_VERSION = 'm2m100-1.2b-v1'
+const TRANSLATION_MODEL_VERSION = 'm2m100-1.2b-html-v2'
 const MAX_TRANSLATION_CHARACTERS = 20_000
 const TRANSLATION_CHUNK_CHARACTERS = 2_500
 const TRANSLATION_REQUESTS_PER_MINUTE = 10
+const TRANSLATION_CONCURRENCY = 6
+const ignoredHtmlElements = new Set(['head', 'script', 'style', 'noscript', 'template'])
 
 const targetLanguages = new Set(['en', 'zh'])
 const modelLanguages = new Set([
@@ -58,6 +61,20 @@ export interface StoredTranslation {
   targetLanguage: string
   subject: string
   text: string
+  html: string
+}
+
+type TranslationHtmlPart = {
+  node: DefaultTreeAdapterTypes.TextNode
+  prefix: string
+  source: string
+  suffix: string
+}
+
+export type TranslationHtmlPlan = {
+  sources: string[]
+  characters: number
+  render: (translations: ReadonlyMap<string, string>) => { html: string; text: string }
 }
 
 function json(value: unknown, status = 200, headers?: HeadersInit): Response {
@@ -118,8 +135,53 @@ export function splitTranslationText(
   return chunks
 }
 
-export async function translationSourceHash(subject: string, text: string): Promise<string> {
-  const source = new TextEncoder().encode(`${subject}\u0000${text}`)
+function textPart(value: string): Omit<TranslationHtmlPart, 'node'> | null {
+  const match = /^(\s*)([\s\S]*?\S)(\s*)$/u.exec(value)
+  if (!match || !/\p{L}/u.test(match[2])) return null
+  if (/^(?:https?:\/\/|mailto:|www\.)\S+$/iu.test(match[2])) return null
+  return { prefix: match[1], source: match[2], suffix: match[3] }
+}
+
+export function prepareTranslationHtml(html: string): TranslationHtmlPlan {
+  const document = parse(html)
+  const parts: TranslationHtmlPart[] = []
+
+  function visit(node: DefaultTreeAdapterTypes.Node, ignored = false) {
+    const nextIgnored = ignored || (
+      'tagName' in node && ignoredHtmlElements.has(node.tagName.toLowerCase())
+    )
+    if (!nextIgnored && node.nodeName === '#text' && 'value' in node) {
+      const part = textPart(node.value)
+      if (part) parts.push({ node, ...part })
+    }
+    if ('childNodes' in node) {
+      for (const child of node.childNodes) visit(child, nextIgnored)
+    }
+  }
+
+  visit(document)
+  const sources = [...new Set(parts.map((part) => part.source))]
+  return {
+    sources,
+    characters: sources.reduce((total, source) => total + source.length, 0),
+    render(translations) {
+      for (const part of parts) {
+        part.node.value = `${part.prefix}${translations.get(part.source) ?? part.source}${part.suffix}`
+      }
+      return {
+        html: serialize(document),
+        text: parts.map((part) => translations.get(part.source) ?? part.source).join('\n'),
+      }
+    },
+  }
+}
+
+export async function translationSourceHash(
+  subject: string,
+  text: string,
+  html = '',
+): Promise<string> {
+  const source = new TextEncoder().encode(`${subject}\u0000${text}\u0000${html}`)
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', source))
   return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
@@ -161,6 +223,45 @@ async function translatePart(
   return translated
 }
 
+async function translateText(
+  ai: Ai,
+  text: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+): Promise<string> {
+  const chunks = splitTranslationText(text)
+  const translated: string[] = []
+  for (const chunk of chunks) {
+    translated.push(await translatePart(ai, chunk, sourceLanguage, targetLanguage))
+  }
+  return translated.join('\n\n')
+}
+
+async function translateHtmlSources(
+  ai: Ai,
+  sources: string[],
+  sourceLanguage: string,
+  targetLanguage: string,
+): Promise<Map<string, string>> {
+  const translated = new Map<string, string>()
+  let cursor = 0
+  const workers = Array.from(
+    { length: Math.min(TRANSLATION_CONCURRENCY, sources.length) },
+    async () => {
+      while (cursor < sources.length) {
+        const source = sources[cursor]
+        cursor += 1
+        translated.set(
+          source,
+          await translateText(ai, source, sourceLanguage, targetLanguage),
+        )
+      }
+    },
+  )
+  await Promise.all(workers)
+  return translated
+}
+
 async function cachedTranslation(
   env: Env,
   row: TranslationCacheRow | null,
@@ -172,7 +273,9 @@ async function cachedTranslation(
     || row.source_hash !== sourceHash
     || row.model !== TRANSLATION_MODEL_VERSION) return null
   const object = await env.MAIL_BUCKET.get(row.r2_key)
-  return object ? object.json<StoredTranslation>().catch(() => null) : null
+  if (!object) return null
+  const value = await object.json<StoredTranslation>().catch(() => null)
+  return value && typeof value.html === 'string' ? value : null
 }
 
 async function storeTranslation(
@@ -251,7 +354,8 @@ export async function translateMessage(
   const body = await bodyObject.json<StoredBody>()
   const text = body.text.trim()
   if (!text) return json({ error: '邮件正文为空，无法翻译。' }, 422)
-  if (text.length > MAX_TRANSLATION_CHARACTERS) {
+  const htmlPlan = body.html ? prepareTranslationHtml(body.html) : null
+  if (Math.max(text.length, htmlPlan?.characters ?? 0) > MAX_TRANSLATION_CHARACTERS) {
     return json({ error: '邮件正文过长，暂不支持翻译。' }, 413)
   }
   const requestedSource = typeof input.sourceLanguage === 'string'
@@ -259,7 +363,7 @@ export async function translateMessage(
     : null
   const sourceLanguage = requestedSource || detectTranslationLanguage(text, body.html)
   if (!sourceLanguage) return json({ error: '无法可靠识别邮件语言。' }, 422)
-  const sourceHash = await translationSourceHash(message.subject, text)
+  const sourceHash = await translationSourceHash(message.subject, text, body.html)
   const cacheRow = await env.DB.prepare(
     `SELECT source_language, source_hash, model, r2_key
        FROM message_translations
@@ -274,6 +378,7 @@ export async function translateMessage(
         targetLanguage,
         subject: message.subject,
         text,
+        html: body.html,
         cached: false,
       },
     })
@@ -287,18 +392,29 @@ export async function translateMessage(
     )
   }
   try {
-    const chunks = splitTranslationText(text)
-    const translated = await Promise.all([
+    const [subject, htmlTranslations, plainText] = await Promise.all([
       message.subject
-        ? translatePart(env.AI, message.subject, sourceLanguage, targetLanguage)
+        ? translateText(env.AI, message.subject, sourceLanguage, targetLanguage)
         : Promise.resolve(''),
-      ...chunks.map((chunk) => translatePart(env.AI!, chunk, sourceLanguage, targetLanguage)),
+      htmlPlan
+        ? translateHtmlSources(
+            env.AI,
+            htmlPlan.sources,
+            sourceLanguage,
+            targetLanguage,
+          )
+        : Promise.resolve(new Map<string, string>()),
+      htmlPlan
+        ? Promise.resolve('')
+        : translateText(env.AI, text, sourceLanguage, targetLanguage),
     ])
+    const rendered = htmlPlan?.render(htmlTranslations)
     const value: StoredTranslation = {
       sourceLanguage,
       targetLanguage,
-      subject: translated[0],
-      text: translated.slice(1).join('\n\n'),
+      subject,
+      text: rendered?.text || plainText,
+      html: rendered?.html || '',
     }
     await storeTranslation(env, message.id, sourceHash, value, cacheRow?.r2_key ?? null)
     return json({ translation: { ...value, cached: false } })

@@ -179,9 +179,10 @@
   min-height: 0;
   flex: 1;
   padding: clamp(28px, 4vw, 54px) clamp(24px, 5vw, 70px) 52px;
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 .trash-retention-notice {

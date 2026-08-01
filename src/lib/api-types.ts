@@ -394,5 +394,6 @@ export interface MessageTranslation {
   targetLanguage: TranslationTargetLanguage
   subject: string
   text: string
+  html: string
   cached: boolean
 }

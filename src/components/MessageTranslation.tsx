@@ -22,13 +22,13 @@ function languageName(code: string, locale: Locale): string {
 
 export function MessageTranslation({
   messageId,
-  subject,
   enabled,
+  onDisplayChange,
   children,
 }: {
   messageId: string
-  subject: string
   enabled: boolean
+  onDisplayChange: (messageId: string, translation: Translation | null) => void
   children: ReactNode
 }) {
   const locale = useLocale()
@@ -47,17 +47,20 @@ export function MessageTranslation({
     setLoading(false)
     setError('')
     setNotice('')
-  }, [messageId, targetLanguage])
+    onDisplayChange(messageId, null)
+  }, [messageId, onDisplayChange, targetLanguage])
 
   if (!enabled) return children
 
   const toggleTranslation = async () => {
     if (showTranslation) {
       setShowTranslation(false)
+      onDisplayChange(messageId, null)
       return
     }
     if (translation) {
       setShowTranslation(true)
+      onDisplayChange(messageId, translation)
       return
     }
     const version = ++requestVersion.current
@@ -73,6 +76,7 @@ export function MessageTranslation({
       }
       setTranslation(response.translation)
       setShowTranslation(true)
+      onDisplayChange(messageId, response.translation)
     } catch (caught) {
       if (requestVersion.current === version) setError(errorMessage(caught))
     } finally {
@@ -112,14 +116,7 @@ export function MessageTranslation({
         </p>
       )}
       {notice && <p className="message-translation__notice">{notice}</p>}
-      {showTranslation && translation ? (
-        <div className="translation-body">
-          {translation.subject && translation.subject !== subject && (
-            <h2>{translation.subject}</h2>
-          )}
-          <div>{translation.text}</div>
-        </div>
-      ) : children}
+      {children}
     </section>
   )
 }

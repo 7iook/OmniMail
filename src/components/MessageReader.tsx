@@ -13,7 +13,7 @@ import {
   Undo2,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type MessageDetail, type MessageSummary } from '../lib/api'
+import { api, type MessageDetail, type MessageSummary, type MessageTranslation as Translation } from '../lib/api'
 import {
   forceLightEmailDocument,
   loadDeferredRemoteImages,
@@ -22,6 +22,7 @@ import {
 import { errorMessage } from '../lib/errorMessage'
 import { failedMailApi } from '../lib/failedMailApi'
 import { getLocale, t } from '../lib/i18n'
+import { useTransientScrollbar } from '../hooks/useTransientScrollbar'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageAttachments } from './MessageAttachments'
 import { MessageThread } from './MessageThread'
@@ -263,8 +264,15 @@ export function MessageReader({
   const [inlineImagesLoading, setInlineImagesLoading] = useState(false)
   const [preparedFrame, setPreparedFrame] = useState<PreparedEmailFrame | null>(null)
   const [externalLink, setExternalLink] = useState<string | null>(null)
+  const [displayedTranslation, setDisplayedTranslation] = useState<{
+    messageId: string; value: Translation
+  } | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const frameResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const readerScrollbar = useTransientScrollbar(message?.id ?? '')
+  const displayTranslation = useCallback((messageId: string, value: Translation | null) => {
+    setDisplayedTranslation(value ? { messageId, value } : null)
+  }, [])
   const closeExternalLink = useCallback(() => setExternalLink(null), [])
   const handleEmailLinkClick = useCallback((event: Event) => {
     const href = emailLinkHref(event.target)
@@ -286,6 +294,7 @@ export function MessageReader({
     setRetryError('')
     setExternalLink(null)
     setPreparedFrame(null)
+    setDisplayedTranslation(null)
   }, [message?.id])
   useEffect(() => () => {
     frameResizeObserverRef.current?.disconnect()
@@ -322,11 +331,16 @@ export function MessageReader({
     return () => controller.abort()
   }, [message])
 
+  const activeTranslation = displayedTranslation && displayedTranslation.messageId === message?.id
+    ? displayedTranslation.value : null
+  const displayedHtml = activeTranslation?.html || message?.html || ''
+  const displayedText = activeTranslation?.text || message?.text || ''
+  const displayedSubject = activeTranslation?.subject || message?.subject || ''
   const emailDocument = useMemo(
-    () => message?.html
-      ? buildEmailDocument(message.html, remoteImagesEnabled, inlineImageSources)
+    () => displayedHtml
+      ? buildEmailDocument(displayedHtml, remoteImagesEnabled, inlineImageSources)
       : '',
-    [inlineImageSources, message?.html, remoteImagesEnabled],
+    [displayedHtml, inlineImageSources, remoteImagesEnabled],
   )
 
   const retryFailedMessage = useCallback(async () => {
@@ -368,7 +382,7 @@ export function MessageReader({
 
   const frameIsReady = emailFrameReady(
     message.id,
-    message.html,
+    displayedHtml,
     emailDocument,
     inlineImagesLoading,
     preparedFrame,
@@ -398,9 +412,17 @@ export function MessageReader({
         </button>
       </header>
 
-      <div className="reader-content">
+      <div
+        ref={readerScrollbar.root}
+        className={`reader-content${readerScrollbar.active ? ' is-scrollbar-active' : ''}`}
+        onWheel={readerScrollbar.onWheel}
+        onTouchMove={readerScrollbar.onTouchMove}
+        onKeyDown={readerScrollbar.onKeyDown}
+        onPointerDown={readerScrollbar.onPointerDown}
+        onScroll={readerScrollbar.onScroll}
+      >
         <header className="message-heading">
-          <h1>{message.subject || t('无主题')}</h1>
+          <h1>{displayedSubject || t('无主题')}</h1>
           <div className="sender-block">
             <span className="sender-avatar">
               {(message.senderName || message.senderAddress || 'M').slice(0, 1).toUpperCase()}
@@ -475,23 +497,25 @@ export function MessageReader({
         <MessageTranslation
           key={message.id}
           messageId={message.id}
-          subject={message.subject}
           enabled={Boolean(message.text.trim()) && ['ready', 'sent'].includes(message.status)}
+          onDisplayChange={displayTranslation}
         >
-          {message.html ? (
+          {displayedHtml ? (
             <iframe
               ref={frameRef}
               className="email-frame"
               sandbox={EMAIL_FRAME_SANDBOX}
               scrolling="no"
               srcDoc={emailDocument}
-              title={t('邮件正文：{subject}', { subject: message.subject })}
+              title={t('邮件正文：{subject}', { subject: displayedSubject })}
               onLoad={(event) => {
                 const frame = event.currentTarget
                 const document = frame.contentDocument
                 if (!document) return
                 document.addEventListener('click', handleEmailLinkClick)
                 document.addEventListener('keydown', handleEmailLinkKeyDown)
+                document.addEventListener('wheel', readerScrollbar.onWheel, { passive: true })
+                document.addEventListener('touchmove', readerScrollbar.onTouchMove, { passive: true })
 
               const resize = () => {
                 const height = `${fitEmailDocument(document)}px`
@@ -517,7 +541,7 @@ export function MessageReader({
               }}
             />
           ) : (
-            <div className="plain-body">{message.text || t('这封邮件没有可显示的正文。')}</div>
+            <div className="plain-body">{displayedText || t('这封邮件没有可显示的正文。')}</div>
           )}
         </MessageTranslation>
 

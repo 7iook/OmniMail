@@ -84,6 +84,12 @@ test('slow remote images do not block readable email content', async ({ page }) 
     await expect(content).toBeVisible()
     await expect(content).toHaveCSS('color', 'rgb(34, 34, 34)')
     await expect(content).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    const reader = page.locator('.reader-content')
+    await expect(reader).not.toHaveClass(/is-scrollbar-active/)
+    await reader.hover()
+    await page.mouse.wheel(0, 120)
+    await expect(reader).toHaveClass(/is-scrollbar-active/)
+    await expect(reader).not.toHaveClass(/is-scrollbar-active/, { timeout: 2_000 })
     await expect.poll(() => proxiedImageSource).toBe(
       'https://assets.vodafone.co.uk/slow.gif',
     )
@@ -129,7 +135,13 @@ test('translates a message and switches back to the original', async ({ page }) 
       requestedTarget = request.postDataJSON().targetLanguage
       return json(route, { translation: {
         sourceLanguage: 'hr', targetLanguage: 'zh', cached: false,
-        subject: '你的新 A1 eSIM', text: '你的 A1 eSIM 已准备就绪。',
+        subject: '欢迎使用 OmniMail', text: '你的 A1 eSIM 已准备就绪。',
+        html: `<html lang="zh"><body>
+          <table class="translated-layout"><tr><td>
+            <a href="https://example.com/activate"><strong>你的 A1 eSIM</strong></a>
+            <p>你的 A1 eSIM 已准备就绪。</p>
+          </td></tr></table>
+        </body></html>`,
       } })
     }
     if (path === '/api/messages/message-1') return json(route, {
@@ -153,11 +165,18 @@ test('translates a message and switches back to the original', async ({ page }) 
   await page.getByText('Welcome to OmniMail').click()
   await page.getByRole('button', { name: '翻译为 简体中文' }).click()
 
-  await expect(page.locator('.translation-body')).toContainText('你的新 A1 eSIM')
-  await expect(page.locator('.translation-body')).toContainText('你的 A1 eSIM 已准备就绪。')
+  await expect(page.locator('.message-heading h1')).toHaveText('欢迎使用 OmniMail')
+  const translatedFrame = page.frameLocator('iframe')
+  await expect(translatedFrame.locator('table.translated-layout')).toBeVisible()
+  await expect(translatedFrame.locator('strong')).toHaveText('你的 A1 eSIM')
+  await expect(translatedFrame.locator('a')).toHaveAttribute(
+    'data-omnimail-href',
+    'https://example.com/activate',
+  )
   expect(requestedTarget).toBe('zh')
 
   await page.getByRole('button', { name: '显示原文' }).click()
+  await expect(page.locator('.message-heading h1')).toHaveText('Welcome to OmniMail')
   await expect(page.frameLocator('iframe').locator('.original-copy')).toContainText(
     'Tvoj A1 eSIM je spreman.',
   )

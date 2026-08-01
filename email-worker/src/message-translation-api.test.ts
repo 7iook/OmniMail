@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   detectTranslationLanguage,
+  prepareTranslationHtml,
   splitTranslationText,
   translateMessage,
   translationSourceHash,
@@ -100,6 +101,27 @@ describe('translation language handling', () => {
     expect(chunks.every((chunk) => chunk.length <= 24)).toBe(true)
     expect(chunks.join(' ')).toContain('Second paragraph')
   })
+
+  it('replaces visible text while preserving the original HTML structure', () => {
+    const plan = prepareTranslationHtml(`
+      <html><head><style>.cta { color: red }</style></head><body>
+        <table style="width: 100%"><tr><td>
+          <a href="https://example.com"><strong>Open your account</strong> now</a>
+          <img src="https://example.com/banner.png" alt="Banner">
+        </td></tr></table>
+      </body></html>
+    `)
+    const result = plan.render(new Map([
+      ['Open your account', '打开你的账户'],
+      ['now', '立即'],
+    ]))
+
+    expect(plan.sources).toEqual(['Open your account', 'now'])
+    expect(result.html).toContain('<style>.cta { color: red }</style>')
+    expect(result.html).toContain('href="https://example.com"')
+    expect(result.html).toContain('src="https://example.com/banner.png"')
+    expect(result.html).toContain('<strong>打开你的账户</strong> 立即')
+  })
 })
 
 describe('message translation endpoint', () => {
@@ -113,7 +135,8 @@ describe('message translation endpoint', () => {
       sourceLanguage: 'hr',
       targetLanguage: 'zh',
       subject: `译：${message.subject}`,
-      text: `译：${body.text}`,
+      text: '译：Tvoj A1 eSIM je spreman.',
+      html: expect.stringContaining('<p>译：Tvoj A1 eSIM je spreman.</p>'),
       cached: false,
     })
     expect(mocked.aiRun).toHaveBeenCalledTimes(2)
@@ -127,14 +150,15 @@ describe('message translation endpoint', () => {
       targetLanguage: 'zh',
       subject: '你的新 A1 eSIM',
       text: '你的 A1 eSIM 已准备就绪。',
+      html: '<html><body><p>你的 A1 eSIM 已准备就绪。</p></body></html>',
     }
-    const sourceHash = await translationSourceHash(message.subject, body.text)
+    const sourceHash = await translationSourceHash(message.subject, body.text, body.html)
     const mocked = translationEnv({
       cachedValue,
       cacheRow: {
         source_language: 'hr',
         source_hash: sourceHash,
-        model: 'm2m100-1.2b-v1',
+        model: 'm2m100-1.2b-html-v2',
         r2_key: 'translations/message-1/zh.json',
       },
     })
