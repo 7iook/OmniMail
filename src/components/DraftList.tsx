@@ -18,12 +18,14 @@ export function DraftList({
   drafts,
   limit,
   loading,
+  selectedId,
   onOpen,
   onDelete,
 }: {
   drafts: DraftSummary[]
   limit: number
   loading: boolean
+  selectedId: string | null | undefined
   onOpen: (draft: DraftSummary) => void
   onDelete: (draft: DraftSummary) => Promise<void>
 }) {
@@ -66,11 +68,13 @@ export function DraftList({
     </div>
     {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
     <div className="draft-list" role="list" aria-label={t('草稿列表')}>
-      {drafts.map((draft) => (
-        <article className="draft-row" role="listitem" key={draft.id}>
+      {drafts.map((draft) => {
+        const selected = selectedId === draft.id
+        return <article className={`draft-row ${selected ? 'is-selected' : ''}`} role="listitem" key={draft.id}>
           <button
             className="draft-row__main"
             type="button"
+            aria-current={selected ? 'page' : undefined}
             aria-label={t('继续编辑草稿：{subject}', { subject: draft.subject || t('无主题') })}
             onClick={() => onOpen(draft)}
           >
@@ -99,7 +103,7 @@ export function DraftList({
             <Trash2 size={15} />
           </button>
         </article>
-      ))}
+      })}
     </div>
     {pendingDelete && (
       <DangerConfirmDialog

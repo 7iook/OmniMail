@@ -2,6 +2,7 @@ import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
+import { DraftComposer, useDraftEditor } from './components/DraftComposer'
 import { DraftFolderContent } from './components/DraftFolderContent'
 import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
@@ -78,8 +79,7 @@ function Mailbox({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
-  const [draftComposeRequest, setDraftComposeRequest] = useState(0)
-  const [draftRefreshRequest, setDraftRefreshRequest] = useState(0)
+  const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
   function closeDeploymentWizard() {
@@ -357,8 +357,9 @@ function Mailbox({
   }
 
   const changeDraftCount = useCallback((drafts: number) => setCounts((current) => ({ ...current, drafts })), [])
+  const draftEditorInline = !adminView && folder === 'drafts' && draftEditor.draftId !== undefined
   return (
-    <div className={`mail-layout ${selectedId ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
+    <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
       <MailboxSidebar
         user={user}
         folder={folder}
@@ -401,7 +402,7 @@ function Mailbox({
           >
         <header className="list-header">
           <div>
-            {folder === 'drafts' ? <span className="draft-list-kicker">{t('自动保存的未发送邮件')}</span> : <MailboxSwitcher
+            {folder !== 'drafts' && <MailboxSwitcher
               mailboxes={mailboxes} loaded={mailboxesLoaded}
               domains={domains} scope={scope}
               canManage={isAdminRole(user.role) || user.canCreateMailboxes}
@@ -416,7 +417,7 @@ function Mailbox({
             canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
             refreshing={refreshing} notifications={mailNotifications}
             onRefresh={() => folder === 'drafts'
-              ? setDraftRefreshRequest((current) => current + 1)
+              ? draftEditor.refresh()
               : void loadMessages(true)}
             onCopied={(address) => {
               setError('')
@@ -428,7 +429,7 @@ function Mailbox({
               changeScope({ type: 'mailbox', value: mailbox.address })
               setNotice(t('已生成：{address}', { address: mailbox.address }))
             }}
-            onCompose={() => setDraftComposeRequest((current) => current + 1)}
+            onCompose={draftEditor.openNew}
           />
         </header>
         {folder !== 'drafts' && <label className="search-field">
@@ -446,13 +447,8 @@ function Mailbox({
         </label>}
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
         <DraftFolderContent
-          active={folder === 'drafts'}
-          mailboxes={mailboxes.filter((mailbox) => mailbox.isActive)}
-          initialMailbox={scope.type === 'mailbox' ? scope.value : mailboxes.find((mailbox) => mailbox.isPrimary)?.address || mailboxes[0]?.address || ''}
-          composeRequest={draftComposeRequest} refreshRequest={draftRefreshRequest}
-          onCountChange={changeDraftCount}
-          onSent={() => setNotice(t('邮件已进入发送队列'))}
-        />
+          active={folder === 'drafts'} refreshRequest={draftEditor.refreshRequest}
+          selectedDraftId={draftEditor.draftId} onOpen={draftEditor.open} onCountChange={changeDraftCount} />
         {folder !== 'drafts' && <MessageList
           folder={folder} messages={messages}
           selectedId={selectedId} selectedIds={selectedMessageIds}
@@ -469,7 +465,7 @@ function Mailbox({
         />}
       </section>
 
-      <main className="reader-pane">
+      {!draftEditorInline && <main className="reader-pane">
         <MessageReader
           message={detail} emptyLabel={folder === 'drafts' ? '选择草稿继续编辑' : '选择一封邮件'}
           loading={detailLoading}
@@ -489,9 +485,13 @@ function Mailbox({
           onRetryFailedMessage={() => { setDetail((current) => current ? { ...current, status: 'processing', processingError: null, deliveryStatus: 'queued' } : current); setNotice(t('邮件已重新进入发送队列')); void loadMessages(true) }}
           onSelectThread={(message) => void selectMessage(message)}
         />
-      </main>
+      </main>}
         </>
       )}
+      <DraftComposer
+        draftId={draftEditor.draftId} instance={draftEditor.instance} inline={draftEditorInline}
+        mailboxes={mailboxes} scope={scope} onChanged={draftEditor.refresh}
+        onClose={draftEditor.close} onSent={() => { draftEditor.close(); setNotice(t('邮件已进入发送队列')) }} />
       {pendingMailDelete && (
         <MailDeleteDialog
           count={pendingMailDelete.kind === 'single' ? 1 : pendingMailDelete.ids.length}

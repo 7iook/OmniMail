@@ -12,6 +12,7 @@ import {
 import {
   type ChangeEvent,
   type DragEvent,
+  type FocusEvent,
   type FormEvent,
   useCallback,
   useEffect,
@@ -81,6 +82,7 @@ export function ComposeDialog({
   mailboxes,
   initialMailbox,
   draftId,
+  presentation = 'modal',
   onClose,
   onSent,
   onDraftChanged,
@@ -88,6 +90,7 @@ export function ComposeDialog({
   mailboxes: MailboxAddress[]
   initialMailbox: string
   draftId: string | null
+  presentation?: 'modal' | 'inline'
   onClose: () => void
   onSent: () => void
   onDraftChanged: () => void
@@ -123,6 +126,7 @@ export function ComposeDialog({
   const busy = sending || uploading || discarding || closing
   const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
   const attachmentLimitReached = attachments.length >= MAX_COMPOSE_ATTACHMENTS
+  const inline = presentation === 'inline'
 
   function updateDraftField<Key extends keyof ComposeDraftFields>(
     field: Key,
@@ -335,15 +339,23 @@ export function ComposeDialog({
     }
   }
 
+  function saveBeforeLeavingEditor(event: FocusEvent<HTMLFormElement>) {
+    const next = event.relatedTarget
+    if (next instanceof Node && event.currentTarget.contains(next)) return
+    if (!draftLoaded || busy || finalizing.current) return
+    void saveCurrentDraft().catch((saveError) => setError(errorMessage(saveError)))
+  }
+
   return (
-    <div className="compose-backdrop">
+    <div className={`compose-backdrop ${inline ? 'compose-backdrop--inline' : ''}`}>
       <form
-        className="compose-dialog"
-        role="dialog"
-        aria-modal="true"
+        className={`compose-dialog ${inline ? 'compose-dialog--inline' : ''}`}
+        role={inline ? 'region' : 'dialog'}
+        aria-modal={inline ? undefined : true}
         aria-labelledby="compose-title"
         aria-describedby="compose-description"
         onSubmit={submit}
+        onBlur={saveBeforeLeavingEditor}
         onDragEnter={startAttachmentDrag}
         onDragOver={continueAttachmentDrag}
         onDragLeave={endAttachmentDrag}

@@ -80,7 +80,9 @@ test('desktop users can act on one message from its context menu', async ({ page
   await page.getByRole('alertdialog').getByRole('button', { name: '取消' }).click()
 
   await page.getByRole('button', { name: '垃圾箱' }).click()
-  await row.click({ button: 'right' })
+  await expect(page.getByRole('heading', { name: '垃圾箱' })).toBeVisible()
+  await expect(row).toBeVisible()
+  await row.dispatchEvent('contextmenu', { button: 2, clientX: 600, clientY: 300 })
   await expect(menu.getByRole('menuitem')).toHaveCount(2)
   await expect(menu.getByRole('menuitem', { name: '恢复邮件' })).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: '永久删除' })).toBeVisible()

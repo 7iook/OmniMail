@@ -1,35 +1,28 @@
 import { AlertCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, type DraftSummary, type MailboxAddress } from '../lib/api'
+import { api, type DraftSummary } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
-import { ComposeDialog } from './ComposeDialog'
 import { DraftList } from './DraftList'
 
 export function DraftFolderContent({
-  mailboxes,
-  initialMailbox,
   active,
-  composeRequest,
   refreshRequest,
+  selectedDraftId,
+  onOpen,
   onCountChange,
-  onSent,
 }: {
-  mailboxes: MailboxAddress[]
-  initialMailbox: string
   active: boolean
-  composeRequest: number
   refreshRequest: number
+  selectedDraftId: string | null | undefined
+  onOpen: (draftId: string | undefined) => void
   onCountChange: (count: number) => void
-  onSent: () => void
 }) {
   const [drafts, setDrafts] = useState<DraftSummary[]>([])
   const [limit, setLimit] = useState(5)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [openDraftId, setOpenDraftId] = useState<string | null | undefined>()
 
   const loadDrafts = useCallback(async () => {
-    setLoading(true)
     setError('')
     try {
       const result = await api.drafts()
@@ -47,12 +40,9 @@ export function DraftFolderContent({
     if (active) void loadDrafts()
   }, [active, loadDrafts, refreshRequest])
 
-  useEffect(() => {
-    if (composeRequest > 0) setOpenDraftId(null)
-  }, [composeRequest])
-
   async function deleteDraft(draft: DraftSummary) {
     await api.discardDraft(draft.id)
+    if (selectedDraftId === draft.id) onOpen(undefined)
     await loadDrafts()
   }
 
@@ -62,19 +52,9 @@ export function DraftFolderContent({
       drafts={drafts}
       limit={limit}
       loading={loading}
-      onOpen={(draft) => setOpenDraftId(draft.id)}
+      selectedId={selectedDraftId}
+      onOpen={(draft) => onOpen(draft.id)}
       onDelete={deleteDraft}
     />}
-    {openDraftId !== undefined && (
-      <ComposeDialog
-        key={openDraftId ?? `new-${composeRequest}`}
-        mailboxes={mailboxes}
-        initialMailbox={initialMailbox}
-        draftId={openDraftId}
-        onDraftChanged={() => void loadDrafts()}
-        onClose={() => { setOpenDraftId(undefined); void loadDrafts() }}
-        onSent={() => { setOpenDraftId(undefined); void loadDrafts(); onSent() }}
-      />
-    )}
   </>
 }

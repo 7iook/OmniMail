@@ -1,7 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 
 async function renderMailboxHeader(page: Page, paneWidth: number) {
-  await page.goto('/')
   await page.setContent(`
     <section class="list-pane" style="width:${paneWidth}px;height:400px">
       <header class="list-header">
@@ -25,9 +24,9 @@ async function renderMailboxHeader(page: Page, paneWidth: number) {
       </header>
     </section>
   `)
-  await page.addStyleTag({ url: '/src/styles.css' })
-  await page.addStyleTag({ url: '/src/styles/mailbox.css' })
-  await page.addStyleTag({ url: '/src/styles/mailbox-switcher.css' })
+  await page.addStyleTag({ path: 'src/styles.css' })
+  await page.addStyleTag({ path: 'src/styles/mailbox.css' })
+  await page.addStyleTag({ path: 'src/styles/mailbox-switcher.css' })
 }
 
 test('mailbox header actions stay inside narrow desktop list panes', async ({ page }) => {
