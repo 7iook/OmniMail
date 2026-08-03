@@ -259,6 +259,7 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 回退到 `RESEND_API_KEY` 和 `RESEND_FROM`。专属配置没有设置 `from` 时，用户选择的
 邮箱会作为发件人；固定发件人情况下，用户选择的邮箱仍作为 Reply-To。每个发件域名
 都需要在对应的 Resend 账户中完成验证。API Key 应通过 Cloudflare Secret 保存。
+配置不是合法 JSON 或任一域名缺少 `apiKey` 时会禁用发信，不会回退到旧账户。
 
 发信请求会先持久化并进入 Queue，再由后台任务使用幂等键调用 Resend。
 主动发件、草稿发送与回复按用户合并限速，默认每分钟最多 10 封、每个 UTC 自然日

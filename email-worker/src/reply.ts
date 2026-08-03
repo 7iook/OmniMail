@@ -1,7 +1,7 @@
 import { safeJsonArray, validEmail } from './api-helpers'
 import { replySubject } from './mail'
 import { sendOutboundMessage } from './outbound-message'
-import { resendConfigForAddress } from './resend-config'
+import { resendConfigForAddress, resendDomainConfigIsInvalid } from './resend-config'
 import type { Env, MessageRow, SessionUser } from './types'
 
 type ReplyInput = {
@@ -58,6 +58,9 @@ export async function sendReply(
   }
   if (original.direction !== 'incoming' || !validEmail(original.sender_address)) {
     return json({ error: '这封邮件无法回复。' }, 409)
+  }
+  if (resendDomainConfigIsInvalid(env)) {
+    return json({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' }, 503)
   }
   if (!resendConfigForAddress(env, original.mailbox_address)) {
     return json({ error: '该发件域名尚未配置 Resend。' }, 503)

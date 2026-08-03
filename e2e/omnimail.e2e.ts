@@ -66,7 +66,7 @@ async function mockApp(page: Page, state = mockState()) {
       return json(route, { ok: true })
     }
     if (path === '/api/mailboxes') return json(route, { mailboxes: state.hasMailbox ? [
-      { address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true },
+      { address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true }, ...(state.replyEnabled ? [{ address: 'support@other.example', domain: 'other.example', isPrimary: false, isActive: true }] : []),
     ] : [] })
     if (path === '/api/domains') return json(route, { domains: [
       { name: 'example.com', isActive: true, mailboxCount: 1, createdAt: 1, updatedAt: 1 },
@@ -315,16 +315,16 @@ test('users can compose and send a new message', async ({ page }) => {
   await page.goto('/'); await page.getByRole('button', { name: '新建邮件' }).click()
   const dialog = page.getByRole('dialog', { name: '新建邮件' })
   const geometry = await dialog.evaluate((element) => { const rect = element.getBoundingClientRect(); const editor = element.querySelector('textarea')!.getBoundingClientRect(); return { rightGap: innerWidth - rect.right, bottomGap: innerHeight - rect.bottom, editorHeight: editor.height } })
-  expect(geometry.rightGap).toBeLessThanOrEqual(32)
-  expect(geometry.bottomGap).toBeLessThanOrEqual(32)
-  expect(geometry.editorHeight).toBeGreaterThan(280)
-  await expect(dialog.getByLabel('发件人')).toHaveValue('inbox@example.com')
+  expect(geometry.rightGap).toBeLessThanOrEqual(32); expect(geometry.bottomGap).toBeLessThanOrEqual(32); expect(geometry.editorHeight).toBeGreaterThan(280)
+  const from = dialog.getByRole('combobox', { name: '发件人' }); await expect(from).toContainText('inbox@example.com')
+  await from.click(); const otherMailbox = dialog.getByRole('option', { name: /support@other\.example/ })
+  await expect(otherMailbox).toBeVisible(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
   await expect(dialog.getByLabel('收件人')).toHaveCSS('border-top-width', '0px')
   await dialog.getByLabel('收件人').fill('friend@example.net')
   await dialog.getByLabel('主题').fill('Hello from OmniMail')
   await dialog.getByLabel('邮件正文').fill('This is a new message.')
   await dialog.getByRole('button', { name: '发送邮件' }).click()
-  await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'inbox@example.com',
+  await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'support@other.example',
     to: 'friend@example.net', subject: 'Hello from OmniMail', text: 'This is a new message.' })
   await expect(page.getByRole('status')).toHaveText('邮件已进入发送队列')
 })

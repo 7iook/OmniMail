@@ -1,6 +1,6 @@
 import { normalizeEmail, validEmail } from './api-helpers'
 import { sendOutboundMessage } from './outbound-message'
-import { resendConfigForAddress } from './resend-config'
+import { resendConfigForAddress, resendDomainConfigIsInvalid } from './resend-config'
 import type { Env, SessionUser } from './types'
 
 export type NewMessageInput = {
@@ -68,6 +68,9 @@ export async function sendMessage(
         )`,
   ).bind(message.mailboxAddress, user.id, domain).first<{ address: string }>()
   if (!mailbox) return json({ error: '发件邮箱不存在或已停用。' }, 404)
+  if (resendDomainConfigIsInvalid(env)) {
+    return json({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' }, 503)
+  }
   if (!resendConfigForAddress(env, mailbox.address)) {
     return json({ error: '该发件域名尚未配置 Resend。' }, 503)
   }

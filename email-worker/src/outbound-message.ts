@@ -4,7 +4,7 @@ import { messageSearchStatement } from './message-search'
 import { claimOutboundSend } from './outbound-rate-limit'
 import { releaseStorage, reserveStorage } from './message-storage'
 import { reconcileResendEvents } from './resend-webhook'
-import { resendConfigForAddress } from './resend-config'
+import { resendConfigForAddress, resendDomainConfigIsInvalid } from './resend-config'
 import type { Env, OutboundJob, SessionUser, StoredBody } from './types'
 
 export type OutboundMessage = {
@@ -325,6 +325,9 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   if (!record || record.status === 'sent') return
   if (!record.domain_is_active) {
     throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
+  }
+  if (resendDomainConfigIsInvalid(env)) {
+    throw new OutboundDeliveryError('RESEND_DOMAIN_CONFIGS is invalid', false)
   }
   const resendConfig = resendConfigForAddress(env, record.mailbox_address)
   if (!resendConfig) {

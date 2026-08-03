@@ -17,9 +17,37 @@ import {
   useRef,
   useState,
 } from 'react'
-import { api, type DraftAttachment, type MailboxAddress } from '../lib/api'
+import {
+  api,
+  type DraftAttachment,
+  type MailboxAddress,
+  type MailDraft,
+} from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
+import { ComposeMailboxSelect } from './ComposeMailboxSelect'
+
+export type ComposeDraftFields = Pick<
+  MailDraft,
+  'mailboxAddress' | 'to' | 'subject' | 'text'
+>
+
+export function mergeLoadedDraftFields(
+  current: ComposeDraftFields,
+  loaded: ComposeDraftFields,
+  edited: ReadonlySet<keyof ComposeDraftFields>,
+  mailboxes: MailboxAddress[],
+): ComposeDraftFields {
+  return {
+    mailboxAddress: edited.has('mailboxAddress')
+      || !mailboxes.some((mailbox) => mailbox.address === loaded.mailboxAddress)
+      ? current.mailboxAddress
+      : loaded.mailboxAddress,
+    to: edited.has('to') ? current.to : loaded.to,
+    subject: edited.has('subject') ? current.subject : loaded.subject,
+    text: edited.has('text') ? current.text : loaded.text,
+  }
+}
 
 export function ComposeDialog({
   mailboxes,
@@ -32,10 +60,13 @@ export function ComposeDialog({
   onClose: () => void
   onSent: () => void
 }) {
-  const [mailboxAddress, setMailboxAddress] = useState(initialMailbox)
-  const [to, setTo] = useState('')
-  const [subject, setSubject] = useState('')
-  const [text, setText] = useState('')
+  const [draftFields, setDraftFields] = useState<ComposeDraftFields>({
+    mailboxAddress: initialMailbox,
+    to: '',
+    subject: '',
+    text: '',
+  })
+  const { mailboxAddress, to, subject, text } = draftFields
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [draftLoadFailed, setDraftLoadFailed] = useState(false)
@@ -46,12 +77,21 @@ export function ComposeDialog({
   const [error, setError] = useState('')
   const attachmentInput = useRef<HTMLInputElement>(null)
   const draftSaveQueue = useRef<Promise<void>>(Promise.resolve())
+  const editedDraftFields = useRef(new Set<keyof ComposeDraftFields>())
   const finalizing = useRef(false)
   const idempotencyKey = useMemo(
     () => crypto.randomUUID().replaceAll('-', ''),
     [],
   )
   const busy = sending || uploading || discarding || closing
+
+  function updateDraftField<Key extends keyof ComposeDraftFields>(
+    field: Key,
+    value: ComposeDraftFields[Key],
+  ) {
+    editedDraftFields.current.add(field)
+    setDraftFields((current) => ({ ...current, [field]: value }))
+  }
 
   const saveCurrentDraft = useCallback(() => {
     const input = { mailboxAddress, to, subject, text }
@@ -65,12 +105,12 @@ export function ComposeDialog({
     void api.draft()
       .then(({ draft }) => {
         if (!active || !draft) return
-        if (mailboxes.some((mailbox) => mailbox.address === draft.mailboxAddress)) {
-          setMailboxAddress(draft.mailboxAddress)
-        }
-        setTo(draft.to)
-        setSubject(draft.subject)
-        setText(draft.text)
+        setDraftFields((current) => mergeLoadedDraftFields(
+          current,
+          draft,
+          editedDraftFields.current,
+          mailboxes,
+        ))
         setAttachments(draft.attachments)
       })
       .catch((loadError) => {
@@ -84,6 +124,7 @@ export function ComposeDialog({
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
+      if (event.defaultPrevented) return
       if (event.key === 'Escape' && !busy && draftLoaded) void closeAndSave()
     }
     document.addEventListener('keydown', closeOnEscape)
@@ -208,31 +249,32 @@ export function ComposeDialog({
             {t('通过 Resend 安全发送，并保存到已发送邮件。')}
           </p>
           <div className="compose-fields">
-            <label className="compose-field">
+            <div className="compose-field">
               <span>{t('发件人')}</span>
-              <select name="from" value={mailboxAddress}
-                onChange={(event) => setMailboxAddress(event.target.value)} disabled={busy}>
-                {mailboxes.map((mailbox) => (
-                  <option value={mailbox.address} key={mailbox.address}>{mailbox.address}</option>
-                ))}
-              </select>
-            </label>
+              <ComposeMailboxSelect
+                mailboxes={mailboxes}
+                value={mailboxAddress}
+                disabled={busy}
+                onChange={(value) => updateDraftField('mailboxAddress', value)}
+              />
+            </div>
             <label className="compose-field">
               <span>{t('收件人')}</span>
               <input name="to" type="email" autoComplete="off" spellCheck={false} autoFocus
-                value={to} onChange={(event) => setTo(event.target.value)}
+                value={to} onChange={(event) => updateDraftField('to', event.target.value)}
                 placeholder="name@example.com" maxLength={254} required disabled={busy} />
             </label>
             <label className="compose-field compose-field--subject">
               <span>{t('主题')}</span>
               <input name="subject" type="text" autoComplete="off" value={subject}
-                onChange={(event) => setSubject(event.target.value)}
+                onChange={(event) => updateDraftField('subject', event.target.value)}
                 placeholder={t('输入邮件主题…')} maxLength={500} required disabled={busy} />
             </label>
           </div>
           <label className="compose-editor">
             <span className="sr-only">{t('邮件正文')}</span>
-            <textarea name="text" value={text} onChange={(event) => setText(event.target.value)}
+            <textarea name="text" value={text}
+              onChange={(event) => updateDraftField('text', event.target.value)}
               placeholder={t('写下邮件内容…')} maxLength={50_000} required disabled={busy} />
           </label>
           {attachments.length > 0 && (

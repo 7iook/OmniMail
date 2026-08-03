@@ -134,4 +134,27 @@ describe('validateNewMessage', () => {
     expect(await response.json()).toEqual({ error: '该发件域名尚未配置 Resend。' })
     expect(mocks.sendOutboundMessage).not.toHaveBeenCalled()
   })
+
+  it('reports invalid domain Resend JSON instead of using the global key', async () => {
+    const database = {
+      prepare: () => ({
+        bind() { return this },
+        first: async () => ({ address: 'owner@example.com' }),
+      }),
+    }
+    const response = await sendMessage(
+      {
+        DB: database,
+        RESEND_API_KEY: 're_global',
+        RESEND_DOMAIN_CONFIGS: '{invalid',
+      } as unknown as Env,
+      { id: 'user-1', role: 'user', canReply: true } as SessionUser,
+      validInput,
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' })
+    expect(mocks.sendOutboundMessage).not.toHaveBeenCalled()
+  })
 })

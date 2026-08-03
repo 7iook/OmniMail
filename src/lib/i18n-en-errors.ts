@@ -90,6 +90,7 @@ export const enErrors: Record<string, string> = {
   '当前账户没有回信权限。': 'This account cannot send replies.',
   '当前账户没有发信权限。': 'This account cannot send messages.',
   '管理员尚未配置 Resend。': 'Resend is not configured by the administrator.',
+  'RESEND_DOMAIN_CONFIGS 格式无效。': 'RESEND_DOMAIN_CONFIGS contains invalid JSON.',
   '该发件域名尚未配置 Resend。': 'Resend is not configured for this sender domain.',
   '发件邮箱格式无效。': 'The sender mailbox is invalid.',
   '请输入有效的收件邮箱地址。': 'Enter a valid recipient email address.',

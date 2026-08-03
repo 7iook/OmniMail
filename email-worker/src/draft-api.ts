@@ -5,7 +5,11 @@ import {
   sendOutboundMessage,
   type OutboundAttachment,
 } from './outbound-message'
-import { hasResendConfig, resendConfigForAddress } from './resend-config'
+import {
+  hasResendConfig,
+  resendConfigForAddress,
+  resendDomainConfigIsInvalid,
+} from './resend-config'
 import { validateNewMessage } from './send-message'
 import type { Env, SessionUser } from './types'
 
@@ -269,6 +273,9 @@ export async function sendDraft(
   ip: string,
 ): Promise<Response> {
   if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
+  if (resendDomainConfigIsInvalid(env)) {
+    return json({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' }, 503)
+  }
   if (!hasResendConfig(env)) return json({ error: '管理员尚未配置 Resend。' }, 503)
   const body = await request.json<{ idempotencyKey?: string }>()
     .catch(() => ({} as { idempotencyKey?: string }))

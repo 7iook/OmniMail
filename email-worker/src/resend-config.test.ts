@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { hasResendConfig, resendConfigForAddress } from './resend-config'
+import {
+  hasResendConfig,
+  resendConfigForAddress,
+  resendDomainConfigIsInvalid,
+} from './resend-config'
 import type { Env } from './types'
 
 describe('Resend configuration', () => {
@@ -46,10 +50,26 @@ describe('Resend configuration', () => {
     expect(resendConfigForAddress(env, 'not-an-address')).toBeNull()
   })
 
-  it('ignores malformed domain configuration', () => {
-    const env = { RESEND_DOMAIN_CONFIGS: '{invalid' } as Env
+  it('rejects malformed domain configuration instead of falling back globally', () => {
+    const env = {
+      RESEND_API_KEY: 're_global',
+      RESEND_DOMAIN_CONFIGS: '{invalid',
+    } as Env
 
+    expect(resendDomainConfigIsInvalid(env)).toBe(true)
     expect(hasResendConfig(env)).toBe(false)
+    expect(resendConfigForAddress(env, 'owner@example.com')).toBeNull()
+  })
+
+  it('rejects a domain entry without an apiKey field', () => {
+    const env = {
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'example.com': { apiKey: 're_example' },
+        'other.example': { value: 're_other' },
+      }),
+    } as Env
+
+    expect(resendDomainConfigIsInvalid(env)).toBe(true)
     expect(resendConfigForAddress(env, 'owner@example.com')).toBeNull()
   })
 })
