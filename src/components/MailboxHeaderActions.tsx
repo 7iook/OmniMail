@@ -1,5 +1,4 @@
 import { Bell, BellOff, Copy, RefreshCw, SquarePen } from 'lucide-react'
-import { useState } from 'react'
 import type {
   ManagedDomain,
   MailboxAddress,
@@ -7,7 +6,6 @@ import type {
 } from '../lib/api'
 import { t } from '../lib/i18n'
 import type { MailNotificationControls } from '../lib/useNewMailNotifications'
-import { ComposeDialog } from './ComposeDialog'
 import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
 interface Props {
@@ -22,7 +20,7 @@ interface Props {
   onCopied: (address: string) => void
   onCopyError: () => void
   onMailboxCreated: (mailbox: MailboxAddress) => Promise<void>
-  onMessageSent: () => void
+  onCompose: () => void
 }
 
 export function MailboxHeaderActions({
@@ -37,9 +35,8 @@ export function MailboxHeaderActions({
   onCopied,
   onCopyError,
   onMailboxCreated,
-  onMessageSent,
+  onCompose,
 }: Props) {
-  const [composeOpen, setComposeOpen] = useState(false)
   const activeMailboxes = mailboxes.filter((mailbox) => mailbox.isActive)
   const address = scope.type === 'mailbox'
     ? scope.value
@@ -60,7 +57,7 @@ export function MailboxHeaderActions({
   return (
     <div className="list-header__actions">
       <button className="button button--primary compose-trigger" type="button"
-        onClick={() => setComposeOpen(true)} disabled={!canCompose || !address}
+        onClick={onCompose} disabled={!canCompose || !address}
         aria-label={t('新建邮件')}
         data-tooltip={!canCompose ? t('当前账户没有发信权限。') : t('新建邮件')}>
         <SquarePen size={17} />
@@ -94,17 +91,6 @@ export function MailboxHeaderActions({
       <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
         <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
       </button>
-      {composeOpen && (
-        <ComposeDialog
-          mailboxes={activeMailboxes}
-          initialMailbox={address}
-          onClose={() => setComposeOpen(false)}
-          onSent={() => {
-            setComposeOpen(false)
-            onMessageSent()
-          }}
-        />
-      )}
     </div>
   )
 }

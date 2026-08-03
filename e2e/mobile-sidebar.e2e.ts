@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { message, user } from './omnimail-fixtures'
 
-test('mobile navigation keeps five primary items and expands administrator tools upward', async ({ page }) => {
+test('mobile navigation keeps six primary items and expands administrator tools upward', async ({ page }) => {
   let sessionRole: 'super_admin' | 'user' = 'super_admin'
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.addInitScript(() => {
@@ -64,7 +64,7 @@ test('mobile navigation keeps five primary items and expands administrator tools
   for (const width of [360, 393, 430]) {
     await page.setViewportSize({ width, height: 800 })
     const metrics = await primaryMetrics()
-    expect(metrics.count).toBe(5)
+    expect(metrics.count).toBe(6)
     expect(metrics.widthDelta).toBeLessThanOrEqual(3)
     expect(metrics.topDelta).toBeLessThanOrEqual(1)
     expect(metrics.pageOverflow).toBe(false)
@@ -97,5 +97,5 @@ test('mobile navigation keeps five primary items and expands administrator tools
   await page.reload()
   await expect(page.getByRole('button', { name: '展开管理员功能' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: '管理员功能' })).toHaveCount(0)
-  expect((await primaryMetrics()).count).toBe(5)
+  expect((await primaryMetrics()).count).toBe(6)
 })

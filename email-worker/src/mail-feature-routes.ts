@@ -7,9 +7,11 @@ import {
   runBackupDrill,
 } from './backup-browser-api'
 import {
+  createDraft,
   deleteDraftAttachment,
   discardDraft,
   getDraft,
+  listDrafts,
   saveDraft,
   sendDraft,
   uploadDraftAttachment,
@@ -33,25 +35,42 @@ mailFeatureRoutes.post('/admin/backups/drill', (context) => (
   )
 ))
 
-mailFeatureRoutes.get('/draft', (context) => (
-  getDraft(context.env, context.get('user'))
+mailFeatureRoutes.get('/drafts', (context) => (
+  listDrafts(context.env, context.get('user'))
 ))
-mailFeatureRoutes.put('/draft', (context) => (
-  saveDraft(context.env, context.get('user'), context.req.raw)
+mailFeatureRoutes.post('/drafts', (context) => (
+  createDraft(context.env, context.get('user'), context.req.raw)
 ))
-mailFeatureRoutes.delete('/draft', (context) => (
-  discardDraft(context.env, context.get('user'))
+mailFeatureRoutes.get('/drafts/:id', (context) => (
+  getDraft(context.env, context.get('user'), context.req.param('id'))
 ))
-mailFeatureRoutes.post('/draft/attachments', (context) => (
-  uploadDraftAttachment(context.env, context.get('user'), context.req.raw)
+mailFeatureRoutes.put('/drafts/:id', (context) => (
+  saveDraft(context.env, context.get('user'), context.req.param('id'), context.req.raw)
 ))
-mailFeatureRoutes.delete('/draft/attachments/:id', (context) => (
-  deleteDraftAttachment(context.env, context.get('user'), context.req.param('id'))
+mailFeatureRoutes.delete('/drafts/:id', (context) => (
+  discardDraft(context.env, context.get('user'), context.req.param('id'))
 ))
-mailFeatureRoutes.post('/draft/send', (context) => (
+mailFeatureRoutes.post('/drafts/:id/attachments', (context) => (
+  uploadDraftAttachment(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    context.req.raw,
+  )
+))
+mailFeatureRoutes.delete('/drafts/:id/attachments/:attachmentId', (context) => (
+  deleteDraftAttachment(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    context.req.param('attachmentId'),
+  )
+))
+mailFeatureRoutes.post('/drafts/:id/send', (context) => (
   sendDraft(
     context.env,
     context.get('user'),
+    context.req.param('id'),
     context.req.raw,
     clientIp(context.req.raw.headers),
   )

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ChevronUp,
+  FilePenLine,
   Inbox,
   Link2,
   LogOut,
@@ -30,6 +31,7 @@ const folders: Array<{
 }> = [
   { id: 'inbox', label: '收件箱', icon: Inbox, count: 'unread' },
   { id: 'starred', label: '星标邮件', icon: Star, count: 'starred' },
+  { id: 'drafts', label: '草稿箱', icon: FilePenLine, count: 'drafts' },
   { id: 'sent', label: '已发送', icon: Send, count: 'sent' },
   { id: 'trash', label: '垃圾箱', icon: Trash2, count: 'trash' },
 ]

@@ -13,6 +13,7 @@ import type {
   CreateTemporaryInvite,
   DeploymentCheck,
   DraftAttachment,
+  DraftSummary,
   Folder,
   MailboxAddress,
   MailboxScope,
@@ -184,6 +185,7 @@ export const api = {
     | 'failedMessageRetentionDays'
     | 'defaultUserQuotaMiB'
     | 'defaultTemporaryQuotaMiB'
+    | 'draftLimits'
   >) => request<{ storagePolicy: StoragePolicy }>('/api/admin/settings/storage', {
     method: 'PATCH',
     body: jsonBody(storagePolicy),
@@ -378,29 +380,47 @@ export const api = {
     if (version !== undefined) search.set('version', String(version))
     return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(`/api/messages?${search}`)
   },
-  draft: () => request<{ draft: MailDraft | null }>('/api/draft'),
-  saveDraft: (input: Pick<MailDraft, 'mailboxAddress' | 'to' | 'subject' | 'text'>) => (
-    request<{ draft: MailDraft }>('/api/draft', {
+  drafts: () => request<{ drafts: DraftSummary[]; limit: number }>('/api/drafts'),
+  draft: (id: string) => request<{ draft: MailDraft }>(
+    `/api/drafts/${encodeURIComponent(id)}`,
+  ),
+  createDraft: (input: Pick<MailDraft, 'mailboxAddress' | 'to' | 'subject' | 'text'>) => (
+    request<{ draft: MailDraft }>('/api/drafts', {
+      method: 'POST',
+      body: jsonBody(input),
+    })
+  ),
+  saveDraft: (
+    id: string,
+    input: Pick<MailDraft, 'mailboxAddress' | 'to' | 'subject' | 'text'>,
+  ) => (
+    request<{ draft: MailDraft }>(`/api/drafts/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: jsonBody(input),
     })
   ),
-  discardDraft: () => request<{ ok: true }>('/api/draft', { method: 'DELETE' }),
-  uploadDraftAttachment: (file: File) => {
-    const body = new FormData()
-    body.set('file', file)
-    return request<{ attachment: DraftAttachment }>('/api/draft/attachments', {
-      method: 'POST',
-      body,
-    })
-  },
-  deleteDraftAttachment: (id: string) => request<{ ok: true }>(
-    `/api/draft/attachments/${encodeURIComponent(id)}`,
+  discardDraft: (id: string) => request<{ ok: true }>(
+    `/api/drafts/${encodeURIComponent(id)}`,
     { method: 'DELETE' },
   ),
-  sendDraft: (idempotencyKey: string) => request<{
+  uploadDraftAttachment: (id: string, file: File) => {
+    const body = new FormData()
+    body.set('file', file)
+    return request<{ attachment: DraftAttachment }>(
+      `/api/drafts/${encodeURIComponent(id)}/attachments`, {
+      method: 'POST',
+      body,
+      signal: AbortSignal.timeout(60_000),
+      },
+    )
+  },
+  deleteDraftAttachment: (draftId: string, attachmentId: string) => request<{ ok: true }>(
+    `/api/drafts/${encodeURIComponent(draftId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    { method: 'DELETE' },
+  ),
+  sendDraft: (id: string, idempotencyKey: string) => request<{
     message: { id: string; status: string; providerId?: string }
-  }>('/api/draft/send', {
+  }>(`/api/drafts/${encodeURIComponent(id)}/send`, {
     method: 'POST',
     body: jsonBody({ idempotencyKey }),
   }),

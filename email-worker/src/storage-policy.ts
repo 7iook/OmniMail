@@ -1,6 +1,13 @@
 import { writeAudit } from './audit'
 import { BACKUP_RETENTION_DAYS } from './backup-retention'
 import { validateBackupTarget } from './backup-target'
+import {
+  DRAFT_LIMIT_SETTINGS,
+  draftLimitsFromSettings,
+  validDraftLimits,
+  type DraftLimits,
+} from './draft-policy'
+import { pruneDraftsForLimits } from './draft-api'
 import type { Env, SessionUser, UserRole } from './types'
 
 const SETTINGS = {
@@ -49,6 +56,7 @@ export interface StoragePolicy {
   failedMessageRetentionDays: number
   defaultUserQuotaMiB: number
   defaultTemporaryQuotaMiB: number
+  draftLimits: DraftLimits
   lastBackup: {
     id: string
     trigger: BackupRun['trigger']
@@ -69,6 +77,7 @@ type StoragePolicyInput = {
   failedMessageRetentionDays?: unknown
   defaultUserQuotaMiB?: unknown
   defaultTemporaryQuotaMiB?: unknown
+  draftLimits?: unknown
 }
 
 function isAdministrator(user: SessionUser): boolean {
@@ -108,7 +117,7 @@ export function backupMissingConfiguration(env: Env): string[] {
 }
 
 export async function storagePolicy(env: Env): Promise<StoragePolicy> {
-  const keys = Object.values(SETTINGS)
+  const keys = [...Object.values(SETTINGS), ...Object.values(DRAFT_LIMIT_SETTINGS)]
   const { results } = await env.DB.prepare(
     `SELECT key, value FROM settings
       WHERE key IN (${keys.map(() => '?').join(', ')})`,
@@ -148,6 +157,7 @@ export async function storagePolicy(env: Env): Promise<StoragePolicy> {
     defaultTemporaryQuotaMiB: integerSetting(
       settings, SETTINGS.temporaryQuotaMiB, DEFAULTS.temporaryQuotaMiB, 16, 10240,
     ),
+    draftLimits: draftLimitsFromSettings(settings),
     lastBackup: last ? {
       id: last.id,
       trigger: last.trigger,
@@ -234,7 +244,8 @@ export async function updateStoragePolicy(
     || !validInteger(input.failedMessageRetentionDays, 1, 30)
     || !validInteger(input.defaultUserQuotaMiB, 64, 102400)
     || !validInteger(input.defaultTemporaryQuotaMiB, 16, 10240)
-  ) return json({ error: '备份、保留或默认配额设置无效。' }, 400)
+    || !validDraftLimits(input.draftLimits)
+  ) return json({ error: '备份、保留、草稿或默认配额设置无效。' }, 400)
 
   const previous = await storagePolicy(env)
   const missing = backupMissingConfiguration(env)
@@ -259,6 +270,10 @@ export async function updateStoragePolicy(
     [SETTINGS.failedDays, String(input.failedMessageRetentionDays)],
     [SETTINGS.userQuotaMiB, String(input.defaultUserQuotaMiB)],
     [SETTINGS.temporaryQuotaMiB, String(input.defaultTemporaryQuotaMiB)],
+    [DRAFT_LIMIT_SETTINGS.superAdmin, String(input.draftLimits.superAdmin)],
+    [DRAFT_LIMIT_SETTINGS.admin, String(input.draftLimits.admin)],
+    [DRAFT_LIMIT_SETTINGS.user, String(input.draftLimits.user)],
+    [DRAFT_LIMIT_SETTINGS.temporary, String(input.draftLimits.temporary)],
   ]
   await env.DB.batch(values.map(([key, value]) => env.DB.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
@@ -269,6 +284,7 @@ export async function updateStoragePolicy(
         SET purge_after = trashed_at + ? * 86400
       WHERE folder = 'trash' AND trashed_at IS NOT NULL`,
   ).bind(input.trashRetentionDays).run()
+  await pruneDraftsForLimits(env, input.draftLimits)
   await writeAudit(env, actor.id, 'system.storage_policy.update', null, ip, {
     backupEnabled: input.backupEnabled,
     trashRetentionDays: input.trashRetentionDays,
@@ -277,6 +293,7 @@ export async function updateStoragePolicy(
     failedMessageRetentionDays: input.failedMessageRetentionDays,
     defaultUserQuotaMiB: input.defaultUserQuotaMiB,
     defaultTemporaryQuotaMiB: input.defaultTemporaryQuotaMiB,
+    draftLimits: input.draftLimits,
   })
 
   if (input.backupEnabled && !previous.backupEnabled) {

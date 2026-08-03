@@ -1,4 +1,6 @@
 export const enErrors: Record<string, string> = {
+  '备份、保留、草稿或默认配额设置无效。':
+    'Backup, retention, draft, or default quota settings are invalid.',
   '没有需要保存的账户更改。': 'There are no account changes to save.',
   '密码至少需要 10 个字符。': 'The password must be at least 10 characters.',
   '请输入当前密码。': 'Enter your current password.',

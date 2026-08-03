@@ -1,4 +1,10 @@
 import { normalizeEmail, validEmail } from './api-helpers'
+import {
+  configuredDraftLimits,
+  draftLimitForRole,
+  type DraftLimits,
+} from './draft-policy'
+import { textPreview } from './mail'
 import { reserveStorage } from './message-storage'
 import {
   requeueFailedOutbound,
@@ -32,22 +38,29 @@ type ValidDraft = {
 }
 
 type DraftRow = {
+  id: string
   user_id: string
   mailbox_address: string
   recipient_address: string
   subject: string
   body_text: string
+  created_at: number
   updated_at: number
 }
 
 type DraftAttachmentRow = {
   id: string
-  user_id: string
+  draft_id: string
   filename: string
   content_type: string
   size: number
   r2_key: string
   created_at: number
+}
+
+type DraftSummaryRow = DraftRow & {
+  attachment_count: number
+  attachment_bytes: number
 }
 
 function json(body: unknown, status = 200): Response {
@@ -89,12 +102,40 @@ function attachmentJson(row: DraftAttachmentRow) {
   }
 }
 
-async function draftAttachments(env: Env, userId: string): Promise<DraftAttachmentRow[]> {
+function summaryJson(row: DraftSummaryRow) {
+  return {
+    id: row.id,
+    mailboxAddress: row.mailbox_address,
+    to: row.recipient_address,
+    subject: row.subject,
+    preview: textPreview(row.body_text),
+    updatedAt: row.updated_at,
+    attachmentCount: Number(row.attachment_count || 0),
+    attachmentBytes: Number(row.attachment_bytes || 0),
+  }
+}
+
+async function draftAttachments(
+  env: Env,
+  userId: string,
+  draftId: string,
+): Promise<DraftAttachmentRow[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, user_id, filename, content_type, size, r2_key, created_at
-       FROM draft_attachments WHERE user_id = ? ORDER BY created_at, id`,
-  ).bind(userId).all<DraftAttachmentRow>()
+    `SELECT a.id, a.draft_id, a.filename, a.content_type, a.size, a.r2_key, a.created_at
+       FROM mail_draft_attachments a
+       JOIN mail_drafts d ON d.id = a.draft_id
+      WHERE d.user_id = ? AND d.id = ?
+      ORDER BY a.created_at, a.id`,
+  ).bind(userId, draftId).all<DraftAttachmentRow>()
   return results
+}
+
+async function ownedDraft(env: Env, userId: string, draftId: string): Promise<DraftRow | null> {
+  return env.DB.prepare(
+    `SELECT id, user_id, mailbox_address, recipient_address, subject, body_text,
+            created_at, updated_at
+       FROM mail_drafts WHERE id = ? AND user_id = ?`,
+  ).bind(draftId, userId).first<DraftRow>()
 }
 
 async function activeOwnedMailbox(
@@ -113,26 +154,114 @@ async function activeOwnedMailbox(
   return Boolean(row)
 }
 
-export async function getDraft(env: Env, user: SessionUser): Promise<Response> {
+async function purgeDraftIds(env: Env, draftIds: string[]): Promise<void> {
+  if (!draftIds.length) return
+  for (let offset = 0; offset < draftIds.length; offset += 100) {
+    await purgeDraftIdBatch(env, draftIds.slice(offset, offset + 100))
+  }
+}
+
+async function purgeDraftIdBatch(env: Env, draftIds: string[]): Promise<void> {
+  const marks = draftIds.map(() => '?').join(', ')
+  const { results: attachments } = await env.DB.prepare(
+    `SELECT a.r2_key, a.size, d.user_id
+       FROM mail_draft_attachments a
+       JOIN mail_drafts d ON d.id = a.draft_id
+      WHERE a.draft_id IN (${marks})`,
+  ).bind(...draftIds).all<{ r2_key: string; size: number; user_id: string }>()
+  if (attachments.length) {
+    await env.MAIL_BUCKET.delete(attachments.map((attachment) => attachment.r2_key))
+  }
+  const bytesByUser = new Map<string, number>()
+  for (const attachment of attachments) {
+    bytesByUser.set(
+      attachment.user_id,
+      (bytesByUser.get(attachment.user_id) || 0) + attachment.size,
+    )
+  }
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM mail_drafts WHERE id IN (${marks})`).bind(...draftIds),
+    ...[...bytesByUser].map(([userId, bytes]) => env.DB.prepare(
+      `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
+        updated_at = unixepoch() WHERE id = ?`,
+    ).bind(bytes, userId)),
+  ])
+}
+
+async function pruneUserDrafts(env: Env, userId: string, limit: number): Promise<void> {
+  const { results } = await env.DB.prepare(
+    `SELECT id FROM mail_drafts WHERE user_id = ?
+      ORDER BY updated_at DESC, id DESC LIMIT -1 OFFSET ?`,
+  ).bind(userId, limit).all<{ id: string }>()
+  await purgeDraftIds(env, results.map((draft) => draft.id))
+}
+
+export async function pruneDraftsForLimits(env: Env, limits: DraftLimits): Promise<void> {
+  const { results } = await env.DB.prepare(
+    `SELECT id FROM (
+       SELECT d.id, u.role,
+              ROW_NUMBER() OVER (
+                PARTITION BY d.user_id ORDER BY d.updated_at DESC, d.id DESC
+              ) AS draft_position
+         FROM mail_drafts d
+         JOIN users u ON u.id = d.user_id
+     ) ranked
+     WHERE draft_position > CASE role
+       WHEN 'super_admin' THEN ?
+       WHEN 'admin' THEN ?
+       WHEN 'temporary' THEN ?
+       ELSE ? END`,
+  ).bind(
+    limits.superAdmin,
+    limits.admin,
+    limits.temporary,
+    limits.user,
+  ).all<{ id: string }>()
+  await purgeDraftIds(env, results.map((draft) => draft.id))
+}
+
+export async function listDrafts(env: Env, user: SessionUser): Promise<Response> {
   if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
-  const draft = await env.DB.prepare(
-    `SELECT user_id, mailbox_address, recipient_address, subject, body_text, updated_at
-       FROM drafts WHERE user_id = ?`,
-  ).bind(user.id).first<DraftRow>()
-  if (!draft) return json({ draft: null })
+  const limits = await configuredDraftLimits(env.DB)
+  const limit = draftLimitForRole(limits, user.role)
+  await pruneUserDrafts(env, user.id, limit)
+  const { results } = await env.DB.prepare(
+    `SELECT d.id, d.user_id, d.mailbox_address, d.recipient_address, d.subject,
+            d.body_text, d.created_at, d.updated_at,
+            COUNT(a.id) AS attachment_count,
+            COALESCE(SUM(a.size), 0) AS attachment_bytes
+       FROM mail_drafts d
+       LEFT JOIN mail_draft_attachments a ON a.draft_id = d.id
+      WHERE d.user_id = ?
+      GROUP BY d.id
+      ORDER BY d.updated_at DESC, d.id DESC`,
+  ).bind(user.id).all<DraftSummaryRow>()
+  return json({ drafts: results.map(summaryJson), limit })
+}
+
+export async function getDraft(
+  env: Env,
+  user: SessionUser,
+  draftId: string,
+): Promise<Response> {
+  if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
+  const draft = await ownedDraft(env, user.id, draftId)
+  if (!draft) return json({ error: '草稿不存在。' }, 404)
   return json({
     draft: {
+      id: draft.id,
       mailboxAddress: draft.mailbox_address,
       to: draft.recipient_address,
       subject: draft.subject,
       text: draft.body_text,
-      updatedAt: draft.updated_at * 1000,
-      attachments: (await draftAttachments(env, user.id)).map(attachmentJson),
+      createdAt: draft.created_at,
+      updatedAt: draft.updated_at,
+      attachments: (await draftAttachments(env, user.id, draft.id)).map(attachmentJson),
     },
   })
 }
 
-export async function saveDraft(
+export async function createDraft(
   env: Env,
   user: SessionUser,
   request: Request,
@@ -145,30 +274,67 @@ export async function saveDraft(
   if (!await activeOwnedMailbox(env, user.id, draft.mailboxAddress)) {
     return json({ error: '发件邮箱不存在或已停用。' }, 404)
   }
+  const id = crypto.randomUUID()
+  const now = Date.now()
   await env.DB.prepare(
-    `INSERT INTO drafts (
-       user_id, mailbox_address, recipient_address, subject, body_text, updated_at
-     ) VALUES (?, ?, ?, ?, ?, unixepoch())
-     ON CONFLICT(user_id) DO UPDATE SET
-       mailbox_address = excluded.mailbox_address,
-       recipient_address = excluded.recipient_address,
-       subject = excluded.subject,
-       body_text = excluded.body_text,
-       updated_at = excluded.updated_at`,
-  ).bind(user.id, draft.mailboxAddress, draft.to, draft.subject, draft.text).run()
-  return getDraft(env, user)
+    `INSERT INTO mail_drafts (
+       id, user_id, mailbox_address, recipient_address, subject, body_text,
+       created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    id,
+    user.id,
+    draft.mailboxAddress,
+    draft.to,
+    draft.subject,
+    draft.text,
+    now,
+    now,
+  ).run()
+  const limits = await configuredDraftLimits(env.DB)
+  await pruneUserDrafts(env, user.id, draftLimitForRole(limits, user.role))
+  return getDraft(env, user, id)
+}
+
+export async function saveDraft(
+  env: Env,
+  user: SessionUser,
+  draftId: string,
+  request: Request,
+): Promise<Response> {
+  if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
+  const input = await request.json<DraftInput>().catch(() => ({} as DraftInput))
+  const validated = validateDraftInput(input)
+  if ('error' in validated) return json({ error: validated.error }, 400)
+  const draft = validated.value
+  if (!await ownedDraft(env, user.id, draftId)) return json({ error: '草稿不存在。' }, 404)
+  if (!await activeOwnedMailbox(env, user.id, draft.mailboxAddress)) {
+    return json({ error: '发件邮箱不存在或已停用。' }, 404)
+  }
+  await env.DB.prepare(
+    `UPDATE mail_drafts SET mailbox_address = ?, recipient_address = ?,
+        subject = ?, body_text = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`,
+  ).bind(
+    draft.mailboxAddress,
+    draft.to,
+    draft.subject,
+    draft.text,
+    Date.now(),
+    draftId,
+    user.id,
+  ).run()
+  return getDraft(env, user, draftId)
 }
 
 export async function uploadDraftAttachment(
   env: Env,
   user: SessionUser,
+  draftId: string,
   request: Request,
 ): Promise<Response> {
   if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
-  const draft = await env.DB.prepare(
-    'SELECT user_id FROM drafts WHERE user_id = ?',
-  ).bind(user.id).first<{ user_id: string }>()
-  if (!draft) return json({ error: '请先保存草稿。' }, 409)
+  if (!await ownedDraft(env, user.id, draftId)) return json({ error: '草稿不存在。' }, 404)
   const form = await request.formData().catch(() => null)
   const file = form?.get('file')
   if (!(file instanceof File) || file.size <= 0) {
@@ -179,8 +345,8 @@ export async function uploadDraftAttachment(
   }
   const total = await env.DB.prepare(
     `SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes
-       FROM draft_attachments WHERE user_id = ?`,
-  ).bind(user.id).first<{ count: number; bytes: number }>()
+       FROM mail_draft_attachments WHERE draft_id = ?`,
+  ).bind(draftId).first<{ count: number; bytes: number }>()
   if ((total?.count || 0) >= MAX_DRAFT_ATTACHMENTS) {
     return json({ error: '一封邮件最多添加 5 个附件。' }, 409)
   }
@@ -191,7 +357,7 @@ export async function uploadDraftAttachment(
     return json({ error: '邮箱存储空间已满，请清理邮件后重试。' }, 409)
   }
   const id = crypto.randomUUID()
-  const key = `drafts/${user.id}/${id}`
+  const key = `drafts/${user.id}/${draftId}/${id}`
   const filename = normalizeDraftFilename(file.name)
   const contentType = file.type && file.type.length <= 100 && !/[\r\n]/.test(file.type)
     ? file.type
@@ -199,13 +365,18 @@ export async function uploadDraftAttachment(
   try {
     await env.MAIL_BUCKET.put(key, file, {
       httpMetadata: { contentType },
-      customMetadata: { filename, userId: user.id },
+      customMetadata: { filename, userId: user.id, draftId },
     })
-    await env.DB.prepare(
-      `INSERT INTO draft_attachments (
-         id, user_id, filename, content_type, size, r2_key
-       ) VALUES (?, ?, ?, ?, ?, ?)`,
-    ).bind(id, user.id, filename, contentType, file.size, key).run()
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mail_draft_attachments (
+           id, draft_id, filename, content_type, size, r2_key, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(id, draftId, filename, contentType, file.size, key, Date.now()),
+      env.DB.prepare(
+        'UPDATE mail_drafts SET updated_at = ? WHERE id = ? AND user_id = ?',
+      ).bind(Date.now(), draftId, user.id),
+    ])
   } catch (error) {
     await env.MAIL_BUCKET.delete(key).catch(() => undefined)
     await env.DB.prepare(
@@ -216,59 +387,63 @@ export async function uploadDraftAttachment(
   }
   return json({ attachment: attachmentJson({
     id,
-    user_id: user.id,
+    draft_id: draftId,
     filename,
     content_type: contentType,
     size: file.size,
     r2_key: key,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: Date.now(),
   }) }, 201)
 }
 
 export async function deleteDraftAttachment(
   env: Env,
   user: SessionUser,
+  draftId: string,
   attachmentId: string,
 ): Promise<Response> {
   const attachment = await env.DB.prepare(
-    `SELECT id, user_id, filename, content_type, size, r2_key, created_at
-       FROM draft_attachments WHERE id = ? AND user_id = ?`,
-  ).bind(attachmentId, user.id).first<DraftAttachmentRow>()
+    `SELECT a.id, a.draft_id, a.filename, a.content_type, a.size, a.r2_key, a.created_at
+       FROM mail_draft_attachments a
+       JOIN mail_drafts d ON d.id = a.draft_id
+      WHERE a.id = ? AND a.draft_id = ? AND d.user_id = ?`,
+  ).bind(attachmentId, draftId, user.id).first<DraftAttachmentRow>()
   if (!attachment) return json({ error: '草稿附件不存在。' }, 404)
   await env.MAIL_BUCKET.delete(attachment.r2_key)
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM draft_attachments WHERE id = ?').bind(attachment.id),
+    env.DB.prepare('DELETE FROM mail_draft_attachments WHERE id = ?').bind(attachment.id),
     env.DB.prepare(
       `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
         updated_at = unixepoch() WHERE id = ?`,
     ).bind(attachment.size, user.id),
+    env.DB.prepare(
+      'UPDATE mail_drafts SET updated_at = ? WHERE id = ? AND user_id = ?',
+    ).bind(Date.now(), draftId, user.id),
   ])
   return json({ ok: true })
 }
 
-export async function discardDraft(env: Env, user: SessionUser): Promise<Response> {
-  await purgeUserDraft(env, user.id)
+export async function discardDraft(
+  env: Env,
+  user: SessionUser,
+  draftId: string,
+): Promise<Response> {
+  if (!await ownedDraft(env, user.id, draftId)) return json({ error: '草稿不存在。' }, 404)
+  await purgeDraftIds(env, [draftId])
   return json({ ok: true })
 }
 
 export async function purgeUserDraft(env: Env, userId: string): Promise<void> {
-  const attachments = await draftAttachments(env, userId)
-  if (attachments.length) {
-    await env.MAIL_BUCKET.delete(attachments.map((attachment) => attachment.r2_key))
-  }
-  const bytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM drafts WHERE user_id = ?').bind(userId),
-    env.DB.prepare(
-      `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
-        updated_at = unixepoch() WHERE id = ?`,
-    ).bind(bytes, userId),
-  ])
+  const { results } = await env.DB.prepare(
+    'SELECT id FROM mail_drafts WHERE user_id = ?',
+  ).bind(userId).all<{ id: string }>()
+  await purgeDraftIds(env, results.map((draft) => draft.id))
 }
 
 export async function sendDraft(
   env: Env,
   user: SessionUser,
+  draftId: string,
   request: Request,
   ip: string,
 ): Promise<Response> {
@@ -315,10 +490,7 @@ export async function sendDraft(
       providerId: existing.provider_id || undefined,
     } }, existing.status === 'sent' ? 200 : 202)
   }
-  const draft = await env.DB.prepare(
-    `SELECT user_id, mailbox_address, recipient_address, subject, body_text, updated_at
-       FROM drafts WHERE user_id = ?`,
-  ).bind(user.id).first<DraftRow>()
+  const draft = await ownedDraft(env, user.id, draftId)
   if (!draft) return json({ error: '草稿不存在。' }, 404)
   const validated = validateNewMessage({
     mailboxAddress: draft.mailbox_address,
@@ -334,13 +506,14 @@ export async function sendDraft(
   if (!resendConfigForAddress(env, draft.mailbox_address)) {
     return json({ error: '该发件域名尚未配置 Resend。' }, 503)
   }
-  const attachments: OutboundAttachment[] = (await draftAttachments(env, user.id)).map((item) => ({
-    id: item.id,
-    filename: item.filename,
-    contentType: item.content_type,
-    size: item.size,
-    r2Key: item.r2_key,
-  }))
+  const attachments: OutboundAttachment[] = (await draftAttachments(env, user.id, draftId))
+    .map((item) => ({
+      id: item.id,
+      filename: item.filename,
+      contentType: item.content_type,
+      size: item.size,
+      r2Key: item.r2_key,
+    }))
   const message = validated.value
   return sendOutboundMessage(env, user, {
     mailboxAddress: message.mailboxAddress,
@@ -349,7 +522,7 @@ export async function sendDraft(
     text: message.text,
     idempotencyKey: message.idempotencyKey,
     attachments,
-    draftUserId: user.id,
+    draftId,
     auditAction: 'message.send',
     auditDetail: { recipient: message.to, attachmentCount: attachments.length },
   }, ip)

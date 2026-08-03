@@ -3,6 +3,7 @@ import {
   Archive,
   CheckCircle2,
   DatabaseBackup,
+  FilePenLine,
   HardDrive,
   LoaderCircle,
   Play,
@@ -65,6 +66,7 @@ export function StoragePolicySettings() {
         failedMessageRetentionDays: nextPolicy.failedMessageRetentionDays,
         defaultUserQuotaMiB: nextPolicy.defaultUserQuotaMiB,
         defaultTemporaryQuotaMiB: nextPolicy.defaultTemporaryQuotaMiB,
+        draftLimits: nextPolicy.draftLimits,
       })
       setPolicy(result.storagePolicy)
       setNotice(t('备份与存储策略已保存。'))
@@ -99,6 +101,14 @@ export function StoragePolicySettings() {
 
   function update<K extends keyof StoragePolicy>(key: K, value: StoragePolicy[K]) {
     setPolicy((current) => current ? { ...current, [key]: value } : current)
+    setNotice('')
+  }
+
+  function updateDraftLimit(key: keyof StoragePolicy['draftLimits'], value: number) {
+    setPolicy((current) => current ? {
+      ...current,
+      draftLimits: { ...current.draftLimits, [key]: value },
+    } : current)
     setNotice('')
   }
 
@@ -232,13 +242,37 @@ export function StoragePolicySettings() {
                 <span><input type="number" min={16} max={10240} value={policy.defaultTemporaryQuotaMiB}
                   onChange={(event) => update('defaultTemporaryQuotaMiB', Number(event.target.value))} />MiB</span>
               </label>
+              <div className="storage-policy-section-heading">
+                <FilePenLine size={15} />
+                <span><strong>{t('草稿保存量')}</strong><small>{t('每个账户最近保留的草稿数量')}</small></span>
+              </div>
+              <label>
+                <span>{t('主管理员')}</span>
+                <span><input type="number" min={1} max={20} value={policy.draftLimits.superAdmin}
+                  onChange={(event) => updateDraftLimit('superAdmin', Number(event.target.value))} />{t('封')}</span>
+              </label>
+              <label>
+                <span>{t('管理员')}</span>
+                <span><input type="number" min={1} max={20} value={policy.draftLimits.admin}
+                  onChange={(event) => updateDraftLimit('admin', Number(event.target.value))} />{t('封')}</span>
+              </label>
+              <label>
+                <span>{t('普通用户')}</span>
+                <span><input type="number" min={1} max={20} value={policy.draftLimits.user}
+                  onChange={(event) => updateDraftLimit('user', Number(event.target.value))} />{t('封')}</span>
+              </label>
+              <label>
+                <span>{t('临时用户')}</span>
+                <span><input type="number" min={1} max={20} value={policy.draftLimits.temporary}
+                  onChange={(event) => updateDraftLimit('temporary', Number(event.target.value))} />{t('封')}</span>
+              </label>
             </div>
           </div>
 
           <BackupBrowser enabled={policy.backupReady} />
 
           <footer className="storage-policy-footer">
-            <small>{t('修改默认配额只影响之后创建的账户；单个用户配额可在用户管理中调整。')}</small>
+            <small>{t('草稿上限保存后立即生效；超出部分会从最早的草稿开始清理。')}</small>
             <button
               className="button button--primary button--small"
               type="button"

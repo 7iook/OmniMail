@@ -110,6 +110,32 @@
   gap: 9px;
 }
 
+.storage-policy-section-heading {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 9px;
+  margin-top: 5px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+  color: var(--text-secondary);
+}
+
+.storage-policy-section-heading > span {
+  display: grid;
+  gap: 2px;
+}
+
+.storage-policy-section-heading strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.storage-policy-section-heading small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
 .storage-policy-fields label {
   display: grid;
   gap: 7px;

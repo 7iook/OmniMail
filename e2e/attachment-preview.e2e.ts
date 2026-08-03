@@ -35,7 +35,7 @@ test('previews PDF and image attachments while unsupported files stay downloads'
       isPrimary: true, isActive: true,
     }] })
     if (pathname === '/api/domains') return json(route, { domains: [] })
-    if (pathname === '/api/draft') return json(route, { draft: null })
+    if (pathname === '/api/drafts') return json(route, { drafts: [], limit: 5 })
     if (pathname === '/api/messages/message-1') return json(route, {
       message: {
         ...message, messageId: null, inReplyTo: null, references: null,

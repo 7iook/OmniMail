@@ -16,7 +16,7 @@ export type OutboundMessage = {
   inReplyTo?: string | null
   references?: string
   attachments?: OutboundAttachment[]
-  draftUserId?: string
+  draftId?: string
   auditAction: 'message.reply' | 'message.send'
   auditDetail: Record<string, unknown>
 }
@@ -186,7 +186,7 @@ export async function sendOutboundMessage(
   const attachments = input.attachments ?? []
   const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
   const quotaBytes = bodyBytes + attachmentBytes
-  const reserveBytes = input.draftUserId ? bodyBytes : quotaBytes
+  const reserveBytes = input.draftId ? bodyBytes : quotaBytes
   if (!await reserveStorage(env.DB, user.id, reserveBytes)) {
     return json({ error: '邮箱存储空间已满，请清理邮件后重试。' }, 409)
   }
@@ -247,12 +247,12 @@ export async function sendOutboundMessage(
       body: input.text,
     }),
   ]
-  if (input.draftUserId) {
+  if (input.draftId) {
     statements.push(
-      env.DB.prepare('DELETE FROM draft_attachments WHERE user_id = ?')
-        .bind(input.draftUserId),
-      env.DB.prepare('DELETE FROM drafts WHERE user_id = ?')
-        .bind(input.draftUserId),
+      env.DB.prepare('DELETE FROM mail_draft_attachments WHERE draft_id = ?')
+        .bind(input.draftId),
+      env.DB.prepare('DELETE FROM mail_drafts WHERE id = ?')
+        .bind(input.draftId),
     )
   }
   try {
@@ -391,7 +391,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
         attachments: attachments.length ? attachments : undefined,
         headers,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(attachments.length ? 60_000 : 15_000),
     })
   } catch (error) {
     throw new OutboundDeliveryError(

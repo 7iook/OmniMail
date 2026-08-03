@@ -107,7 +107,7 @@ describe('outbound delivery', () => {
       subject: 'Files',
       text: 'Attached',
       idempotencyKey: 'request_attachments',
-      draftUserId: user.id,
+      draftId: 'draft-1',
       attachments: [{
         id: 'attachment-1',
         filename: 'report.pdf',
@@ -121,7 +121,7 @@ describe('outbound delivery', () => {
 
     expect(response.status).toBe(202)
     expect(statements.some(({ sql }) => sql.includes('INSERT INTO attachments'))).toBe(true)
-    expect(statements.some(({ sql }) => sql.includes('DELETE FROM drafts'))).toBe(true)
+    expect(statements.some(({ sql }) => sql.includes('DELETE FROM mail_drafts'))).toBe(true)
     expect(statements.some(({ sql }) => sql.includes('attachment_count'))).toBe(true)
   })
 

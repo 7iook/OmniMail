@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  FileImage,
   FileText,
   LoaderCircle,
   Paperclip,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import {
   type ChangeEvent,
+  type DragEvent,
   type FormEvent,
   useCallback,
   useEffect,
@@ -32,6 +34,32 @@ export type ComposeDraftFields = Pick<
   'mailboxAddress' | 'to' | 'subject' | 'text'
 >
 
+const MAX_COMPOSE_ATTACHMENTS = 5
+const MAX_COMPOSE_ATTACHMENT_BYTES = 5 * 1024 * 1024
+const MAX_COMPOSE_ATTACHMENT_TOTAL_BYTES = 10 * 1024 * 1024
+
+export function attachmentSelectionError(
+  files: readonly { size: number }[],
+  existing: readonly { size: number }[],
+): string | null {
+  if (files.length + existing.length > MAX_COMPOSE_ATTACHMENTS) {
+    return '一封邮件最多添加 5 个附件。'
+  }
+  if (files.some((file) => file.size > MAX_COMPOSE_ATTACHMENT_BYTES)) {
+    return '单个附件不能超过 5 MiB。'
+  }
+  const total = [...existing, ...files].reduce((bytes, file) => bytes + file.size, 0)
+  return total > MAX_COMPOSE_ATTACHMENT_TOTAL_BYTES
+    ? '附件总大小不能超过 10 MiB。'
+    : null
+}
+
+export function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
+}
+
 export function mergeLoadedDraftFields(
   current: ComposeDraftFields,
   loaded: ComposeDraftFields,
@@ -52,13 +80,17 @@ export function mergeLoadedDraftFields(
 export function ComposeDialog({
   mailboxes,
   initialMailbox,
+  draftId,
   onClose,
   onSent,
+  onDraftChanged,
 }: {
   mailboxes: MailboxAddress[]
   initialMailbox: string
+  draftId: string | null
   onClose: () => void
   onSent: () => void
+  onDraftChanged: () => void
 }) {
   const [draftFields, setDraftFields] = useState<ComposeDraftFields>({
     mailboxAddress: initialMailbox,
@@ -68,14 +100,19 @@ export function ComposeDialog({
   })
   const { mailboxAddress, to, subject, text } = draftFields
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
-  const [draftLoaded, setDraftLoaded] = useState(false)
+  const [draftLoaded, setDraftLoaded] = useState(!draftId)
   const [draftLoadFailed, setDraftLoadFailed] = useState(false)
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [draggingAttachment, setDraggingAttachment] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [closing, setClosing] = useState(false)
   const [error, setError] = useState('')
   const attachmentInput = useRef<HTMLInputElement>(null)
+  const attachmentDragDepth = useRef(0)
+  const activeDraftId = useRef<string | null>(draftId)
+  const draftVersion = useRef(0)
+  const savedDraftVersion = useRef(0)
   const draftSaveQueue = useRef<Promise<void>>(Promise.resolve())
   const editedDraftFields = useRef(new Set<keyof ComposeDraftFields>())
   const finalizing = useRef(false)
@@ -84,27 +121,46 @@ export function ComposeDialog({
     [],
   )
   const busy = sending || uploading || discarding || closing
+  const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
+  const attachmentLimitReached = attachments.length >= MAX_COMPOSE_ATTACHMENTS
 
   function updateDraftField<Key extends keyof ComposeDraftFields>(
     field: Key,
     value: ComposeDraftFields[Key],
   ) {
     editedDraftFields.current.add(field)
+    draftVersion.current += 1
     setDraftFields((current) => ({ ...current, [field]: value }))
   }
 
-  const saveCurrentDraft = useCallback(() => {
+  const saveCurrentDraft = useCallback((force = false) => {
     const input = { mailboxAddress, to, subject, text }
-    const request = draftSaveQueue.current.then(() => api.saveDraft(input))
+    const version = draftVersion.current
+    const request = draftSaveQueue.current.then(async () => {
+      if (!activeDraftId.current) {
+        if (!force && savedDraftVersion.current >= version) return null
+        const result = await api.createDraft(input)
+        activeDraftId.current = result.draft.id
+        savedDraftVersion.current = Math.max(savedDraftVersion.current, version)
+        onDraftChanged()
+        return result.draft.id
+      }
+      if (!force && savedDraftVersion.current >= version) return activeDraftId.current
+      await api.saveDraft(activeDraftId.current, input)
+      savedDraftVersion.current = Math.max(savedDraftVersion.current, version)
+      onDraftChanged()
+      return activeDraftId.current
+    })
     draftSaveQueue.current = request.then(() => undefined, () => undefined)
     return request
-  }, [mailboxAddress, subject, text, to])
+  }, [mailboxAddress, onDraftChanged, subject, text, to])
 
   useEffect(() => {
+    if (!draftId) return
     let active = true
-    void api.draft()
+    void api.draft(draftId)
       .then(({ draft }) => {
-        if (!active || !draft) return
+        if (!active) return
         setDraftFields((current) => mergeLoadedDraftFields(
           current,
           draft,
@@ -120,7 +176,7 @@ export function ComposeDialog({
       })
       .finally(() => active && setDraftLoaded(true))
     return () => { active = false }
-  }, [mailboxes])
+  }, [draftId, mailboxes])
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -160,18 +216,23 @@ export function ComposeDialog({
     }
   }
 
-  async function addAttachments(event: ChangeEvent<HTMLInputElement>) {
-    const files = [...(event.target.files ?? [])]
-    event.target.value = ''
+  async function uploadAttachments(files: File[]) {
     if (!files.length) return
+    const validationError = attachmentSelectionError(files, attachments)
+    if (validationError) {
+      setError(t(validationError))
+      return
+    }
     setUploading(true)
     setError('')
     try {
-      await saveCurrentDraft()
-      for (const file of files.slice(0, Math.max(0, 5 - attachments.length))) {
-        const result = await api.uploadDraftAttachment(file)
+      const currentDraftId = await saveCurrentDraft(true)
+      if (!currentDraftId) return
+      for (const file of files) {
+        const result = await api.uploadDraftAttachment(currentDraftId, file)
         setAttachments((current) => [...current, result.attachment])
       }
+      onDraftChanged()
     } catch (uploadError) {
       setError(errorMessage(uploadError))
     } finally {
@@ -179,12 +240,54 @@ export function ComposeDialog({
     }
   }
 
+  function addAttachments(event: ChangeEvent<HTMLInputElement>) {
+    const files = [...(event.target.files ?? [])]
+    event.target.value = ''
+    void uploadAttachments(files)
+  }
+
+  function isFileDrag(event: DragEvent<HTMLFormElement>): boolean {
+    return Array.from(event.dataTransfer.types).includes('Files')
+  }
+
+  function startAttachmentDrag(event: DragEvent<HTMLFormElement>) {
+    if (!draftLoaded || busy || !isFileDrag(event)) return
+    event.preventDefault()
+    attachmentDragDepth.current += 1
+    setDraggingAttachment(true)
+  }
+
+  function continueAttachmentDrag(event: DragEvent<HTMLFormElement>) {
+    if (!draftLoaded || busy || !isFileDrag(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function endAttachmentDrag(event: DragEvent<HTMLFormElement>) {
+    if (!attachmentDragDepth.current) return
+    event.preventDefault()
+    attachmentDragDepth.current = Math.max(0, attachmentDragDepth.current - 1)
+    if (!attachmentDragDepth.current) setDraggingAttachment(false)
+  }
+
+  function dropAttachments(event: DragEvent<HTMLFormElement>) {
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    attachmentDragDepth.current = 0
+    setDraggingAttachment(false)
+    if (!draftLoaded || busy) return
+    void uploadAttachments([...event.dataTransfer.files])
+  }
+
   async function removeAttachment(attachment: DraftAttachment) {
+    const currentDraftId = activeDraftId.current
+    if (!currentDraftId) return
     setUploading(true)
     setError('')
     try {
-      await api.deleteDraftAttachment(attachment.id)
+      await api.deleteDraftAttachment(currentDraftId, attachment.id)
       setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+      onDraftChanged()
     } catch (removeError) {
       setError(errorMessage(removeError))
     } finally {
@@ -193,12 +296,18 @@ export function ComposeDialog({
   }
 
   async function discard() {
+    const currentDraftId = activeDraftId.current
+    if (!currentDraftId) {
+      onClose()
+      return
+    }
     finalizing.current = true
     setDiscarding(true)
     setError('')
     try {
       await draftSaveQueue.current
-      await api.discardDraft()
+      await api.discardDraft(currentDraftId)
+      onDraftChanged()
       onClose()
     } catch (discardError) {
       finalizing.current = false
@@ -214,8 +323,10 @@ export function ComposeDialog({
     setSending(true)
     setError('')
     try {
-      await saveCurrentDraft()
-      await api.sendDraft(idempotencyKey)
+      const currentDraftId = await saveCurrentDraft(true)
+      if (!currentDraftId) return
+      await api.sendDraft(currentDraftId, idempotencyKey)
+      onDraftChanged()
       onSent()
     } catch (sendError) {
       finalizing.current = false
@@ -233,10 +344,21 @@ export function ComposeDialog({
         aria-labelledby="compose-title"
         aria-describedby="compose-description"
         onSubmit={submit}
+        onDragEnter={startAttachmentDrag}
+        onDragOver={continueAttachmentDrag}
+        onDragLeave={endAttachmentDrag}
+        onDrop={dropAttachments}
       >
+        {draggingAttachment && (
+          <div className="compose-drop-overlay" aria-hidden="true">
+            <Paperclip size={24} />
+            <strong>{t('松开即可添加附件')}</strong>
+            <span>{t('支持图片和文档；单个 5 MiB，合计 10 MiB')}</span>
+          </div>
+        )}
         <header>
           <div>
-            <h2 id="compose-title">{t('新建邮件')}</h2>
+            <h2 id="compose-title">{t(draftId ? '编辑草稿' : '新建邮件')}</h2>
             <span className="compose-provider"><ShieldCheck size={13} />{t('Resend 发信')}</span>
           </div>
           <button className="icon-button" type="button" onClick={() => void closeAndSave()}
@@ -278,18 +400,29 @@ export function ComposeDialog({
               placeholder={t('写下邮件内容…')} maxLength={50_000} required disabled={busy} />
           </label>
           {attachments.length > 0 && (
-            <div className="compose-attachments">
-              {attachments.map((attachment) => (
-                <span className="compose-attachment" key={attachment.id}>
-                  <FileText size={14} />
-                  <span>{attachment.filename}</span>
-                  <button type="button" onClick={() => void removeAttachment(attachment)}
-                    disabled={busy} aria-label={t('移除附件：{name}', { name: attachment.filename })}>
-                    <X size={13} />
-                  </button>
-                </span>
-              ))}
-            </div>
+            <section className="compose-attachments" aria-label={t('附件')}>
+              <div className="compose-attachments__summary" aria-live="polite">
+                <strong><Paperclip size={13} />{t('附件')}</strong>
+                <span>{attachments.length}/{MAX_COMPOSE_ATTACHMENTS} · {formatAttachmentSize(attachmentBytes)}</span>
+              </div>
+              <div className="compose-attachments__items">
+                {attachments.map((attachment) => (
+                  <span className="compose-attachment" key={attachment.id}>
+                    {attachment.contentType.startsWith('image/')
+                      ? <FileImage size={15} />
+                      : <FileText size={15} />}
+                    <span className="compose-attachment__detail">
+                      <strong title={attachment.filename}>{attachment.filename}</strong>
+                      <small>{formatAttachmentSize(attachment.size)}</small>
+                    </span>
+                    <button type="button" onClick={() => void removeAttachment(attachment)}
+                      disabled={busy} aria-label={t('移除附件：{name}', { name: attachment.filename })}>
+                      <X size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </section>
           )}
           {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
         </div>
@@ -299,13 +432,14 @@ export function ComposeDialog({
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}
             {t('发送邮件')}
           </button>
-          <input ref={attachmentInput} className="sr-only" type="file" multiple
-            onChange={(event) => void addAttachments(event)} disabled={busy || attachments.length >= 5} />
+          <input ref={attachmentInput} className="sr-only" type="file" multiple tabIndex={-1}
+            aria-label={t('选择附件')} onChange={addAttachments}
+            disabled={busy || attachmentLimitReached} />
           <button className="compose-attach" type="button"
             onClick={() => attachmentInput.current?.click()}
-            disabled={busy || !draftLoaded || attachments.length >= 5}
-            aria-label={t('添加附件')} data-tooltip={t('添加附件')}>
+            disabled={busy || !draftLoaded || attachmentLimitReached}>
             {uploading ? <LoaderCircle className="spin" size={17} /> : <Paperclip size={17} />}
+            <span>{uploading ? t('正在上传…') : t('添加附件')}</span>
           </button>
           <span className="compose-delivery-note">
             <ShieldCheck size={13} />{t('草稿自动保存；通过 Resend 安全发送。')}

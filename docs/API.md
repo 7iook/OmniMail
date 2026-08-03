@@ -363,29 +363,32 @@ POST /api/admin/users/{id}/outbound-rate-limit/reset
 
 ### 草稿与发件附件
 
-每个用户保存一份服务端草稿：
+每个用户默认保留最近 5 份服务端草稿；管理员可按主管理员、管理员、普通用户和临时用户
+分别设置 1–20 份的保存上限。超过上限时按更新时间自动清理最早的草稿及其附件：
 
 ```http
-GET /api/draft
-PUT /api/draft
-DELETE /api/draft
+GET /api/drafts
+POST /api/drafts
+GET /api/drafts/{draftId}
+PUT /api/drafts/{draftId}
+DELETE /api/drafts/{draftId}
 ```
 
-`PUT` 的 JSON 字段为 `mailboxAddress`、`to`、`subject` 和 `text`。草稿允许收件人、
+`POST` 和 `PUT` 的 JSON 字段为 `mailboxAddress`、`to`、`subject` 和 `text`。草稿允许收件人、
 主题或正文暂未填写完整；真正发送时仍执行完整邮件校验。
 
 附件使用 `multipart/form-data` 上传，字段名为 `file`：
 
 ```http
-POST /api/draft/attachments
-DELETE /api/draft/attachments/{attachmentId}
+POST /api/drafts/{draftId}/attachments
+DELETE /api/drafts/{draftId}/attachments/{attachmentId}
 ```
 
 单个附件最多 5 MiB，每封最多 5 个且合计最多 10 MiB。上传时即计入用户空间；
 删除或丢弃草稿会释放空间。完成草稿后提交幂等请求：
 
 ```http
-POST /api/draft/send
+POST /api/drafts/{draftId}/send
 Content-Type: application/json
 
 { "idempotencyKey": "request_12345678" }
@@ -514,10 +517,11 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
 | `GET /api/messages` | 邮件列表、筛选与分页 |
 | `POST /api/messages` | 使用 Resend 主动发送邮件 |
-| `GET/PUT/DELETE /api/draft` | 读取、保存或丢弃当前用户草稿 |
-| `POST /api/draft/attachments` | 上传草稿附件 |
-| `DELETE /api/draft/attachments/{id}` | 删除草稿附件 |
-| `POST /api/draft/send` | 幂等发送草稿及附件 |
+| `GET/POST /api/drafts` | 列出或新建当前用户草稿 |
+| `GET/PUT/DELETE /api/drafts/{id}` | 读取、保存或丢弃指定草稿 |
+| `POST /api/drafts/{id}/attachments` | 上传草稿附件 |
+| `DELETE /api/drafts/{id}/attachments/{attachmentId}` | 删除草稿附件 |
+| `POST /api/drafts/{id}/send` | 幂等发送草稿及附件 |
 | `GET /api/messages/{id}` | 邮件正文和附件元数据 |
 | `PATCH /api/messages/{id}` | 已读、星标和文件夹状态 |
 | `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
@@ -534,8 +538,8 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `GET /api/admin/version/update/{buildId}` | 主管理员查询更新构建状态 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员邀请列表 |
-| `GET /api/admin/settings/storage` | 查询备份就绪状态、保留期和默认配额 |
-| `PATCH /api/admin/settings/storage` | 更新备份开关、保留期和默认配额 |
+| `GET /api/admin/settings/storage` | 查询备份、保留期、默认配额和分角色草稿上限 |
+| `PATCH /api/admin/settings/storage` | 更新备份、保留期、默认配额和分角色草稿上限 |
 | `POST /api/admin/backups` | 手动启动一次备份 |
 | `GET /api/admin/backups/objects` | 分页浏览备份对象 |
 | `GET /api/admin/backups/download` | 下载指定备份对象 |

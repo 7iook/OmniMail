@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   MAX_DRAFT_ATTACHMENT_BYTES,
   normalizeDraftFilename,
+  pruneDraftsForLimits,
   sendDraft,
   validateDraftInput,
 } from './draft-api'
@@ -73,7 +74,8 @@ describe('mail draft validation', () => {
     const response = await sendDraft(
       env,
       user,
-      new Request('https://mail.example/api/draft/send', {
+      'draft-1',
+      new Request('https://mail.example/api/drafts/draft-1/send', {
         method: 'POST',
         body: JSON.stringify({ idempotencyKey: 'request_retry' }),
       }),
@@ -86,5 +88,43 @@ describe('mail draft validation', () => {
       messageId: 'out-1',
       userId: 'user-1',
     }))
+  })
+
+  it('prunes excess drafts in bounded database batches', async () => {
+    const excess = Array.from({ length: 205 }, (_, index) => ({ id: `draft-${index}` }))
+    const deleteBatchSizes: number[] = []
+    const database = {
+      prepare(sql: string) {
+        let bindings: unknown[] = []
+        return {
+          bind(...values: unknown[]) { bindings = values; return this },
+          async all() {
+            if (sql.includes('ROW_NUMBER()')) return { results: excess }
+            if (sql.includes('FROM mail_draft_attachments')) return { results: [] }
+            return { results: [] }
+          },
+          sql,
+          get bindings() { return bindings },
+        }
+      },
+      async batch(statements: Array<{ sql: string; bindings: unknown[] }>) {
+        const deletion = statements.find((statement) => statement.sql.includes('DELETE FROM mail_drafts'))
+        if (deletion) deleteBatchSizes.push(deletion.bindings.length)
+        return []
+      },
+    }
+    const env = {
+      DB: database,
+      MAIL_BUCKET: { delete: vi.fn(async () => undefined) },
+    } as unknown as Env
+
+    await pruneDraftsForLimits(env, {
+      superAdmin: 8,
+      admin: 7,
+      user: 5,
+      temporary: 3,
+    })
+
+    expect(deleteBatchSizes).toEqual([100, 100, 5])
   })
 })

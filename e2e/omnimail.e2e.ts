@@ -2,8 +2,7 @@ import { expect, type Page, type Route, test } from '@playwright/test'
 import { beginMessageRowDrag, endMessageRowDrag, moveMessageRowDrag } from './drag-selection'
 import { message, reply, user } from './omnimail-fixtures'
 type MockState = {
-  messageRequests: number
-  conditionalRequests: number
+  messageRequests: number; conditionalRequests: number
   failed: boolean
   version: number
   messageVisible: boolean
@@ -71,9 +70,10 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/domains') return json(route, { domains: [
       { name: 'example.com', isActive: true, mailboxCount: 1, createdAt: 1, updatedAt: 1 },
     ] })
-    if (path === '/api/draft' && request.method() === 'GET') return json(route, { draft: null })
-    if (path === '/api/draft' && request.method() === 'PUT') { state.sentMessage = request.postDataJSON() as Record<string, string>; return json(route, { draft: { ...state.sentMessage, updatedAt: 1, attachments: [] } }) }
-    if (path === '/api/draft/send' && request.method() === 'POST') { state.version += 1; return json(route, { message: { id: 'sent-1', status: 'queued' } }, 202) }
+    if (path === '/api/drafts' && request.method() === 'GET') return json(route, { drafts: [], limit: 5 })
+    if (path === '/api/drafts' && request.method() === 'POST') { state.sentMessage = request.postDataJSON() as Record<string, string>; return json(route, { draft: { id: 'draft-1', ...state.sentMessage, createdAt: 1, updatedAt: 1, attachments: [] } }) }
+    if (path === '/api/drafts/draft-1' && request.method() === 'PUT') { state.sentMessage = request.postDataJSON() as Record<string, string>; return json(route, { draft: { id: 'draft-1', ...state.sentMessage, createdAt: 1, updatedAt: 1, attachments: [] } }) }
+    if (path === '/api/drafts/draft-1/send' && request.method() === 'POST') { state.version += 1; return json(route, { message: { id: 'sent-1', status: 'queued' } }, 202) }
     if (path === '/api/messages/message-1' && request.method() === 'PATCH') {
       const input = request.postDataJSON() as { folder?: string }
       if (input.folder === 'trash') state.messageVisible = false
@@ -117,7 +117,7 @@ async function mockApp(page: Page, state = mockState()) {
               index === 0 ? { ...item, subject: state.subject } : item
             ))
           : [],
-        counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
+        counts: { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 },
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
     }
@@ -410,7 +410,7 @@ test('bulk controls remain usable at common responsive widths', async ({ page })
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth <= nav.clientWidth, nav.querySelectorAll('.folder-nav > button, .account-nav > button').length])).toEqual([true, 5])
+    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth <= nav.clientWidth, nav.querySelectorAll('.folder-nav > button, .account-nav > button').length])).toEqual([true, 6])
   }
 })
 test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {

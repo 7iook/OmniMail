@@ -1,6 +1,6 @@
 import type { PlatformUsage } from './platformUsage'
 
-export type Folder = 'inbox' | 'starred' | 'sent' | 'trash'
+export type Folder = 'inbox' | 'starred' | 'drafts' | 'sent' | 'trash'
 
 export interface AppConfig {
   appName: string
@@ -154,6 +154,12 @@ export interface StoragePolicy {
   failedMessageRetentionDays: number
   defaultUserQuotaMiB: number
   defaultTemporaryQuotaMiB: number
+  draftLimits: {
+    superAdmin: number
+    admin: number
+    user: number
+    temporary: number
+  }
   lastBackup: {
     id: string
     trigger: 'scheduled' | 'manual' | 'enable'
@@ -188,6 +194,7 @@ export interface BackupDrillResult {
 export interface MailCounts {
   unread: number
   starred: number
+  drafts: number
   sent: number
   trash: number
 }
@@ -381,11 +388,24 @@ export interface DraftAttachment {
   size: number
 }
 
+export interface DraftSummary {
+  id: string
+  mailboxAddress: string
+  to: string
+  subject: string
+  preview: string
+  updatedAt: number
+  attachmentCount: number
+  attachmentBytes: number
+}
+
 export interface MailDraft {
+  id: string
   mailboxAddress: string
   to: string
   subject: string
   text: string
+  createdAt: number
   updatedAt: number
   attachments: DraftAttachment[]
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mergeLoadedDraftFields, type ComposeDraftFields } from './ComposeDialog'
+import {
+  attachmentSelectionError,
+  formatAttachmentSize,
+  mergeLoadedDraftFields,
+  type ComposeDraftFields,
+} from './ComposeDialog'
 import type { MailboxAddress } from '../lib/api'
 
 const mailboxes: MailboxAddress[] = [
@@ -42,5 +47,26 @@ describe('compose draft loading', () => {
       ...current,
       mailboxAddress: 'disabled@example.net',
     }, new Set(), mailboxes).mailboxAddress).toBe('owner@example.com')
+  })
+})
+
+describe('compose attachments', () => {
+  it('rejects selections that exceed the count or size limits', () => {
+    expect(attachmentSelectionError(
+      [{ size: 1024 }, { size: 1024 }],
+      Array.from({ length: 4 }, () => ({ size: 1024 })),
+    )).toBe('一封邮件最多添加 5 个附件。')
+    expect(attachmentSelectionError([{ size: 5 * 1024 * 1024 + 1 }], []))
+      .toBe('单个附件不能超过 5 MiB。')
+    expect(attachmentSelectionError(
+      [{ size: 2 * 1024 * 1024 }],
+      [{ size: 9 * 1024 * 1024 }],
+    )).toBe('附件总大小不能超过 10 MiB。')
+  })
+
+  it('formats attachment sizes for the compose list', () => {
+    expect(formatAttachmentSize(760)).toBe('760 B')
+    expect(formatAttachmentSize(1536)).toBe('1.5 KiB')
+    expect(formatAttachmentSize(2 * 1024 * 1024)).toBe('2.0 MiB')
   })
 })

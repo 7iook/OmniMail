@@ -170,15 +170,17 @@ export async function listMessages(
        SUM(CASE WHEN m.direction = 'incoming' AND m.folder = 'inbox' AND m.is_read = 0 THEN 1 ELSE 0 END) AS unread,
        SUM(CASE WHEN m.is_starred = 1 AND m.folder != 'trash' THEN 1 ELSE 0 END) AS starred,
        SUM(CASE WHEN m.direction = 'outgoing' AND m.folder = 'sent' THEN 1 ELSE 0 END) AS sent,
-       SUM(CASE WHEN m.folder = 'trash' THEN 1 ELSE 0 END) AS trash
+       SUM(CASE WHEN m.folder = 'trash' THEN 1 ELSE 0 END) AS trash,
+       (SELECT COUNT(*) FROM mail_drafts d WHERE d.user_id = ?) AS drafts
      FROM messages m
      JOIN mailboxes mb ON mb.address = m.mailbox_address
      WHERE ${scopeConditions.join(' AND ')}`,
-  ).bind(...scopeBindings).first<{
+  ).bind(user.id, ...scopeBindings).first<{
     unread: number | null
     starred: number | null
     sent: number | null
     trash: number | null
+    drafts: number | null
   }>()
 
   return Response.json({
@@ -190,6 +192,7 @@ export async function listMessages(
       starred: counts?.starred ?? 0,
       sent: counts?.sent ?? 0,
       trash: counts?.trash ?? 0,
+      drafts: counts?.drafts ?? 0,
     },
     page: result.page,
   })

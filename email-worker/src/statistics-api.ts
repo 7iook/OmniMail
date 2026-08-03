@@ -188,10 +188,10 @@ export async function mailStatistics(
     env.DB.prepare(
       `SELECT
         (SELECT COUNT(*) FROM attachments)
-          + (SELECT COUNT(*) FROM draft_attachments) AS attachment_count,
+          + (SELECT COUNT(*) FROM mail_draft_attachments) AS attachment_count,
         (SELECT COALESCE(SUM(size), 0) FROM attachments)
-          + (SELECT COALESCE(SUM(size), 0) FROM draft_attachments) AS attachment_bytes,
-        (SELECT COALESCE(SUM(size), 0) FROM draft_attachments) AS draft_attachment_bytes`,
+          + (SELECT COALESCE(SUM(size), 0) FROM mail_draft_attachments) AS attachment_bytes,
+        (SELECT COALESCE(SUM(size), 0) FROM mail_draft_attachments) AS draft_attachment_bytes`,
     ),
     env.DB.prepare(
       `SELECT COUNT(*) AS user_count,

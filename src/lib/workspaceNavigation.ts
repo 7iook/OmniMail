@@ -11,6 +11,7 @@ export type WorkspaceRoute =
 const folderPaths: Record<Folder, string> = {
   inbox: '/mail/inbox',
   starred: '/mail/starred',
+  drafts: '/mail/drafts',
   sent: '/mail/sent',
   trash: '/mail/trash',
 }

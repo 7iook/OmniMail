@@ -33,7 +33,7 @@ test('the super administrator can start an exact release update', async ({ page 
     if (path === '/api/session') return json(route, { user })
     if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
     if (path === '/api/domains') return json(route, { domains: [] })
-    if (path === '/api/draft') return json(route, { draft: null })
+    if (path === '/api/drafts') return json(route, { drafts: [], limit: 5 })
     if (path === '/api/messages') return json(route, {
       unchanged: false, version: 1, messages: [],
       counts: { unread: 0, starred: 0, sent: 0, trash: 0 },

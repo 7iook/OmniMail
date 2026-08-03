@@ -42,7 +42,7 @@ test('slow remote images do not block readable email content', async ({ page }) 
       isPrimary: true, isActive: true,
     }] })
     if (path === '/api/domains') return json(route, { domains: [] })
-    if (path === '/api/draft') return json(route, { draft: null })
+    if (path === '/api/drafts') return json(route, { drafts: [], limit: 5 })
     if (path === '/api/messages/message-1') return json(route, {
       message: {
         ...message, messageId: null, inReplyTo: null, references: null,
@@ -130,7 +130,7 @@ test('translates a message and switches back to the original', async ({ page }) 
       isPrimary: true, isActive: true,
     }] })
     if (path === '/api/domains') return json(route, { domains: [] })
-    if (path === '/api/draft') return json(route, { draft: null })
+    if (path === '/api/drafts') return json(route, { drafts: [], limit: 5 })
     if (path === '/api/messages/message-1/translation') {
       requestedTarget = request.postDataJSON().targetLanguage
       return json(route, { translation: {

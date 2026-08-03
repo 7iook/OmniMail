@@ -14,6 +14,7 @@ async function mockRateLimitAdmin(page: Page) {
     dayLimit: null as number | null,
     minuteUsed: 3,
     dayUsed: 20,
+    draftLimits: { superAdmin: 5, admin: 5, user: 5, temporary: 5 },
   }
   const rateState = () => ({
     ...state.settings,
@@ -49,16 +50,26 @@ async function mockRateLimitAdmin(page: Page) {
     if (path === '/api/domains') return json(route, { domains: [] })
     if (path === '/api/messages') return json(route, {
       unchanged: false, version: 1, messages: [],
-      counts: { unread: 0, starred: 0, sent: 0, trash: 0 },
+      counts: { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 },
       page: { hasMore: false, nextCursor: null, limit: 30 },
     })
-    if (path === '/api/admin/settings/storage') return json(route, { storagePolicy: {
+    if (path === '/api/admin/settings/storage' && request.method() === 'GET') return json(route, { storagePolicy: {
       backupEnabled: false, backupReady: false, backupMissing: [],
       backupRetention: { dailyDays: 30, weeklyDays: 84, monthlyDays: 365, mailDays: 90 },
       trashRetentionDays: 30, temporaryDataRetentionDays: 30,
       auditRetentionDays: 365, failedMessageRetentionDays: 7,
-      defaultUserQuotaMiB: 1024, defaultTemporaryQuotaMiB: 256, lastBackup: null,
+      defaultUserQuotaMiB: 1024, defaultTemporaryQuotaMiB: 256,
+      draftLimits: state.draftLimits, lastBackup: null,
     } })
+    if (path === '/api/admin/settings/storage' && request.method() === 'PATCH') {
+      const input = request.postDataJSON() as { draftLimits: typeof state.draftLimits }
+      state.draftLimits = input.draftLimits
+      return json(route, { storagePolicy: {
+        ...input, backupReady: false, backupMissing: [],
+        backupRetention: { dailyDays: 30, weeklyDays: 84, monthlyDays: 365, mailDays: 90 },
+        lastBackup: null,
+      } })
+    }
     if (path === '/api/admin/settings/outbound-rate-limit' && request.method() === 'GET') {
       return json(route, { outboundRateLimit: state.settings })
     }
@@ -99,6 +110,15 @@ async function mockRateLimitAdmin(page: Page) {
 test('administrators can manage global and per-user outbound rate limits', async ({ page }) => {
   const state = await mockRateLimitAdmin(page)
   await page.goto('/admin/settings')
+  const storage = page.locator('.storage-policy-card')
+  await storage.getByLabel('主管理员').fill('8')
+  await storage.getByRole('spinbutton', { name: '管理员 封', exact: true }).fill('7')
+  await storage.getByRole('spinbutton', { name: '普通用户 封', exact: true }).fill('5')
+  await storage.getByRole('spinbutton', { name: '临时用户 封', exact: true }).fill('3')
+  await storage.getByRole('button', { name: '保存策略' }).click()
+  await expect.poll(() => state.draftLimits).toEqual({
+    superAdmin: 8, admin: 7, user: 5, temporary: 3,
+  })
   await page.getByLabel('每分钟默认上限').fill('12')
   await page.getByLabel('每日默认上限').fill('300')
   await page.getByRole('button', { name: '保存限速设置' }).click()

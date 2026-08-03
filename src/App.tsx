@@ -2,6 +2,7 @@ import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
+import { DraftFolderContent } from './components/DraftFolderContent'
 import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
@@ -36,7 +37,7 @@ import { useNewMailNotifications } from './lib/useNewMailNotifications'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
-const emptyCounts: MailCounts = { unread: 0, starred: 0, sent: 0, trash: 0 }
+const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
   | { kind: 'bulk'; action: 'trash' | 'delete'; ids: string[] }
@@ -77,6 +78,8 @@ function Mailbox({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
+  const [draftComposeRequest, setDraftComposeRequest] = useState(0)
+  const [draftRefreshRequest, setDraftRefreshRequest] = useState(0)
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
   function closeDeploymentWizard() {
@@ -115,11 +118,9 @@ function Mailbox({
       setError(errorMessage(loadError))
     }
   }, [onLogout])
-
   const loadMailboxData = useCallback(async () => {
     await Promise.all([loadMailboxes(), loadDomains()])
   }, [loadDomains, loadMailboxes])
-
   const loadMessages = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true)
     else setListLoading(true)
@@ -153,7 +154,6 @@ function Mailbox({
       setRefreshing(false)
     }
   }, [deferredQuery, folder, mailNotifications.track, messageVersion, onLogout, scope, selectedId])
-
   async function loadMoreMessages() {
     if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
     setLoadingMore(true)
@@ -185,15 +185,13 @@ function Mailbox({
 
   useEffect(() => {
     setSelectedMessageIds(new Set())
-    void loadMessages()
+    if (folder !== 'drafts') void loadMessages()
   }, [folder, deferredQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
 
-  useMailboxRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView, messages, selectedId, detail?.status, selectMessage)
-
+  useMailboxRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView && folder !== 'drafts', messages, selectedId, detail?.status, selectMessage)
   useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(''), 3000)
@@ -358,6 +356,7 @@ function Mailbox({
     setQuery('')
   }
 
+  const changeDraftCount = useCallback((drafts: number) => setCounts((current) => ({ ...current, drafts })), [])
   return (
     <div className={`mail-layout ${selectedId ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
       <MailboxSidebar
@@ -402,26 +401,23 @@ function Mailbox({
           >
         <header className="list-header">
           <div>
-            <MailboxSwitcher
-              mailboxes={mailboxes}
-              loaded={mailboxesLoaded}
-              domains={domains}
-              scope={scope}
+            {folder === 'drafts' ? <span className="draft-list-kicker">{t('自动保存的未发送邮件')}</span> : <MailboxSwitcher
+              mailboxes={mailboxes} loaded={mailboxesLoaded}
+              domains={domains} scope={scope}
               canManage={isAdminRole(user.role) || user.canCreateMailboxes}
               onScopeChange={changeScope}
               onMailboxesChanged={loadMailboxData}
-            />
+            />}
             <h1>{folderLabel(folder)}</h1>
           </div>
           <MailboxHeaderActions
-            mailboxes={mailboxes}
-            domains={domains}
-            scope={scope}
+            mailboxes={mailboxes} domains={domains} scope={scope}
             canGenerate={isAdminRole(user.role) || user.canCreateMailboxes}
             canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
-            refreshing={refreshing}
-            notifications={mailNotifications}
-            onRefresh={() => void loadMessages(true)}
+            refreshing={refreshing} notifications={mailNotifications}
+            onRefresh={() => folder === 'drafts'
+              ? setDraftRefreshRequest((current) => current + 1)
+              : void loadMessages(true)}
             onCopied={(address) => {
               setError('')
               setNotice(t('已复制：{address}', { address }))
@@ -432,10 +428,10 @@ function Mailbox({
               changeScope({ type: 'mailbox', value: mailbox.address })
               setNotice(t('已生成：{address}', { address: mailbox.address }))
             }}
-            onMessageSent={() => { setNotice(t('邮件已进入发送队列')); void loadMessages(true) }}
+            onCompose={() => setDraftComposeRequest((current) => current + 1)}
           />
         </header>
-        <label className="search-field">
+        {folder !== 'drafts' && <label className="search-field">
           <Search size={17} />
           <span className="sr-only">{t('搜索邮件')}</span>
           <input
@@ -447,18 +443,22 @@ function Mailbox({
           {query && (
             <button type="button" onClick={() => setQuery('')} aria-label={t('清除搜索')}><X size={15} /></button>
           )}
-        </label>
+        </label>}
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
-        <MessageList
-          folder={folder}
-          messages={messages}
-          selectedId={selectedId}
-          selectedIds={selectedMessageIds}
-          loading={listLoading}
-          bulkLoading={bulkLoading}
+        <DraftFolderContent
+          active={folder === 'drafts'}
+          mailboxes={mailboxes.filter((mailbox) => mailbox.isActive)}
+          initialMailbox={scope.type === 'mailbox' ? scope.value : mailboxes.find((mailbox) => mailbox.isPrimary)?.address || mailboxes[0]?.address || ''}
+          composeRequest={draftComposeRequest} refreshRequest={draftRefreshRequest}
+          onCountChange={changeDraftCount}
+          onSent={() => setNotice(t('邮件已进入发送队列'))}
+        />
+        {folder !== 'drafts' && <MessageList
+          folder={folder} messages={messages}
+          selectedId={selectedId} selectedIds={selectedMessageIds}
+          loading={listLoading} bulkLoading={bulkLoading}
           showMailbox={scope.type !== 'mailbox'}
-          page={messagePage}
-          loadingMore={loadingMore}
+          page={messagePage} loadingMore={loadingMore}
           onSelect={(message) => void selectMessage(message)}
           onToggleSelection={toggleMessageSelection}
           onSetSelection={toggleMessageSelection}
@@ -466,12 +466,12 @@ function Mailbox({
           onBulkAction={(action, ids) => void runBulkAction(action, ids)}
           onStar={(message) => void toggleStar(message)}
           onLoadMore={() => void loadMoreMessages()}
-        />
+        />}
       </section>
 
       <main className="reader-pane">
         <MessageReader
-          message={detail}
+          message={detail} emptyLabel={folder === 'drafts' ? '选择草稿继续编辑' : '选择一封邮件'}
           loading={detailLoading}
           thread={thread}
           replyEnabled={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}

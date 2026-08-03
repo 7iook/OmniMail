@@ -7,6 +7,10 @@ describe('workspace routes', () => {
       kind: 'folder',
       folder: 'trash',
     })
+    expect(workspaceRoute('/mail/drafts', 'user')).toMatchObject({
+      kind: 'folder',
+      folder: 'drafts',
+    })
     expect(workspaceRoute('/admin/users', 'admin')).toMatchObject({
       kind: 'admin',
       view: 'users',

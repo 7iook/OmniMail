@@ -1,7 +1,39 @@
 export const enMailFeatures: Record<string, string> = {
+  '草稿箱': 'Drafts',
+  '编辑草稿': 'Edit draft',
+  '选择草稿继续编辑': 'Select a draft to continue editing',
+  '自动保存的未发送邮件': 'Autosaved unsent messages',
+  '正在读取草稿': 'Loading drafts',
+  '还没有草稿': 'No drafts yet',
+  '关闭未发送的邮件后，草稿会保存在这里。':
+    'Close an unsent message to keep it here as a draft.',
+  '已保存 {count}/{limit} 封草稿': '{count} of {limit} drafts saved',
+  '新草稿超过上限时会清理最早的一封':
+    'The oldest draft is removed when the limit is exceeded',
+  '草稿列表': 'Draft list',
+  '继续编辑草稿：{subject}': 'Continue editing draft: {subject}',
+  '未填写收件人': 'No recipient',
+  '删除草稿：{subject}': 'Delete draft: {subject}',
+  '删除草稿': 'Delete draft',
+  '删除这封草稿？': 'Delete this draft?',
+  '草稿“{subject}”将从草稿箱中删除。':
+    'The draft “{subject}” will be removed from Drafts.',
+  '草稿无法恢复': 'The draft cannot be recovered',
+  '正文和草稿附件都会被永久删除。':
+    'The message body and draft attachments will be permanently deleted.',
+  '草稿保存量': 'Draft retention limits',
+  '每个账户最近保留的草稿数量': 'Recent drafts retained for each account',
+  '草稿上限保存后立即生效；超出部分会从最早的草稿开始清理。':
+    'Draft limits apply immediately; excess drafts are removed oldest first.',
+  '封': 'drafts',
   '搜索发件人、主题或正文': 'Search sender, subject, or message body',
   '关闭并保留草稿': 'Close and keep draft',
   '添加附件': 'Add attachment',
+  '选择附件': 'Choose attachments',
+  '正在上传…': 'Uploading…',
+  '松开即可添加附件': 'Drop to add attachments',
+  '支持图片和文档；单个 5 MiB，合计 10 MiB':
+    'Images and documents; 5 MiB each, 10 MiB total',
   '移除附件：{name}': 'Remove attachment: {name}',
   '草稿自动保存；通过 Resend 安全发送。':
     'Drafts are saved automatically and sent securely with Resend.',

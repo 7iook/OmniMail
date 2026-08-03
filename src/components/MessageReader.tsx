@@ -180,6 +180,7 @@ export function MessageReader({
   canRetryFailedMessage,
   onRetryFailedMessage,
   onSelectThread,
+  emptyLabel = '选择一封邮件',
 }: {
   message: MessageDetail | null
   loading: boolean
@@ -195,6 +196,7 @@ export function MessageReader({
   canRetryFailedMessage: boolean
   onRetryFailedMessage: () => void
   onSelectThread: (message: MessageSummary) => void
+  emptyLabel?: string
 }) {
   const [replying, setReplying] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -322,7 +324,7 @@ export function MessageReader({
     return (
       <div className="reader-state reader-state--empty">
         <span className="reader-empty-symbol"><Mail size={29} /></span>
-        <h2>{t('选择一封邮件')}</h2>
+        <h2>{t(emptyLabel)}</h2>
       </div>
     )
   }
