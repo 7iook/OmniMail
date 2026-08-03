@@ -51,6 +51,7 @@ describe('mail draft validation', () => {
       status: 'failed',
       provider_id: null,
       body_key: 'bodies/out-1.json',
+      mailbox_address: 'owner@example.com',
     }
     const statement = {
       bind: vi.fn(function bind() { return this }),
@@ -60,7 +61,9 @@ describe('mail draft validation', () => {
     const env = {
       DB: { prepare: vi.fn(() => statement) },
       MAIL_QUEUE: { send },
-      RESEND_API_KEY: 're_test',
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'example.com': { apiKey: 're_test' },
+      }),
     } as unknown as Env
     const user = {
       id: 'user-1',

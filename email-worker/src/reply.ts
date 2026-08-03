@@ -1,6 +1,7 @@
 import { safeJsonArray, validEmail } from './api-helpers'
 import { replySubject } from './mail'
 import { sendOutboundMessage } from './outbound-message'
+import { resendConfigForAddress } from './resend-config'
 import type { Env, MessageRow, SessionUser } from './types'
 
 type ReplyInput = {
@@ -41,10 +42,6 @@ export async function sendReply(
   if (user.role !== 'super_admin' && !user.canReply) {
     return json({ error: '当前账户没有回信权限。' }, 403)
   }
-  if (!env.RESEND_API_KEY) {
-    return json({ error: '管理员尚未配置 Resend。' }, 503)
-  }
-
   const text = input.text?.trim() || ''
   const idempotencyKey = input.idempotencyKey?.trim() || ''
   if (!text || text.length > 50_000) {
@@ -61,6 +58,9 @@ export async function sendReply(
   }
   if (original.direction !== 'incoming' || !validEmail(original.sender_address)) {
     return json({ error: '这封邮件无法回复。' }, 409)
+  }
+  if (!resendConfigForAddress(env, original.mailbox_address)) {
+    return json({ error: '该发件域名尚未配置 Resend。' }, 503)
   }
 
   const references = [original.references_header, original.message_id]

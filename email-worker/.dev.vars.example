@@ -11,10 +11,11 @@ APP_NAME=OmniMail
 LINUX_DO_CLIENT_ID=
 LINUX_DO_CLIENT_SECRET=
 
-# Optional. Sending and replies are disabled until RESEND_API_KEY is configured.
-# RESEND_FROM can provide one fixed sender across all managed mailbox domains.
+# Optional. Configure one global Resend account, domain-specific accounts, or both.
+# Domain-specific configuration takes precedence over RESEND_API_KEY and RESEND_FROM.
 RESEND_API_KEY=
 RESEND_FROM=
+RESEND_DOMAIN_CONFIGS={"example.com":{"apiKey":"re_example"}}
 RESEND_WEBHOOK_SECRET=
 
 # At least 32 random characters. Encrypts administrator TOTP secrets in D1.

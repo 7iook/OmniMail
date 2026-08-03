@@ -50,7 +50,12 @@ describe('reply target', () => {
     }
 
     const response = await sendReply(
-      { DB: database, RESEND_API_KEY: 're_test' } as unknown as Env,
+      {
+        DB: database,
+        RESEND_DOMAIN_CONFIGS: JSON.stringify({
+          'example.com': { apiKey: 're_test' },
+        }),
+      } as unknown as Env,
       user,
       original.id,
       { text: 'Reply', idempotencyKey: 'request_12345678' },

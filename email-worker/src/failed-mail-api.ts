@@ -1,4 +1,5 @@
 import { writeAudit } from './audit'
+import { resendConfigForAddress } from './resend-config'
 import type { Env, SessionUser } from './types'
 
 interface FailedMessageRow {
@@ -69,13 +70,14 @@ export async function retryFailedMessage(
     return Response.json({ error: '只有管理员可以重试失败邮件。' }, { status: 403 })
   }
   const message = await env.DB.prepare(
-    `SELECT m.id, m.direction, m.raw_key, m.body_key, m.in_reply_to,
+    `SELECT m.id, m.mailbox_address, m.direction, m.raw_key, m.body_key, m.in_reply_to,
             m.recipients_json, mb.user_id
        FROM messages m
        JOIN mailboxes mb ON mb.address = m.mailbox_address
       WHERE m.id = ? AND m.status = 'failed'`,
   ).bind(messageId).first<{
     id: string
+    mailbox_address: string
     direction: 'incoming' | 'outgoing'
     raw_key: string | null
     body_key: string | null
@@ -88,8 +90,8 @@ export async function retryFailedMessage(
   if (!objectKey || !await env.MAIL_BUCKET.head(objectKey)) {
     return Response.json({ error: '邮件存档不存在，无法重新处理。' }, { status: 409 })
   }
-  if (message.direction === 'outgoing' && !env.RESEND_API_KEY?.trim()) {
-    return Response.json({ error: '管理员尚未配置 Resend。' }, { status: 503 })
+  if (message.direction === 'outgoing' && !resendConfigForAddress(env, message.mailbox_address)) {
+    return Response.json({ error: '该发件域名尚未配置 Resend。' }, { status: 503 })
   }
 
   await env.DB.prepare(

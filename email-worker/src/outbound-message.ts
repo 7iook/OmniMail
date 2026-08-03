@@ -4,6 +4,7 @@ import { messageSearchStatement } from './message-search'
 import { claimOutboundSend } from './outbound-rate-limit'
 import { releaseStorage, reserveStorage } from './message-storage'
 import { reconcileResendEvents } from './resend-webhook'
+import { resendConfigForAddress } from './resend-config'
 import type { Env, OutboundJob, SessionUser, StoredBody } from './types'
 
 export type OutboundMessage = {
@@ -325,8 +326,9 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   if (!record.domain_is_active) {
     throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
   }
-  if (!env.RESEND_API_KEY?.trim()) {
-    throw new OutboundDeliveryError('RESEND_API_KEY is not configured', false)
+  const resendConfig = resendConfigForAddress(env, record.mailbox_address)
+  if (!resendConfig) {
+    throw new OutboundDeliveryError('Resend is not configured for the outbound domain', false)
   }
   if (!record.body_key || !record.client_request_id) {
     throw new OutboundDeliveryError('Outbound message body is missing', false)
@@ -361,7 +363,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       content: arrayBufferToBase64(await object.arrayBuffer()),
     }
   }))
-  const from = env.RESEND_FROM?.trim()
+  const from = resendConfig.from
     || `${(record.sender_name || record.mailbox_address).replace(/[\r\n<>"]/g, '')} <${record.mailbox_address}>`
   const headers: Record<string, string> = {}
   if (record.in_reply_to) headers['In-Reply-To'] = record.in_reply_to
@@ -371,7 +373,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${resendConfig.apiKey}`,
         'Content-Type': 'application/json',
         'Idempotency-Key': `omnimail-${record.client_request_id}`,
         'User-Agent': 'OmniMail/0.1',

@@ -45,6 +45,7 @@ export interface Env {
   SETUP_TOKEN?: string
   RESEND_API_KEY?: string
   RESEND_FROM?: string
+  RESEND_DOMAIN_CONFIGS?: string
   RESEND_WEBHOOK_SECRET?: string
   TOTP_ENCRYPTION_KEY?: string
   TURNSTILE_SITE_KEY?: string

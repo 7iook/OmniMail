@@ -1,5 +1,6 @@
 import { normalizeEmail, validEmail } from './api-helpers'
 import { sendOutboundMessage } from './outbound-message'
+import { resendConfigForAddress } from './resend-config'
 import type { Env, SessionUser } from './types'
 
 export type NewMessageInput = {
@@ -55,9 +56,6 @@ export async function sendMessage(
   if (user.role !== 'super_admin' && !user.canReply) {
     return json({ error: '当前账户没有发信权限。' }, 403)
   }
-  if (!env.RESEND_API_KEY?.trim()) {
-    return json({ error: '管理员尚未配置 Resend。' }, 503)
-  }
   const validated = validateNewMessage(input)
   if ('error' in validated) return json({ error: validated.error }, 400)
   const message = validated.value
@@ -70,6 +68,9 @@ export async function sendMessage(
         )`,
   ).bind(message.mailboxAddress, user.id, domain).first<{ address: string }>()
   if (!mailbox) return json({ error: '发件邮箱不存在或已停用。' }, 404)
+  if (!resendConfigForAddress(env, mailbox.address)) {
+    return json({ error: '该发件域名尚未配置 Resend。' }, 503)
+  }
 
   return sendOutboundMessage(env, user, {
     mailboxAddress: mailbox.address,

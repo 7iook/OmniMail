@@ -230,6 +230,7 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `LINUX_DO_CLIENT_SECRET` | Secret | Linux DO Connect Client Secret |
 | `RESEND_API_KEY` | Secret | Resend 主动发信与回复 |
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
+| `RESEND_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 Resend API Key 与可选发件人 |
 | `RESEND_WEBHOOK_SECRET` | Secret | Resend 投递状态 Webhook 的 Signing Secret |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份或自动更新所需的 Cloudflare Account ID |
@@ -240,10 +241,24 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
 
-一个 Resend 账户和 API Key 可以服务多个托管域名，不需要为每个域名单独配置 Key。
-未设置 `RESEND_FROM` 时，用户选择的邮箱会作为发件人，因此对应域名都需要在同一
-Resend 账户中完成验证；设置 `RESEND_FROM` 后统一从该固定地址发出，用户选择的
-邮箱仍作为 Reply-To。
+如果多个域名可放在同一个 Resend 账户中，可继续只设置 `RESEND_API_KEY`。受 Resend
+套餐域名数量限制时，把 `RESEND_DOMAIN_CONFIGS` 设为 JSON Secret，为每个发件域名
+指定独立账户的 API Key：
+
+```json
+{
+  "example.com": { "apiKey": "re_example" },
+  "another.example": {
+    "apiKey": "re_another",
+    "from": "OmniMail <reply@another.example>"
+  }
+}
+```
+
+域名匹配不区分大小写，并使用精确匹配。匹配到域名专属配置时优先使用它；未匹配时
+回退到 `RESEND_API_KEY` 和 `RESEND_FROM`。专属配置没有设置 `from` 时，用户选择的
+邮箱会作为发件人；固定发件人情况下，用户选择的邮箱仍作为 Reply-To。每个发件域名
+都需要在对应的 Resend 账户中完成验证。API Key 应通过 Cloudflare Secret 保存。
 
 发信请求会先持久化并进入 Queue，再由后台任务使用幂等键调用 Resend。
 主动发件、草稿发送与回复按用户合并限速，默认每分钟最多 10 封、每个 UTC 自然日

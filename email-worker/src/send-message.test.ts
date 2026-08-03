@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sendMessage, validateNewMessage, type NewMessageInput } from './send-message'
 import type { Env, SessionUser } from './types'
+
+const mocks = vi.hoisted(() => ({
+  sendOutboundMessage: vi.fn(),
+}))
+
+vi.mock('./outbound-message', () => ({
+  sendOutboundMessage: mocks.sendOutboundMessage,
+}))
 
 const validInput: NewMessageInput = {
   mailboxAddress: ' Owner@Example.COM ',
@@ -9,6 +17,11 @@ const validInput: NewMessageInput = {
   text: ' Message body ',
   idempotencyKey: 'request_12345678',
 }
+
+beforeEach(() => {
+  mocks.sendOutboundMessage.mockReset()
+  mocks.sendOutboundMessage.mockResolvedValue(Response.json({ ok: true }))
+})
 
 describe('validateNewMessage', () => {
   it('normalizes addresses and trims user-authored content', () => {
@@ -66,5 +79,59 @@ describe('validateNewMessage', () => {
     expect(response.status).toBe(404)
     expect(statements[0]?.sql).toContain('FROM domains d')
     expect(statements[0]?.bindings).toContain('example.com')
+  })
+
+  it('allows sending with only a matching domain Resend configuration', async () => {
+    const database = {
+      prepare: () => ({
+        bind() { return this },
+        first: async () => ({ address: 'owner@example.com' }),
+      }),
+    }
+    const env = {
+      DB: database,
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'example.com': { apiKey: 're_example' },
+      }),
+    } as unknown as Env
+    const user = {
+      id: 'user-1',
+      role: 'user',
+      canReply: true,
+    } as SessionUser
+
+    const response = await sendMessage(env, user, validInput, '127.0.0.1')
+
+    expect(response.status).toBe(200)
+    expect(mocks.sendOutboundMessage).toHaveBeenCalledWith(
+      env,
+      user,
+      expect.objectContaining({ mailboxAddress: 'owner@example.com' }),
+      '127.0.0.1',
+    )
+  })
+
+  it('rejects a sender domain without a matching or fallback configuration', async () => {
+    const database = {
+      prepare: () => ({
+        bind() { return this },
+        first: async () => ({ address: 'owner@example.com' }),
+      }),
+    }
+    const response = await sendMessage(
+      {
+        DB: database,
+        RESEND_DOMAIN_CONFIGS: JSON.stringify({
+          'other.example': { apiKey: 're_other' },
+        }),
+      } as unknown as Env,
+      { id: 'user-1', role: 'user', canReply: true } as SessionUser,
+      validInput,
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: '该发件域名尚未配置 Resend。' })
+    expect(mocks.sendOutboundMessage).not.toHaveBeenCalled()
   })
 })

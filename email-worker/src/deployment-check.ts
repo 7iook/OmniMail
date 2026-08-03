@@ -1,4 +1,5 @@
 import { normalizeEmail, validEmail } from './api-helpers'
+import { hasResendConfig } from './resend-config'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -179,9 +180,9 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
     }),
     check({
       id: 'resend', group: 'mail', label: 'Resend 发信与回复',
-      ready: Boolean(env.RESEND_API_KEY?.trim()), required: false, missingState: 'warning',
-      detail: 'RESEND_API_KEY 已配置，具备主动发信与回复的条件。',
-      action: '不需要发信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。',
+      ready: hasResendConfig(env), required: false, missingState: 'warning',
+      detail: 'Resend 发信配置已就绪，具备主动发信与回复的条件。',
+      action: '不需要发信可以跳过；需要时配置全局或域名专属的 Resend API Key。',
     }),
     check({
       id: 'resend-webhook', group: 'mail', label: 'Resend 投递回执',

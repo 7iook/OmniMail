@@ -196,6 +196,12 @@ describe('outbound delivery', () => {
       client_request_id: 'request_12345678',
       domain_is_active: 1,
     })
+    env.RESEND_DOMAIN_CONFIGS = JSON.stringify({
+      'example.com': {
+        apiKey: 're_example',
+        from: 'Example Mail <mail@example.com>',
+      },
+    })
     env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
       text: 'Message body',
       html: '<p>Message body</p>',
@@ -216,8 +222,13 @@ describe('outbound delivery', () => {
     const [url, request] = resend.mock.calls[0]
     expect(url).toBe('https://api.resend.com/emails')
     expect(request?.headers).toMatchObject({
+      Authorization: 'Bearer re_example',
       'Idempotency-Key': 'omnimail-request_12345678',
       'User-Agent': 'OmniMail/0.1',
+    })
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      from: 'Example Mail <mail@example.com>',
+      reply_to: 'owner@example.com',
     })
     expect(statements.some(({ sql, bindings }) => (
       sql.includes("SET status = 'sent'") && bindings.includes('resend-1')

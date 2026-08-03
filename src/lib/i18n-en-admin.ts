@@ -386,10 +386,10 @@ export const enAdmin: Record<string, string> = {
   '当前已创建 {count} 个邮箱地址。': '{count} mailbox addresses have been created.',
   '添加域名后，为主管理员或其他用户创建收件地址。':
     'After adding a domain, create a receiving address for the owner or another user.',
-  'RESEND_API_KEY 已配置，具备主动发信与回复的条件。':
-    'RESEND_API_KEY is configured for sending and replies.',
-  '不需要发信可以跳过；需要时将 Resend API Key 配置为 Worker Secret。':
-    'Skip this if sending is not needed. Otherwise configure the Resend API key as a Worker Secret.',
+  'Resend 发信配置已就绪，具备主动发信与回复的条件。':
+    'Resend is configured for sending and replies.',
+  '不需要发信可以跳过；需要时配置全局或域名专属的 Resend API Key。':
+    'Skip this if sending is not needed. Otherwise configure a global or domain-specific Resend API key.',
   'Cloudflare 不会把 Email Routing 状态暴露给当前 Worker，需要人工确认。':
     'Cloudflare does not expose Email Routing status to this Worker, so verify it manually.',
   '在 Cloudflare Email Routing 中启用域名，并将 Catch-all 规则指向 OmniMail Worker。':

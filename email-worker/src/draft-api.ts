@@ -5,6 +5,7 @@ import {
   sendOutboundMessage,
   type OutboundAttachment,
 } from './outbound-message'
+import { hasResendConfig, resendConfigForAddress } from './resend-config'
 import { validateNewMessage } from './send-message'
 import type { Env, SessionUser } from './types'
 
@@ -268,7 +269,7 @@ export async function sendDraft(
   ip: string,
 ): Promise<Response> {
   if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
-  if (!env.RESEND_API_KEY?.trim()) return json({ error: '管理员尚未配置 Resend。' }, 503)
+  if (!hasResendConfig(env)) return json({ error: '管理员尚未配置 Resend。' }, 503)
   const body = await request.json<{ idempotencyKey?: string }>()
     .catch(() => ({} as { idempotencyKey?: string }))
   const idempotencyKey = body.idempotencyKey?.trim() || ''
@@ -276,7 +277,7 @@ export async function sendDraft(
     return json({ error: '无效的请求标识。' }, 400)
   }
   const existing = await env.DB.prepare(
-    `SELECT m.id, m.status, m.provider_id, m.body_key
+    `SELECT m.id, m.status, m.provider_id, m.body_key, m.mailbox_address
        FROM messages m
        JOIN mailboxes mb ON mb.address = m.mailbox_address
       WHERE m.client_request_id = ? AND mb.user_id = ?`,
@@ -285,9 +286,13 @@ export async function sendDraft(
     status: string
     provider_id: string | null
     body_key: string | null
+    mailbox_address: string
   }>()
   if (existing) {
     if (existing.status === 'failed' && existing.body_key) {
+      if (!resendConfigForAddress(env, existing.mailbox_address)) {
+        return json({ error: '该发件域名尚未配置 Resend。' }, 503)
+      }
       return requeueFailedOutbound(
         env,
         existing.id,
@@ -318,6 +323,9 @@ export async function sendDraft(
   if ('error' in validated) return json({ error: validated.error }, 400)
   if (!await activeOwnedMailbox(env, user.id, draft.mailbox_address)) {
     return json({ error: '发件邮箱不存在或已停用。' }, 404)
+  }
+  if (!resendConfigForAddress(env, draft.mailbox_address)) {
+    return json({ error: '该发件域名尚未配置 Resend。' }, 503)
   }
   const attachments: OutboundAttachment[] = (await draftAttachments(env, user.id)).map((item) => ({
     id: item.id,
