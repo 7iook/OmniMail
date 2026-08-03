@@ -3,8 +3,13 @@ import { textPreview, textToHtml } from './mail'
 import { messageSearchStatement } from './message-search'
 import { claimOutboundSend } from './outbound-rate-limit'
 import { releaseStorage, reserveStorage } from './message-storage'
+import {
+  outboundProviderConfigError,
+  outboundProviderForAddress,
+  type OutboundProviderConfig,
+} from './outbound-provider-config'
 import { reconcileResendEvents } from './resend-webhook'
-import { resendConfigForAddress, resendDomainConfigIsInvalid } from './resend-config'
+import { resendConfigForAddress } from './resend-config'
 import type { Env, OutboundJob, SessionUser, StoredBody } from './types'
 
 export type OutboundMessage = {
@@ -81,6 +86,112 @@ export function arrayBufferToBase64(value: ArrayBuffer): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
   }
   return btoa(binary)
+}
+
+type DeliveryPayload = {
+  from: string
+  to: string[]
+  replyTo: string
+  subject: string
+  text: string
+  html: string
+  idempotencyKey: string
+  headers: Record<string, string>
+  attachments: Array<{ filename: string; content: string }>
+}
+
+function retryableProviderStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 429 || status >= 500
+}
+
+async function deliverWithResend(
+  config: OutboundProviderConfig,
+  payload: DeliveryPayload,
+): Promise<string> {
+  let response: Response
+  try {
+    response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': `omnimail-${payload.idempotencyKey}`,
+        'User-Agent': 'OmniMail/0.1',
+      },
+      body: JSON.stringify({
+        from: payload.from,
+        to: payload.to,
+        reply_to: payload.replyTo,
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        attachments: payload.attachments.length ? payload.attachments : undefined,
+        headers: payload.headers,
+      }),
+      signal: AbortSignal.timeout(payload.attachments.length ? 60_000 : 15_000),
+    })
+  } catch (error) {
+    throw new OutboundDeliveryError(
+      error instanceof Error ? error.message : 'Resend request failed',
+    )
+  }
+  const result = await response.json<{ id?: string; message?: string }>()
+    .catch(() => ({} as { id?: string; message?: string }))
+  if (!response.ok || !result.id) {
+    throw new OutboundDeliveryError(
+      result.message || `Resend returned ${response.status}`,
+      retryableProviderStatus(response.status),
+    )
+  }
+  return result.id
+}
+
+async function deliverWithSendflare(
+  config: OutboundProviderConfig,
+  payload: DeliveryPayload,
+): Promise<string> {
+  if (payload.to.length !== 1) {
+    throw new OutboundDeliveryError('SendFlare requires exactly one recipient', false)
+  }
+  let response: Response
+  try {
+    response = await fetch('https://api.sendflare.com/v1/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'OmniMail/0.1',
+      },
+      body: JSON.stringify({
+        from: config.from || payload.replyTo,
+        to: payload.to[0],
+        subject: payload.subject,
+        body: payload.html,
+        replyTo: [payload.replyTo],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch (error) {
+    throw new OutboundDeliveryError(
+      error instanceof Error ? error.message : 'SendFlare request failed',
+    )
+  }
+  type SendflareResult = {
+    success?: boolean
+    message?: string
+    requestId?: string
+    data?: { emailId?: string; emilId?: string }
+  }
+  const result = await response.json<SendflareResult>()
+    .catch(() => ({} as SendflareResult))
+  const providerReference = result.data?.emailId || result.data?.emilId || result.requestId
+  if (!response.ok || !result.success || !providerReference) {
+    throw new OutboundDeliveryError(
+      result.message || `SendFlare returned ${response.status}`,
+      retryableProviderStatus(response.status),
+    )
+  }
+  return `sendflare:${providerReference}`
 }
 
 async function queueOutbound(
@@ -326,13 +437,10 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   if (!record.domain_is_active) {
     throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
   }
-  if (resendDomainConfigIsInvalid(env)) {
-    throw new OutboundDeliveryError('RESEND_DOMAIN_CONFIGS is invalid', false)
-  }
-  const resendConfig = resendConfigForAddress(env, record.mailbox_address)
-  if (!resendConfig) {
-    throw new OutboundDeliveryError('Resend is not configured for the outbound domain', false)
-  }
+  const configError = outboundProviderConfigError(env)
+  if (configError) throw new OutboundDeliveryError(configError, false)
+  let provider = outboundProviderForAddress(env, record.mailbox_address)
+  if (!provider) throw new OutboundDeliveryError('No outbound provider is configured for the domain', false)
   if (!record.body_key || !record.client_request_id) {
     throw new OutboundDeliveryError('Outbound message body is missing', false)
   }
@@ -353,6 +461,16 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     `SELECT filename, r2_key FROM attachments
       WHERE message_id = ? ORDER BY id`,
   ).bind(record.id).all<{ filename: string; r2_key: string }>()
+  if (provider.provider === 'sendflare' && attachmentRows.length) {
+    const resendFallback = resendConfigForAddress(env, record.mailbox_address)
+    if (!resendFallback) {
+      throw new OutboundDeliveryError(
+        'SendFlare does not support attachments; configure Resend as a fallback for this domain',
+        false,
+      )
+    }
+    provider = { provider: 'resend', ...resendFallback }
+  }
   const attachments = await Promise.all(attachmentRows.map(async (attachment) => {
     const object = await env.MAIL_BUCKET.get(attachment.r2_key)
     if (!object) {
@@ -366,53 +484,26 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       content: arrayBufferToBase64(await object.arrayBuffer()),
     }
   }))
-  const from = resendConfig.from
+  const from = provider.from
     || `${(record.sender_name || record.mailbox_address).replace(/[\r\n<>"]/g, '')} <${record.mailbox_address}>`
   const headers: Record<string, string> = {}
   if (record.in_reply_to) headers['In-Reply-To'] = record.in_reply_to
   if (record.references_header) headers.References = record.references_header
-  let response: Response
-  try {
-    response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resendConfig.apiKey}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': `omnimail-${record.client_request_id}`,
-        'User-Agent': 'OmniMail/0.1',
-      },
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        reply_to: record.mailbox_address,
-        subject: record.subject,
-        text: body.text,
-        html: body.html,
-        attachments: attachments.length ? attachments : undefined,
-        headers,
-      }),
-      signal: AbortSignal.timeout(attachments.length ? 60_000 : 15_000),
-    })
-  } catch (error) {
-    throw new OutboundDeliveryError(
-      error instanceof Error ? error.message : 'Resend request failed',
-    )
+  const payload = {
+    from, to: recipients, replyTo: record.mailbox_address,
+    subject: record.subject, text: body.text, html: body.html,
+    idempotencyKey: record.client_request_id, headers, attachments,
   }
-  const result = await response.json<{ id?: string; message?: string }>()
-    .catch(() => ({} as { id?: string; message?: string }))
-  if (!response.ok || !result.id) {
-    throw new OutboundDeliveryError(
-      result.message || `Resend returned ${response.status}`,
-      response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500,
-    )
-  }
+  const providerId = provider.provider === 'sendflare'
+    ? await deliverWithSendflare(provider, payload)
+    : await deliverWithResend(provider, payload)
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE messages
         SET status = 'sent', provider_id = ?, delivery_status = 'sent',
             processing_error = NULL, updated_at = unixepoch()
       WHERE id = ?`,
-    ).bind(result.id, record.id),
+    ).bind(providerId, record.id),
     auditOutboundStatement(env, job.userId, record.id, {
       mailboxAddress: record.mailbox_address,
       recipients,
@@ -425,5 +516,5 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       auditDetail: job.auditDetail,
     }, job.ip),
   ])
-  await reconcileResendEvents(env, result.id, record.id)
+  if (provider.provider === 'resend') await reconcileResendEvents(env, providerId, record.id)
 }

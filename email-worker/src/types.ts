@@ -47,6 +47,9 @@ export interface Env {
   RESEND_FROM?: string
   RESEND_DOMAIN_CONFIGS?: string
   RESEND_WEBHOOK_SECRET?: string
+  SENDFLARE_API_KEY?: string
+  SENDFLARE_FROM?: string
+  SENDFLARE_DOMAIN_CONFIGS?: string
   TOTP_ENCRYPTION_KEY?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string

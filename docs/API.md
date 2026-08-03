@@ -43,7 +43,7 @@ Content-Type: application/json
 Worker 会将令牌、来源 IP、`action=register` 和当前 Webmail Hostname 发送到 Cloudflare
 Siteverify 验证。令牌只能使用一次，验证失败后客户端必须重新生成。注册成功后
 创建普通用户并返回 `201`，浏览器同时获得登录 Cookie。新用户默认邮箱额度为 1，
-可从已启用域名中选择 1 个尚未占用的邮箱地址，但没有 Resend 发信权限。
+可从已启用域名中选择 1 个尚未占用的邮箱地址，但默认没有发信权限。
 管理员可通过以下接口修改开关：
 
 ```http
@@ -340,7 +340,8 @@ Content-Type: application/json
 }
 ```
 
-发件邮箱必须属于当前用户且处于启用状态，用户需要具备 Resend 发信权限。
+发件邮箱必须属于当前用户且处于启用状态，用户需要具备发信权限，并且该域名已配置
+Resend 或 SendFlare 发信服务。
 接口同时保存纯文本和安全生成的 HTML 正文，并将结果写入“已发送”；同一个
 `idempotencyKey` 不会重复投递。
 
@@ -394,7 +395,8 @@ Content-Type: application/json
 { "idempotencyKey": "request_12345678" }
 ```
 
-服务端会原子地把草稿附件转入已发送邮件，再异步交给 Resend 投递。首次入队失败时，
+服务端会原子地把草稿附件转入已发送邮件，再异步交给已配置的发信服务投递。
+SendFlare 当前不支持附件；存在 Resend 配置时自动回退，否则发送任务明确失败。首次入队失败时，
 使用相同 `idempotencyKey` 重试不会重复创建邮件。
 
 ### 批量邮件操作
@@ -537,7 +539,7 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `GET /api/mailboxes` | 当前用户邮箱列表 |
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
 | `GET /api/messages` | 邮件列表、筛选与分页 |
-| `POST /api/messages` | 使用 Resend 主动发送邮件 |
+| `POST /api/messages` | 使用已配置的发信服务主动发送邮件 |
 | `GET/POST /api/drafts` | 列出或新建当前用户草稿 |
 | `GET/PUT/DELETE /api/drafts/{id}` | 读取、保存或丢弃指定草稿 |
 | `POST /api/drafts/{id}/attachments` | 上传草稿附件 |
@@ -548,7 +550,7 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
 | `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
-| `POST /api/messages/{id}/reply` | 使用 Resend 在线程内回复 |
+| `POST /api/messages/{id}/reply` | 使用已配置的发信服务在线程内回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/messages` | 主管理员查询和筛选全站邮件 |
 | `GET /api/admin/messages/{id}` | 主管理员读取任意用户邮件正文 |

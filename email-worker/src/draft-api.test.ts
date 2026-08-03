@@ -90,6 +90,46 @@ describe('mail draft validation', () => {
     }))
   })
 
+  it('rejects a SendFlare-only draft attachment before queueing it', async () => {
+    const prepare = (sql: string) => ({
+      bind() { return this },
+      first: async () => {
+        if (sql.includes('FROM messages m')) return null
+        if (sql.includes('FROM mail_drafts WHERE')) return {
+          id: 'draft-1', user_id: 'user-1', mailbox_address: 'owner@example.com',
+          recipient_address: 'friend@example.net', subject: 'Files', body_text: 'Attached',
+          created_at: 1, updated_at: 1,
+        }
+        if (sql.includes('SELECT 1 AS available')) return { available: 1 }
+        return null
+      },
+      all: async () => ({
+        results: sql.includes('FROM mail_draft_attachments') ? [{
+          id: 'attachment-1', draft_id: 'draft-1', filename: 'report.pdf',
+          content_type: 'application/pdf', size: 100, r2_key: 'drafts/report.pdf',
+          created_at: 1,
+        }] : [],
+      }),
+    })
+    const response = await sendDraft(
+      {
+        DB: { prepare },
+        SENDFLARE_API_KEY: 'sf_test',
+      } as unknown as Env,
+      { id: 'user-1', role: 'user', canReply: true } as SessionUser,
+      'draft-1',
+      new Request('https://mail.example/api/drafts/draft-1/send', {
+        method: 'POST', body: JSON.stringify({ idempotencyKey: 'request_attachments' }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'SendFlare 暂不支持附件，请为该域名配置 Resend 后重试。',
+    })
+  })
+
   it('prunes excess drafts in bounded database batches', async () => {
     const excess = Array.from({ length: 205 }, (_, index) => ({ id: `draft-${index}` }))
     const deleteBatchSizes: number[] = []

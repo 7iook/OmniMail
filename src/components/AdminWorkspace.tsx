@@ -537,7 +537,7 @@ export function AdminWorkspace({
           </header>
           <div className="service-status-list">
             <div><span>Cloudflare Email Routing</span><Status enabled>{t('收件已启用')}</Status></div>
-            <div><span>{t('Resend 发信与回复')}</span><Status enabled={config.replyEnabled}>{t(config.replyEnabled ? '已配置' : '未配置')}</Status></div>
+            <div><span>{t('发信与回复服务')}</span><Status enabled={config.replyEnabled}>{t(config.replyEnabled ? '已配置' : '未配置')}</Status></div>
             <div><span>{t('收件地址')}</span><strong>{activeMailboxes.length}</strong></div>
           </div>
         </section>

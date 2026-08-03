@@ -1,5 +1,5 @@
 import { writeAudit } from './audit'
-import { resendConfigForAddress, resendDomainConfigIsInvalid } from './resend-config'
+import { outboundProviderConfigError, outboundProviderForAddress } from './outbound-provider-config'
 import type { Env, SessionUser } from './types'
 
 interface FailedMessageRow {
@@ -90,11 +90,10 @@ export async function retryFailedMessage(
   if (!objectKey || !await env.MAIL_BUCKET.head(objectKey)) {
     return Response.json({ error: '邮件存档不存在，无法重新处理。' }, { status: 409 })
   }
-  if (message.direction === 'outgoing' && resendDomainConfigIsInvalid(env)) {
-    return Response.json({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' }, { status: 503 })
-  }
-  if (message.direction === 'outgoing' && !resendConfigForAddress(env, message.mailbox_address)) {
-    return Response.json({ error: '该发件域名尚未配置 Resend。' }, { status: 503 })
+  const configError = message.direction === 'outgoing' ? outboundProviderConfigError(env) : null
+  if (configError) return Response.json({ error: configError }, { status: 503 })
+  if (message.direction === 'outgoing' && !outboundProviderForAddress(env, message.mailbox_address)) {
+    return Response.json({ error: '该发件域名尚未配置发信服务。' }, { status: 503 })
   }
 
   await env.DB.prepare(

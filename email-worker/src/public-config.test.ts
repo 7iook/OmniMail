@@ -42,4 +42,12 @@ describe('public registration configuration', () => {
     expect(config.registrationAvailable).toBe(false)
     expect(config.linuxDoLoginEnabled).toBe(false)
   })
+
+  it('enables sending when only SendFlare is configured', async () => {
+    const env = environment({})
+    env.SENDFLARE_API_KEY = 'sf_do-not-return'
+    const config = await publicConfig(env)
+    expect(config.replyEnabled).toBe(true)
+    expect(JSON.stringify(config)).not.toContain('sf_do-not-return')
+  })
 })

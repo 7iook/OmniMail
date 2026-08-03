@@ -35,8 +35,8 @@ export const enMailFeatures: Record<string, string> = {
   '支持图片和文档；单个 5 MiB，合计 10 MiB':
     'Images and documents; 5 MiB each, 10 MiB total',
   '移除附件：{name}': 'Remove attachment: {name}',
-  '草稿自动保存；通过 Resend 安全发送。':
-    'Drafts are saved automatically and sent securely with Resend.',
+  '草稿自动保存；通过已配置的发信服务安全发送。':
+    'Drafts are saved automatically and sent securely with the configured provider.',
   '丢弃草稿': 'Discard draft',
   '开启新邮件通知': 'Enable new mail notifications',
   '关闭新邮件通知': 'Disable new mail notifications',

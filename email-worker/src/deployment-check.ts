@@ -1,5 +1,5 @@
 import { normalizeEmail, validEmail } from './api-helpers'
-import { hasResendConfig } from './resend-config'
+import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -179,10 +179,10 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       action: '添加域名后，为主管理员或其他用户创建收件地址。',
     }),
     check({
-      id: 'resend', group: 'mail', label: 'Resend 发信与回复',
-      ready: hasResendConfig(env), required: false, missingState: 'warning',
-      detail: 'Resend 发信配置已就绪，具备主动发信与回复的条件。',
-      action: '不需要发信可以跳过；需要时配置全局或域名专属的 Resend API Key。',
+      id: 'outbound-provider', group: 'mail', label: '发信与回复服务',
+      ready: hasOutboundProviderConfig(env), required: false, missingState: 'warning',
+      detail: 'Resend 或 SendFlare 发信配置已就绪，具备主动发信与回复的条件。',
+      action: '不需要发信可以跳过；需要时配置 Resend 或 SendFlare API Key。',
     }),
     check({
       id: 'resend-webhook', group: 'mail', label: 'Resend 投递回执',

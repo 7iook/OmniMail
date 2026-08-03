@@ -445,13 +445,13 @@ export function MessageReader({
         )}
         {message.direction === 'outgoing' && message.deliveryStatus === 'delayed' && (
           <div className="message-notice">
-            <Clock3 size={17} />{t('收件服务器暂时延迟接收，Resend 会继续尝试投递。')}
+            <Clock3 size={17} />{t('收件服务器暂时延迟接收，发信服务会继续尝试投递。')}
           </div>
         )}
         {message.direction === 'outgoing'
           && ['bounced', 'complained', 'failed', 'suppressed'].includes(message.deliveryStatus || '') && (
           <div className="message-notice message-notice--error">
-            <AlertCircle size={17} />{t('邮件未能送达，详情可在 Resend 控制台查看。')}
+            <AlertCircle size={17} />{t('邮件未能送达，详情请查看对应发信服务控制台。')}
           </div>
         )}
 

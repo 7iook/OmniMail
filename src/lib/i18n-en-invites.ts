@@ -80,9 +80,9 @@ export const enInvites: Record<string, string> = {
   '注册时创建的首个邮箱不受此开关影响':
     'The first mailbox created at registration is not affected',
   '邮箱总数上限': 'Total mailbox limit',
-  '允许使用 Resend 发信与回复': 'Allow sending and replies with Resend',
-  'Worker 仍需配置有效的 Resend 服务':
-    'The Worker must also have a valid Resend configuration',
+  '允许使用发信服务发信与回复': 'Allow sending and replies with the configured provider',
+  'Worker 仍需配置有效的发信服务':
+    'The Worker must also have a valid sending provider configuration',
   '允许使用 AI 翻译邮件': 'Allow AI message translation',
   '翻译权限': 'Translation permission',
   '可以使用 AI 翻译邮件': 'Can use AI message translation',
@@ -143,7 +143,7 @@ export const enInvites: Record<string, string> = {
   '最多创建 {count} 个邮箱': 'Create up to {count} mailboxes',
   '仅使用注册时创建的邮箱': 'Use only the mailbox created at registration',
   '发信权限': 'Sending permission',
-  '可以通过 Resend 发信与回复': 'Can send and reply with Resend',
+  '可以使用发信服务发信与回复': 'Can send and reply with the configured provider',
   '仅接收与查看邮件': 'Receive and view messages only',
   '链接到期只停止注册；账号到期会自动删除，但邮箱和已有邮件继续保留。':
     'Link expiry stops new registrations. Account expiry deletes the account, while mailboxes and existing messages remain.',

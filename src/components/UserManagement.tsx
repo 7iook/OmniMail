@@ -151,7 +151,7 @@ function PolicyFields({
       </label>
 
       <label className="policy-toggle">
-        <span><Send size={17} /><span><strong>{t('使用 Resend 发信与回复')}</strong><small>{t('仍需 Worker 已配置 Resend 服务')}</small></span></span>
+        <span><Send size={17} /><span><strong>{t('使用发信服务发信与回复')}</strong><small>{t('仍需 Worker 已配置发信服务')}</small></span></span>
         <input
           type="checkbox"
           checked={value.canReply}

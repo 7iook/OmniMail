@@ -12,10 +12,11 @@ import {
   type OutboundAttachment,
 } from './outbound-message'
 import {
-  hasResendConfig,
-  resendConfigForAddress,
-  resendDomainConfigIsInvalid,
-} from './resend-config'
+  hasOutboundProviderConfig,
+  outboundProviderConfigError,
+  outboundProviderForAddress,
+} from './outbound-provider-config'
+import { resendConfigForAddress } from './resend-config'
 import { validateNewMessage } from './send-message'
 import type { Env, SessionUser } from './types'
 
@@ -448,10 +449,9 @@ export async function sendDraft(
   ip: string,
 ): Promise<Response> {
   if (!canCompose(user)) return json({ error: '当前账户没有发信权限。' }, 403)
-  if (resendDomainConfigIsInvalid(env)) {
-    return json({ error: 'RESEND_DOMAIN_CONFIGS 格式无效。' }, 503)
-  }
-  if (!hasResendConfig(env)) return json({ error: '管理员尚未配置 Resend。' }, 503)
+  const configError = outboundProviderConfigError(env)
+  if (configError) return json({ error: configError }, 503)
+  if (!hasOutboundProviderConfig(env)) return json({ error: '管理员尚未配置发信服务。' }, 503)
   const body = await request.json<{ idempotencyKey?: string }>()
     .catch(() => ({} as { idempotencyKey?: string }))
   const idempotencyKey = body.idempotencyKey?.trim() || ''
@@ -472,8 +472,8 @@ export async function sendDraft(
   }>()
   if (existing) {
     if (existing.status === 'failed' && existing.body_key) {
-      if (!resendConfigForAddress(env, existing.mailbox_address)) {
-        return json({ error: '该发件域名尚未配置 Resend。' }, 503)
+      if (!outboundProviderForAddress(env, existing.mailbox_address)) {
+        return json({ error: '该发件域名尚未配置发信服务。' }, 503)
       }
       return requeueFailedOutbound(
         env,
@@ -503,8 +503,9 @@ export async function sendDraft(
   if (!await activeOwnedMailbox(env, user.id, draft.mailbox_address)) {
     return json({ error: '发件邮箱不存在或已停用。' }, 404)
   }
-  if (!resendConfigForAddress(env, draft.mailbox_address)) {
-    return json({ error: '该发件域名尚未配置 Resend。' }, 503)
+  const provider = outboundProviderForAddress(env, draft.mailbox_address)
+  if (!provider) {
+    return json({ error: '该发件域名尚未配置发信服务。' }, 503)
   }
   const attachments: OutboundAttachment[] = (await draftAttachments(env, user.id, draftId))
     .map((item) => ({
@@ -514,6 +515,10 @@ export async function sendDraft(
       size: item.size,
       r2Key: item.r2_key,
     }))
+  if (attachments.length && provider.provider === 'sendflare'
+    && !resendConfigForAddress(env, draft.mailbox_address)) {
+    return json({ error: 'SendFlare 暂不支持附件，请为该域名配置 Resend 后重试。' }, 503)
+  }
   const message = validated.value
   return sendOutboundMessage(env, user, {
     mailboxAddress: message.mailboxAddress,

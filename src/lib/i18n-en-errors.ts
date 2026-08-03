@@ -91,9 +91,13 @@ export const enErrors: Record<string, string> = {
   '注册设置无效。': 'The registration setting is invalid.',
   '当前账户没有回信权限。': 'This account cannot send replies.',
   '当前账户没有发信权限。': 'This account cannot send messages.',
-  '管理员尚未配置 Resend。': 'Resend is not configured by the administrator.',
+  '管理员尚未配置发信服务。': 'No sending provider is configured by the administrator.',
   'RESEND_DOMAIN_CONFIGS 格式无效。': 'RESEND_DOMAIN_CONFIGS contains invalid JSON.',
-  '该发件域名尚未配置 Resend。': 'Resend is not configured for this sender domain.',
+  'SENDFLARE_DOMAIN_CONFIGS 格式无效。': 'SENDFLARE_DOMAIN_CONFIGS contains invalid JSON.',
+  'SENDFLARE_FROM 必须是有效邮箱地址。': 'SENDFLARE_FROM must be a valid email address.',
+  'SendFlare 暂不支持附件，请为该域名配置 Resend 后重试。':
+    'SendFlare does not support attachments yet. Configure Resend for this domain and try again.',
+  '该发件域名尚未配置发信服务。': 'No sending provider is configured for this sender domain.',
   '发件邮箱格式无效。': 'The sender mailbox is invalid.',
   '请输入有效的收件邮箱地址。': 'Enter a valid recipient email address.',
   '邮件主题需要在 1–500 个字符之间。':

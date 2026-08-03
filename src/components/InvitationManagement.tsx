@@ -476,7 +476,7 @@ export function InvitationManagement({
                     </>
                   )}
                   <label className="policy-toggle">
-                    <span><Send size={17} /><span><strong>{t('允许使用 Resend 发信与回复')}</strong><small>{t('Worker 仍需配置有效的 Resend 服务')}</small></span></span>
+                    <span><Send size={17} /><span><strong>{t('允许使用发信服务发信与回复')}</strong><small>{t('Worker 仍需配置有效的发信服务')}</small></span></span>
                     <input
                       type="checkbox"
                       checked={draft.canReply}

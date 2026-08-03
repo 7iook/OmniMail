@@ -371,7 +371,7 @@ export function ComposeDialog({
         <header>
           <div>
             <h2 id="compose-title">{t(draftId ? '编辑草稿' : '新建邮件')}</h2>
-            <span className="compose-provider"><ShieldCheck size={13} />{t('Resend 发信')}</span>
+            <span className="compose-provider"><ShieldCheck size={13} />{t('安全发信')}</span>
           </div>
           <button className="icon-button" type="button" onClick={() => void closeAndSave()}
             aria-label={t('关闭并保留草稿')} disabled={busy || !draftLoaded}>
@@ -380,7 +380,7 @@ export function ComposeDialog({
         </header>
         <div className="compose-dialog__body">
           <p className="sr-only" id="compose-description">
-            {t('通过 Resend 安全发送，并保存到已发送邮件。')}
+            {t('通过已配置的发信服务安全发送，并保存到已发送邮件。')}
           </p>
           <div className="compose-fields">
             <div className="compose-field">
@@ -454,7 +454,7 @@ export function ComposeDialog({
             <span>{uploading ? t('正在上传…') : t('添加附件')}</span>
           </button>
           <span className="compose-delivery-note">
-            <ShieldCheck size={13} />{t('草稿自动保存；通过 Resend 安全发送。')}
+            <ShieldCheck size={13} />{t('草稿自动保存；通过已配置的发信服务安全发送。')}
           </span>
           <button className="compose-discard" type="button" onClick={() => void discard()}
             disabled={busy} aria-label={t('丢弃草稿')} data-tooltip={t('丢弃草稿')}>

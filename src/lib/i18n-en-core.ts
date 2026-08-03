@@ -150,10 +150,10 @@ export const enCore: Record<string, string> = {
   '邮件已发送': 'Message sent',
   '邮件已进入发送队列': 'Message queued for delivery',
   '新建邮件': 'New message',
-  'Resend 发信': 'Send with Resend',
+  '安全发信': 'Secure sending',
   '关闭新建邮件': 'Close new message',
-  '通过 Resend 安全发送，并保存到已发送邮件。':
-    'Send securely with Resend and save the message in Sent.',
+  '通过已配置的发信服务安全发送，并保存到已发送邮件。':
+    'Send securely with the configured provider and save the message in Sent.',
   '发件人': 'From',
   '收件人': 'To',
   '主题': 'Subject',
@@ -170,16 +170,16 @@ export const enCore: Record<string, string> = {
   '正在重新发送…': 'Retrying…',
   '邮件已重新进入发送队列': 'Message requeued for delivery',
   '收件服务器已确认送达。': 'The recipient server confirmed delivery.',
-  '收件服务器暂时延迟接收，Resend 会继续尝试投递。':
-    'The recipient server delayed the message. Resend will keep trying.',
-  '邮件未能送达，详情可在 Resend 控制台查看。':
-    'The message could not be delivered. See the Resend dashboard for details.',
+  '收件服务器暂时延迟接收，发信服务会继续尝试投递。':
+    'The recipient server delayed the message. The sending provider will keep trying.',
+  '邮件未能送达，详情请查看对应发信服务控制台。':
+    'The message could not be delivered. See the sending provider dashboard for details.',
   '发给 {recipients}': 'To {recipients}',
   '回复给': 'Reply to',
   '关闭回复': 'Close reply',
   '回复内容': 'Reply message',
   '写下回复…': 'Write a reply…',
-  '通过 Resend 发送': 'Send with Resend',
+  '通过已配置的发信服务发送': 'Send with the configured provider',
   '发送回复': 'Send reply',
   '正在打开邮件': 'Opening message',
   '安全读取邮件内容': 'Loading message securely',

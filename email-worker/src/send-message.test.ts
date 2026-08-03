@@ -131,7 +131,7 @@ describe('validateNewMessage', () => {
     )
 
     expect(response.status).toBe(503)
-    expect(await response.json()).toEqual({ error: '该发件域名尚未配置 Resend。' })
+    expect(await response.json()).toEqual({ error: '该发件域名尚未配置发信服务。' })
     expect(mocks.sendOutboundMessage).not.toHaveBeenCalled()
   })
 

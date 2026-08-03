@@ -238,6 +238,46 @@ describe('outbound delivery', () => {
     ))).toBe(true)
   })
 
+  it('sends a queued message through a domain-specific SendFlare account', async () => {
+    const { env, statements } = environment({
+      id: 'out-sendflare', status: 'processing', mailbox_address: 'owner@example.com',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Hello',
+      body_key: 'bodies/out-sendflare.json', in_reply_to: null, references_header: null,
+      client_request_id: 'request_sendflare', domain_is_active: 1,
+    })
+    env.SENDFLARE_DOMAIN_CONFIGS = JSON.stringify({
+      'example.com': { apiKey: 'sf_example', from: 'mail@example.com' },
+    })
+    env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
+      text: 'Message body', html: '<p>Message body</p>',
+    })) as unknown as R2ObjectBody)
+    const sendflare = vi.fn(async () => Response.json({
+      success: true, data: { emailId: 'sendflare-1' },
+    }))
+    vi.stubGlobal('fetch', sendflare)
+
+    await deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-sendflare', userId: user.id, ip: '127.0.0.1',
+      auditAction: 'message.send', auditDetail: { recipient: 'friend@example.net' },
+    })
+
+    const [url, request] = sendflare.mock.calls[0]
+    expect(url).toBe('https://api.sendflare.com/v1/send')
+    expect(request?.headers).toMatchObject({
+      Authorization: 'Bearer sf_example',
+      'Content-Type': 'application/json; charset=utf-8',
+      'User-Agent': 'OmniMail/0.1',
+    })
+    expect(JSON.parse(String(request?.body))).toEqual({
+      from: 'mail@example.com', to: 'friend@example.net', subject: 'Hello',
+      body: '<p>Message body</p>', replyTo: ['owner@example.com'],
+    })
+    expect(statements.some(({ sql, bindings }) => (
+      sql.includes("SET status = 'sent'") && bindings.includes('sendflare:sendflare-1')
+    ))).toBe(true)
+    expect(statements.some(({ sql }) => sql.includes('resend_webhook_events'))).toBe(false)
+  })
+
   it('does not deliver a queued message after its domain is disabled', async () => {
     const { env } = environment({
       id: 'out-1',
@@ -307,5 +347,60 @@ describe('outbound delivery', () => {
       filename: 'report.bin',
       content: 'AAEC/w==',
     }])
+  })
+
+  it('falls back to Resend instead of dropping attachments for a SendFlare domain', async () => {
+    const { env } = environment({
+      id: 'out-attachment-fallback', status: 'processing', mailbox_address: 'owner@example.com',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Files',
+      body_key: 'bodies/out-attachment-fallback.json', in_reply_to: null,
+      references_header: null, client_request_id: 'request_fallback', domain_is_active: 1,
+    }, [{ filename: 'report.bin', r2_key: 'attachments/report.bin' }])
+    env.SENDFLARE_DOMAIN_CONFIGS = JSON.stringify({
+      'example.com': { apiKey: 'sf_example' },
+    })
+    env.MAIL_BUCKET.get = vi.fn(async (key: string) => (
+      key === 'bodies/out-attachment-fallback.json'
+        ? new Response(JSON.stringify({ text: 'Attached', html: '<p>Attached</p>' }))
+        : new Response(new Uint8Array([1, 2, 3]))
+    )) as typeof env.MAIL_BUCKET.get
+    const provider = vi.fn(async () => Response.json({ id: 'resend-fallback' }))
+    vi.stubGlobal('fetch', provider)
+
+    await deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-attachment-fallback', userId: user.id,
+      ip: '127.0.0.1', auditAction: 'message.send', auditDetail: { attachmentCount: 1 },
+    })
+
+    expect(provider.mock.calls[0][0]).toBe('https://api.resend.com/emails')
+    expect(JSON.parse(String(provider.mock.calls[0][1]?.body)).attachments).toEqual([{
+      filename: 'report.bin', content: 'AQID',
+    }])
+  })
+
+  it('fails explicitly when SendFlare cannot deliver an attachment', async () => {
+    const { env } = environment({
+      id: 'out-sendflare-attachment', status: 'processing', mailbox_address: 'owner@example.com',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Files',
+      body_key: 'bodies/out-sendflare-attachment.json', in_reply_to: null,
+      references_header: null, client_request_id: 'request_no_fallback', domain_is_active: 1,
+    }, [{ filename: 'report.bin', r2_key: 'attachments/report.bin' }])
+    delete env.RESEND_API_KEY
+    delete env.RESEND_FROM
+    env.SENDFLARE_API_KEY = 'sf_global'
+    env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
+      text: 'Attached', html: '<p>Attached</p>',
+    })) as unknown as R2ObjectBody)
+    const provider = vi.fn()
+    vi.stubGlobal('fetch', provider)
+
+    await expect(deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-sendflare-attachment', userId: user.id,
+      ip: '127.0.0.1', auditAction: 'message.send', auditDetail: { attachmentCount: 1 },
+    })).rejects.toMatchObject({
+      message: 'SendFlare does not support attachments; configure Resend as a fallback for this domain',
+      retryable: false,
+    })
+    expect(provider).not.toHaveBeenCalled()
   })
 })

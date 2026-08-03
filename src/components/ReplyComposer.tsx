@@ -61,7 +61,7 @@ export function ReplyComposer({
       />
       {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
       <div className="reply-composer__footer">
-        <span>{t('通过 Resend 发送')}</span>
+        <span>{t('通过已配置的发信服务发送')}</span>
         <button className="button button--primary button--small" type="submit" disabled={sending || !text.trim()}>
           {sending ? <LoaderCircle className="spin" size={15} /> : <Send size={15} />}
           {t('发送回复')}

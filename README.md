@@ -54,7 +54,7 @@ Serverless Webmail：
 | 一体化 Git 部署 | 一次构建同时发布 React 静态前端与 Worker API |
 | 多域名与多邮箱 | 一个实例统一管理多个域名、用户和收件地址 |
 | 完整权限模型 | 主管理员、管理员、普通用户和限时临时用户 |
-| 可选发信能力 | 通过 Resend 新建邮件与回复；不配置时仍可正常收件 |
+| 可选发信能力 | 通过 Resend 或 SendFlare 新建邮件与回复；不配置时仍可正常收件 |
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
@@ -71,7 +71,7 @@ Serverless Webmail：
 - 私有附件与原始 `.eml` 下载
 - 按域名、邮箱地址、发件人、主题与正文搜索
 - 稳定游标分页、自适应自动刷新与跨标签页轮询合并
-- Resend 主动发信、线程内回复、幂等发送及用户级限速
+- Resend / SendFlare 主动发信、线程内回复、队列投递及用户级限速
 - 左侧草稿箱默认保留最近 5 封未发送邮件，管理员可按用户级别设置 1–20 封上限；
   每封支持最多 5 个发件附件
 - Webmail 打开期间可选浏览器新邮件通知
@@ -113,7 +113,7 @@ flowchart LR
     Queue --> Worker
     Worker -->|索引 / 用户 / 会话| D1[(Cloudflare D1)]
     Worker -->|可选备份| Backup[(Private backup R2)]
-    Worker -->|可选发信 / 回复| Resend[Resend]
+    Worker -->|可选发信 / 回复| Provider[Resend / SendFlare]
 
     Browser[浏览器] -->|HTML / CSS / JS| Worker
     Browser -->|同源 /api| Worker
@@ -128,7 +128,7 @@ flowchart LR
 | 对象存储 | Cloudflare R2 |
 | 异步任务 | Cloudflare Queues、Workflows |
 | 收件 | Cloudflare Email Routing |
-| 发信与回复 | Resend（可选） |
+| 发信与回复 | Resend 或 SendFlare（可选） |
 | 防护 | Cloudflare Turnstile（邮箱密码注册或多人邀请时） |
 
 ### 仓库结构
@@ -153,7 +153,7 @@ flowchart LR
 - Cloudflare 账户，以及已托管在 Cloudflare DNS 的域名
 - GitHub 账户
 - Node.js 22+（仅本地开发需要）
-- Resend 账户（可选，用于主动发信与回复）
+- Resend 或 SendFlare 账户（可选，用于主动发信与回复）
 
 > [!TIP]
 > 如果根域名已经承载其他邮件服务，建议先使用专用子域测试，例如
@@ -233,6 +233,9 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
 | `RESEND_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 Resend API Key 与可选发件人 |
 | `RESEND_WEBHOOK_SECRET` | Secret | Resend 投递状态 Webhook 的 Signing Secret |
+| `SENDFLARE_API_KEY` | Secret | SendFlare 全局主动发信与回复 |
+| `SENDFLARE_FROM` | Text | 可选固定发件邮箱地址，例如 `reply@example.com` |
+| `SENDFLARE_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 SendFlare API Key 与可选发件邮箱 |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份或自动更新所需的 Cloudflare Account ID |
 | `CLOUDFLARE_BUILDS_TRIGGER_ID` | Text | 自动更新使用的 production build trigger UUID |
@@ -262,11 +265,41 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 都需要在对应的 Resend 账户中完成验证。API Key 应通过 Cloudflare Secret 保存。
 配置不是合法 JSON 或任一域名缺少 `apiKey` 时会禁用发信，不会回退到旧账户。
 
-发信请求会先持久化并进入 Queue，再由后台任务使用幂等键调用 Resend。
+SendFlare 可以通过全局 Secret 配置：
+
+```text
+SENDFLARE_API_KEY=sf_example
+SENDFLARE_FROM=reply@example.com
+```
+
+使用前先在 [SendFlare Projects](https://app.sendflare.com/projects) 验证发件域名，并在
+[API Keys](https://app.sendflare.com/apiKeys) 创建访问令牌。
+
+也可以按域名配置不同 SendFlare 账户：
+
+```json
+{
+  "example.com": { "apiKey": "sf_example", "from": "reply@example.com" },
+  "another.example": { "apiKey": "sf_another" }
+}
+```
+
+将上述 JSON 保存为 `SENDFLARE_DOMAIN_CONFIGS` Secret。匹配的 SendFlare 域名配置优先
+于 Resend；其余域名继续使用原有 Resend 配置，最后才回退到全局
+`SENDFLARE_API_KEY`。因此现有 `RESEND_*` 配置无需修改。SendFlare 的 `from` 必须是
+已验证域名下的纯邮箱地址，不能使用 `名称 <邮箱>` 格式。
+
+SendFlare 当前发送接口没有附件字段。含附件邮件若存在可用 Resend 配置，会自动改用
+Resend；否则任务会明确失败，不会丢弃附件后继续发送。
+
+发信请求会先持久化并进入 Queue，再由后台任务调用选定的发信服务。
 主动发件、草稿发送与回复按用户合并限速，默认每分钟最多 10 封、每个 UTC 自然日
 最多 200 封。管理员可以在系统设置中修改全局开关和默认值，并在用户管理中设置
 单用户覆盖值、查看当前窗口用量或清零计数。超过限制时接口返回 `429` 和
 `Retry-After`；使用相同幂等键重试不会重复计数。
+
+Resend 请求会携带服务端幂等键。SendFlare 当前文档未提供幂等参数；OmniMail 可以避免
+重复入队，但若 SendFlare 已接收请求后网络在返回响应前中断，队列重试仍可能产生重复邮件。
 
 若要同步送达、延迟、退信、投诉和抑制状态，请在 Resend 创建 Webhook：
 
@@ -276,7 +309,7 @@ https://你的域名/api/webhooks/resend
 
 选择 `email.sent`、`email.delivered`、`email.delivery_delayed`、`email.bounced`、
 `email.complained`、`email.failed` 与 `email.suppressed`，再把 Signing Secret 保存为
-`RESEND_WEBHOOK_SECRET`。Webhook 未配置时仍可发信，但只能显示 Resend 已接受请求。
+`RESEND_WEBHOOK_SECRET`。Webhook 未配置时仍可发信，但只能显示发信服务已接受请求。
 
 管理员可在 **账号设置 → 管理员二次验证** 中启用验证器应用。启用时生成的恢复码只
 显示一次；TOTP 密钥经过 `TOTP_ENCRYPTION_KEY` 加密后才写入 D1。更换此 Secret 前

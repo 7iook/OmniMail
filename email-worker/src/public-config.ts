@@ -9,7 +9,7 @@ import { registrationProtectionReady } from './registration-security'
 import {
   parseMailRefreshInterval,
 } from './system-settings'
-import { hasResendConfig } from './resend-config'
+import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env } from './types'
 
 type Setting = { key: string; value: string }
@@ -57,7 +57,7 @@ export async function publicConfig(env: Env) {
   return {
     appName: env.APP_NAME || 'OmniMail',
     setupComplete: settings.get('setup_complete') === '1',
-    replyEnabled: hasResendConfig(env),
+    replyEnabled: hasOutboundProviderConfig(env),
     registrationEnabled,
     registrationAvailable: registrationEnabled && (
       registrationMethod === 'linuxdo' ? linuxDoLoginEnabled : passwordRegistrationReady
