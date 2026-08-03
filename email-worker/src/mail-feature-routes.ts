@@ -7,6 +7,13 @@ import {
   runBackupDrill,
 } from './backup-browser-api'
 import {
+  getAdminMessageAttachment,
+  getAdminMessageDetail,
+  getAdminRawMessage,
+  listAdminMessages,
+  manageAdminMessages,
+} from './admin-message-api'
+import {
   createDraft,
   deleteDraftAttachment,
   discardDraft,
@@ -19,6 +26,44 @@ import {
 import { translateMessage } from './message-translation-api'
 
 export const mailFeatureRoutes = new Hono<AppContext>()
+
+mailFeatureRoutes.get('/admin/messages', (context) => (
+  listAdminMessages(context.env, context.get('user'), context.req.raw)
+))
+mailFeatureRoutes.patch('/admin/messages/bulk', (context) => (
+  manageAdminMessages(
+    context.env,
+    context.get('user'),
+    context.req.raw,
+    clientIp(context.req.raw.headers),
+  )
+))
+mailFeatureRoutes.get('/admin/messages/:messageId/attachments/:attachmentId', (context) => (
+  getAdminMessageAttachment(
+    context.env,
+    context.get('user'),
+    context.req.param('messageId'),
+    context.req.param('attachmentId'),
+    context.req.query('preview') === '1',
+    clientIp(context.req.raw.headers),
+  )
+))
+mailFeatureRoutes.get('/admin/messages/:id/raw', (context) => (
+  getAdminRawMessage(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    clientIp(context.req.raw.headers),
+  )
+))
+mailFeatureRoutes.get('/admin/messages/:id', (context) => (
+  getAdminMessageDetail(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    clientIp(context.req.raw.headers),
+  )
+))
 
 mailFeatureRoutes.get('/admin/backups/objects', (context) => (
   listBackupObjects(context.env, context.get('user'), context.req.raw)

@@ -82,7 +82,7 @@ test('mobile navigation keeps six primary items and expands administrator tools 
   await expect(toggle).toHaveAttribute('aria-label', '收起管理员功能')
   await expect(adminNav).toHaveCSS('visibility', 'visible')
   await expect(adminNav).toHaveCSS('transform', 'none')
-  await expect(adminNav.getByRole('button')).toHaveCount(5)
+  await expect(adminNav.getByRole('button')).toHaveCount(6)
   const expandedGeometry = await Promise.all([
     sidebar.evaluate((element) => element.getBoundingClientRect().top),
     adminNav.evaluate((element) => element.getBoundingClientRect().bottom),

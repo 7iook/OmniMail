@@ -27,7 +27,7 @@ function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '无法更新备份与存储策略。')
 }
 
-export function StoragePolicySettings() {
+export function StoragePolicySettings({ canBrowseBackups }: { canBrowseBackups: boolean }) {
   const [policy, setPolicy] = useState<StoragePolicy | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -269,7 +269,7 @@ export function StoragePolicySettings() {
             </div>
           </div>
 
-          <BackupBrowser enabled={policy.backupReady} />
+          {canBrowseBackups && <BackupBrowser enabled={policy.backupReady} />}
 
           <footer className="storage-policy-footer">
             <small>{t('草稿上限保存后立即生效；超出部分会从最早的草稿开始清理。')}</small>

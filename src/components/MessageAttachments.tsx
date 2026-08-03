@@ -15,17 +15,21 @@ function AttachmentPreviewDialog({
   messageId,
   attachment,
   kind,
+  attachmentUrl,
+  attachmentPreviewUrl,
   onClose,
 }: {
   messageId: string
   attachment: Attachment
   kind: AttachmentPreviewKind
+  attachmentUrl: (messageId: string, attachmentId: string) => string
+  attachmentPreviewUrl: (messageId: string, attachmentId: string) => string
   onClose: () => void
 }) {
   const titleId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const [imageFailed, setImageFailed] = useState(false)
-  const previewUrl = api.attachmentPreviewUrl(messageId, attachment.id)
+  const previewUrl = attachmentPreviewUrl(messageId, attachment.id)
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
@@ -108,7 +112,7 @@ function AttachmentPreviewDialog({
         <footer>
           <a
             className="button button--secondary"
-            href={api.attachmentUrl(messageId, attachment.id)}
+            href={attachmentUrl(messageId, attachment.id)}
             download
           >
             <Download size={16} />{t('下载附件')}
@@ -126,9 +130,13 @@ function AttachmentPreviewDialog({
 export function MessageAttachments({
   messageId,
   attachments,
+  attachmentUrl = api.attachmentUrl,
+  attachmentPreviewUrl = api.attachmentPreviewUrl,
 }: {
   messageId: string
   attachments: Attachment[]
+  attachmentUrl?: (messageId: string, attachmentId: string) => string
+  attachmentPreviewUrl?: (messageId: string, attachmentId: string) => string
 }) {
   const [preview, setPreview] = useState<{
     attachment: Attachment
@@ -167,7 +175,7 @@ export function MessageAttachments({
               <a
                 className="attachment-card"
                 key={attachment.id}
-                href={api.attachmentUrl(messageId, attachment.id)}
+                href={attachmentUrl(messageId, attachment.id)}
                 download
               >
                 {contents}
@@ -181,6 +189,8 @@ export function MessageAttachments({
           messageId={messageId}
           attachment={preview.attachment}
           kind={preview.kind}
+          attachmentUrl={attachmentUrl}
+          attachmentPreviewUrl={attachmentPreviewUrl}
           onClose={closePreview}
         />
       )}

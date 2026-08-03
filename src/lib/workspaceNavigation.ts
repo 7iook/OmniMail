@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Folder, UserRole } from './api'
 import { isAdminRole } from './roles'
 
-export type AdminView = 'statistics' | 'users' | 'invites' | 'logs' | 'settings' | 'account'
+export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account'
 
 export type WorkspaceRoute =
   | { kind: 'folder'; folder: Folder; path: string }
@@ -18,11 +18,18 @@ const folderPaths: Record<Folder, string> = {
 
 const adminPaths: Record<AdminView, string> = {
   statistics: '/admin/statistics',
+  mail: '/admin/mail',
   users: '/admin/users',
   invites: '/admin/invites',
   logs: '/admin/logs',
   settings: '/admin/settings',
   account: '/settings/account',
+}
+
+function canOpenAdminView(view: AdminView, role: UserRole): boolean {
+  if (view === 'account') return true
+  if (view === 'mail') return role === 'super_admin'
+  return isAdminRole(role)
 }
 
 function normalizedPath(pathname: string): string {
@@ -38,7 +45,7 @@ export function workspaceRoute(pathname: string, role: UserRole): WorkspaceRoute
 
   const view = (Object.entries(adminPaths) as Array<[AdminView, string]>)
     .find(([, candidate]) => candidate === path)?.[0]
-  if (view && (view === 'account' || isAdminRole(role))) {
+  if (view && canOpenAdminView(view, role)) {
     return { kind: 'admin', view, path: adminPaths[view] }
   }
   return { kind: 'folder', folder: 'inbox', path: folderPaths.inbox }
@@ -80,7 +87,7 @@ export function useWorkspaceNavigation(role: UserRole) {
   }, [])
 
   const openAdminView = useCallback((next: AdminView) => {
-    if (next !== 'account' && !isAdminRole(role)) return
+    if (!canOpenAdminView(next, role)) return
     setFolder('inbox')
     setAdminView(next)
     updatePath(adminPaths[next])

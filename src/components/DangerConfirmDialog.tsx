@@ -10,6 +10,7 @@ export function DangerConfirmDialog({
   impactTitle,
   impactDescription,
   confirmLabel,
+  confirmation,
   onCancel,
   onConfirm,
 }: {
@@ -20,6 +21,12 @@ export function DangerConfirmDialog({
   impactTitle: string
   impactDescription: string
   confirmLabel: string
+  confirmation?: {
+    label: string
+    expected: string
+    value: string
+    onChange: (value: string) => void
+  }
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -88,12 +95,28 @@ export function DangerConfirmDialog({
             <TriangleAlert size={17} />
             <span><strong>{impactTitle}</strong><small>{impactDescription}</small></span>
           </p>
+          {confirmation && (
+            <label className="admin-danger-confirmation">
+              <span>{confirmation.label}</span>
+              <input
+                data-autofocus
+                inputMode="numeric"
+                value={confirmation.value}
+                onChange={(event) => confirmation.onChange(event.target.value)}
+              />
+            </label>
+          )}
         </div>
         <footer>
-          <button className="button button--secondary" type="button" data-autofocus onClick={onCancel}>
+          <button className="button button--secondary" type="button" data-autofocus={confirmation ? undefined : true} onClick={onCancel}>
             {t('取消')}
           </button>
-          <button className="button mail-delete-confirm is-permanent" type="button" onClick={onConfirm}>
+          <button
+            className="button mail-delete-confirm is-permanent"
+            type="button"
+            disabled={Boolean(confirmation && confirmation.value !== confirmation.expected)}
+            onClick={onConfirm}
+          >
             <Icon size={16} />
             {confirmLabel}
           </button>

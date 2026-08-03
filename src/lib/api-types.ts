@@ -420,6 +420,33 @@ export interface MessageDetail extends MessageSummary {
   attachments: Attachment[]
 }
 
+export interface AdminMessageOwner {
+  id: string
+  email: string
+  displayName: string
+}
+
+export interface AdminMessageSummary extends MessageSummary {
+  sizeBytes: number
+  owner: AdminMessageOwner
+}
+
+export interface AdminMessageDetail extends MessageDetail {
+  owner: AdminMessageOwner
+}
+
+export interface AdminMessageFilters {
+  query: string
+  user: string
+  mailbox: string
+  direction: 'all' | 'incoming' | 'outgoing'
+  folder: 'all' | 'inbox' | 'sent' | 'trash'
+  status: 'all' | 'processing' | 'ready' | 'failed' | 'sent'
+  days: 0 | 1 | 7 | 30 | 90
+}
+
+export type AdminMessageAction = 'trash' | 'restore' | 'delete'
+
 export type TranslationTargetLanguage = 'en' | 'zh'
 
 export interface MessageTranslation {

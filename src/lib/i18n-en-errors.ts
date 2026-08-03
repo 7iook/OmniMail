@@ -170,4 +170,12 @@ export const enErrors: Record<string, string> = {
   '只有管理员可以设置用户。': 'Only administrators can update users.',
   '只有主管理员可以授予管理员角色。':
     'Only the owner can grant the administrator role.',
+  '只有主管理员可以管理全站邮件。':
+    'Only the owner can manage mail across the system.',
+  '邮件管理筛选条件无效。': 'The mail management filters are invalid.',
+  '邮件管理参数无效，单次最多选择 50 封邮件。':
+    'The mail management request is invalid. Select no more than 50 messages.',
+  '只有主管理员可以浏览备份。': 'Only the owner can browse backups.',
+  '只有主管理员可以下载备份。': 'Only the owner can download backups.',
+  '只有主管理员可以执行恢复演练。': 'Only the owner can run recovery drills.',
 }

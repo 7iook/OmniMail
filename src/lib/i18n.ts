@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { enCore } from './i18n-en-core'
 import { enAdmin } from './i18n-en-admin'
+import { enAdminMail } from './i18n-en-admin-mail'
 import { enInvites } from './i18n-en-invites'
 import { enMailFeatures } from './i18n-en-mail-features'
 import { enRateLimit } from './i18n-en-rate-limit'
@@ -40,6 +41,7 @@ let currentLocale = initialLocale()
 const english = {
   ...enCore,
   ...enAdmin,
+  ...enAdminMail,
   ...enInvites,
   ...enErrors,
   ...enOauth,

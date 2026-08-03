@@ -22,8 +22,8 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status })
 }
 
-function isAdministrator(user: SessionUser): boolean {
-  return user.role === 'super_admin' || user.role === 'admin'
+function isSuperAdministrator(user: SessionUser): boolean {
+  return user.role === 'super_admin'
 }
 
 export function validBackupPrefix(value: string): value is BackupPrefix {
@@ -83,7 +83,7 @@ export async function listBackupObjects(
   user: SessionUser,
   request: Request,
 ): Promise<Response> {
-  if (!isAdministrator(user)) return json({ error: '只有管理员可以浏览备份。' }, 403)
+  if (!isSuperAdministrator(user)) return json({ error: '只有主管理员可以浏览备份。' }, 403)
   if (!env.BACKUP_BUCKET) return json({ error: '备份存储尚未配置。' }, 503)
   const params = new URL(request.url).searchParams
   const prefix = params.get('prefix') || 'd1/daily/'
@@ -115,7 +115,7 @@ export async function downloadBackupObject(
   user: SessionUser,
   request: Request,
 ): Promise<Response> {
-  if (!isAdministrator(user)) return json({ error: '只有管理员可以下载备份。' }, 403)
+  if (!isSuperAdministrator(user)) return json({ error: '只有主管理员可以下载备份。' }, 403)
   if (!env.BACKUP_BUCKET) return json({ error: '备份存储尚未配置。' }, 503)
   const key = new URL(request.url).searchParams.get('key') || ''
   if (!validBackupKey(key)) return json({ error: '备份对象键无效。' }, 400)
@@ -139,7 +139,7 @@ export async function runBackupDrill(
   request: Request,
   ip: string,
 ): Promise<Response> {
-  if (!isAdministrator(user)) return json({ error: '只有管理员可以执行恢复演练。' }, 403)
+  if (!isSuperAdministrator(user)) return json({ error: '只有主管理员可以执行恢复演练。' }, 403)
   if (!env.BACKUP_BUCKET) return json({ error: '备份存储尚未配置。' }, 503)
   const input = await request.json<{ key?: string }>().catch(() => ({} as { key?: string }))
   const key = input.key?.trim() || ''

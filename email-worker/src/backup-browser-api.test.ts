@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { inspectBackupSample, validBackupPrefix } from './backup-browser-api'
+import { inspectBackupSample, listBackupObjects, validBackupPrefix } from './backup-browser-api'
+import type { Env, SessionUser } from './types'
 
 describe('backup browser safety', () => {
   it('allows only managed backup namespaces', () => {
@@ -24,5 +25,15 @@ describe('backup browser safety', () => {
       12,
     )
     expect(result.some(({ passed }) => !passed)).toBe(true)
+  })
+
+  it('does not expose backup objects to ordinary administrators', async () => {
+    const response = await listBackupObjects(
+      {} as Env,
+      { role: 'admin' } as SessionUser,
+      new Request('https://mail.example.com/api/admin/backups/objects'),
+    )
+
+    expect(response.status).toBe(403)
   })
 })

@@ -12,6 +12,7 @@ import {
 import { registrationDomainsFromText } from '../lib/registration'
 import { t } from '../lib/i18n'
 import { AccountSettings } from './AccountSettings'
+import { AdminMailManagement } from './AdminMailManagement'
 import { AdminPageHeader } from './AdminPageHeader'
 import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
@@ -186,6 +187,7 @@ export function AdminWorkspace({
     )
   }
   if (view === 'logs') return <AuditLogs />
+  if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement />
   if (view === 'account') {
     return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} />
   }
@@ -217,7 +219,7 @@ export function AdminWorkspace({
       <div className="admin-detail-grid">
         <DomainManagement domains={domains} onChanged={onDomainsChanged} />
 
-        <StoragePolicySettings />
+        <StoragePolicySettings canBrowseBackups={user.role === 'super_admin'} />
 
         <OutboundRateLimitSettings />
 

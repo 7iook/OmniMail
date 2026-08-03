@@ -1,5 +1,9 @@
 import { t } from './i18n'
 import type {
+  AdminMessageAction,
+  AdminMessageDetail,
+  AdminMessageFilters,
+  AdminMessageSummary,
   AdminUser,
   AdminUserTotals,
   AppConfig,
@@ -282,6 +286,43 @@ export const api = {
       summary: AuditSummary
     }>(`/api/admin/audit-logs?${search}`)
   },
+  adminMessages: (input: AdminMessageFilters & { cursor?: string }, signal?: AbortSignal) => {
+    const search = new URLSearchParams({
+      limit: '30',
+      direction: input.direction,
+      folder: input.folder,
+      status: input.status,
+      days: String(input.days),
+    })
+    if (input.query) search.set('q', input.query)
+    if (input.user) search.set('user', input.user)
+    if (input.mailbox) search.set('mailbox', input.mailbox)
+    if (input.cursor) search.set('cursor', input.cursor)
+    return request<{ messages: AdminMessageSummary[]; page: PageInfo }>(
+      `/api/admin/messages?${search}`,
+      { signal },
+    )
+  },
+  adminMessage: (id: string) => request<{
+    message: AdminMessageDetail
+    thread: AdminMessageSummary[]
+  }>(`/api/admin/messages/${encodeURIComponent(id)}`),
+  manageAdminMessages: (ids: string[], action: AdminMessageAction) => request<{
+    ok: true
+    updatedCount: number
+  }>('/api/admin/messages/bulk', {
+    method: 'PATCH',
+    body: jsonBody({ ids, action }),
+  }),
+  adminAttachmentUrl: (messageId: string, attachmentId: string) => (
+    `${API_ORIGIN}/api/admin/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
+  ),
+  adminAttachmentPreviewUrl: (messageId: string, attachmentId: string) => (
+    `${API_ORIGIN}/api/admin/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}?preview=1`
+  ),
+  adminRawUrl: (messageId: string) => (
+    `${API_ORIGIN}/api/admin/messages/${encodeURIComponent(messageId)}/raw`
+  ),
   adminUsers: (cursor?: string) => {
     const search = new URLSearchParams({ limit: '50' })
     if (cursor) search.set('cursor', cursor)

@@ -417,6 +417,27 @@ Content-Type: application/json
 会话只依据 `Message-ID`、`In-Reply-To` 和 `References` 关联，不会用相同主题
 猜测关系。
 
+### 全站邮件管理
+
+只有主管理员可以查询和管理所有用户的邮件：
+
+```http
+GET /api/admin/messages?q=invoice&user=user%40example.com&direction=incoming&folder=inbox&status=ready&days=30&limit=30
+GET /api/admin/messages/{id}
+GET /api/admin/messages/{id}/attachments/{attachmentId}
+GET /api/admin/messages/{id}/raw
+PATCH /api/admin/messages/bulk
+Content-Type: application/json
+
+{ "ids": ["message-id-1"], "action": "trash" }
+```
+
+列表支持主题、发件人、收件人、正文、所属用户和邮箱筛选，以及游标分页。
+`action` 只接受 `trash`、`restore` 和 `delete`，单次最多 50 封；`delete`
+只永久删除已经位于垃圾箱的邮件。主管理员打开邮件不会修改所属用户的已读或
+星标状态。查看正文、下载附件或原始邮件、移入垃圾箱、恢复和永久删除都会写入
+操作日志。永久删除只清理主邮件存储，备份副本仍按备份保留策略保存。
+
 分页接口：
 
 | 接口 | 数组字段 | 权限 |
@@ -427,7 +448,7 @@ Content-Type: application/json
 
 ## 备份浏览与只读演练
 
-管理员可以按固定分类分页浏览私有备份桶：
+主管理员可以按固定分类分页浏览私有备份桶：
 
 ```http
 GET /api/admin/backups/objects?prefix=d1/daily/&limit=30
@@ -529,6 +550,9 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 使用 Resend 在线程内回复 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
+| `GET /api/admin/messages` | 主管理员查询和筛选全站邮件 |
+| `GET /api/admin/messages/{id}` | 主管理员读取任意用户邮件正文 |
+| `PATCH /api/admin/messages/bulk` | 主管理员批量移入垃圾箱、恢复或永久删除邮件 |
 | `GET /api/admin/mail-cleanup/preview` | 按范围、类型和邮件时间预估清理影响 |
 | `POST /api/admin/mail-cleanup` | 经数量复核后每批永久清理最多 50 封邮件 |
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |

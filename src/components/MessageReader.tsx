@@ -180,6 +180,10 @@ export function MessageReader({
   canRetryFailedMessage,
   onRetryFailedMessage,
   onSelectThread,
+  managementMode = false,
+  attachmentUrl = api.attachmentUrl,
+  attachmentPreviewUrl = api.attachmentPreviewUrl,
+  rawUrl = api.rawUrl,
   emptyLabel = '选择一封邮件',
 }: {
   message: MessageDetail | null
@@ -196,6 +200,10 @@ export function MessageReader({
   canRetryFailedMessage: boolean
   onRetryFailedMessage: () => void
   onSelectThread: (message: MessageSummary) => void
+  managementMode?: boolean
+  attachmentUrl?: (messageId: string, attachmentId: string) => string
+  attachmentPreviewUrl?: (messageId: string, attachmentId: string) => string
+  rawUrl?: (messageId: string) => string
   emptyLabel?: string
 }) {
   const [replying, setReplying] = useState(false)
@@ -244,7 +252,7 @@ export function MessageReader({
     if (!message || inlineAttachments.length === 0) return () => controller.abort()
     void Promise.all(inlineAttachments.map(async (attachment) => {
       try {
-        const response = await fetch(api.attachmentUrl(message.id, attachment.id), {
+        const response = await fetch(attachmentUrl(message.id, attachment.id), {
           credentials: 'include',
           signal: controller.signal,
         })
@@ -262,7 +270,7 @@ export function MessageReader({
       setInlineImagesLoading(false)
     })
     return () => controller.abort()
-  }, [message])
+  }, [attachmentUrl, message])
 
   const activeTranslation = displayedTranslation && displayedTranslation.messageId === message?.id
     ? displayedTranslation.value : null
@@ -346,16 +354,18 @@ export function MessageReader({
         <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}>
           <ArrowLeft size={18} />
         </button>
-        <h2 className="reader-toolbar__title">{t('邮件详情')}</h2>
+        <h2 className="reader-toolbar__title">{t(managementMode ? '管理邮件' : '邮件详情')}</h2>
         <div className="reader-toolbar__spacer" />
         {message.folder === 'trash' && (
           <button className="toolbar-button" type="button" onClick={onRestore}>
             <Undo2 size={16} /> {t('恢复')}
           </button>
         )}
-        <button className="icon-button" type="button" onClick={onStar} aria-label={t(message.isStarred ? '取消星标' : '添加星标')}>
-          <Star size={17} fill={message.isStarred ? 'currentColor' : 'none'} />
-        </button>
+        {!managementMode && (
+          <button className="icon-button" type="button" onClick={onStar} aria-label={t(message.isStarred ? '取消星标' : '添加星标')}>
+            <Star size={17} fill={message.isStarred ? 'currentColor' : 'none'} />
+          </button>
+        )}
         <button className="icon-button icon-button--danger" type="button" onClick={onTrash} aria-label={t(message.folder === 'trash' ? '永久删除' : '移入垃圾箱')}>
           <Trash2 size={17} />
         </button>
@@ -388,7 +398,9 @@ export function MessageReader({
             <time dateTime={new Date(message.date).toISOString()}>{formatFullDate(message.date)}</time>
           </div>
         </header>
-        <MessageThread currentId={message.id} messages={thread} onSelect={onSelectThread} />
+        {!managementMode && (
+          <MessageThread currentId={message.id} messages={thread} onSelect={onSelectThread} />
+        )}
 
         {message.folder === 'trash' && message.purgeAfter && (
           <p className="trash-retention-notice">
@@ -446,7 +458,7 @@ export function MessageReader({
         <MessageTranslation
           key={message.id}
           messageId={message.id}
-          enabled={translationEnabled && Boolean(message.text.trim())
+          enabled={!managementMode && translationEnabled && Boolean(message.text.trim())
             && ['ready', 'sent'].includes(message.status)}
           onDisplayChange={displayTranslation}
         >
@@ -482,12 +494,17 @@ export function MessageReader({
         </MessageTranslation>
 
         {message.attachments.length > 0 && (
-          <MessageAttachments messageId={message.id} attachments={message.attachments} />
+          <MessageAttachments
+            messageId={message.id}
+            attachments={message.attachments}
+            attachmentUrl={attachmentUrl}
+            attachmentPreviewUrl={attachmentPreviewUrl}
+          />
         )}
 
         <div className="message-footer-actions">
           {message.direction === 'incoming' && (
-            <a className="quiet-link" href={api.rawUrl(message.id)} download>
+            <a className="quiet-link" href={rawUrl(message.id)} download>
               <Download size={14} /> {t('下载原始邮件')}
             </a>
           )}

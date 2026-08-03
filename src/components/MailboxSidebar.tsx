@@ -6,6 +6,7 @@ import {
   Link2,
   LogOut,
   ScrollText,
+  SearchCheck,
   Send,
   Settings2,
   Star,
@@ -40,8 +41,10 @@ const adminItems: Array<{
   id: Exclude<AdminView, 'account'>
   label: string
   icon: typeof BarChart3
+  superAdminOnly?: boolean
 }> = [
   { id: 'statistics', label: '统计', icon: BarChart3 },
+  { id: 'mail', label: '邮件管理', icon: SearchCheck, superAdminOnly: true },
   { id: 'users', label: '用户', icon: Users },
   { id: 'invites', label: '邀请', icon: Link2 },
   { id: 'logs', label: '操作日志', icon: ScrollText },
@@ -132,7 +135,7 @@ export function MailboxSidebar({
             className={`admin-nav${adminMenuOpen ? ' is-open' : ''}`}
             aria-label={t('管理员功能')}
           >
-            {adminItems.map((item) => {
+            {adminItems.filter((item) => !item.superAdminOnly || user.role === 'super_admin').map((item) => {
               const Icon = item.icon
               return (
                 <button

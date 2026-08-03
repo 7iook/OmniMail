@@ -15,6 +15,10 @@ describe('workspace routes', () => {
       kind: 'admin',
       view: 'users',
     })
+    expect(workspaceRoute('/admin/mail', 'super_admin')).toMatchObject({
+      kind: 'admin',
+      view: 'mail',
+    })
     expect(workspaceRoute('/settings/account/', 'user')).toMatchObject({
       kind: 'admin',
       view: 'account',
@@ -23,6 +27,11 @@ describe('workspace routes', () => {
 
   it('falls back to the inbox for unknown or unauthorized paths', () => {
     expect(workspaceRoute('/admin/users', 'user')).toMatchObject({
+      kind: 'folder',
+      folder: 'inbox',
+      path: '/mail/inbox',
+    })
+    expect(workspaceRoute('/admin/mail', 'admin')).toMatchObject({
       kind: 'folder',
       folder: 'inbox',
       path: '/mail/inbox',
