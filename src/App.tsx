@@ -1,5 +1,5 @@
 import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
 import { DraftComposer, useDraftEditor } from './components/DraftComposer'
@@ -79,6 +79,7 @@ function Mailbox({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
+  const messageRequestId = useRef(0)
   const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
@@ -122,6 +123,7 @@ function Mailbox({
     await Promise.all([loadMailboxes(), loadDomains()])
   }, [loadDomains, loadMailboxes])
   const loadMessages = useCallback(async (quiet = false) => {
+    const requestId = ++messageRequestId.current
     if (quiet) setRefreshing(true)
     else setListLoading(true)
     setError('')
@@ -129,8 +131,9 @@ function Mailbox({
       const result = await api.messages(
         folder, deferredQuery, scope, undefined, quiet ? messageVersion : undefined,
       )
-      if (result.unchanged) return false
+      if (requestId !== messageRequestId.current || result.unchanged) return false
       await mailNotifications.track(quiet, result.messages, folder === 'inbox' && !deferredQuery && scope.type === 'all')
+      if (requestId !== messageRequestId.current) return false
       setMessageVersion(result.version)
       setMessages(result.messages)
       setSelectedMessageIds((current) => new Set(
@@ -144,14 +147,14 @@ function Mailbox({
         setThread([])
       }
     } catch (loadError) {
+      if (requestId !== messageRequestId.current) return false
       if (loadError instanceof ApiError && loadError.status === 401) {
         await onLogout()
         return
       }
       setError(errorMessage(loadError))
     } finally {
-      setListLoading(false)
-      setRefreshing(false)
+      if (requestId === messageRequestId.current) { setListLoading(false); setRefreshing(false) }
     }
   }, [deferredQuery, folder, mailNotifications.track, messageVersion, onLogout, scope, selectedId])
   async function loadMoreMessages() {
@@ -182,7 +185,6 @@ function Mailbox({
       setLoadingMore(false)
     }
   }
-
   useEffect(() => {
     setSelectedMessageIds(new Set())
     if (folder !== 'drafts') void loadMessages()
@@ -190,14 +192,12 @@ function Mailbox({
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
-
   useMailboxRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView && folder !== 'drafts', messages, selectedId, detail?.status, selectMessage)
   useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(''), 3000)
     return () => window.clearTimeout(timer)
   }, [notice])
-
   async function selectMessage(message: MessageSummary) {
     setSelectedId(message.id)
     setDetailLoading(true)
