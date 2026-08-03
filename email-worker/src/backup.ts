@@ -10,14 +10,13 @@ import {
   type StoredAttachment,
   type StoredMail,
 } from './mail-archive'
+import { d1ExportFile, d1ExportPayload, type D1ExportResult } from './d1-export'
 import { validateBackupTarget } from './backup-target'
 import { backupEnabled } from './storage-policy'
 import type { BackupWorkflowParams, Env } from './types'
 
-type ExportResult = {
+type ExportResult = D1ExportResult & {
   at_bookmark?: string
-  signed_url?: string
-  filename?: string
   status?: 'complete' | 'error'
   error?: string
 }
@@ -88,7 +87,7 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ output_format: 'polling' }),
+              body: JSON.stringify(d1ExportPayload()),
             },
           )
           const data = await response.json<ExportResponse>()
@@ -110,7 +109,7 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ current_bookmark: bookmark }),
+              body: JSON.stringify(d1ExportPayload(bookmark)),
             },
           )
           const data = await response.json<ExportResponse>()
@@ -120,7 +119,9 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
           if (data.result?.status === 'error') {
             throw new NonRetryableError(data.result.error || 'D1 导出失败。')
           }
-          if (!data.result?.signed_url) throw new Error('D1 导出文件尚未准备完成。')
+          if (data.result?.error) throw new NonRetryableError(data.result.error)
+          const exportFile = d1ExportFile(data.result)
+          if (!exportFile) throw new Error('D1 导出文件尚未准备完成。')
 
           const date = backupDate(event.timestamp)
           const targets = [`d1/daily/${date}/${event.instanceId}.sql`]
@@ -133,7 +134,7 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
           }
           let size = 0
           for (const key of targets) {
-            const dump = await fetch(data.result.signed_url)
+            const dump = await fetch(exportFile.signedUrl)
             if (!dump.ok || !dump.body) {
               throw new Error(`无法下载 D1 导出文件（${dump.status}）`)
             }

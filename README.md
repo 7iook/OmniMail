@@ -243,7 +243,7 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `CLOUDFLARE_BUILDS_API_TOKEN` | Secret | 仅用于触发并读取 Workers Builds 的专用 Token |
 | `UPDATE_REPOSITORY` | Text | Release 来源仓库，默认 `mibgb65-cloud/OmniMail` |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
-| `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Read 的专用 API Token |
+| `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Edit 的专用 API Token |
 
 如果多个域名可放在同一个 Resend 账户中，可继续只设置 `RESEND_API_KEY`。受 Resend
 套餐域名数量限制时，把 `RESEND_DOMAIN_CONFIGS` 设为 JSON Secret，为每个发件域名
@@ -361,7 +361,7 @@ OmniMail 会使用 D1 Query API 对比目标数据库与当前 `DB` 绑定的内
   邮件在永久清理前仍计入配额。
 
 `D1_REST_API_TOKEN` 应使用独立的 Cloudflare API Token，只授予目标账户的
-**D1 Read** 权限。恢复前先下载备份对象并导入一个新的 D1 数据库完成校验，再切换
+**D1 Edit** 权限（D1 导出接口需要该权限）。恢复前先下载备份对象并导入一个新的 D1 数据库完成校验，再切换
 绑定；不要直接覆盖正在运行的生产数据库。R2 邮件归档用于灾难恢复，不替代原始
 邮件桶，也不应设置为公开访问。
 
