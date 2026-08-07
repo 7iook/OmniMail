@@ -53,7 +53,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.2.0' }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.1.3',
+      currentVersion: '0.1.4',
       latestVersion: '0.2.0',
       updateAvailable: true,
       automaticUpdate: false,
@@ -89,7 +89,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.1.3',
+      currentVersion: '0.1.4',
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,
