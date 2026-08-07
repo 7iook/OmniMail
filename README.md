@@ -229,10 +229,9 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
 | `LINUX_DO_CLIENT_ID` | Text | Linux DO Connect Client ID |
 | `LINUX_DO_CLIENT_SECRET` | Secret | Linux DO Connect Client Secret |
-| `RESEND_API_KEY` | Secret | Resend 主动发信与回复 |
-| `RESEND_FROM` | Text | 可选固定发件人，例如 `OmniMail <reply@example.com>` |
 | `RESEND_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 Resend API Key 与可选发件人 |
-| `RESEND_WEBHOOK_SECRET` | Secret | Resend 投递状态 Webhook 的 Signing Secret |
+| `RESEND_WEBHOOK_SECRET` | Secret | 单个 Resend Webhook 的 Signing Secret（兼容旧配置） |
+| `RESEND_WEBHOOK_SECRETS` | Secret | 多个 Resend Webhook Signing Secret 组成的 JSON 数组 |
 | `SENDFLARE_API_KEY` | Secret | SendFlare 全局主动发信与回复 |
 | `SENDFLARE_FROM` | Text | 可选固定发件邮箱地址，例如 `reply@example.com` |
 | `SENDFLARE_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 SendFlare API Key 与可选发件邮箱 |
@@ -245,25 +244,32 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Edit 的专用 API Token |
 
-如果多个域名可放在同一个 Resend 账户中，可继续只设置 `RESEND_API_KEY`。受 Resend
-套餐域名数量限制时，把 `RESEND_DOMAIN_CONFIGS` 设为 JSON Secret，为每个发件域名
-指定独立账户的 API Key：
+把 `RESEND_DOMAIN_CONFIGS` 设为 JSON Secret，为每个发件域名指定对应的 API Key。
+只有一个域名时只需要一个条目：
 
 ```json
 {
-  "example.com": { "apiKey": "re_example" },
-  "another.example": {
-    "apiKey": "re_another",
-    "from": "OmniMail <reply@another.example>"
+  "openai.com": { "apiKey": "re_openai" }
+}
+```
+
+多个域名时合并到同一个 JSON 对象中：
+
+```json
+{
+  "openai.com": { "apiKey": "re_openai" },
+  "closeai.com": {
+    "apiKey": "re_closeai",
+    "from": "OmniMail <reply@closeai.com>"
   }
 }
 ```
 
-域名匹配不区分大小写，并使用精确匹配。匹配到域名专属配置时优先使用它；未匹配时
-回退到 `RESEND_API_KEY` 和 `RESEND_FROM`。专属配置没有设置 `from` 时，用户选择的
-邮箱会作为发件人；固定发件人情况下，用户选择的邮箱仍作为 Reply-To。每个发件域名
-都需要在对应的 Resend 账户中完成验证。API Key 应通过 Cloudflare Secret 保存。
-配置不是合法 JSON 或任一域名缺少 `apiKey` 时会禁用发信，不会回退到旧账户。
+推荐使用 `apiKey`；也兼容 `apikey` 写法。域名匹配不区分大小写，并使用精确匹配，
+未配置的域名不能通过 Resend 发信。没有设置 `from` 时，用户选择的邮箱会作为发件人；
+设置固定发件人时，用户选择的邮箱仍作为 Reply-To。每个发件域名都需要在对应的
+Resend 账户中完成验证。API Key 应通过 Cloudflare Secret 保存。配置不是合法 JSON
+或任一域名缺少 `apiKey`/`apikey` 时会禁用 Resend 发信。
 
 SendFlare 可以通过全局 Secret 配置：
 
@@ -285,8 +291,8 @@ SENDFLARE_FROM=reply@example.com
 ```
 
 将上述 JSON 保存为 `SENDFLARE_DOMAIN_CONFIGS` Secret。匹配的 SendFlare 域名配置优先
-于 Resend；其余域名继续使用原有 Resend 配置，最后才回退到全局
-`SENDFLARE_API_KEY`。因此现有 `RESEND_*` 配置无需修改。SendFlare 的 `from` 必须是
+于 Resend；其余域名继续使用匹配的 Resend 域名配置，最后才回退到全局
+`SENDFLARE_API_KEY`。SendFlare 的 `from` 必须是
 已验证域名下的纯邮箱地址，不能使用 `名称 <邮箱>` 格式。
 
 SendFlare 当前发送接口没有附件字段。含附件邮件若存在可用 Resend 配置，会自动改用
@@ -308,8 +314,16 @@ https://你的域名/api/webhooks/resend
 ```
 
 选择 `email.sent`、`email.delivered`、`email.delivery_delayed`、`email.bounced`、
-`email.complained`、`email.failed` 与 `email.suppressed`，再把 Signing Secret 保存为
-`RESEND_WEBHOOK_SECRET`。Webhook 未配置时仍可发信，但只能显示发信服务已接受请求。
+`email.complained`、`email.failed` 与 `email.suppressed`。单个 Resend 账户可把 Signing
+Secret 保存为 `RESEND_WEBHOOK_SECRET`。多个账户都使用同一端点，并把各账户生成的
+Signing Secret 以 JSON 数组保存为 `RESEND_WEBHOOK_SECRETS`：
+
+```json
+["whsec_account_one", "whsec_account_two"]
+```
+
+两个变量可以同时设置，便于从单账户配置迁移；重复值会自动去除。Webhook 未配置时
+仍可发信，但只能显示发信服务已接受请求。
 
 管理员可在 **账号设置 → 管理员二次验证** 中启用验证器应用。启用时生成的恢复码只
 显示一次；TOTP 密钥经过 `TOTP_ENCRYPTION_KEY` 加密后才写入 D1。更换此 Secret 前

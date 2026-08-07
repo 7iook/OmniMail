@@ -43,10 +43,9 @@ export interface Env {
   SUPER_ADMIN_EMAIL?: string
   COOKIE_SECURE?: string
   SETUP_TOKEN?: string
-  RESEND_API_KEY?: string
-  RESEND_FROM?: string
   RESEND_DOMAIN_CONFIGS?: string
   RESEND_WEBHOOK_SECRET?: string
+  RESEND_WEBHOOK_SECRETS?: string
   SENDFLARE_API_KEY?: string
   SENDFLARE_FROM?: string
   SENDFLARE_DOMAIN_CONFIGS?: string

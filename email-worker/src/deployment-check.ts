@@ -1,5 +1,6 @@
 import { normalizeEmail, validEmail } from './api-helpers'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
+import { resendWebhookSecrets } from './resend-webhook'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -182,13 +183,13 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       id: 'outbound-provider', group: 'mail', label: '发信与回复服务',
       ready: hasOutboundProviderConfig(env), required: false, missingState: 'warning',
       detail: 'Resend 或 SendFlare 发信配置已就绪，具备主动发信与回复的条件。',
-      action: '不需要发信可以跳过；需要时配置 Resend 或 SendFlare API Key。',
+      action: '不需要发信可以跳过；需要时配置 RESEND_DOMAIN_CONFIGS 或 SendFlare。',
     }),
     check({
       id: 'resend-webhook', group: 'mail', label: 'Resend 投递回执',
-      ready: Boolean(env.RESEND_WEBHOOK_SECRET?.trim()), required: false, missingState: 'warning',
+      ready: Boolean(resendWebhookSecrets(env)?.length), required: false, missingState: 'warning',
       detail: '签名 Webhook 可同步送达、延迟、退信和投诉状态。',
-      action: '在 Resend 创建 /api/webhooks/resend 端点并配置其 Signing Secret。',
+      action: '在每个 Resend 账户创建 /api/webhooks/resend 端点并配置 Signing Secret。',
     }),
     {
       id: 'email-routing', group: 'mail', label: 'Email Routing',

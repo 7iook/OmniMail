@@ -22,6 +22,26 @@ const DELIVERY_STATUS = {
 
 type DeliveryStatus = typeof DELIVERY_STATUS[keyof typeof DELIVERY_STATUS]
 
+export function resendWebhookSecrets(env: Env): string[] | null {
+  const legacy = env.RESEND_WEBHOOK_SECRET?.trim()
+  const raw = env.RESEND_WEBHOOK_SECRETS?.trim()
+  if (!raw) return legacy ? [legacy] : []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (
+      !Array.isArray(parsed)
+      || !parsed.length
+      || parsed.some((value) => typeof value !== 'string' || !value.trim())
+    ) return null
+    return [...new Set([
+      ...parsed.map((value) => value.trim()),
+      ...(legacy ? [legacy] : []),
+    ])]
+  } catch {
+    return null
+  }
+}
+
 function base64Bytes(value: string): Uint8Array | null {
   try {
     const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
@@ -128,11 +148,18 @@ export async function reconcileResendEvents(
 }
 
 export async function handleResendWebhook(env: Env, request: Request): Promise<Response> {
-  if (!env.RESEND_WEBHOOK_SECRET?.trim()) {
+  const secrets = resendWebhookSecrets(env)
+  if (secrets === null) {
+    return Response.json({ error: 'RESEND_WEBHOOK_SECRETS contains invalid JSON.' }, { status: 503 })
+  }
+  if (!secrets.length) {
     return Response.json({ error: 'Resend webhook is not configured.' }, { status: 503 })
   }
   const payload = await request.text()
-  if (!await validResendSignature(payload, request.headers, env.RESEND_WEBHOOK_SECRET)) {
+  const signatures = await Promise.all(secrets.map((secret) => (
+    validResendSignature(payload, request.headers, secret).catch(() => false)
+  )))
+  if (!signatures.some(Boolean)) {
     return Response.json({ error: 'Invalid webhook signature.' }, { status: 400 })
   }
   let event: ResendEvent

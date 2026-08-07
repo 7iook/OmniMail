@@ -40,6 +40,62 @@ describe('Resend webhook', () => {
       .resolves.toBe(false)
   })
 
+  it('accepts a signature from any configured Resend account', async () => {
+    const firstSecret = crypto.getRandomValues(new Uint8Array(32))
+    const secondSecret = crypto.getRandomValues(new Uint8Array(32))
+    const now = Math.floor(Date.now() / 1000)
+    const payload = '{}'
+    const headers = await signedHeaders(payload, secondSecret, now)
+    const env = {
+      RESEND_WEBHOOK_SECRETS: JSON.stringify([
+        `whsec_${base64(firstSecret)}`,
+        `whsec_${base64(secondSecret)}`,
+      ]),
+    } as Env
+
+    const response = await handleResendWebhook(env, new Request(
+      'https://mail.example/api/webhooks/resend',
+      { method: 'POST', headers, body: payload },
+    ))
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects signatures outside the configured Resend accounts', async () => {
+    const configuredSecret = crypto.getRandomValues(new Uint8Array(32))
+    const unknownSecret = crypto.getRandomValues(new Uint8Array(32))
+    const now = Math.floor(Date.now() / 1000)
+    const payload = '{}'
+    const headers = await signedHeaders(payload, unknownSecret, now)
+    const env = {
+      RESEND_WEBHOOK_SECRETS: JSON.stringify([`whsec_${base64(configuredSecret)}`]),
+    } as Env
+
+    const response = await handleResendWebhook(env, new Request(
+      'https://mail.example/api/webhooks/resend',
+      { method: 'POST', headers, body: payload },
+    ))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('fails closed when the multi-account secret configuration is invalid', async () => {
+    const env = {
+      RESEND_WEBHOOK_SECRET: 'whsec_legacy',
+      RESEND_WEBHOOK_SECRETS: '{invalid',
+    } as Env
+
+    const response = await handleResendWebhook(env, new Request(
+      'https://mail.example/api/webhooks/resend',
+      { method: 'POST', body: '{}' },
+    ))
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'RESEND_WEBHOOK_SECRETS contains invalid JSON.',
+    })
+  })
+
   it('stores a signed delivery event and reconciles the message', async () => {
     const secret = crypto.getRandomValues(new Uint8Array(32))
     const now = Math.floor(Date.now() / 1000)

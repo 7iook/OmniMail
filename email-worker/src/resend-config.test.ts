@@ -7,13 +7,11 @@ import {
 import type { Env } from './types'
 
 describe('Resend configuration', () => {
-  it('selects a domain configuration before the legacy global configuration', () => {
+  it('selects the API key for each configured domain', () => {
     const env = {
-      RESEND_API_KEY: 're_global',
-      RESEND_FROM: 'Global <reply@global.example>',
       RESEND_DOMAIN_CONFIGS: JSON.stringify({
         'example.com': {
-          apiKey: ' re_domain ',
+          apikey: ' re_domain ',
           from: 'Example <reply@example.com>',
         },
         'another.example': { apiKey: 're_another' },
@@ -24,10 +22,7 @@ describe('Resend configuration', () => {
       apiKey: 're_domain',
       from: 'Example <reply@example.com>',
     })
-    expect(resendConfigForAddress(env, 'owner@other.example')).toEqual({
-      apiKey: 're_global',
-      from: 'Global <reply@global.example>',
-    })
+    expect(resendConfigForAddress(env, 'owner@other.example')).toBeNull()
     expect(resendConfigForAddress(env, 'owner@another.example')).toEqual({
       apiKey: 're_another',
       from: undefined,
@@ -50,9 +45,8 @@ describe('Resend configuration', () => {
     expect(resendConfigForAddress(env, 'not-an-address')).toBeNull()
   })
 
-  it('rejects malformed domain configuration instead of falling back globally', () => {
+  it('rejects malformed domain configuration', () => {
     const env = {
-      RESEND_API_KEY: 're_global',
       RESEND_DOMAIN_CONFIGS: '{invalid',
     } as Env
 

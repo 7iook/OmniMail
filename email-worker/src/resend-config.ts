@@ -24,8 +24,9 @@ function domainConfigs(env: Env): DomainConfigs {
         return { valid: false, values: new Map() }
       }
       const normalizedDomain = domain.trim().toLowerCase()
-      const candidate = value as { apiKey?: unknown; from?: unknown }
-      const apiKey = typeof candidate.apiKey === 'string' ? candidate.apiKey.trim() : ''
+      const candidate = value as { apiKey?: unknown; apikey?: unknown; from?: unknown }
+      const configuredApiKey = candidate.apiKey ?? candidate.apikey
+      const apiKey = typeof configuredApiKey === 'string' ? configuredApiKey.trim() : ''
       const from = typeof candidate.from === 'string' ? candidate.from.trim() : ''
       if (!normalizedDomain || !apiKey || (candidate.from !== undefined && typeof candidate.from !== 'string')) {
         return { valid: false, values: new Map() }
@@ -48,15 +49,10 @@ export function resendConfigForAddress(env: Env, address: string): ResendConfig 
   const domain = address.slice(separator + 1).trim().toLowerCase()
   const parsed = domainConfigs(env)
   if (!parsed.valid) return null
-  const domainConfig = parsed.values.get(domain)
-  if (domainConfig) return domainConfig
-  const apiKey = env.RESEND_API_KEY?.trim()
-  if (!apiKey) return null
-  const from = env.RESEND_FROM?.trim()
-  return { apiKey, from: from || undefined }
+  return parsed.values.get(domain) ?? null
 }
 
 export function hasResendConfig(env: Env): boolean {
   const parsed = domainConfigs(env)
-  return parsed.valid && (Boolean(env.RESEND_API_KEY?.trim()) || parsed.values.size > 0)
+  return parsed.valid && parsed.values.size > 0
 }

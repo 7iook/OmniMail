@@ -26,7 +26,9 @@ function environment(): Env {
     APP_ORIGINS: 'https://mail.example.com',
     SUPER_ADMIN_EMAIL: 'owner@example.com',
     SETUP_TOKEN: 'do-not-return-this-secret',
-    RESEND_API_KEY: 're_do-not-return',
+    RESEND_DOMAIN_CONFIGS: JSON.stringify({
+      'example.com': { apiKey: 're_do-not-return' },
+    }),
   } as unknown as Env
 }
 
@@ -53,6 +55,19 @@ describe('deployment check', () => {
       new Set(['core', 'security', 'mail']),
     )
     expect(JSON.stringify(result)).not.toContain('do-not-return')
+  })
+
+  it('recognizes multi-account Resend webhook secrets', async () => {
+    const env = environment()
+    env.RESEND_WEBHOOK_SECRETS = '["whsec_one","whsec_two"]'
+    const response = await deploymentCheck(env, administrator)
+    const result = await response.json() as {
+      checks: Array<{ id: string; state: string }>
+    }
+
+    expect(result.checks.find((item) => item.id === 'resend-webhook')).toMatchObject({
+      state: 'ready',
+    })
   })
 
   it('rejects non-administrator accounts', async () => {

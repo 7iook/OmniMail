@@ -66,7 +66,12 @@ describe('validateNewMessage', () => {
       },
     }
     const response = await sendMessage(
-      { DB: database, RESEND_API_KEY: 're_test' } as unknown as Env,
+      {
+        DB: database,
+        RESEND_DOMAIN_CONFIGS: JSON.stringify({
+          'example.com': { apiKey: 're_test' },
+        }),
+      } as unknown as Env,
       {
         id: 'user-1',
         role: 'user',
@@ -135,7 +140,7 @@ describe('validateNewMessage', () => {
     expect(mocks.sendOutboundMessage).not.toHaveBeenCalled()
   })
 
-  it('reports invalid domain Resend JSON instead of using the global key', async () => {
+  it('reports invalid domain Resend JSON', async () => {
     const database = {
       prepare: () => ({
         bind() { return this },
@@ -145,7 +150,6 @@ describe('validateNewMessage', () => {
     const response = await sendMessage(
       {
         DB: database,
-        RESEND_API_KEY: 're_global',
         RESEND_DOMAIN_CONFIGS: '{invalid',
       } as unknown as Env,
       { id: 'user-1', role: 'user', canReply: true } as SessionUser,

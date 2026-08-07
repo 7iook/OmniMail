@@ -9,7 +9,9 @@ import type { Env } from './types'
 describe('outbound provider configuration', () => {
   it('uses a domain-specific SendFlare account before existing Resend configuration', () => {
     const env = {
-      RESEND_API_KEY: 're_global',
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'other.example': { apiKey: 're_other' },
+      }),
       SENDFLARE_DOMAIN_CONFIGS: JSON.stringify({
         ' Example.com ': { apiKey: ' sf_domain ', from: 'sender@example.com' },
       }),
@@ -19,7 +21,7 @@ describe('outbound provider configuration', () => {
       provider: 'sendflare', apiKey: 'sf_domain', from: 'sender@example.com',
     })
     expect(outboundProviderForAddress(env, 'owner@other.example')).toEqual({
-      provider: 'resend', apiKey: 're_global', from: undefined,
+      provider: 'resend', apiKey: 're_other', from: undefined,
     })
   })
 
@@ -33,7 +35,9 @@ describe('outbound provider configuration', () => {
 
   it('rejects malformed SendFlare domain configuration', () => {
     const env = {
-      RESEND_API_KEY: 're_global',
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'example.com': { apiKey: 're_example' },
+      }),
       SENDFLARE_DOMAIN_CONFIGS: '{invalid',
     } as Env
     expect(outboundProviderConfigError(env)).toBe('SENDFLARE_DOMAIN_CONFIGS 格式无效。')

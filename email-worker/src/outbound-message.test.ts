@@ -59,8 +59,12 @@ function environment(
       DB: { prepare, batch: async () => [] },
       MAIL_BUCKET: { put },
       MAIL_QUEUE: { send },
-      RESEND_API_KEY: 're_test',
-      RESEND_FROM: 'OmniMail <reply@example.com>',
+      RESEND_DOMAIN_CONFIGS: JSON.stringify({
+        'example.com': {
+          apiKey: 're_test',
+          from: 'OmniMail <reply@example.com>',
+        },
+      }),
     } as unknown as Env,
     put,
     send,
@@ -385,8 +389,7 @@ describe('outbound delivery', () => {
       body_key: 'bodies/out-sendflare-attachment.json', in_reply_to: null,
       references_header: null, client_request_id: 'request_no_fallback', domain_is_active: 1,
     }, [{ filename: 'report.bin', r2_key: 'attachments/report.bin' }])
-    delete env.RESEND_API_KEY
-    delete env.RESEND_FROM
+    delete env.RESEND_DOMAIN_CONFIGS
     env.SENDFLARE_API_KEY = 'sf_global'
     env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
       text: 'Attached', html: '<p>Attached</p>',
