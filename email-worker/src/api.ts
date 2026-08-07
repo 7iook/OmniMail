@@ -576,19 +576,13 @@ app.get('/api/messages/:id/raw', (context) => getRawMessage(
   context.env, context.get('user'), context.req.param('id'),
 ))
 
-app.post('/api/messages/:id/reply', async (context) => {
-  const body = await context.req.json<{
-    text?: string
-    idempotencyKey?: string
-  }>().catch(() => ({} as { text?: string; idempotencyKey?: string }))
-  return sendReply(
-    context.env,
-    context.get('user'),
-    context.req.param('id'),
-    body,
-    clientIp(context.req.raw.headers),
-  )
-})
+app.post('/api/messages/:id/reply', (context) => sendReply(
+  context.env,
+  context.get('user'),
+  context.req.param('id'),
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+))
 
 app.onError((error, context) => {
   console.error(error)

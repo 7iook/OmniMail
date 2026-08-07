@@ -58,7 +58,11 @@ describe('reply target', () => {
       } as unknown as Env,
       user,
       original.id,
-      { text: 'Reply', idempotencyKey: 'request_12345678' },
+      new Request('https://mail.example/api/messages/message-1/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'Reply', idempotencyKey: 'request_12345678' }),
+      }),
       '127.0.0.1',
     )
 
@@ -68,6 +72,47 @@ describe('reply target', () => {
       expect.anything(),
       user,
       expect.objectContaining({ recipients: ['support@example.org'] }),
+      '127.0.0.1',
+    )
+  })
+
+  it('passes validated multipart attachments to outbound storage', async () => {
+    const statement = {
+      bind() { return statement },
+      first: async () => original,
+    }
+    const form = new FormData()
+    form.set('text', 'Attached reply')
+    form.set('idempotencyKey', 'request_attachment')
+    form.append('attachments', new File(['report'], ' report\r\n.txt ', {
+      type: 'text/plain',
+    }))
+
+    const response = await sendReply(
+      {
+        DB: { prepare: () => statement },
+        RESEND_DOMAIN_CONFIGS: JSON.stringify({
+          'example.com': { apiKey: 're_test' },
+        }),
+      } as unknown as Env,
+      user,
+      original.id,
+      new Request('https://mail.example/api/messages/message-1/reply', {
+        method: 'POST', body: form,
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.sendOutboundMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      user,
+      expect.objectContaining({
+        attachmentUploads: [expect.objectContaining({
+          filename: 'report.txt', contentType: 'text/plain', size: 6,
+        })],
+        auditDetail: { originalId: original.id, attachmentCount: 1 },
+      }),
       '127.0.0.1',
     )
   })

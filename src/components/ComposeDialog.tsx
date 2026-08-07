@@ -26,6 +26,11 @@ import {
   type MailboxAddress,
   type MailDraft,
 } from '../lib/api'
+import {
+  attachmentSelectionError,
+  formatAttachmentSize,
+  MAX_ATTACHMENTS,
+} from '../lib/attachmentPolicy'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 import { ComposeMailboxSelect } from './ComposeMailboxSelect'
@@ -34,32 +39,6 @@ export type ComposeDraftFields = Pick<
   MailDraft,
   'mailboxAddress' | 'to' | 'subject' | 'text'
 >
-
-const MAX_COMPOSE_ATTACHMENTS = 5
-const MAX_COMPOSE_ATTACHMENT_BYTES = 5 * 1024 * 1024
-const MAX_COMPOSE_ATTACHMENT_TOTAL_BYTES = 10 * 1024 * 1024
-
-export function attachmentSelectionError(
-  files: readonly { size: number }[],
-  existing: readonly { size: number }[],
-): string | null {
-  if (files.length + existing.length > MAX_COMPOSE_ATTACHMENTS) {
-    return '一封邮件最多添加 5 个附件。'
-  }
-  if (files.some((file) => file.size > MAX_COMPOSE_ATTACHMENT_BYTES)) {
-    return '单个附件不能超过 5 MiB。'
-  }
-  const total = [...existing, ...files].reduce((bytes, file) => bytes + file.size, 0)
-  return total > MAX_COMPOSE_ATTACHMENT_TOTAL_BYTES
-    ? '附件总大小不能超过 10 MiB。'
-    : null
-}
-
-export function formatAttachmentSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
-}
 
 export function mergeLoadedDraftFields(
   current: ComposeDraftFields,
@@ -125,7 +104,7 @@ export function ComposeDialog({
   )
   const busy = sending || uploading || discarding || closing
   const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
-  const attachmentLimitReached = attachments.length >= MAX_COMPOSE_ATTACHMENTS
+  const attachmentLimitReached = attachments.length >= MAX_ATTACHMENTS
   const inline = presentation === 'inline'
 
   function updateDraftField<Key extends keyof ComposeDraftFields>(
@@ -415,7 +394,7 @@ export function ComposeDialog({
             <section className="compose-attachments" aria-label={t('附件')}>
               <div className="compose-attachments__summary" aria-live="polite">
                 <strong><Paperclip size={13} />{t('附件')}</strong>
-                <span>{attachments.length}/{MAX_COMPOSE_ATTACHMENTS} · {formatAttachmentSize(attachmentBytes)}</span>
+                <span>{attachments.length}/{MAX_ATTACHMENTS} · {formatAttachmentSize(attachmentBytes)}</span>
               </div>
               <div className="compose-attachments__items">
                 {attachments.map((attachment) => (

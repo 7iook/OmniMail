@@ -1,5 +1,11 @@
 import { normalizeEmail, validEmail } from './api-helpers'
 import {
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_TOTAL_BYTES,
+  normalizeAttachmentFilename,
+} from './attachment-policy'
+import {
   configuredDraftLimits,
   draftLimitForRole,
   type DraftLimits,
@@ -19,10 +25,6 @@ import {
 import { resendConfigForAddress } from './resend-config'
 import { validateNewMessage } from './send-message'
 import type { Env, SessionUser } from './types'
-
-export const MAX_DRAFT_ATTACHMENTS = 5
-export const MAX_DRAFT_ATTACHMENT_BYTES = 5 * 1024 * 1024
-export const MAX_DRAFT_TOTAL_BYTES = 10 * 1024 * 1024
 
 type DraftInput = {
   mailboxAddress?: string
@@ -70,10 +72,6 @@ function json(body: unknown, status = 200): Response {
 
 function canCompose(user: SessionUser): boolean {
   return user.role === 'super_admin' || user.role === 'admin' || user.canReply
-}
-
-export function normalizeDraftFilename(value: string): string {
-  return value.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 255) || 'attachment'
 }
 
 export function validateDraftInput(
@@ -341,17 +339,17 @@ export async function uploadDraftAttachment(
   if (!(file instanceof File) || file.size <= 0) {
     return json({ error: '请选择要上传的附件。' }, 400)
   }
-  if (file.size > MAX_DRAFT_ATTACHMENT_BYTES) {
+  if (file.size > MAX_ATTACHMENT_BYTES) {
     return json({ error: '单个附件不能超过 5 MiB。' }, 413)
   }
   const total = await env.DB.prepare(
     `SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes
        FROM mail_draft_attachments WHERE draft_id = ?`,
   ).bind(draftId).first<{ count: number; bytes: number }>()
-  if ((total?.count || 0) >= MAX_DRAFT_ATTACHMENTS) {
+  if ((total?.count || 0) >= MAX_ATTACHMENTS) {
     return json({ error: '一封邮件最多添加 5 个附件。' }, 409)
   }
-  if ((total?.bytes || 0) + file.size > MAX_DRAFT_TOTAL_BYTES) {
+  if ((total?.bytes || 0) + file.size > MAX_ATTACHMENT_TOTAL_BYTES) {
     return json({ error: '附件总大小不能超过 10 MiB。' }, 413)
   }
   if (!await reserveStorage(env.DB, user.id, file.size)) {
@@ -359,7 +357,7 @@ export async function uploadDraftAttachment(
   }
   const id = crypto.randomUUID()
   const key = `drafts/${user.id}/${draftId}/${id}`
-  const filename = normalizeDraftFilename(file.name)
+  const filename = normalizeAttachmentFilename(file.name)
   const contentType = file.type && file.type.length <= 100 && !/[\r\n]/.test(file.type)
     ? file.type
     : 'application/octet-stream'

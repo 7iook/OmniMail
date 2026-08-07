@@ -29,6 +29,7 @@ function environment(
 ) {
   const statements: Array<{ sql: string; bindings: unknown[] }> = []
   const put = vi.fn(async () => undefined)
+  const remove = vi.fn(async () => undefined)
   const send = vi.fn(async () => undefined)
   const prepare = (sql: string) => {
     const statement = {
@@ -57,7 +58,7 @@ function environment(
   return {
     env: {
       DB: { prepare, batch: async () => [] },
-      MAIL_BUCKET: { put },
+      MAIL_BUCKET: { put, delete: remove },
       MAIL_QUEUE: { send },
       RESEND_DOMAIN_CONFIGS: JSON.stringify({
         'example.com': {
@@ -67,6 +68,7 @@ function environment(
       }),
     } as unknown as Env,
     put,
+    remove,
     send,
     statements,
   }
@@ -101,6 +103,62 @@ describe('outbound delivery', () => {
     }))
     expect(statements.some(({ sql }) => sql.includes('INSERT INTO outbound_rate_limits')))
       .toBe(true)
+  })
+
+  it('stores direct reply attachments with the outgoing message', async () => {
+    const { env, put, statements } = environment()
+    const attachment = new File(['report'], 'report.txt', { type: 'text/plain' })
+
+    const response = await sendOutboundMessage(env, user, {
+      mailboxAddress: 'owner@example.com',
+      recipients: ['friend@example.net'],
+      subject: 'Re: Hello',
+      text: 'Attached',
+      idempotencyKey: 'request_reply_attachment',
+      attachmentUploads: [{
+        id: 'attachment-1',
+        filename: attachment.name,
+        contentType: attachment.type,
+        size: attachment.size,
+        body: attachment,
+      }],
+      auditAction: 'message.reply',
+      auditDetail: { attachmentCount: 1 },
+    }, '127.0.0.1')
+
+    expect(response.status).toBe(202)
+    expect(put).toHaveBeenCalledTimes(2)
+    expect(put.mock.calls.find(([key]) => String(key).startsWith('attachments/'))?.[1])
+      .toBe(attachment)
+    expect(statements.some(({ sql, bindings }) => (
+      sql.includes('INSERT INTO attachments') && bindings.includes('report.txt')
+    ))).toBe(true)
+  })
+
+  it('removes a partially stored reply when an attachment upload fails', async () => {
+    const { env, put, remove, send } = environment()
+    put.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('R2 unavailable'))
+
+    const response = await sendOutboundMessage(env, user, {
+      mailboxAddress: 'owner@example.com',
+      recipients: ['friend@example.net'],
+      subject: 'Re: Hello',
+      text: 'Attached',
+      idempotencyKey: 'request_reply_attachment_failure',
+      attachmentUploads: [{
+        id: 'attachment-1',
+        filename: 'report.txt',
+        contentType: 'text/plain',
+        size: 6,
+        body: new File(['report'], 'report.txt', { type: 'text/plain' }),
+      }],
+      auditAction: 'message.reply',
+      auditDetail: { attachmentCount: 1 },
+    }, '127.0.0.1')
+
+    expect(response.status).toBe(502)
+    expect(remove).toHaveBeenCalledWith([expect.stringMatching(/^bodies\//)])
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('atomically transfers draft attachments into the outgoing message', async () => {

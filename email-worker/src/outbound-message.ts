@@ -21,6 +21,7 @@ export type OutboundMessage = {
   inReplyTo?: string | null
   references?: string
   attachments?: OutboundAttachment[]
+  attachmentUploads?: OutboundAttachmentUpload[]
   draftId?: string
   auditAction: 'message.reply' | 'message.send'
   auditDetail: Record<string, unknown>
@@ -32,6 +33,10 @@ export type OutboundAttachment = {
   contentType: string
   size: number
   r2Key: string
+}
+
+export type OutboundAttachmentUpload = Omit<OutboundAttachment, 'r2Key'> & {
+  body: Blob
 }
 
 function json(body: unknown, status = 200): Response {
@@ -294,7 +299,15 @@ export async function sendOutboundMessage(
     html: textToHtml(input.text),
   } satisfies StoredBody)
   const bodyBytes = new TextEncoder().encode(storedBody).byteLength
-  const attachments = input.attachments ?? []
+  const attachmentUploads = input.attachmentUploads ?? []
+  const uploadedAttachments: OutboundAttachment[] = attachmentUploads.map((attachment) => ({
+    id: attachment.id,
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+    size: attachment.size,
+    r2Key: `attachments/${outboundId}/${attachment.id}`,
+  }))
+  const attachments = [...(input.attachments ?? []), ...uploadedAttachments]
   const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
   const quotaBytes = bodyBytes + attachmentBytes
   const reserveBytes = input.draftId ? bodyBytes : quotaBytes
@@ -303,12 +316,27 @@ export async function sendOutboundMessage(
   }
   const now = Math.floor(Date.now() / 1000)
 
+  const writtenKeys: string[] = []
   try {
     await env.MAIL_BUCKET.put(bodyKey, storedBody, {
       httpMetadata: { contentType: 'application/json; charset=utf-8' },
     })
+    writtenKeys.push(bodyKey)
+    for (const [index, attachment] of attachmentUploads.entries()) {
+      const stored = uploadedAttachments[index]
+      await env.MAIL_BUCKET.put(stored.r2Key, attachment.body, {
+        httpMetadata: { contentType: attachment.contentType },
+        customMetadata: {
+          filename: attachment.filename,
+          userId: user.id,
+          messageId: outboundId,
+        },
+      })
+      writtenKeys.push(stored.r2Key)
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unable to store outbound message'
+    if (writtenKeys.length) await env.MAIL_BUCKET.delete(writtenKeys).catch(() => undefined)
     await releaseStorage(env.DB, user.id, reserveBytes)
     return json({ error: `保存发件失败：${detail}` }, 502)
   }
@@ -377,7 +405,7 @@ export async function sendOutboundMessage(
       status: string
       provider_id: string | null
     }>()
-    await env.MAIL_BUCKET.delete(bodyKey).catch((error) => {
+    await env.MAIL_BUCKET.delete(writtenKeys).catch((error) => {
       console.error('Unable to remove unused outbound body', error)
     })
     await releaseStorage(env.DB, user.id, reserveBytes)

@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  attachmentSelectionError,
-  formatAttachmentSize,
   mergeLoadedDraftFields,
   type ComposeDraftFields,
 } from './ComposeDialog'
 import type { MailboxAddress } from '../lib/api'
+import { attachmentSelectionError, formatAttachmentSize } from '../lib/attachmentPolicy'
 
 const mailboxes: MailboxAddress[] = [
   { address: 'owner@example.com', domain: 'example.com', isPrimary: true, isActive: true },
@@ -58,6 +57,8 @@ describe('compose attachments', () => {
     )).toBe('一封邮件最多添加 5 个附件。')
     expect(attachmentSelectionError([{ size: 5 * 1024 * 1024 + 1 }], []))
       .toBe('单个附件不能超过 5 MiB。')
+    expect(attachmentSelectionError([{ size: 0 }], []))
+      .toBe('请选择要上传的附件。')
     expect(attachmentSelectionError(
       [{ size: 2 * 1024 * 1024 }],
       [{ size: 9 * 1024 * 1024 }],

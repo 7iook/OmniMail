@@ -483,15 +483,26 @@ export const api = {
   deleteMessage: (id: string) => request<{ ok: true }>(`/api/messages/${id}`, {
     method: 'DELETE',
   }),
-  reply: (id: string, text: string, idempotencyKey: string) => (
-    request<{ message: { id: string; status: string; providerId?: string } }>(
+  reply: (id: string, text: string, idempotencyKey: string, attachments: File[] = []) => {
+    let body: BodyInit
+    if (attachments.length) {
+      const form = new FormData()
+      form.set('text', text)
+      form.set('idempotencyKey', idempotencyKey)
+      for (const attachment of attachments) form.append('attachments', attachment)
+      body = form
+    } else {
+      body = jsonBody({ text, idempotencyKey })
+    }
+    return request<{ message: { id: string; status: string; providerId?: string } }>(
       `/api/messages/${id}/reply`,
       {
         method: 'POST',
-        body: jsonBody({ text, idempotencyKey }),
+        body,
+        signal: attachments.length ? AbortSignal.timeout(60_000) : undefined,
       },
     )
-  ),
+  },
   sendMessage: (input: {
     mailboxAddress: string
     to: string

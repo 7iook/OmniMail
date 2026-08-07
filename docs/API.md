@@ -349,6 +349,11 @@ Resend 或 SendFlare 发信服务。
 自然日最多 200 封。超过限制时返回 `429`，`Retry-After` 响应头给出建议等待秒数；
 相同 `idempotencyKey` 的重试不会重复计数。
 
+线程回复不带附件时继续接受 JSON 请求；添加附件时使用 `multipart/form-data`，字段为
+`text`、`idempotencyKey` 和一个或多个 `attachments`。最多允许 5 个附件，单个不超过
+5 MiB，合计不超过 10 MiB。附件会与回复正文一起写入“已发送”并进入相同投递队列。
+SendFlare 本身不支持附件；对应域名同时配置 Resend 时自动改用 Resend，否则拒绝发送。
+
 管理员通过以下接口管理限速：
 
 ```http
@@ -550,7 +555,7 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `PATCH /api/messages/bulk` | 当前用户最多 50 封邮件的批量状态或删除操作 |
 | `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
-| `POST /api/messages/{id}/reply` | 使用已配置的发信服务在线程内回复 |
+| `POST /api/messages/{id}/reply` | 在线程内回复，支持 multipart 附件 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/messages` | 主管理员查询和筛选全站邮件 |
 | `GET /api/admin/messages/{id}` | 主管理员读取任意用户邮件正文 |

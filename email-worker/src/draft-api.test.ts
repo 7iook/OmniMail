@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  MAX_DRAFT_ATTACHMENT_BYTES,
-  normalizeDraftFilename,
+  attachmentFilesError,
+  MAX_ATTACHMENT_BYTES,
+  normalizeAttachmentFilename,
+} from './attachment-policy'
+import {
   pruneDraftsForLimits,
   sendDraft,
   validateDraftInput,
@@ -41,8 +44,16 @@ describe('mail draft validation', () => {
   })
 
   it('sanitizes attachment names and exposes the upload limit', () => {
-    expect(normalizeDraftFilename(' report\r\n.pdf ')).toBe('report.pdf')
-    expect(MAX_DRAFT_ATTACHMENT_BYTES).toBe(5 * 1024 * 1024)
+    expect(normalizeAttachmentFilename(' report\r\n.pdf ')).toBe('report.pdf')
+    expect(MAX_ATTACHMENT_BYTES).toBe(5 * 1024 * 1024)
+  })
+
+  it('rejects invalid attachment batches before storing them', () => {
+    expect(attachmentFilesError(Array.from({ length: 6 }, () => ({ size: 1 }))))
+      .toBe('一封邮件最多添加 5 个附件。')
+    expect(attachmentFilesError([{ size: 5 * 1024 * 1024 + 1 }]))
+      .toBe('单个附件不能超过 5 MiB。')
+    expect(attachmentFilesError([{ size: 0 }])).toBe('请选择要上传的附件。')
   })
 
   it('requeues a failed idempotent draft send after the draft was transferred', async () => {
