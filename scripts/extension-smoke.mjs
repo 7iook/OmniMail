@@ -179,14 +179,18 @@ try {
   await page.waitForTimeout(500)
   const cdp = await context.newCDPSession(page)
   await cdp.send('DOM.enable')
-  const { nodes } = await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })
-  const floatButton = nodes.find((node) => {
+  const nodeWithClass = (nodes, className) => nodes.find((node) => {
     const attributes = node.attributes || []
     const classIndex = attributes.indexOf('class')
-    return node.nodeName === 'BUTTON'
-      && classIndex >= 0
-      && attributes[classIndex + 1]?.split(/\s+/).includes('omnimail-float-button')
+    return classIndex >= 0 && attributes[classIndex + 1]?.split(/\s+/).includes(className)
   })
+  const nodeAttribute = (node, name) => {
+    const attributes = node.attributes || []
+    const index = attributes.indexOf(name)
+    return index >= 0 ? attributes[index + 1] : ''
+  }
+  const { nodes } = await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })
+  const floatButton = nodeWithClass(nodes, 'omnimail-float-button')
   assert(floatButton?.nodeId, 'floating button was not injected')
 
   const box = await cdp.send('DOM.getBoxModel', { nodeId: floatButton.nodeId })
@@ -245,11 +249,6 @@ try {
   await panelFrame.getByRole('combobox', { name: '邮箱域名' }).click()
   await panelFrame.getByRole('listbox', { name: '邮箱域名' }).waitFor()
   await page.screenshot({ path: darkDropdownScreenshotPath })
-  if (previewMode) {
-    await page.bringToFront()
-    console.log('OmniMail extension preview is ready. Close the browser to stop it.')
-    await new Promise(() => {})
-  }
   await panelFrame.getByRole('option', { name: '@example.com' }).click()
   await page.emulateMedia({ colorScheme: 'light' })
   await domainCombobox.press('ArrowDown')
@@ -295,6 +294,73 @@ try {
     path: resolve(storeAssetsPath, '03-floating-message.jpg'),
     type: 'jpeg', quality: 94,
   })
+
+  const dockNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
+  const floatHeader = nodeWithClass(dockNodes, 'omnimail-float-header')
+  assert(floatHeader?.nodeId, 'floating panel header was not found')
+  const headerBox = await cdp.send('DOM.getBoxModel', { nodeId: floatHeader.nodeId })
+  const [headerX1, headerY1, headerX2, , , headerY3] = headerBox.model.content
+  const headerX = (headerX1 + headerX2) / 2
+  const headerY = (headerY1 + headerY3) / 2
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: headerX, y: headerY, button: 'left', buttons: 1, clickCount: 1,
+  })
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved', x: 1277, y: headerY, button: 'left', buttons: 1,
+  })
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: 1277, y: headerY, button: 'left', buttons: 0, clickCount: 1,
+  })
+  await page.waitForTimeout(250)
+
+  const collapsedNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
+  const collapsedButton = nodeWithClass(collapsedNodes, 'omnimail-float-button')
+  const collapsedPanel = nodeWithClass(collapsedNodes, 'omnimail-float-panel')
+  assert(collapsedButton?.nodeId && collapsedPanel?.nodeId, 'docked controls were not found')
+  assert.match(nodeAttribute(collapsedButton, 'class'), /\bis-docked\b/)
+  assert.equal(nodeAttribute(collapsedButton, 'aria-expanded'), 'false')
+  assert.doesNotMatch(nodeAttribute(collapsedPanel, 'class'), /\bis-visible\b/)
+  const collapsedBox = await cdp.send('DOM.getBoxModel', { nodeId: collapsedButton.nodeId })
+  const [dockX1, , dockX2] = collapsedBox.model.border
+  assert.equal(Math.round(dockX2 - dockX1), 44)
+  assert.equal(Math.round(dockX2), 1280)
+  const dockedStorage = await serviceWorker.evaluate(() => chrome.storage.local.get('floatLayout'))
+  assert.equal(dockedStorage.floatLayout.docked, true)
+  assert(dockedStorage.floatLayout.panel.width >= 360)
+  await page.screenshot({ path: resolve('test-results', 'extension-docked.png') })
+
+  await page.reload()
+  await page.waitForTimeout(500)
+  const restoredNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
+  const restoredButton = nodeWithClass(restoredNodes, 'omnimail-float-button')
+  assert(restoredButton?.nodeId, 'restored docked button was not found')
+  assert.match(nodeAttribute(restoredButton, 'class'), /\bis-docked\b/)
+  const restoredBox = await cdp.send('DOM.getBoxModel', { nodeId: restoredButton.nodeId })
+  const [restoreX1, restoreY1, , , restoreX3, restoreY3] = restoredBox.model.content
+  const restoredFramePromise = page.waitForEvent('framenavigated', {
+    predicate: (candidate) => candidate !== page.mainFrame() && candidate.url().endsWith('/panel.html'),
+    timeout: 10_000,
+  })
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: (restoreX1 + restoreX3) / 2, y: (restoreY1 + restoreY3) / 2,
+    button: 'left', buttons: 1, clickCount: 1,
+  })
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: (restoreX1 + restoreX3) / 2, y: (restoreY1 + restoreY3) / 2,
+    button: 'left', buttons: 0, clickCount: 1,
+  })
+  const restoredFrame = await restoredFramePromise
+  await restoredFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  const expandedNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
+  assert.match(nodeAttribute(nodeWithClass(expandedNodes, 'omnimail-float-panel'), 'class'), /\bis-visible\b/)
+  await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded.png') })
+  if (previewMode) {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.waitForTimeout(220)
+    await page.bringToFront()
+    console.log('OmniMail docked preview is ready. Click the right-edge tab to collapse or expand it.')
+    await new Promise(() => {})
+  }
 
   const icon = await readFile(resolve('extension', 'public', 'icons', 'icon128.png'))
   const promoPage = await context.newPage()

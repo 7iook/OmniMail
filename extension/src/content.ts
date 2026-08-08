@@ -6,6 +6,10 @@
   existing?.dispose?.()
 
   const cleanup: Array<() => void> = []
+  const BUTTON_SIZE = 52
+  const DOCKED_BUTTON_WIDTH = 44
+  const DOCK_GAP = 8
+  const DOCK_THRESHOLD = 16
   let host: HTMLDivElement | null = null
   let button: HTMLButtonElement | null = null
   let panel: HTMLElement | null = null
@@ -13,6 +17,7 @@
   let overlay: HTMLDivElement | null = null
   let panelVisible = false
   let pinned = false
+  let docked = false
   let frameLoaded = false
   let lastFocusedInput: HTMLInputElement | null = null
   let bodyObserver: MutationObserver | null = null
@@ -21,7 +26,11 @@
     button?: { left?: number; top?: number }
     panel?: { left?: number; top?: number; width?: number; height?: number }
     pinned?: boolean
+    docked?: boolean
   }
+
+  type PanelBounds = Required<NonNullable<Layout['panel']>>
+  let panelBounds: PanelBounds | null = null
 
   const controller = {
     dispose() {
@@ -57,15 +66,19 @@
     if (!button || !panel) return {}
     const buttonRect = button.getBoundingClientRect()
     const panelRect = panel.getBoundingClientRect()
-    return {
-      button: { left: buttonRect.left, top: buttonRect.top },
-      panel: {
+    if (panelRect.width && panelRect.height) {
+      panelBounds = {
         left: panelRect.left,
         top: panelRect.top,
         width: panelRect.width,
         height: panelRect.height,
-      },
+      }
+    }
+    return {
+      button: { left: buttonRect.left, top: buttonRect.top },
+      panel: panelBounds || undefined,
       pinned,
+      docked,
     }
   }
 
@@ -73,14 +86,51 @@
     void chrome.storage.local.set({ floatLayout: currentLayout() })
   }
 
+  function updateButtonState(): void {
+    if (!button) return
+    button.classList.toggle('is-docked', docked)
+    const action = panelVisible ? '收起' : '展开'
+    button.title = docked ? `${action}贴边的 OmniMail` : `${action} OmniMail`
+    button.setAttribute('aria-label', docked
+      ? `${action}贴边的 OmniMail 悬浮邮箱`
+      : `${action} OmniMail 悬浮邮箱`)
+  }
+
+  function positionDocked(buttonTop: number): void {
+    if (!button || !panel || !panelBounds) return
+    setPosition(
+      button,
+      window.innerWidth - DOCKED_BUTTON_WIDTH,
+      clamp(buttonTop, 8, window.innerHeight - BUTTON_SIZE - 8),
+    )
+    const maxLeft = window.innerWidth - panelBounds.width - DOCKED_BUTTON_WIDTH - DOCK_GAP
+    const left = Math.max(10, maxLeft)
+    const top = clamp(panelBounds.top, 10, window.innerHeight - panelBounds.height - 10)
+    setPosition(panel, left, top)
+    panelBounds = { ...panelBounds, left, top }
+  }
+
+  function undockButton(left?: number): void {
+    if (!button || !docked) return
+    const top = button.getBoundingClientRect().top
+    docked = false
+    updateButtonState()
+    setPosition(
+      button,
+      clamp(left ?? window.innerWidth - BUTTON_SIZE - 22, 8, window.innerWidth - BUTTON_SIZE - 8),
+      clamp(top, 8, window.innerHeight - BUTTON_SIZE - 8),
+    )
+  }
+
   function applyLayout(layout: Layout = {}): void {
     if (!button || !panel) return
-    const buttonWidth = 52
-    const buttonHeight = 52
+    docked = Boolean(layout.docked)
+    updateButtonState()
+    const buttonWidth = docked ? DOCKED_BUTTON_WIDTH : BUTTON_SIZE
     setPosition(
       button,
       clamp(layout.button?.left ?? window.innerWidth - buttonWidth - 22, 8, window.innerWidth - buttonWidth - 8),
-      clamp(layout.button?.top ?? window.innerHeight - buttonHeight - 22, 8, window.innerHeight - buttonHeight - 8),
+      clamp(layout.button?.top ?? window.innerHeight - BUTTON_SIZE - 22, 8, window.innerHeight - BUTTON_SIZE - 8),
     )
 
     const width = clamp(layout.panel?.width ?? 440, 360, Math.max(360, window.innerWidth - 20))
@@ -92,6 +142,13 @@
       clamp(layout.panel?.left ?? window.innerWidth - width - 24, 10, window.innerWidth - width - 10),
       clamp(layout.panel?.top ?? Math.max(10, window.innerHeight - height - 78), 10, window.innerHeight - height - 10),
     )
+    panelBounds = {
+      left: Number.parseFloat(panel.style.left),
+      top: Number.parseFloat(panel.style.top),
+      width,
+      height,
+    }
+    if (docked) positionDocked(layout.button?.top ?? panelBounds.top)
     pinned = Boolean(layout.pinned)
     panel.querySelector<HTMLButtonElement>('[data-action="pin"]')?.classList.toggle('is-active', pinned)
   }
@@ -102,15 +159,29 @@
       frameLoaded = true
       frame.src = chrome.runtime.getURL('panel.html')
     }
+    if (docked) positionDocked(button?.getBoundingClientRect().top ?? panelBounds?.top ?? 8)
     panelVisible = true
     panel.classList.add('is-visible')
     button?.setAttribute('aria-expanded', 'true')
+    updateButtonState()
   }
 
   function hidePanel(): void {
+    currentLayout()
     panelVisible = false
     panel?.classList.remove('is-visible')
     button?.setAttribute('aria-expanded', 'false')
+    updateButtonState()
+  }
+
+  function dockPanel(buttonTop?: number): void {
+    if (!button || !panel || pinned) return
+    currentLayout()
+    docked = true
+    updateButtonState()
+    positionDocked(buttonTop ?? panelBounds?.top ?? 8)
+    hidePanel()
+    persistLayout()
   }
 
   function startMove(
@@ -202,9 +273,22 @@
       startMove(event, button!, (left, top, next) => {
         if (Math.hypot(next.clientX - startX, next.clientY - startY) > 4) dragged = true
         const rect = button!.getBoundingClientRect()
-        setPosition(button!, clamp(left, 0, window.innerWidth - rect.width), clamp(top, 0, window.innerHeight - rect.height))
+        const nextLeft = clamp(left, 0, window.innerWidth - rect.width)
+        setPosition(button!, nextLeft, clamp(top, 0, window.innerHeight - rect.height))
+        button?.classList.toggle('is-dock-ready', window.innerWidth - nextLeft - rect.width <= DOCK_THRESHOLD)
       }, () => {
-        if (dragged) persistLayout()
+        button?.classList.remove('is-dragging', 'is-dock-ready')
+        if (!dragged || !button) return
+        const rect = button.getBoundingClientRect()
+        if (!pinned && window.innerWidth - rect.right <= DOCK_THRESHOLD) {
+          docked = true
+          updateButtonState()
+          positionDocked(rect.top)
+          hidePanel()
+        } else {
+          undockButton(rect.left)
+        }
+        persistLayout()
       })
     })
     button.addEventListener('pointerup', () => button?.classList.remove('is-dragging'))
@@ -216,7 +300,30 @@
     const header = panel.querySelector<HTMLElement>('.omnimail-float-header')!
     header.addEventListener('pointerdown', (event) => {
       if ((event.target as Element).closest('button')) return
-      startMove(event, panel!)
+      const startX = event.clientX
+      const startY = event.clientY
+      let moved = false
+      startMove(event, panel!, (left, top, next) => {
+        if (Math.hypot(next.clientX - startX, next.clientY - startY) > 4) moved = true
+        const rect = panel!.getBoundingClientRect()
+        const nextLeft = clamp(left, 0, window.innerWidth - rect.width)
+        setPosition(panel!, nextLeft, clamp(top, 0, window.innerHeight - rect.height))
+        panel?.classList.toggle(
+          'is-dock-ready',
+          moved && !pinned && window.innerWidth - nextLeft - rect.width <= DOCK_THRESHOLD,
+        )
+      }, () => {
+        panel?.classList.remove('is-dock-ready')
+        if (!moved || !panel) return
+        const rect = panel.getBoundingClientRect()
+        if (!pinned && window.innerWidth - rect.right <= DOCK_THRESHOLD) {
+          dockPanel(rect.top)
+          return
+        }
+        undockButton()
+        currentLayout()
+        persistLayout()
+      })
     })
     panel.querySelector('[data-action="close"]')?.addEventListener('click', hidePanel)
     panel.querySelector('[data-action="pin"]')?.addEventListener('click', (event) => {
@@ -235,6 +342,10 @@
         const height = clamp(next.clientY - rect.top, 480, window.innerHeight - rect.top)
         panel!.style.setProperty('width', `${width}px`, 'important')
         panel!.style.setProperty('height', `${height}px`, 'important')
+      }, () => {
+        currentLayout()
+        if (docked) positionDocked(button?.getBoundingClientRect().top ?? panelBounds?.top ?? 8)
+        persistLayout()
       })
     })
 
