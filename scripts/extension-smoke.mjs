@@ -6,8 +6,11 @@ import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 
 const extensionPath = resolve('dist-extension')
+const previewMode = process.argv.includes('--preview')
 const profilePath = await mkdtemp(resolve(tmpdir(), 'omnimail-extension-'))
 const screenshotPath = resolve('test-results', 'extension-smoke.png')
+const dropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open.png')
+const darkDropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open-dark.png')
 const storeAssetsPath = resolve('extension', 'store-assets')
 const user = {
   id: 'user-1', email: 'owner@example.com', displayName: 'Owner', role: 'super_admin',
@@ -98,10 +101,12 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/domains') {
-      json(response, { domains: [{
-        name: 'example.com', isActive: true, mailboxCount: mailboxes.length,
+      json(response, { domains: [
+        'example.com', 'aicnos.com', 'cloudflare.aicnos.com', 'noetie.kdns.fr',
+      ].map((name) => ({
+        name, isActive: true, mailboxCount: mailboxes.filter((item) => item.domain === name).length,
         createdAt: 1, updatedAt: 1,
-      }] })
+      })) })
       return
     }
     if (url.pathname === '/api/mailboxes' && request.method === 'GET') {
@@ -158,7 +163,7 @@ let context
 try {
   context = await chromium.launchPersistentContext(profilePath, {
     channel: 'chromium',
-    headless: true,
+    headless: !previewMode,
     viewport: { width: 1280, height: 800 },
     args: [
       `--disable-extensions-except=${extensionPath}`,
@@ -209,6 +214,8 @@ try {
     disabled: false,
     background: 'rgb(29, 29, 31)',
   })
+  const storedLayout = await serviceWorker.evaluate(() => chrome.storage.local.get('floatLayout'))
+  assert.equal(storedLayout.floatLayout, undefined)
 
   const apiOrigin = `http://127.0.0.1:${address.port}`
   await panelFrame.getByLabel('OmniMail 地址').fill(apiOrigin)
@@ -221,6 +228,36 @@ try {
   await authorizationPage.getByRole('heading', { name: '授权浏览器扩展' }).waitFor()
   await authorizationPage.getByRole('button', { name: '允许访问' }).click()
   await panelFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  const randomMailboxButton = panelFrame.getByRole('button', { name: '随机生成邮箱' })
+  await randomMailboxButton.click({ trial: true })
+  assert.deepEqual(await randomMailboxButton.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    disabled: button.disabled,
+  })), { background: 'rgb(29, 29, 31)', disabled: false })
+  assert.equal(await panelFrame.locator('select').count(), 0)
+  const domainCombobox = panelFrame.getByRole('combobox', { name: '邮箱域名' })
+  await domainCombobox.click()
+  await panelFrame.getByRole('listbox', { name: '邮箱域名' }).waitFor()
+  await page.screenshot({ path: dropdownScreenshotPath })
+  await panelFrame.getByRole('option', { name: '@example.com' }).click()
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.waitForTimeout(220)
+  await panelFrame.getByRole('combobox', { name: '邮箱域名' }).click()
+  await panelFrame.getByRole('listbox', { name: '邮箱域名' }).waitFor()
+  await page.screenshot({ path: darkDropdownScreenshotPath })
+  if (previewMode) {
+    await page.bringToFront()
+    console.log('OmniMail extension preview is ready. Close the browser to stop it.')
+    await new Promise(() => {})
+  }
+  await panelFrame.getByRole('option', { name: '@example.com' }).click()
+  await page.emulateMedia({ colorScheme: 'light' })
+  await domainCombobox.press('ArrowDown')
+  await domainCombobox.press('ArrowDown')
+  await domainCombobox.press('Enter')
+  assert.equal(await domainCombobox.textContent(), '@aicnos.com')
+  await domainCombobox.click()
+  await panelFrame.getByRole('option', { name: '@example.com' }).click()
   assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
   assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{43}$/)
   await mkdir(storeAssetsPath, { recursive: true })
@@ -229,7 +266,12 @@ try {
     type: 'jpeg', quality: 94,
   })
 
-  await panelFrame.getByRole('button', { name: '一键生成邮箱' }).click()
+  await panelFrame.getByLabel('邮箱前缀 可选').fill('custom-box')
+  await panelFrame.getByRole('button', { name: '创建自定义邮箱' }).click()
+  await panelFrame.getByText('邮箱已生成').waitFor()
+  assert.equal(mailboxes.at(-1).address, 'custom-box@example.com')
+
+  await randomMailboxButton.click()
   await panelFrame.getByText('邮箱已生成').waitFor()
   const generatedAddress = mailboxes.at(-1).address
   assert.match(generatedAddress, /^omni-[a-f0-9]{12}@example\.com$/)
@@ -238,6 +280,9 @@ try {
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), generatedAddress)
 
   await panelFrame.getByRole('button', { name: '收件' }).click()
+  await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
+  await panelFrame.getByRole('listbox', { name: '筛选邮箱' }).waitFor()
+  await panelFrame.getByRole('option', { name: '全部邮箱' }).click()
   await panelFrame.getByText('Your verification code').waitFor()
   await page.screenshot({
     path: resolve(storeAssetsPath, '02-floating-inbox.jpg'),

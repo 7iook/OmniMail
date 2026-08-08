@@ -19,6 +19,7 @@
     "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:extension": "node scripts/extension-smoke.mjs",
+    "preview:extension": "npm run build:extension && node scripts/extension-smoke.mjs --preview",
     "test:e2e": "playwright test",
     "build": "npm run check && vite build",
     "build:extension": "vite build --config vite.extension.config.ts"

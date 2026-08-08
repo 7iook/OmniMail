@@ -23,6 +23,7 @@ import type {
   User,
 } from '../../src/lib/api-types'
 import { safeEmailDocument } from './email-document'
+import { PanelSelect } from './PanelSelect'
 import {
   type AuthStatus,
   type ExtensionSettings,
@@ -39,6 +40,10 @@ function errorText(error: unknown): string {
 function randomLocalPart(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(6))
   return `omni-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
+}
+
+function validLocalPart(value: string): boolean {
+  return /^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?$/.test(value)
 }
 
 function formatDate(timestamp: number): string {
@@ -64,6 +69,7 @@ export function PanelApp() {
   const [selectedMailbox, setSelectedMailbox] = useState('')
   const [selectedMessage, setSelectedMessage] = useState<MessageDetail | null>(null)
   const [domain, setDomain] = useState('')
+  const [localPart, setLocalPart] = useState('')
   const [generatedAddress, setGeneratedAddress] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -184,14 +190,21 @@ export function PanelApp() {
 
   async function generateMailbox() {
     if (!domain || generating) return
+    const requestedLocalPart = localPart.trim().toLowerCase()
+    if (requestedLocalPart && !validLocalPart(requestedLocalPart)) {
+      setError('邮箱前缀支持字母、数字、点、下划线、加号和连字符，长度为 1–64 个字符。')
+      return
+    }
     setGenerating(true)
     setError('')
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    const maximumAttempts = requestedLocalPart ? 1 : 3
+    for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
       try {
-        const address = `${randomLocalPart()}@${domain}`
+        const address = `${requestedLocalPart || randomLocalPart()}@${domain}`
         const result = await sendExtensionMessage<{ mailbox: MailboxAddress }>({
           type: 'api:create-mailbox', address,
         })
+        setLocalPart('')
         setGeneratedAddress(result.mailbox.address)
         await loadMailboxData()
         setSelectedMailbox(result.mailbox.address)
@@ -200,7 +213,7 @@ export function PanelApp() {
         setGenerating(false)
         return
       } catch (generateError) {
-        if (attempt < 2 && /已经|属于|占用/.test(errorText(generateError))) continue
+        if (attempt < maximumAttempts - 1 && /已经|属于|占用/.test(errorText(generateError))) continue
         setError(errorText(generateError))
         break
       }
@@ -284,11 +297,13 @@ export function PanelApp() {
           <GenerateView
             domains={enabledDomains}
             domain={domain}
+            localPart={localPart}
             generatedAddress={generatedAddress}
             fallbackAddress={selectedMailbox || mailboxes.find((item) => item.isPrimary)?.address || ''}
             canGenerate={canGenerate}
             busy={generating}
             onDomain={setDomain}
+            onLocalPart={setLocalPart}
             onGenerate={generateMailbox}
             onCopy={copyAddress}
             onFill={fillAddress}
@@ -363,31 +378,57 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
   )
 }
 
-function GenerateView({ domains, domain, generatedAddress, fallbackAddress, canGenerate, busy, onDomain, onGenerate, onCopy, onFill }: {
+function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, canGenerate, busy, onDomain, onLocalPart, onGenerate, onCopy, onFill }: {
   domains: ManagedDomain[]
   domain: string
+  localPart: string
   generatedAddress: string
   fallbackAddress: string
   canGenerate: boolean
   busy: boolean
   onDomain: (domain: string) => void
+  onLocalPart: (localPart: string) => void
   onGenerate: () => void
   onCopy: (address: string) => void
   onFill: (address: string) => void
 }) {
   const address = generatedAddress || fallbackAddress
+  const previewLocalPart = localPart.trim().toLowerCase() || 'omni-随机字符'
   return (
     <section className="panel-page">
-      <header className="page-heading"><p className="eyebrow">QUICK MAILBOX</p><h1>快速生成邮箱</h1><p>选择域名后，系统会创建一个未占用的随机地址。</p></header>
+      <header className="page-heading"><p className="eyebrow">QUICK MAILBOX</p><h1>快速生成邮箱</h1><p>输入邮箱前缀，或者留空让系统随机生成。</p></header>
       <div className="page-card">
-        <label htmlFor="mail-domain">邮箱域名</label>
-        <select id="mail-domain" value={domain} onChange={(event) => onDomain(event.target.value)} disabled={busy || !canGenerate}>
-          {domains.map((item) => <option key={item.name} value={item.name}>@{item.name}</option>)}
-        </select>
-        <div className="address-preview"><span>生成格式</span><strong>omni-随机字符@{domain || 'domain'}</strong></div>
+        <div className="mailbox-fields">
+          <div className="form-field">
+            <label htmlFor="mail-local-part">邮箱前缀 <span>可选</span></label>
+            <input
+              id="mail-local-part"
+              type="text"
+              value={localPart}
+              maxLength={64}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="留空随机生成"
+              disabled={busy || !canGenerate}
+              onChange={(event) => onLocalPart(event.target.value)}
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="mail-domain">邮箱域名</label>
+            <PanelSelect
+              id="mail-domain"
+              ariaLabel="邮箱域名"
+              value={domain}
+              options={domains.map((item) => ({ label: `@${item.name}`, value: item.name }))}
+              disabled={busy || !canGenerate}
+              onChange={onDomain}
+            />
+          </div>
+        </div>
+        <div className="address-preview"><span>即将创建</span><strong>{previewLocalPart}@{domain || 'domain'}</strong></div>
         <button className="primary-button" type="button" disabled={busy || !domain || !canGenerate} onClick={onGenerate}>
           {busy ? <LoaderCircle className="spin" size={17} /> : <MailPlus size={17} />}
-          {busy ? '正在生成…' : '一键生成邮箱'}
+          {busy ? '正在生成…' : localPart.trim() ? '创建自定义邮箱' : '随机生成邮箱'}
         </button>
         {!canGenerate && <p className="permission-note">当前账户没有创建邮箱的权限。</p>}
       </div>
@@ -427,7 +468,15 @@ function InboxView({ messages, mailboxes, mailbox, selected, loading, refreshing
         <div><p className="eyebrow">INBOX</p><h1>收件箱</h1></div>
         <button className="icon-button" type="button" title="刷新邮件" aria-label="刷新邮件" disabled={refreshing} onClick={onRefresh}><RefreshCw className={refreshing ? 'spin' : ''} size={17} /></button>
       </header>
-      <label className="mailbox-filter" htmlFor="inbox-mailbox"><span className="sr-only">筛选邮箱</span><select id="inbox-mailbox" value={mailbox} onChange={(event) => onMailbox(event.target.value)}><option value="">全部邮箱</option>{mailboxes.map((item) => <option key={item.address} value={item.address}>{item.address}</option>)}</select></label>
+      <div className="mailbox-filter">
+        <PanelSelect
+          id="inbox-mailbox"
+          ariaLabel="筛选邮箱"
+          value={mailbox}
+          options={[{ label: '全部邮箱', value: '' }, ...mailboxes.map((item) => ({ label: item.address, value: item.address }))]}
+          onChange={onMailbox}
+        />
+      </div>
       {loading && !messages.length ? <div className="empty-state"><LoaderCircle className="spin" size={20} />正在读取邮件…</div> : (
         <div className="message-list">
           {messages.map((message) => (

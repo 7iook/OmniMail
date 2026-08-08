@@ -33,9 +33,8 @@
   padding: 0 18px 11px;
 }
 
-.mailbox-filter select {
+.mailbox-filter .panel-select-trigger {
   height: 38px;
-  font-size: 11px;
 }
 
 .message-list {

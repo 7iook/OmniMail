@@ -83,8 +83,8 @@
       clamp(layout.button?.top ?? window.innerHeight - buttonHeight - 22, 8, window.innerHeight - buttonHeight - 8),
     )
 
-    const width = clamp(layout.panel?.width ?? 420, 340, Math.max(340, window.innerWidth - 20))
-    const height = clamp(layout.panel?.height ?? 680, 420, Math.max(420, window.innerHeight - 20))
+    const width = clamp(layout.panel?.width ?? 440, 360, Math.max(360, window.innerWidth - 20))
+    const height = clamp(layout.panel?.height ?? 580, 480, Math.max(480, window.innerHeight - 20))
     panel.style.setProperty('width', `${width}px`, 'important')
     panel.style.setProperty('height', `${height}px`, 'important')
     setPosition(
@@ -117,6 +117,7 @@
     event: PointerEvent,
     element: HTMLElement,
     onMove?: (left: number, top: number, event: PointerEvent) => void,
+    onEnd: () => void = persistLayout,
   ): void {
     if (event.button !== 0) return
     event.preventDefault()
@@ -139,7 +140,7 @@
       window.removeEventListener('pointerup', end)
       window.removeEventListener('pointercancel', end)
       overlay?.style.setProperty('display', 'none', 'important')
-      persistLayout()
+      onEnd()
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', end, { once: true })
@@ -202,6 +203,8 @@
         if (Math.hypot(next.clientX - startX, next.clientY - startY) > 4) dragged = true
         const rect = button!.getBoundingClientRect()
         setPosition(button!, clamp(left, 0, window.innerWidth - rect.width), clamp(top, 0, window.innerHeight - rect.height))
+      }, () => {
+        if (dragged) persistLayout()
       })
     })
     button.addEventListener('pointerup', () => button?.classList.remove('is-dragging'))
@@ -228,8 +231,8 @@
     resize.addEventListener('pointerdown', (event) => {
       const rect = panel!.getBoundingClientRect()
       startMove(event, panel!, (_left, _top, next) => {
-        const width = clamp(next.clientX - rect.left, 340, window.innerWidth - rect.left)
-        const height = clamp(next.clientY - rect.top, 420, window.innerHeight - rect.top)
+        const width = clamp(next.clientX - rect.left, 360, window.innerWidth - rect.left)
+        const height = clamp(next.clientY - rect.top, 480, window.innerHeight - rect.top)
         panel!.style.setProperty('width', `${width}px`, 'important')
         panel!.style.setProperty('height', `${height}px`, 'important')
       })

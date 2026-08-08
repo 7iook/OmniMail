@@ -14,7 +14,8 @@
   --accent-contrast: #ffffff;
   --danger: #c9342f;
   --danger-soft: #fff0ef;
-  --shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
+  --panel-radius: 22px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
   background: var(--background);
   color: var(--text);
   font-synthesis: none;
@@ -37,7 +38,7 @@
     --accent-contrast: #111112;
     --danger: #ff7771;
     --danger-soft: rgba(201, 52, 47, 0.18);
-    --shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+    --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
   }
 }
 
@@ -45,21 +46,57 @@
   box-sizing: border-box;
 }
 
-html,
+html {
+  background: transparent;
+}
+
+html:not(.is-embedded),
+html:not(.is-embedded) body {
+  width: 416px;
+  height: 516px;
+}
+
 body,
 #root {
   width: 100%;
-  min-width: 360px;
   height: 100%;
-  min-height: 560px;
   margin: 0;
 }
 
 body {
+  padding: 8px;
   overflow: hidden;
-  background: var(--background);
+  background: transparent;
   color: var(--text);
   line-height: 1.45;
+}
+
+#root {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--panel-radius) + 2px);
+  background: var(--background);
+  box-shadow: var(--shadow);
+}
+
+html.is-embedded,
+html.is-embedded body,
+html.is-embedded #root {
+  width: 100%;
+  min-width: 360px;
+  height: 100%;
+  min-height: 480px;
+}
+
+html.is-embedded body {
+  padding: 0;
+  background: var(--background);
+}
+
+html.is-embedded #root {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 button,
@@ -127,10 +164,14 @@ h1 {
   position: relative;
   display: grid;
   width: 100%;
-  height: 100vh;
-  min-height: 560px;
+  height: 100%;
   grid-template-columns: 64px minmax(0, 1fr);
   overflow: hidden;
+  border-radius: var(--panel-radius);
+}
+
+html.is-embedded .panel-shell {
+  border-radius: 0;
 }
 
 .panel-nav {
@@ -195,9 +236,9 @@ h1 {
 .panel-page {
   display: grid;
   align-content: start;
-  gap: 13px;
+  gap: 14px;
   min-height: 100%;
-  padding: 24px 20px;
+  padding: 22px 18px;
 }
 
 .page-heading h1,
@@ -215,14 +256,13 @@ h1 {
 }
 
 .page-card {
-  padding: 16px;
+  padding: 15px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
 
-.page-card > label,
 .login-view label {
   display: block;
   margin-bottom: 6px;
@@ -231,9 +271,7 @@ h1 {
   font-weight: 650;
 }
 
-.page-card select,
-.login-view input,
-.mailbox-filter select {
+.login-view input {
   width: 100%;
   height: 42px;
   padding: 0 11px;
@@ -246,7 +284,7 @@ h1 {
 .address-preview {
   display: grid;
   gap: 3px;
-  margin: 11px 0;
+  margin: 12px 0;
   padding: 11px;
   border-radius: 11px;
   background: var(--surface-muted);
