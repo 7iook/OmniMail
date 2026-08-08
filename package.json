@@ -18,8 +18,10 @@
     "check:lines": "node scripts/check-file-lines.mjs",
     "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
+    "test:extension": "node scripts/extension-smoke.mjs",
     "test:e2e": "playwright test",
-    "build": "npm run check && vite build"
+    "build": "npm run check && vite build",
+    "build:extension": "vite build --config vite.extension.config.ts"
   },
   "dependencies": {
     "franc": "^6.2.0",
@@ -34,6 +36,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260804.1",
     "@playwright/test": "^1.62.0",
+    "@types/chrome": "^0.2.5",
     "@types/node": "26.1.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.17",

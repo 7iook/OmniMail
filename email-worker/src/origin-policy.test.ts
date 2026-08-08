@@ -31,6 +31,29 @@ describe('request origin policy', () => {
     expect(configuredOrigins(undefined)).toEqual(['http://localhost:5173'])
   })
 
+  it('allows only the configured Chrome extension origin', () => {
+    const extensionId = 'abcdefghijklmnopabcdefghijklmnop'
+    const otherExtensionId = 'ponmlkjihgfedcbaponmlkjihgfedcba'
+    const configured = `chrome-extension://${extensionId}`
+
+    expect(configuredOrigins(configured)).toEqual([configured])
+    expect(isAllowedOrigin(
+      configured,
+      'https://mail.example.com/api/auth/token',
+      configured,
+    )).toBe(true)
+    expect(isAllowedOrigin(
+      `chrome-extension://${otherExtensionId}`,
+      'https://mail.example.com/api/auth/token',
+      configured,
+    )).toBe(false)
+  })
+
+  it('rejects opaque and malformed extension origins', () => {
+    expect(configuredOrigins('file:///tmp/panel.html')).toEqual([])
+    expect(configuredOrigins('chrome-extension://not-an-extension-id')).toEqual([])
+  })
+
   it('uses the current Webmail host for Turnstile validation', () => {
     expect(allowedTurnstileHostnames(
       undefined,

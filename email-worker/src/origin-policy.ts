@@ -1,6 +1,12 @@
 function normalizedOrigin(value: string): string {
   try {
-    return new URL(value).origin
+    const url = new URL(value)
+    if (url.protocol === 'chrome-extension:') {
+      return /^[a-p]{32}$/.test(url.hostname)
+        ? `chrome-extension://${url.hostname}`
+        : ''
+    }
+    return url.origin === 'null' ? '' : url.origin
   } catch {
     return ''
   }

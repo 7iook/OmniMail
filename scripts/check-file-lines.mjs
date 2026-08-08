@@ -7,6 +7,7 @@ const ignoredDirectories = new Set([
   '.git',
   '.wrangler',
   'dist',
+  'dist-extension',
   'node_modules',
   'playwright-report',
   'test-results',

@@ -1,0 +1,334 @@
+import type { User } from '../../src/lib/api-types'
+import type { ExtensionRequest } from './protocol'
+
+const MAIL_ALARM = 'omnimail-mail-poll'
+const LOCAL_SETTINGS = ['apiOrigin', 'knownMessageIds', 'floatingEnabled'] as const
+const SESSION_AUTH = ['accessToken', 'accessExpiresAt', 'refreshToken', 'user'] as const
+const ACCESS_REFRESH_MARGIN_MS = 30_000
+
+interface TokenResponse {
+  accessToken: string
+  expiresIn: number
+  refreshToken: string
+  refreshExpiresIn: number
+  user: User
+}
+
+interface SessionAuth {
+  accessToken?: string
+  accessExpiresAt?: number
+  refreshToken?: string
+  user?: User
+}
+
+class RequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+  }
+}
+
+let refreshPromise: Promise<SessionAuth> | null = null
+let pollPromise: Promise<void> | null = null
+
+function normalizeApiOrigin(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    throw new Error('请输入有效的 OmniMail 地址。')
+  }
+  const localHttp = url.protocol === 'http:'
+    && ['localhost', '127.0.0.1'].includes(url.hostname)
+  if (url.protocol !== 'https:' && !localHttp) {
+    throw new Error('OmniMail 地址必须使用 HTTPS；本地开发可使用 localhost。')
+  }
+  if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('请输入 OmniMail 站点根地址，不要包含路径、参数或账号信息。')
+  }
+  return url.origin
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const body = await response.json().catch(() => ({})) as T & { error?: string }
+  if (!response.ok) {
+    throw new RequestError(body.error || `请求失败（${response.status}）`, response.status)
+  }
+  return body
+}
+
+async function publicRequest<T>(
+  apiOrigin: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers)
+  if (init.body) headers.set('Content-Type', 'application/json')
+  const response = await fetch(`${apiOrigin}${path}`, {
+    ...init,
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  })
+  return parseResponse<T>(response)
+}
+
+async function saveTokens(tokens: TokenResponse): Promise<SessionAuth> {
+  const auth: SessionAuth = {
+    accessToken: tokens.accessToken,
+    accessExpiresAt: Date.now() + tokens.expiresIn * 1000,
+    refreshToken: tokens.refreshToken,
+    user: tokens.user,
+  }
+  await chrome.storage.session.set(auth)
+  return auth
+}
+
+async function clearAuth(): Promise<void> {
+  await chrome.storage.session.remove([...SESSION_AUTH])
+  await chrome.action.setBadgeText({ text: '' })
+}
+
+async function refreshAuth(): Promise<SessionAuth> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    const [settings, auth] = await Promise.all([
+      chrome.storage.local.get(['apiOrigin']),
+      chrome.storage.session.get([...SESSION_AUTH]) as Promise<SessionAuth>,
+    ])
+    const apiOrigin = typeof settings.apiOrigin === 'string' ? settings.apiOrigin : ''
+    if (!apiOrigin || !auth.refreshToken) throw new RequestError('请重新登录。', 401)
+    try {
+      const tokens = await publicRequest<TokenResponse>(
+        apiOrigin,
+        '/api/auth/token/refresh',
+        { method: 'POST', body: JSON.stringify({ refreshToken: auth.refreshToken }) },
+      )
+      return saveTokens(tokens)
+    } catch (error) {
+      await clearAuth()
+      throw error
+    }
+  })().finally(() => {
+    refreshPromise = null
+  })
+  return refreshPromise
+}
+
+async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const settings = await chrome.storage.local.get(['apiOrigin'])
+  if (!settings.apiOrigin) throw new RequestError('请先设置 OmniMail 地址。', 401)
+  let auth = await chrome.storage.session.get([...SESSION_AUTH]) as SessionAuth
+  if (!auth.accessToken || !auth.accessExpiresAt || auth.accessExpiresAt < Date.now() + ACCESS_REFRESH_MARGIN_MS) {
+    auth = await refreshAuth()
+  }
+
+  const run = async (accessToken: string) => {
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', `Bearer ${accessToken}`)
+    if (init.body) headers.set('Content-Type', 'application/json')
+    return fetch(`${settings.apiOrigin}${path}`, {
+      ...init,
+      headers,
+      signal: AbortSignal.timeout(15_000),
+    })
+  }
+
+  let response = await run(auth.accessToken!)
+  if (response.status === 401) {
+    auth = await refreshAuth()
+    response = await run(auth.accessToken!)
+  }
+  return parseResponse<T>(response)
+}
+
+function apiCall(message: ExtensionRequest): Promise<unknown> {
+  switch (message.type) {
+    case 'api:config':
+      return authenticatedRequest('/api/config')
+    case 'api:mailboxes':
+      return authenticatedRequest('/api/mailboxes')
+    case 'api:domains':
+      return authenticatedRequest('/api/domains')
+    case 'api:messages': {
+      const search = new URLSearchParams({ folder: 'inbox', limit: '30' })
+      if (message.mailbox) search.set('mailbox', message.mailbox)
+      return authenticatedRequest(`/api/messages?${search}`)
+    }
+    case 'api:message':
+      return authenticatedRequest(`/api/messages/${encodeURIComponent(message.id)}`)
+    case 'api:create-mailbox':
+      return authenticatedRequest('/api/mailboxes', {
+        method: 'POST', body: JSON.stringify({ address: message.address }),
+      })
+    case 'api:mark-read':
+      return authenticatedRequest(`/api/messages/${encodeURIComponent(message.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ isRead: true }),
+      })
+    default:
+      throw new Error('不支持的 API 操作。')
+  }
+}
+
+async function authStatus() {
+  const [settings, auth] = await Promise.all([
+    chrome.storage.local.get(['apiOrigin']),
+    chrome.storage.session.get([...SESSION_AUTH]) as Promise<SessionAuth>,
+  ])
+  return {
+    apiOrigin: String(settings.apiOrigin || ''),
+    authenticated: Boolean(auth.refreshToken && auth.user),
+    user: auth.user || null,
+  }
+}
+
+async function login(message: Extract<ExtensionRequest, { type: 'auth:login' }>) {
+  const apiOrigin = normalizeApiOrigin(message.apiOrigin)
+  const tokens = await publicRequest<TokenResponse>(apiOrigin, '/api/auth/token', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: message.email,
+      password: message.password,
+      mfaCode: message.mfaCode || undefined,
+      deviceName: 'OmniMail Chrome Extension',
+    }),
+  })
+  await chrome.storage.local.set({ apiOrigin })
+  await chrome.storage.local.remove(['knownMessageIds'])
+  await saveTokens(tokens)
+  await configureMailAlarm()
+  return { apiOrigin, authenticated: true, user: tokens.user }
+}
+
+async function logout() {
+  const [settings, auth] = await Promise.all([
+    chrome.storage.local.get(['apiOrigin']),
+    chrome.storage.session.get(['refreshToken']) as Promise<SessionAuth>,
+  ])
+  const apiOrigin = typeof settings.apiOrigin === 'string' ? settings.apiOrigin : ''
+  try {
+    if (apiOrigin && auth.refreshToken) {
+      await publicRequest(apiOrigin, '/api/auth/token/revoke', {
+        method: 'POST', body: JSON.stringify({ refreshToken: auth.refreshToken }),
+      })
+    }
+  } catch {
+    // Local logout must still succeed when the server is temporarily unreachable.
+  } finally {
+    await clearAuth()
+    await chrome.alarms.clear(MAIL_ALARM)
+    await chrome.storage.local.remove(['knownMessageIds'])
+  }
+  return { ok: true as const }
+}
+
+async function fillCurrentPage(email: string, sender: chrome.runtime.MessageSender) {
+  const tabId = sender.tab?.id ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id
+  if (!tabId) throw new Error('没有可填入的活动网页。')
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'omnimail:fill-email', email })
+  if (!response?.ok) throw new Error(response?.error || '当前页面没有可用的邮箱输入框。')
+  return { ok: true as const }
+}
+
+function isTrustedPanel(sender: chrome.runtime.MessageSender): boolean {
+  if (!sender.url) return false
+  try {
+    const url = new URL(sender.url)
+    return url.protocol === 'chrome-extension:'
+      && url.hostname === chrome.runtime.id
+      && url.pathname.endsWith('/panel.html')
+  } catch {
+    return false
+  }
+}
+
+async function handleMessage(message: ExtensionRequest, sender: chrome.runtime.MessageSender) {
+  if (!isTrustedPanel(sender)) throw new Error('拒绝未授权的扩展消息。')
+  if (message.type.startsWith('api:')) return apiCall(message)
+  switch (message.type) {
+    case 'auth:status': return authStatus()
+    case 'auth:login': return login(message)
+    case 'auth:logout': return logout()
+    case 'page:fill-email': return fillCurrentPage(message.email, sender)
+    case 'settings:get': {
+      const settings = await chrome.storage.local.get(['floatingEnabled'])
+      return { floatingEnabled: settings.floatingEnabled !== false }
+    }
+    case 'settings:set-floating':
+      await chrome.storage.local.set({ floatingEnabled: message.enabled })
+      return { ok: true as const }
+    default: throw new Error('不支持的扩展操作。')
+  }
+}
+
+chrome.runtime.onMessage.addListener((message: ExtensionRequest, sender, sendResponse) => {
+  void handleMessage(message, sender)
+    .then(sendResponse)
+    .catch((error: unknown) => sendResponse({
+      error: error instanceof Error ? error.message : '扩展操作失败。',
+    }))
+  return true
+})
+
+async function updateBadge(unread: number): Promise<void> {
+  await Promise.all([
+    chrome.action.setBadgeBackgroundColor({ color: '#c9342f' }),
+    chrome.action.setBadgeText({ text: unread > 0 ? String(Math.min(unread, 99)) : '' }),
+  ])
+}
+
+async function pollMail(): Promise<void> {
+  const result = await authenticatedRequest<{
+    messages: Array<{ id: string; subject: string; senderName: string; senderAddress: string }>
+    counts: { unread: number }
+  }>('/api/messages?folder=inbox&limit=30')
+  const settings = await chrome.storage.local.get(['knownMessageIds'])
+  const previous = Array.isArray(settings.knownMessageIds)
+    ? new Set<string>(settings.knownMessageIds)
+    : null
+  const nextIds = result.messages.map((message) => message.id)
+  const fresh = previous ? result.messages.filter((message) => !previous.has(message.id)) : []
+  await chrome.storage.local.set({ knownMessageIds: nextIds })
+  await updateBadge(result.counts.unread)
+  if (fresh.length) {
+    const first = fresh[0]
+    await chrome.notifications.create(`omnimail:${first.id}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: fresh.length === 1 ? '收到新邮件' : `收到 ${fresh.length} 封新邮件`,
+      message: `${first.senderName || first.senderAddress} · ${first.subject || '（无主题）'}`,
+    })
+  }
+}
+
+function runPollMail(): Promise<void> {
+  if (!pollPromise) {
+    pollPromise = pollMail().finally(() => { pollPromise = null })
+  }
+  return pollPromise
+}
+
+async function configureMailAlarm(): Promise<void> {
+  const auth = await chrome.storage.session.get(['refreshToken'])
+  await chrome.alarms.clear(MAIL_ALARM)
+  if (!auth.refreshToken) return
+  await chrome.alarms.create(MAIL_ALARM, { delayInMinutes: 1, periodInMinutes: 1 })
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === MAIL_ALARM) void runPollMail().catch(() => {})
+})
+
+chrome.notifications.onClicked.addListener(() => {
+  void chrome.tabs.create({ url: chrome.runtime.getURL('panel.html#inbox') })
+})
+
+chrome.runtime.onInstalled.addListener(() => {
+  void chrome.storage.local.get([...LOCAL_SETTINGS]).then((settings) => {
+    if (settings.floatingEnabled === undefined) {
+      return chrome.storage.local.set({ floatingEnabled: true })
+    }
+  })
+  void configureMailAlarm()
+})
+
+chrome.runtime.onStartup.addListener(() => { void configureMailAlarm() })
+void chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })

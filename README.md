@@ -35,6 +35,7 @@
 - [首次初始化](#首次初始化)
 - [用户与权限](#用户与权限)
 - [API 与桌面客户端](#api-与桌面客户端)
+- [浏览器悬浮扩展](#浏览器悬浮扩展)
 - [本地开发](#本地开发)
 - [安全模型](#安全模型)
 - [限制与路线图](#限制与路线图)
@@ -56,6 +57,7 @@ Serverless Webmail：
 | 完整权限模型 | 主管理员、管理员、普通用户和限时临时用户 |
 | 可选发信能力 | 通过 Resend 或 SendFlare 新建邮件与回复；不配置时仍可正常收件 |
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
+| 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -225,7 +227,7 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | --- | --- | --- |
 | `APP_NAME` | Text | 自定义站点名称，默认 `OmniMail` |
 | `COOKIE_SECURE` | Text | 生产环境保持 `true`；仅本地 HTTP 使用 `false` |
-| `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端来源 |
+| `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端或 `chrome-extension://扩展ID` 来源 |
 | `TURNSTILE_SITE_KEY` | Text | Turnstile 公开 Site Key |
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
 | `LINUX_DO_CLIENT_ID` | Text | Linux DO Connect Client ID |
@@ -465,6 +467,19 @@ OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
 完整接口、鉴权、刷新令牌和分页格式见
 [`docs/API.md`](./docs/API.md)。
 
+## 浏览器悬浮扩展
+
+仓库内置 Chrome Manifest V3 扩展，可在普通网页显示隔离的 OmniMail 悬浮面板，
+支持设备令牌登录、一键生成邮箱、复制或填入当前网页、查看收件箱和后台新邮件通知。
+
+```powershell
+npm run build:extension
+```
+
+构建后在 `chrome://extensions/` 中加载 `dist-extension/`。生产 Worker 还需要把扩展
+管理页显示的固定 ID 以 `chrome-extension://扩展ID` 形式加入 `APP_ORIGINS`。
+完整安装步骤和安全边界见 [`extension/README.md`](./extension/README.md)。
+
 ## 本地开发
 
 ### 安装
@@ -498,6 +513,8 @@ npm run dev
 npm run check:lines
 npm run check
 npm test
+npm run build:extension
+npm run test:extension
 npm run test:e2e
 npm run build
 npx wrangler deploy --dry-run
