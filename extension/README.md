@@ -4,6 +4,8 @@ OmniMail Float 是与本仓库一起构建的 Chrome Manifest V3 扩展。它在
 注入一个隔离的悬浮入口，通过 OmniMail 网站授权获得可撤销的设备令牌，用于生成
 邮箱、查看收件箱并接收新邮件通知。扩展不会收集或处理用户密码。
 
+隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)。
+
 ## 构建与安装
 
 ```powershell
@@ -18,6 +20,8 @@ npm run build:extension
 内部页面。
 
 ## 配置 API 来源
+
+Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`。
 
 1. 在 `chrome://extensions/` 复制 OmniMail Float 的 32 位扩展 ID。
 2. 在 Worker 的 `APP_ORIGINS` 中加入对应来源：

@@ -480,7 +480,8 @@ npm run build:extension
 
 构建后在 `chrome://extensions/` 中加载 `dist-extension/`。生产 Worker 还需要把扩展
 管理页显示的固定 ID 以 `chrome-extension://扩展ID` 形式加入 `APP_ORIGINS`。
-完整安装步骤和安全边界见 [`extension/README.md`](./extension/README.md)。
+完整安装步骤和安全边界见 [`extension/README.md`](./extension/README.md)，扩展的数据
+处理方式见 [`docs/EXTENSION_PRIVACY.md`](./docs/EXTENSION_PRIVACY.md)。
 
 ## 本地开发
 

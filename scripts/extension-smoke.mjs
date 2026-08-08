@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -8,6 +8,7 @@ import { chromium } from '@playwright/test'
 const extensionPath = resolve('dist-extension')
 const profilePath = await mkdtemp(resolve(tmpdir(), 'omnimail-extension-'))
 const screenshotPath = resolve('test-results', 'extension-smoke.png')
+const storeAssetsPath = resolve('extension', 'store-assets')
 const user = {
   id: 'user-1', email: 'owner@example.com', displayName: 'Owner', role: 'super_admin',
   mailboxLimit: 20, storageQuotaBytes: 1024, storageUsedBytes: 0,
@@ -42,10 +43,19 @@ const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
     if (url.pathname === '/') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-      response.end(`<!doctype html><html><head><title>Extension Smoke</title></head>
-        <body style="font:16px system-ui;padding:40px;background:#f7f7f8">
-          <h1>Registration form</h1><label>Email <input type="email" /></label>
-        </body></html>`)
+      response.end(`<!doctype html><html><head><title>Acme Account</title><style>
+        *{box-sizing:border-box}body{margin:0;font:15px Inter,system-ui;color:#1d1d1f;background:#f4f5f7}
+        nav{height:68px;padding:0 54px;display:flex;align-items:center;justify-content:space-between;background:white;border-bottom:1px solid #e5e7eb}
+        .brand{font-size:20px;font-weight:750}.nav-links{color:#6b7280;word-spacing:24px}
+        main{min-height:732px;display:grid;place-items:center;padding:48px}
+        section{width:460px;padding:40px;border:1px solid #e1e4e8;border-radius:18px;background:white;box-shadow:0 20px 60px #11182712}
+        h1{margin:0 0 10px;font-size:30px}.copy{margin:0 0 28px;color:#6b7280;line-height:1.6}
+        label{display:grid;gap:9px;font-weight:650}input{height:48px;padding:0 14px;border:1px solid #cfd4dc;border-radius:10px;font:inherit}
+        .continue{width:100%;height:48px;margin-top:22px;border:0;border-radius:10px;color:white;background:#1d1d1f;font-weight:700}
+      </style></head><body><nav><span class="brand">Acme</span><span class="nav-links">产品 定价 帮助</span></nav>
+        <main><section><h1>创建你的账户</h1><p class="copy">填写邮箱即可开始使用。OmniMail Float 能帮你快速生成并填入一个新地址。</p>
+          <label>邮箱地址<input type="email" placeholder="name@example.com" /></label><button class="continue">继续</button>
+        </section></main></body></html>`)
       return
     }
     if (url.pathname === '/extension/authorize') {
@@ -149,6 +159,7 @@ try {
   context = await chromium.launchPersistentContext(profilePath, {
     channel: 'chromium',
     headless: true,
+    viewport: { width: 1280, height: 800 },
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -212,20 +223,49 @@ try {
   await panelFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
   assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
   assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{43}$/)
+  await mkdir(storeAssetsPath, { recursive: true })
+  await page.screenshot({
+    path: resolve(storeAssetsPath, '01-floating-generate.jpg'),
+    type: 'jpeg', quality: 94,
+  })
 
   await panelFrame.getByRole('button', { name: '一键生成邮箱' }).click()
   await panelFrame.getByText('邮箱已生成').waitFor()
   const generatedAddress = mailboxes.at(-1).address
   assert.match(generatedAddress, /^omni-[a-f0-9]{12}@example\.com$/)
   await panelFrame.getByRole('button', { name: '填入网页' }).click()
-  await page.getByLabel('Email').waitFor()
-  assert.equal(await page.getByLabel('Email').inputValue(), generatedAddress)
+  await page.getByLabel('邮箱地址').waitFor()
+  assert.equal(await page.getByLabel('邮箱地址').inputValue(), generatedAddress)
 
   await panelFrame.getByRole('button', { name: '收件' }).click()
   await panelFrame.getByText('Your verification code').waitFor()
+  await page.screenshot({
+    path: resolve(storeAssetsPath, '02-floating-inbox.jpg'),
+    type: 'jpeg', quality: 94,
+  })
   await panelFrame.getByText('Your verification code').click()
   await panelFrame.getByRole('heading', { name: 'Your verification code' }).waitFor()
   await panelFrame.frameLocator('iframe[title="邮件正文"]').getByText('123456').waitFor()
+  await page.screenshot({
+    path: resolve(storeAssetsPath, '03-floating-message.jpg'),
+    type: 'jpeg', quality: 94,
+  })
+
+  const icon = await readFile(resolve('extension', 'public', 'icons', 'icon128.png'))
+  const promoPage = await context.newPage()
+  await promoPage.setViewportSize({ width: 440, height: 280 })
+  await promoPage.setContent(`<!doctype html><html><head><style>
+    *{box-sizing:border-box}body{margin:0;width:440px;height:280px;overflow:hidden;font-family:Inter,system-ui;color:white;background:#17181b}
+    main{position:relative;width:100%;height:100%;display:flex;align-items:center;padding:38px;background:radial-gradient(circle at 82% 18%,#3b82f655,transparent 42%)}
+    main:after{content:'';position:absolute;right:-45px;bottom:-90px;width:260px;height:260px;border:1px solid #ffffff26;border-radius:50%}
+    img{width:82px;height:82px;border-radius:24px;box-shadow:0 18px 45px #0008}
+    div{margin-left:24px}h1{margin:0 0 9px;font-size:27px;letter-spacing:-.6px}p{margin:0;color:#cbd0d9;font-size:15px;line-height:1.45}
+  </style></head><body><main><img src="data:image/png;base64,${icon.toString('base64')}" alt=""><div><h1>OmniMail Float</h1><p>邮箱随页面而行<br>生成 · 填入 · 收件</p></div></main></body></html>`)
+  await promoPage.screenshot({
+    path: resolve(storeAssetsPath, 'promo-small-440x280.jpg'),
+    type: 'jpeg', quality: 95,
+  })
+  await promoPage.close()
   await mkdir(resolve('test-results'), { recursive: true })
   await page.screenshot({ path: screenshotPath })
   console.log(`Extension smoke test passed: ${screenshotPath}`)
