@@ -9,7 +9,12 @@
   },
   "scripts": {
     "dev": "vite",
+    "predev:worker": "npm run db:migrate:local",
     "dev:worker": "wrangler dev --env-file email-worker/.dev.vars --persist-to .wrangler/state",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "predeploy": "npm run db:migrate",
+    "deploy": "wrangler deploy",
     "check:lines": "node scripts/check-file-lines.mjs",
     "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false",
     "test": "vitest run",

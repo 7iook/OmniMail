@@ -28,6 +28,13 @@ type SummaryFields = Pick<
 >
 
 type SummaryRow = SummaryFields & { sort_time: number }
+type CountsRow = {
+  unread: number | null
+  starred: number | null
+  sent: number | null
+  trash: number | null
+  drafts: number | null
+}
 
 export function parseSyncVersion(value: string | null): number | null | undefined {
   if (value === null) return null
@@ -139,33 +146,26 @@ export async function listMessages(
       return Response.json({ error: '邮件分页游标无效。' }, { status: 400 })
     }
     conditions.push(
-      '(COALESCE(m.received_at, m.sent_at, m.created_at) < ? OR '
-      + '(COALESCE(m.received_at, m.sent_at, m.created_at) = ? AND m.id < ?))',
+      '(m.sort_at < ? OR (m.sort_at = ? AND m.id < ?))',
     )
     bindings.push(sortTime, sortTime, id)
   }
 
-  const { results } = await env.DB.prepare(
+  const messagesStatement = env.DB.prepare(
     `SELECT
        m.id, m.mailbox_address, m.direction, m.status, m.folder,
        m.sender_name, m.sender_address, m.delivered_to, m.recipients_json,
        m.subject, m.preview,
        m.received_at, m.sent_at, m.attachment_count, m.is_read, m.is_starred,
        m.processing_error, m.delivery_status, m.purge_after, m.created_at,
-       COALESCE(m.received_at, m.sent_at, m.created_at) AS sort_time
+       m.sort_at AS sort_time
      FROM messages m
      JOIN mailboxes mb ON mb.address = m.mailbox_address
      WHERE ${conditions.join(' AND ')}
-     ORDER BY sort_time DESC, m.id DESC
+     ORDER BY m.sort_at DESC, m.id DESC
      LIMIT ?`,
-  ).bind(...bindings, pagination.limit + 1).all<SummaryRow>()
-  const result = pageResult(
-    results,
-    pagination.limit,
-    (row) => [row.sort_time, row.id],
-  )
-
-  const counts = await env.DB.prepare(
+  ).bind(...bindings, pagination.limit + 1)
+  const countsStatement = env.DB.prepare(
     `SELECT
        SUM(CASE WHEN m.direction = 'incoming' AND m.folder = 'inbox' AND m.is_read = 0 THEN 1 ELSE 0 END) AS unread,
        SUM(CASE WHEN m.is_starred = 1 AND m.folder != 'trash' THEN 1 ELSE 0 END) AS starred,
@@ -175,13 +175,17 @@ export async function listMessages(
      FROM messages m
      JOIN mailboxes mb ON mb.address = m.mailbox_address
      WHERE ${scopeConditions.join(' AND ')}`,
-  ).bind(user.id, ...scopeBindings).first<{
-    unread: number | null
-    starred: number | null
-    sent: number | null
-    trash: number | null
-    drafts: number | null
-  }>()
+  ).bind(user.id, ...scopeBindings)
+  const [messagesResult, countsResult] = await env.DB.batch<SummaryRow | CountsRow>([
+    messagesStatement,
+    countsStatement,
+  ])
+  const result = pageResult(
+    messagesResult.results as SummaryRow[],
+    pagination.limit,
+    (row) => [row.sort_time, row.id],
+  )
+  const counts = countsResult.results[0] as CountsRow | undefined
 
   return Response.json({
     unchanged: false,

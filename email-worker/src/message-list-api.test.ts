@@ -1,6 +1,21 @@
-import { describe, expect, it } from 'vitest'
-import { messageSummary, parseSyncVersion } from './message-list-api'
+import { describe, expect, it, vi } from 'vitest'
+import { listMessages, messageSummary, parseSyncVersion } from './message-list-api'
 import { searchLikePattern } from './message-search'
+import type { Env, SessionUser } from './types'
+
+const user: SessionUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  displayName: 'Owner',
+  role: 'super_admin',
+  mailboxLimit: 20,
+  storageQuotaBytes: 1024,
+  storageUsedBytes: 0,
+  canCreateMailboxes: true,
+  canReply: true,
+  canTranslate: true,
+  temporaryExpiresAt: null,
+}
 
 describe('message sync version', () => {
   it('accepts non-negative integer versions', () => {
@@ -43,5 +58,56 @@ describe('message sync version', () => {
     })
 
     expect(summary.mailboxAddress).toBe('unknown@example.com')
+  })
+
+  it('batches the message page and folder counts in one D1 call', async () => {
+    const statements: Array<{ sql: string; values: unknown[] }> = []
+    const batch = vi.fn(async () => [
+      { results: [{
+        id: 'message-1', mailbox_address: 'inbox@example.com',
+        delivered_to: null, direction: 'incoming', status: 'ready', folder: 'inbox',
+        sender_name: 'Sender', sender_address: 'sender@example.net',
+        recipients_json: '["inbox@example.com"]', subject: 'Hello', preview: 'Preview',
+        received_at: 10, sent_at: null, attachment_count: 0, is_read: 0,
+        is_starred: 0, processing_error: null, delivery_status: null,
+        purge_after: null, created_at: 10, sort_time: 10,
+      }] },
+      { results: [{ unread: 1, starred: 0, sent: 0, trash: 0, drafts: 2 }] },
+    ])
+    const db = {
+      prepare: (sql: string) => {
+        const statement = {
+          sql,
+          values: [] as unknown[],
+          bind(...values: unknown[]) {
+            this.values = values
+            statements.push(this)
+            return this
+          },
+          first: async () => ({ version: 3 }),
+        }
+        return statement
+      },
+      batch,
+    }
+    const response = await listMessages(
+      { DB: db } as unknown as Env,
+      user,
+      new Request('https://mail.example.com/api/messages?folder=inbox'),
+    )
+    const result = await response.json() as {
+      version: number
+      messages: Array<{ id: string }>
+      counts: { unread: number; drafts: number }
+    }
+
+    expect(batch).toHaveBeenCalledOnce()
+    expect(batch.mock.calls[0][0]).toHaveLength(2)
+    expect(statements.some((statement) => statement.sql.includes('ORDER BY m.sort_at'))).toBe(true)
+    expect(result).toMatchObject({
+      version: 3,
+      messages: [{ id: 'message-1' }],
+      counts: { unread: 1, drafts: 2 },
+    })
   })
 })

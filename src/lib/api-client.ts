@@ -412,14 +412,24 @@ export const api = {
       body: jsonBody({ isActive }),
     })
   ),
-  messages: (folder: Folder, query: string, scope: MailboxScope, cursor?: string, version?: number) => {
+  messages: (
+    folder: Folder,
+    query: string,
+    scope: MailboxScope,
+    cursor?: string,
+    version?: number,
+    signal?: AbortSignal,
+  ) => {
     const search = new URLSearchParams({ folder, limit: '30' })
     if (query) search.set('q', query)
     if (scope.type === 'domain') search.set('domain', scope.value)
     if (scope.type === 'mailbox') search.set('mailbox', scope.value)
     if (cursor) search.set('cursor', cursor)
     if (version !== undefined) search.set('version', String(version))
-    return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(`/api/messages?${search}`)
+    return request<{ unchanged: true; version: number } | { unchanged: false; version: number; messages: MessageSummary[]; counts: MailCounts; page: PageInfo }>(
+      `/api/messages?${search}`,
+      { signal },
+    )
   },
   drafts: () => request<{ drafts: DraftSummary[]; limit: number }>('/api/drafts'),
   draft: (id: string) => request<{ draft: MailDraft }>(

@@ -192,7 +192,7 @@ Import a repository**，选择你的 OmniMail 仓库：
 | Production branch | `main` |
 | Root directory | `/` |
 | Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` |
+| Deploy command | `npm run deploy` |
 | Non-production branch builds | 首次部署暂时关闭 |
 | API token | 让 Cloudflare 自动创建 |
 
@@ -200,8 +200,8 @@ Import a repository**，选择你的 OmniMail 仓库：
 [`wrangler.jsonc`](./wrangler.jsonc) 完成两件事：
 
 1. `npm run build` 将 React 前端生成到 `dist/`。
-2. Wrangler 将 `dist/`、Worker API、D1、R2、Queue、Workflow 和定时任务作为同一个
-   Worker 版本发布。
+2. `npm run deploy` 先应用尚未执行的 D1 迁移，再由 Wrangler 将 `dist/`、Worker
+   API、D1、R2、Queue、Workflow 和定时任务作为同一个 Worker 版本发布。
 
 `/api/*` 优先交给 Worker 脚本，其余路径由 Static Assets 提供；未匹配的浏览器
 导航会回退到 `index.html`，因此 React SPA 刷新不会出现 404。
@@ -346,7 +346,7 @@ user-scoped API Token，只授予 **Workers Builds Configuration: Edit**；不�
 API Key。连接仓库还必须包含 Release Tag 对应的提交，因此 Fork 或镜像仓库需要先
 同步该 Tag。
 
-本地 Clone 后直接运行 `wrangler deploy` 的安装没有远程构建执行器，版本检查仍然
+本地 Clone 后直接运行 `npm run deploy` 的安装没有远程构建执行器，版本检查仍然
 可用，但界面会自动降级为“查看更新”。修改过源码的 Fork 也建议手动合并、测试并
 部署，避免上游 Release 覆盖自定义改动。
 
@@ -481,6 +481,8 @@ Copy-Item .env.example .env.local
 # Terminal 1: Worker API
 npm run dev:worker
 ```
+
+`dev:worker` 会在启动前自动将 `migrations/` 中尚未执行的迁移应用到本地 D1。
 
 ```powershell
 # Terminal 2: React Web

@@ -1,5 +1,5 @@
 import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
 import { DraftComposer, useDraftEditor } from './components/DraftComposer'
@@ -33,6 +33,7 @@ import { t, useLocale } from './lib/i18n'
 import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
 import { errorMessage } from './lib/errorMessage'
 import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
+import { useMessageSearch } from './lib/useMessageSearch'
 import { useSessionExpiry } from './lib/useSessionExpiry'
 import { useNewMailNotifications } from './lib/useNewMailNotifications'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
@@ -58,7 +59,7 @@ function Mailbox({
 }) {
   const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role)
   const [query, setQuery] = useState('')
-  const deferredQuery = useDeferredValue(query.trim())
+  const [searchQuery, nextMessageSignal] = useMessageSearch(query)
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set())
   const [messageVersion, setMessageVersion] = useState<number>()
@@ -124,15 +125,14 @@ function Mailbox({
   }, [loadDomains, loadMailboxes])
   const loadMessages = useCallback(async (quiet = false) => {
     const requestId = ++messageRequestId.current
+    const signal = nextMessageSignal()
     if (quiet) setRefreshing(true)
     else setListLoading(true)
     setError('')
     try {
-      const result = await api.messages(
-        folder, deferredQuery, scope, undefined, quiet ? messageVersion : undefined,
-      )
+      const result = await api.messages(folder, searchQuery, scope, undefined, quiet ? messageVersion : undefined, signal)
       if (requestId !== messageRequestId.current || result.unchanged) return false
-      await mailNotifications.track(quiet, result.messages, folder === 'inbox' && !deferredQuery && scope.type === 'all')
+      await mailNotifications.track(quiet, result.messages, folder === 'inbox' && !searchQuery && scope.type === 'all')
       if (requestId !== messageRequestId.current) return false
       setMessageVersion(result.version)
       setMessages(result.messages)
@@ -147,7 +147,7 @@ function Mailbox({
         setThread([])
       }
     } catch (loadError) {
-      if (requestId !== messageRequestId.current) return false
+      if (signal.aborted || requestId !== messageRequestId.current) return false
       if (loadError instanceof ApiError && loadError.status === 401) {
         await onLogout()
         return
@@ -156,7 +156,7 @@ function Mailbox({
     } finally {
       if (requestId === messageRequestId.current) { setListLoading(false); setRefreshing(false) }
     }
-  }, [deferredQuery, folder, mailNotifications.track, messageVersion, onLogout, scope, selectedId])
+  }, [folder, mailNotifications.track, messageVersion, nextMessageSignal, onLogout, scope, searchQuery, selectedId])
   async function loadMoreMessages() {
     if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
     setLoadingMore(true)
@@ -164,7 +164,7 @@ function Mailbox({
     try {
       const result = await api.messages(
         folder,
-        deferredQuery,
+        searchQuery,
         scope,
         messagePage.nextCursor,
       )
@@ -188,7 +188,7 @@ function Mailbox({
   useEffect(() => {
     setSelectedMessageIds(new Set())
     if (folder !== 'drafts') void loadMessages()
-  }, [folder, deferredQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [folder, searchQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
