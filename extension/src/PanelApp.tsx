@@ -12,7 +12,7 @@ import {
   SendToBack,
   Settings,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OmniLogo } from '../../src/components/OmniLogo'
 import type {
   AppConfig,
@@ -22,7 +22,9 @@ import type {
   MessageSummary,
   User,
 } from '../../src/lib/api-types'
+import { useAutoRefresh } from '../../src/lib/useAutoRefresh'
 import { safeEmailDocument } from './email-document'
+import { PanelRecentMail } from './PanelRecentMail'
 import { PanelSelect } from './PanelSelect'
 import {
   type AuthStatus,
@@ -59,6 +61,7 @@ function senderName(message: MessageSummary): string {
 }
 
 export function PanelApp() {
+  const mainRef = useRef<HTMLElement>(null)
   const [view, setView] = useState<View>(() => location.hash === '#inbox' ? 'inbox' : 'generate')
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [settings, setSettings] = useState<ExtensionSettings>({ floatingEnabled: true })
@@ -82,6 +85,9 @@ export function PanelApp() {
   const canGenerate = Boolean(auth?.user && (
     ['super_admin', 'admin'].includes(auth.user.role) || auth.user.canCreateMailboxes
   ))
+  const currentMailbox = selectedMailbox || mailboxes.find((item) => item.isPrimary)?.address || ''
+  const generateAddress = generatedAddress || currentMailbox
+  const generateMessages = messages.filter((message) => message.mailboxAddress === generateAddress)
 
   const loadMessages = useCallback(async (mailbox = selectedMailbox, quiet = false) => {
     quiet ? setRefreshing(true) : setLoading(true)
@@ -161,6 +167,18 @@ export function PanelApp() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [view])
+
+  const refreshMailbox = view === 'generate' ? generateAddress : selectedMailbox
+  useAutoRefresh(
+    config?.mailRefreshInterval ?? 0,
+    () => loadMessages(refreshMailbox, true),
+    Boolean(auth?.authenticated && config?.mailRefreshInterval && view !== 'settings'),
+    false,
+  )
+
   async function login(input: { apiOrigin: string }) {
     setLoading(true)
     setError('')
@@ -209,6 +227,7 @@ export function PanelApp() {
         await loadMailboxData()
         setSelectedMailbox(result.mailbox.address)
         await chrome.storage.local.set({ lastMailbox: result.mailbox.address })
+        await loadMessages(result.mailbox.address, true)
         setNotice('邮箱已生成')
         setGenerating(false)
         return
@@ -241,6 +260,7 @@ export function PanelApp() {
 
   async function changeMailbox(address: string) {
     setSelectedMailbox(address)
+    setGeneratedAddress('')
     setSelectedMessage(null)
     await chrome.storage.local.set({ lastMailbox: address })
     await loadMessages(address)
@@ -291,47 +311,58 @@ export function PanelApp() {
         <NavButton active={view === 'settings'} icon={<Settings />} label="设置" onClick={() => setView('settings')} />
       </nav>
 
-      <main className="panel-main">
+      <main className="panel-main" ref={mainRef}>
         {error && <div className="panel-alert" role="alert"><AlertCircle size={15} /><span>{error}</span><button type="button" onClick={() => setError('')}>关闭</button></div>}
-        {view === 'generate' && (
-          <GenerateView
-            domains={enabledDomains}
-            domain={domain}
-            localPart={localPart}
-            generatedAddress={generatedAddress}
-            fallbackAddress={selectedMailbox || mailboxes.find((item) => item.isPrimary)?.address || ''}
-            canGenerate={canGenerate}
-            busy={generating}
-            onDomain={setDomain}
-            onLocalPart={setLocalPart}
-            onGenerate={generateMailbox}
-            onCopy={copyAddress}
-            onFill={fillAddress}
-          />
-        )}
-        {view === 'inbox' && (
-          <InboxView
-            messages={messages}
-            mailboxes={mailboxes.filter((item) => item.isActive)}
-            mailbox={selectedMailbox}
-            selected={selectedMessage}
-            loading={loading || detailLoading}
-            refreshing={refreshing}
-            onMailbox={changeMailbox}
-            onRefresh={() => loadMessages(selectedMailbox, true)}
-            onSelect={openMessage}
-            onBack={() => setSelectedMessage(null)}
-          />
-        )}
-        {view === 'settings' && (
-          <SettingsView
-            auth={auth}
-            settings={settings}
-            onToggleFloating={toggleFloating}
-            onOpenWeb={() => void chrome.tabs.create({ url: auth.apiOrigin })}
-            onLogout={logout}
-          />
-        )}
+        <div className="panel-view" key={view}>
+          {view === 'generate' && (
+            <GenerateView
+              domains={enabledDomains}
+              domain={domain}
+              localPart={localPart}
+              generatedAddress={generatedAddress}
+              fallbackAddress={currentMailbox}
+              messages={generateMessages}
+              canGenerate={canGenerate}
+              busy={generating}
+              mailLoading={loading}
+              refreshing={refreshing}
+              refreshInterval={config?.mailRefreshInterval ?? 0}
+              onDomain={setDomain}
+              onLocalPart={setLocalPart}
+              onGenerate={generateMailbox}
+              onCopy={copyAddress}
+              onFill={fillAddress}
+              onRefresh={() => loadMessages(generateAddress, true)}
+              onSelect={(message) => {
+                setView('inbox')
+                void openMessage(message)
+              }}
+            />
+          )}
+          {view === 'inbox' && (
+            <InboxView
+              messages={messages}
+              mailboxes={mailboxes.filter((item) => item.isActive)}
+              mailbox={selectedMailbox}
+              selected={selectedMessage}
+              loading={loading || detailLoading}
+              refreshing={refreshing}
+              onMailbox={changeMailbox}
+              onRefresh={() => loadMessages(selectedMailbox, true)}
+              onSelect={openMessage}
+              onBack={() => setSelectedMessage(null)}
+            />
+          )}
+          {view === 'settings' && (
+            <SettingsView
+              auth={auth}
+              settings={settings}
+              onToggleFloating={toggleFloating}
+              onOpenWeb={() => void chrome.tabs.create({ url: auth.apiOrigin })}
+              onLogout={logout}
+            />
+          )}
+        </div>
       </main>
       {notice && <div className="panel-toast" role="status"><Check size={15} />{notice}</div>}
     </div>
@@ -378,24 +409,30 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
   )
 }
 
-function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, canGenerate, busy, onDomain, onLocalPart, onGenerate, onCopy, onFill }: {
+function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, messages, canGenerate, busy, mailLoading, refreshing, refreshInterval, onDomain, onLocalPart, onGenerate, onCopy, onFill, onRefresh, onSelect }: {
   domains: ManagedDomain[]
   domain: string
   localPart: string
   generatedAddress: string
   fallbackAddress: string
+  messages: MessageSummary[]
   canGenerate: boolean
   busy: boolean
+  mailLoading: boolean
+  refreshing: boolean
+  refreshInterval: number
   onDomain: (domain: string) => void
   onLocalPart: (localPart: string) => void
   onGenerate: () => void
   onCopy: (address: string) => void
   onFill: (address: string) => void
+  onRefresh: () => void
+  onSelect: (message: MessageSummary) => void
 }) {
   const address = generatedAddress || fallbackAddress
   const previewLocalPart = localPart.trim().toLowerCase() || 'omni-随机字符'
   return (
-    <section className="panel-page">
+    <section className="panel-page generate-page">
       <header className="page-heading"><p className="eyebrow">QUICK MAILBOX</p><h1>快速生成邮箱</h1><p>输入邮箱前缀，或者留空让系统随机生成。</p></header>
       <div className="page-card">
         <div className="mailbox-fields">
@@ -433,6 +470,16 @@ function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAd
         {!canGenerate && <p className="permission-note">当前账户没有创建邮箱的权限。</p>}
       </div>
       {address && <div className="page-card address-result"><span>{generatedAddress ? '刚刚生成' : '当前邮箱'}</span><strong>{address}</strong><div><button type="button" onClick={() => onCopy(address)}><Copy size={15} />复制</button><button type="button" onClick={() => onFill(address)}><SendToBack size={15} />填入网页</button></div></div>}
+      {address && (
+        <PanelRecentMail
+          messages={messages}
+          loading={mailLoading}
+          refreshing={refreshing}
+          refreshInterval={refreshInterval}
+          onRefresh={onRefresh}
+          onSelect={onSelect}
+        />
+      )}
     </section>
   )
 }

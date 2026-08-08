@@ -29,6 +29,8 @@ const message = {
   deliveryStatus: null, purgeAfter: null,
 }
 let exchangeBody = null
+let messageListRequests = 0
+let lastMessageMailbox = ''
 
 async function requestBody(request) {
   const chunks = []
@@ -97,7 +99,7 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/config') {
-      json(response, { appName: 'OmniMail', mailRefreshInterval: 30 })
+      json(response, { appName: 'OmniMail', mailRefreshInterval: 5 })
       return
     }
     if (url.pathname === '/api/domains') {
@@ -124,8 +126,14 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/messages') {
+      messageListRequests += 1
+      const requestedMailbox = url.searchParams.get('mailbox')
+      lastMessageMailbox = requestedMailbox || ''
+      const listedMessage = requestedMailbox
+        ? { ...message, mailboxAddress: requestedMailbox, recipients: [requestedMailbox] }
+        : message
       json(response, {
-        unchanged: false, version: 1, messages: [message],
+        unchanged: false, version: 1, messages: [listedMessage],
         counts: { unread: 1, starred: 0, drafts: 0, sent: 0, trash: 0 },
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
@@ -252,6 +260,7 @@ try {
   await panelFrame.getByRole('option', { name: '@example.com' }).click()
   await page.emulateMedia({ colorScheme: 'light' })
   await domainCombobox.press('ArrowDown')
+  await panelFrame.getByRole('listbox', { name: '邮箱域名' }).waitFor()
   await domainCombobox.press('ArrowDown')
   await domainCombobox.press('Enter')
   assert.equal(await domainCombobox.textContent(), '@aicnos.com')
@@ -260,6 +269,7 @@ try {
   assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
   assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{43}$/)
   await mkdir(storeAssetsPath, { recursive: true })
+  await panelFrame.locator('.panel-main').evaluate((element) => element.scrollTo({ top: 0 }))
   await page.screenshot({
     path: resolve(storeAssetsPath, '01-floating-generate.jpg'),
     type: 'jpeg', quality: 94,
@@ -274,9 +284,24 @@ try {
   await panelFrame.getByText('邮箱已生成').waitFor()
   const generatedAddress = mailboxes.at(-1).address
   assert.match(generatedAddress, /^omni-[a-f0-9]{12}@example\.com$/)
+  const recentMail = panelFrame.getByRole('region', { name: '当前邮箱邮件' })
+  await recentMail.getByText('Your verification code').waitFor()
+  assert.equal(lastMessageMailbox, generatedAddress)
+  await recentMail.getByText('每 5 秒自动刷新').waitFor()
+  const requestsBeforeManualRefresh = messageListRequests
+  const recentRefreshButton = recentMail.getByRole('button', { name: '立即刷新当前邮箱' })
+  await recentRefreshButton.click()
+  await recentRefreshButton.click({ trial: true })
+  assert(messageListRequests > requestsBeforeManualRefresh)
+  const requestsBeforeAutoRefresh = messageListRequests
+  await page.waitForTimeout(5_200)
+  assert(messageListRequests > requestsBeforeAutoRefresh)
   await panelFrame.getByRole('button', { name: '填入网页' }).click()
   await page.getByLabel('邮箱地址').waitFor()
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), generatedAddress)
+  await recentMail.getByText('Your verification code').click()
+  await panelFrame.getByRole('heading', { name: 'Your verification code' }).waitFor()
+  await panelFrame.getByRole('button', { name: '返回收件箱' }).click()
 
   await panelFrame.getByRole('button', { name: '收件' }).click()
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
@@ -351,12 +376,21 @@ try {
   })
   const restoredFrame = await restoredFramePromise
   await restoredFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  await restoredFrame.locator('.panel-nav').getByRole('button', { name: '收件', exact: true }).click()
+  const transitionState = await restoredFrame.locator('.panel-view').evaluate((element) => ({
+    duration: getComputedStyle(element).animationDuration,
+    name: getComputedStyle(element).animationName,
+  }))
+  assert.deepEqual(transitionState, { duration: '0.18s', name: 'panel-view-in' })
+  await restoredFrame.locator('.panel-nav').getByRole('button', { name: '生成', exact: true }).click()
+  await page.waitForTimeout(220)
   const expandedNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
   assert.match(nodeAttribute(nodeWithClass(expandedNodes, 'omnimail-float-panel'), 'class'), /\bis-visible\b/)
   await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded.png') })
   if (previewMode) {
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.waitForTimeout(220)
+    await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded-dark.png') })
     await page.bringToFront()
     console.log('OmniMail docked preview is ready. Click the right-edge tab to collapse or expand it.')
     await new Promise(() => {})

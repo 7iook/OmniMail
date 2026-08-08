@@ -4,6 +4,24 @@
   gap: 10px;
 }
 
+.generate-page {
+  gap: 12px;
+  padding-block: 20px;
+}
+
+.generate-page .address-result {
+  gap: 3px;
+  padding: 12px;
+}
+
+.generate-page .address-result > div {
+  margin-top: 4px;
+}
+
+.generate-page .address-result button {
+  min-height: 33px;
+}
+
 .form-field,
 .panel-select {
   min-width: 0;
