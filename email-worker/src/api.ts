@@ -8,6 +8,7 @@ import { listAuditLogs } from './audit-log-api'
 import { writeAudit } from './audit'
 import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-api'
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
+import { extensionAuthorizationRoutes } from './extension-authorization-routes'
 import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
 import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
@@ -51,6 +52,7 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/token',
   '/api/auth/token/refresh',
   '/api/auth/token/revoke',
+  '/api/auth/extension/exchange',
   '/api/auth/linux-do',
   '/api/auth/linux-do/callback',
   '/api/webhooks/resend',
@@ -371,6 +373,7 @@ app.post('/api/register', async (context) => {
 app.post('/api/auth/token', (context) => issueDeviceToken(context.env, context.req.raw))
 app.post('/api/auth/token/refresh', (context) => refreshDeviceToken(context.env, context.req.raw))
 app.post('/api/auth/token/revoke', (context) => revokeRefreshToken(context.env, context.req.raw))
+extensionAuthorizationRoutes(app)
 
 app.get('/api/session', async (context) => {
   const authorization = bearerToken(context.req.header('Authorization'))

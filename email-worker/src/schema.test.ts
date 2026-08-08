@@ -22,7 +22,7 @@ describe('D1 migration check', () => {
       'SELECT 1 AS applied FROM d1_migrations WHERE name = ? LIMIT 1',
     )
     expect(fixture.bind).toHaveBeenCalledWith(
-      '0018_schema_baseline_and_message_indexes.sql',
+      '0019_extension_authorization.sql',
     )
   })
 

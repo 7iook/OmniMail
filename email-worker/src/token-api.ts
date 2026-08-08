@@ -16,7 +16,7 @@ const REFRESH_TOKEN_SECONDS = 30 * 24 * 60 * 60
 const ACCESS_PREFIX = 'om_at_'
 const REFRESH_PREFIX = 'om_rt_'
 
-type DeviceUserRow = Pick<
+export type DeviceUserRow = Pick<
   UserRow,
   | 'id'
   | 'email'
@@ -73,7 +73,7 @@ function deviceName(value: unknown): string {
   return name.length <= 80 ? name : ''
 }
 
-async function createDeviceSession(
+export async function createDeviceSession(
   env: Env,
   user: DeviceUserRow,
   name: string,

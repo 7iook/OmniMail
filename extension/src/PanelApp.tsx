@@ -1,7 +1,6 @@
 import {
   AlertCircle,
   ArrowLeft,
-  AtSign,
   Check,
   Copy,
   ExternalLink,
@@ -156,11 +155,11 @@ export function PanelApp() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  async function login(input: { apiOrigin: string; email: string; password: string; mfaCode: string }) {
+  async function login(input: { apiOrigin: string }) {
     setLoading(true)
     setError('')
     try {
-      const nextAuth = await sendExtensionMessage<AuthStatus>({ type: 'auth:login', ...input })
+      const nextAuth = await sendExtensionMessage<AuthStatus>({ type: 'auth:authorize', ...input })
       setAuth(nextAuth)
       await loadAuthenticatedData()
     } catch (loginError) {
@@ -338,37 +337,28 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
   apiOrigin: string
   busy: boolean
   error: string
-  onLogin: (input: { apiOrigin: string; email: string; password: string; mfaCode: string }) => void
+  onLogin: (input: { apiOrigin: string }) => void
 }) {
   const [site, setSite] = useState(apiOrigin)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [mfaCode, setMfaCode] = useState('')
   return (
     <main className="login-view">
       <div className="login-logo"><OmniLogo size={30} /></div>
       <p className="eyebrow">OMNIMAIL FLOAT</p>
       <h1>连接你的邮箱</h1>
-      <p className="login-copy">登录后即可在其他网页生成邮箱并收取邮件。</p>
+      <p className="login-copy">前往你的 OmniMail 网站验证身份并确认授权，扩展不会读取密码。</p>
       <form onSubmit={(event) => {
         event.preventDefault()
-        onLogin({ apiOrigin: site, email, password, mfaCode })
+        onLogin({ apiOrigin: site })
       }}>
         <label htmlFor="omnimail-site">OmniMail 地址</label>
         <input id="omnimail-site" type="url" required placeholder="https://mail.example.com" value={site} onChange={(event) => setSite(event.target.value)} />
-        <label htmlFor="omnimail-email">登录邮箱</label>
-        <input id="omnimail-email" type="email" required autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} />
-        <label htmlFor="omnimail-password">密码</label>
-        <input id="omnimail-password" type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        <label htmlFor="omnimail-mfa">二次验证码 <span>如已启用</span></label>
-        <input id="omnimail-mfa" inputMode="numeric" autoComplete="one-time-code" maxLength={12} value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} />
         {error && <p className="login-error" role="alert"><AlertCircle size={15} />{error}</p>}
         <button className="primary-button" type="submit" disabled={busy}>
-          {busy ? <LoaderCircle className="spin" size={17} /> : <AtSign size={17} />}
-          {busy ? '正在连接…' : '连接 OmniMail'}
+          {busy ? <LoaderCircle className="spin" size={17} /> : <ExternalLink size={17} />}
+          {busy ? '等待网站授权…' : '前往 OmniMail 授权'}
         </button>
       </form>
-      <p className="login-security">令牌仅保存在本次浏览器会话中，网页无法读取。</p>
+      <p className="login-security">授权完成后，设备令牌仅保存在本次浏览器会话中。</p>
     </main>
   )
 }

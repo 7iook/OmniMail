@@ -45,6 +45,7 @@ import type {
   TranslationTargetLanguage,
   User,
 } from './api-types'
+import type { ExtensionAuthorizationRequest } from './extensionAuthorization'
 
 export class ApiError extends Error {
   status: number
@@ -123,6 +124,11 @@ export const api = {
     })
   ),
   logout: () => request<{ ok: true }>('/api/logout', { method: 'POST' }),
+  authorizeExtension: (input: ExtensionAuthorizationRequest) => (
+    request<{ redirectTo: string }>('/api/auth/extension/authorize', {
+      method: 'POST', body: jsonBody(input),
+    })
+  ),
   deploymentCheck: () => request<DeploymentCheck>('/api/admin/deployment-check'),
   systemVersion: () => request<SystemVersion>('/api/admin/version'),
   startSystemUpdate: (targetVersion: string) => request<{ build: SystemUpdateBuild }>(

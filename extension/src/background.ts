@@ -1,4 +1,10 @@
 import type { User } from '../../src/lib/api-types'
+import {
+  authorizationCode,
+  extensionAuthorizationUrl,
+  pkceChallenge,
+  randomAuthorizationValue,
+} from './authorization'
 import type { ExtensionRequest } from './protocol'
 
 const MAIL_ALARM = 'omnimail-mail-poll'
@@ -180,18 +186,33 @@ async function authStatus() {
   }
 }
 
-async function login(message: Extract<ExtensionRequest, { type: 'auth:login' }>) {
+async function authorize(message: Extract<ExtensionRequest, { type: 'auth:authorize' }>) {
   const apiOrigin = normalizeApiOrigin(message.apiOrigin)
-  const tokens = await publicRequest<TokenResponse>(apiOrigin, '/api/auth/token', {
-    method: 'POST',
-    body: JSON.stringify({
-      email: message.email,
-      password: message.password,
-      mfaCode: message.mfaCode || undefined,
-      deviceName: 'OmniMail Chrome Extension',
-    }),
+  const clientId = chrome.runtime.id
+  const redirectUri = chrome.identity.getRedirectURL('omnimail')
+  const state = randomAuthorizationValue()
+  const codeVerifier = randomAuthorizationValue()
+  const codeChallenge = await pkceChallenge(codeVerifier)
+  const url = extensionAuthorizationUrl(apiOrigin, {
+    clientId, redirectUri, state, codeChallenge,
   })
   await chrome.storage.local.set({ apiOrigin })
+  let callback: string | undefined
+  try {
+    callback = await chrome.identity.launchWebAuthFlow({ url, interactive: true })
+  } catch {
+    throw new Error('授权窗口已关闭或授权未完成。')
+  }
+  const code = authorizationCode(callback, redirectUri, state)
+  const tokens = await publicRequest<TokenResponse>(apiOrigin, '/api/auth/extension/exchange', {
+    method: 'POST',
+    body: JSON.stringify({
+      code,
+      codeVerifier,
+      clientId,
+      redirectUri,
+    }),
+  })
   await chrome.storage.local.remove(['knownMessageIds'])
   await saveTokens(tokens)
   await configureMailAlarm()
@@ -245,7 +266,7 @@ async function handleMessage(message: ExtensionRequest, sender: chrome.runtime.M
   if (message.type.startsWith('api:')) return apiCall(message)
   switch (message.type) {
     case 'auth:status': return authStatus()
-    case 'auth:login': return login(message)
+    case 'auth:authorize': return authorize(message)
     case 'auth:logout': return logout()
     case 'page:fill-email': return fillCurrentPage(message.email, sender)
     case 'settings:get': {

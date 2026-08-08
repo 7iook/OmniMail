@@ -24,6 +24,7 @@ const message = {
   attachmentCount: 0, isRead: false, isStarred: false, processingError: null,
   deliveryStatus: null, purgeAfter: null,
 }
+let exchangeBody = null
 
 async function requestBody(request) {
   const chunks = []
@@ -47,7 +48,22 @@ const server = createServer(async (request, response) => {
         </body></html>`)
       return
     }
-    if (url.pathname === '/api/auth/token') {
+    if (url.pathname === '/extension/authorize') {
+      const redirectUri = url.searchParams.get('redirect_uri') || ''
+      const state = url.searchParams.get('state') || ''
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      response.end(`<!doctype html><html><head><title>Authorize OmniMail Float</title></head>
+        <body style="font:16px system-ui;padding:40px;background:#f7f7f8">
+          <main><h1>授权浏览器扩展</h1><p>OmniMail Float 希望连接你的账户。</p>
+          <button id="allow" style="padding:12px 20px">允许访问</button></main>
+          <script>document.querySelector('#allow').onclick = () => {
+            location.assign(${JSON.stringify(`${redirectUri}?code=om_ac_${'a'.repeat(43)}&state=${state}`)})
+          }</script>
+        </body></html>`)
+      return
+    }
+    if (url.pathname === '/api/auth/extension/exchange') {
+      exchangeBody = await requestBody(request)
       json(response, {
         accessToken: 'om_at_smoke_access_token_1234567890', expiresIn: 900,
         refreshToken: 'om_rt_smoke_refresh_token_1234567890', refreshExpiresIn: 2592000,
@@ -170,7 +186,7 @@ try {
 
   const panelFrame = await panelFramePromise
   await panelFrame.getByRole('heading', { name: '连接你的邮箱' }).waitFor()
-  const loginButton = panelFrame.getByRole('button', { name: '连接 OmniMail' })
+  const loginButton = panelFrame.getByRole('button', { name: '前往 OmniMail 授权' })
   await loginButton.click({ trial: true })
   await page.mouse.move(20, 20)
   await page.waitForTimeout(220)
@@ -185,10 +201,17 @@ try {
 
   const apiOrigin = `http://127.0.0.1:${address.port}`
   await panelFrame.getByLabel('OmniMail 地址').fill(apiOrigin)
-  await panelFrame.getByLabel('登录邮箱').fill('owner@example.com')
-  await panelFrame.getByLabel('密码').fill('correct horse battery staple')
+  const authorizationPagePromise = context.waitForEvent('page', {
+    predicate: (candidate) => candidate.url().includes('/extension/authorize'),
+    timeout: 10_000,
+  })
   await loginButton.click()
+  const authorizationPage = await authorizationPagePromise
+  await authorizationPage.getByRole('heading', { name: '授权浏览器扩展' }).waitFor()
+  await authorizationPage.getByRole('button', { name: '允许访问' }).click()
   await panelFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
+  assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{43}$/)
 
   await panelFrame.getByRole('button', { name: '一键生成邮箱' }).click()
   await panelFrame.getByText('邮箱已生成').waitFor()

@@ -1,4 +1,4 @@
-const REQUIRED_MIGRATION = '0018_schema_baseline_and_message_indexes.sql'
+const REQUIRED_MIGRATION = '0019_extension_authorization.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 function migrationError(cause?: unknown): Error {

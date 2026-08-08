@@ -45,4 +45,28 @@ export const enSecurity: Record<string, string> = {
   '验证码不正确，请确认验证器时间保持同步。':
     'The code is incorrect. Make sure the authenticator clock is synchronized.',
   '需要有效的二次验证码或恢复码。': 'A valid two-factor or recovery code is required.',
+  '授权浏览器扩展': 'Authorize browser extension',
+  '浏览器扩展': 'Browser extension',
+  '授权请求无效': 'Invalid authorization request',
+  '此请求不是有效的 OmniMail Float 授权请求，请返回扩展后重试。':
+    'This is not a valid OmniMail Float authorization request. Return to the extension and try again.',
+  '回调地址或安全参数不正确。': 'The callback address or security parameters are invalid.',
+  '返回 OmniMail': 'Return to OmniMail',
+  'OmniMail Float 希望连接你的账户，以便在其他网页快速生成邮箱和收取邮件。':
+    'OmniMail Float wants to connect to your account to create mailboxes and receive mail on other websites.',
+  '请求的权限': 'Requested permissions',
+  '生成邮箱': 'Create mailboxes',
+  '在你有权限的域名下创建随机地址': 'Create random addresses on domains you can use',
+  '读取收件箱': 'Read inbox',
+  '查看邮箱列表、邮件摘要和邮件正文': 'View mailbox lists, message summaries, and message bodies',
+  '新邮件通知': 'New mail notifications',
+  '扩展在后台检查并提醒新邮件': 'Let the extension check for and notify you about new mail',
+  '换一个账户': 'Use another account',
+  '请先通过 OmniMail 网站验证身份，密码不会提供给扩展。':
+    'Verify your identity on the OmniMail website first. Your password is never shared with the extension.',
+  '登录并继续': 'Sign in and continue',
+  '正在授权…': 'Authorizing…',
+  '允许访问': 'Allow access',
+  '扩展只会收到可随时撤销的设备令牌，不会读取你的网页登录 Cookie。':
+    'The extension only receives a revocable device token and cannot read your website session cookie.',
 }

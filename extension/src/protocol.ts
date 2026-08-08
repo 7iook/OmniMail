@@ -25,7 +25,7 @@ export interface InboxResult {
 
 export type ExtensionRequest =
   | { type: 'auth:status' }
-  | { type: 'auth:login'; apiOrigin: string; email: string; password: string; mfaCode?: string }
+  | { type: 'auth:authorize'; apiOrigin: string }
   | { type: 'auth:logout' }
   | { type: 'api:config' }
   | { type: 'api:mailboxes' }

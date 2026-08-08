@@ -268,6 +268,48 @@ Authorization: Bearer om_at_...
 
 用户只能操作自己的设备会话。设备列表不会返回任何令牌明文。
 
+## 浏览器扩展网站授权
+
+OmniMail Float 不调用密码令牌接口。扩展通过 Chrome Identity 打开同一 OmniMail
+实例的 `/extension/authorize` 页面，网站完成登录、MFA 和用户确认后签发一次性
+授权码。扩展属于公开客户端，使用 PKCE S256，不配置客户端 Secret。
+
+网站使用登录 Cookie 从同源页面提交授权确认；该接口拒绝扩展来源直接签发授权码：
+
+```http
+POST /api/auth/extension/authorize
+Content-Type: application/json
+
+{
+  "clientId": "abcdefghijklmnopabcdefghijklmnop",
+  "redirectUri": "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/omnimail",
+  "state": "browser-generated-state",
+  "codeChallenge": "base64url-sha256-pkce-challenge"
+}
+```
+
+`clientId` 必须对应 `APP_ORIGINS` 中精确配置的
+`chrome-extension://扩展ID`，回调地址必须严格等于 Chrome Identity 为该 ID 生成的
+地址。成功响应中的 `redirectTo` 只包含两分钟有效的一次性授权码和原始 `state`。
+
+扩展验证回调和 `state` 后兑换授权码：
+
+```http
+POST /api/auth/extension/exchange
+Origin: chrome-extension://abcdefghijklmnopabcdefghijklmnop
+Content-Type: application/json
+
+{
+  "code": "om_ac_...",
+  "codeVerifier": "original-pkce-verifier",
+  "clientId": "abcdefghijklmnopabcdefghijklmnop",
+  "redirectUri": "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/omnimail"
+}
+```
+
+Worker 同时验证请求 Origin、客户端 ID、精确回调地址、PKCE、有效期和单次使用状态，
+成功后返回与设备令牌接口相同的 Access Token、轮换 Refresh Token 和用户信息。
+
 ## 游标分页
 
 邮件、管理员用户列表和邀请列表支持游标分页：

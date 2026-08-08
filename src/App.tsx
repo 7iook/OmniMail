@@ -4,6 +4,7 @@ import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './compone
 import { DelayedScrollbar } from './components/DelayedScrollbar'
 import { DraftComposer, useDraftEditor } from './components/DraftComposer'
 import { DraftFolderContent } from './components/DraftFolderContent'
+import { ExtensionAuthorizationPage } from './components/ExtensionAuthorizationPage'
 import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions } from './components/MailboxHeaderActions'
@@ -520,15 +521,14 @@ export function App() {
   const [connectionError, setConnectionError] = useState('')
   const [loadVersion, setLoadVersion] = useState(0)
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get('invite'))
-  const clearSession = useSessionExpiry(user, loading, Boolean(inviteToken), setUser)
-
+  const extensionAuthorization = window.location.pathname === '/extension/authorize'
+  const clearSession = useSessionExpiry(user, loading, Boolean(inviteToken) || extensionAuthorization, setUser)
   useEffect(() => {
     if (!inviteToken) return
     const url = new URL(window.location.href)
     url.searchParams.delete('invite')
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
   }, [inviteToken])
-
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -582,7 +582,7 @@ export function App() {
         onAuthenticated={setUser}
       />
     )
-  }
+  } else if (extensionAuthorization) return <ExtensionAuthorizationPage config={config} user={user} onAuthenticated={setUser} onLogout={logout} />
   if (!user) {
     return (
       <PublicLanding

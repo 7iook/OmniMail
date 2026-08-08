@@ -58,6 +58,6 @@ test('Linux DO-only registration starts OAuth without showing a password form', 
   await dialog.getByRole('button', { name: '通过 Linux DO 创建账户' }).click()
   await expect.poll(() => authorizationUrl).toContain('/api/auth/linux-do')
   expect(new URL(authorizationUrl).searchParams.get('returnTo')).toBe(
-    new URL(page.url()).origin,
+    page.url(),
   )
 })

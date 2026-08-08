@@ -95,8 +95,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 const validState = 'valid_state_12345678901234567890'
 
-function oauthStateCookie(state = validState): string {
-  const origin = btoa('https://app.example')
+function oauthStateCookie(state = validState, returnTo = 'https://app.example'): string {
+  const origin = btoa(returnTo)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replaceAll('=', '')
@@ -158,6 +158,18 @@ describe('Linux DO OAuth flow', () => {
     )
     expect(result.stateCookie).not.toContain(
       btoa('https://evil.example').replaceAll('=', ''),
+    )
+  })
+
+  it('preserves an approved same-origin authorization path', async () => {
+    const { env } = testEnvironment()
+    const returnTo = 'https://mail.example/extension/authorize?client_id=example'
+    const result = await beginLinuxDoAuth(
+      env,
+      new Request(`https://mail.example/api/auth/linux-do?returnTo=${encodeURIComponent(returnTo)}`),
+    )
+    expect(result.stateCookie).toContain(
+      btoa(returnTo).replaceAll('=', ''),
     )
   })
 

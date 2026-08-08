@@ -52,6 +52,7 @@ const actionLabels: Record<string, string> = {
   'auth.register_failed': '外部注册失败',
   'auth.logout': '退出登录',
   'auth.token.issue': '客户端登录成功',
+  'auth.extension.authorize': '授权浏览器扩展',
   'auth.token.revoke': '客户端退出',
   'auth.device.revoke': '撤销客户端设备',
   'account.update': '修改账号资料',
@@ -133,6 +134,7 @@ function detailText(log: AuditLog): string {
   const parts: string[] = []
   if (detail.channel === 'browser') parts.push(t('网页端'))
   if (detail.channel === 'token') parts.push(t('客户端'))
+  if (detail.channel === 'extension') parts.push(t('浏览器扩展'))
   if (detail.deviceName) parts.push(String(detail.deviceName))
   if (detail.reason === 'invalid_credentials') parts.push(t('凭据错误'))
   if (detail.reason === 'rate_limited') parts.push(t('触发登录限速'))

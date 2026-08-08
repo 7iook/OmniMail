@@ -147,6 +147,7 @@ export async function cleanup(env: Env): Promise<void> {
     env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now),
     env.DB.prepare('DELETE FROM device_sessions WHERE refresh_expires_at <= ?').bind(now),
     env.DB.prepare('DELETE FROM mfa_challenges WHERE expires_at <= ?').bind(now),
+    env.DB.prepare('DELETE FROM extension_authorization_codes WHERE expires_at <= ?').bind(now),
     env.DB.prepare('DELETE FROM login_attempts WHERE window_started_at < ?')
       .bind(now - 24 * 60 * 60),
     env.DB.prepare('DELETE FROM registration_attempts WHERE window_started_at < ?')

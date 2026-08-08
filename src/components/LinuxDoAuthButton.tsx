@@ -6,7 +6,7 @@ export function LinuxDoAuthButton({ registering = false }: { registering?: boole
     <button
       className="button linux-do-auth"
       type="button"
-      onClick={() => window.location.assign(api.linuxDoLoginUrl(window.location.origin))}
+      onClick={() => window.location.assign(api.linuxDoLoginUrl(window.location.href))}
     >
       <span aria-hidden="true">L</span>
       {t(registering ? '通过 Linux DO 创建账户' : '使用 Linux DO 登录')}

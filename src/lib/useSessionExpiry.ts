@@ -9,8 +9,8 @@ export function useSessionExpiry(
 ) {
   const clearSession = useCallback(() => {
     setUser(null)
-    window.history.replaceState(null, '', '/')
-  }, [setUser])
+    if (!preservePublicPath) window.history.replaceState(null, '', '/')
+  }, [preservePublicPath, setUser])
 
   useEffect(() => {
     window.addEventListener(AUTH_REQUIRED_EVENT, clearSession)

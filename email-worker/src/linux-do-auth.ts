@@ -82,15 +82,20 @@ function callbackUrl(request: Request): string {
   return new URL('/api/auth/linux-do/callback', request.url).toString()
 }
 
-function safeReturnOrigin(env: Env, request: Request): string {
+function safeReturnUrl(env: Env, request: Request): string {
   const fallback = new URL(request.url).origin
   const requested = new URL(request.url).searchParams.get('returnTo')?.trim()
   if (!requested || !isAllowedOrigin(requested, request.url, env.APP_ORIGINS)) return fallback
-  return new URL(requested).origin
+  const destination = new URL(requested)
+  if (destination.username || destination.password) return fallback
+  destination.hash = ''
+  return destination.pathname === '/' && !destination.search
+    ? destination.origin
+    : destination.toString()
 }
 
-function redirectToApp(origin: string, failed = false, mfaRequired = false): Response {
-  const destination = new URL('/', origin)
+function redirectToApp(returnTo: string, failed = false, mfaRequired = false): Response {
+  const destination = new URL(returnTo)
   if (failed) destination.searchParams.set('auth_error', PROVIDER)
   if (mfaRequired) destination.searchParams.set('mfa_required', '1')
   return Response.redirect(destination.toString(), 302)
@@ -124,7 +129,7 @@ export async function beginLinuxDoAuth(
     }
   }
   const state = createSessionToken()
-  const returnOrigin = safeReturnOrigin(env, request)
+  const returnOrigin = safeReturnUrl(env, request)
   const expiresAt = Math.floor(Date.now() / 1000) + STATE_SECONDS
   const authorization = new URL(AUTHORIZE_URL)
   authorization.searchParams.set('client_id', env.LINUX_DO_CLIENT_ID!.trim())

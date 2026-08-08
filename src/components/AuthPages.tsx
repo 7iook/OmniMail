@@ -260,7 +260,7 @@ export function SetupPage({
 
 type AuthMode = 'login' | 'register'
 
-function AuthModal({
+export function AuthModal({
   mode,
   appName,
   registrationEnabled,
