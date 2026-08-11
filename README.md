@@ -171,7 +171,21 @@ API path       https://mail.example.com/api/*
 
 同源部署不需要额外的 Pages 项目或独立 API 域名，登录 Cookie 和 CORS 配置也更简单。
 
-### 1. Fork 仓库
+### 一键部署（推荐）
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mibgb65-cloud/OmniMail)
+
+Cloudflare 会把仓库导入你的 GitHub 账户，创建并绑定 D1、R2、Queue 等资源，提示填写
+`SETUP_TOKEN` 和 `SUPER_ADMIN_EMAIL`，然后通过 Workers Builds 完成构建、数据库迁移
+和 Worker 部署。
+
+> [!IMPORTANT]
+> 一键部署不会修改域名 DNS、MX 或 Email Routing。Worker 部署完成后，仍需继续完成
+> [配置 Worker](#3-配置-worker)和[启用 Email Routing](#4-启用-email-routing)。
+
+### 手动部署
+
+#### 1. Fork 仓库
 
 Fork [mibgb65-cloud/OmniMail](https://github.com/mibgb65-cloud/OmniMail)，
 然后让 Cloudflare Worker 连接你的 Fork。
@@ -183,7 +197,7 @@ git clone https://github.com/YOUR_NAME/OmniMail.git
 cd OmniMail
 ```
 
-### 2. 连接 Cloudflare Worker
+#### 2. 连接 Cloudflare Worker
 
 在 Cloudflare Dashboard 中进入 **Workers & Pages → Create application →
 Import a repository**，选择你的 OmniMail 仓库：
@@ -198,7 +212,7 @@ Import a repository**，选择你的 OmniMail 仓库：
 | Non-production branch builds | 首次部署暂时关闭 |
 | API token | 让 Cloudflare 自动创建 |
 
-第一次部署会依据
+无论使用一键按钮还是手动导入，第一次部署都会依据
 [`wrangler.jsonc`](./wrangler.jsonc) 完成两件事：
 
 1. `npm run build` 将 React 前端生成到 `dist/`。

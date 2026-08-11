@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "description": "A small, self-hosted webmail deployed as one Cloudflare Worker with Static Assets, D1, R2, Queues, and Resend.",
+  "cloudflare": {
+    "bindings": {
+      "SETUP_TOKEN": {
+        "description": "Required one-time token for creating the first super administrator. Use at least 32 random characters and remove it after setup."
+      },
+      "SUPER_ADMIN_EMAIL": {
+        "description": "Required email address of the super administrator, for example owner@example.com."
+      }
+    }
+  },
   "engines": {
     "node": ">=22"
   },
