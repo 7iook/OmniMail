@@ -37,6 +37,18 @@ Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`
 通过 Chrome Web Store 安装时扩展 ID 固定；开发者模式下只要保持扩展目录和清单
 不变，ID 通常也会保持不变。
 
+## Chrome Web Store 发布会话
+
+在 Windows 上从仓库根目录运行：
+
+```powershell
+.\scripts\open-extension-store.ps1
+```
+
+脚本会打开独立的 Chrome 发布窗口。登录状态保存在本机
+`%LOCALAPPDATA%\OmniMail\ChromeWebStoreProfile`，不会写入 Git 仓库；关闭窗口后再次
+运行同一脚本即可复用登录。
+
 ## 安全边界
 
 - 登录使用 Chrome Identity、一次性授权码和 PKCE S256；密码与 MFA 只在 OmniMail

@@ -160,7 +160,14 @@ async function consumeState(
   if (!await secretsEqual(suppliedState, expectedState)) return null
   const returnOrigin = decodeOrigin(encodedOrigin || '')
   if (!isAllowedOrigin(returnOrigin, request.url, env.APP_ORIGINS)) return null
-  return { return_origin: new URL(returnOrigin).origin }
+  const destination = new URL(returnOrigin)
+  if (destination.username || destination.password) return null
+  destination.hash = ''
+  return {
+    return_origin: destination.pathname === '/' && !destination.search
+      ? destination.origin
+      : destination.toString(),
+  }
 }
 
 async function exchangeProfile(env: Env, request: Request, code: string): Promise<LinuxDoProfile> {

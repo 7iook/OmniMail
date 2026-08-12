@@ -110,7 +110,7 @@ async function refreshAuth(): Promise<SessionAuth> {
       )
       return saveTokens(tokens)
     } catch (error) {
-      await clearAuth()
+      if (error instanceof RequestError && error.status === 401) await clearAuth()
       throw error
     }
   })().finally(() => {

@@ -537,6 +537,9 @@ npm run build
 npx wrangler deploy --dry-run
 ```
 
+`npm run test:extension` 的截图只写入 `test-results/`。需要主动更新 Chrome
+Web Store 素材时，运行 `npm run update:extension-store-assets`。
+
 最后一条命令只执行 Worker 打包验证，不会部署。CI 会在每次 Push 和 Pull Request
 中运行测试、类型检查、生产构建与 Wrangler dry-run。生产发布由已连接仓库的
 Cloudflare Workers Builds 自动执行。

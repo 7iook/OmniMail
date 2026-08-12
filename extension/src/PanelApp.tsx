@@ -62,6 +62,7 @@ function senderName(message: MessageSummary): string {
 
 export function PanelApp() {
   const mainRef = useRef<HTMLElement>(null)
+  const messageRequestId = useRef(0)
   const [view, setView] = useState<View>(() => location.hash === '#inbox' ? 'inbox' : 'generate')
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [settings, setSettings] = useState<ExtensionSettings>({ floatingEnabled: true })
@@ -90,18 +91,21 @@ export function PanelApp() {
   const generateMessages = messages.filter((message) => message.mailboxAddress === generateAddress)
 
   const loadMessages = useCallback(async (mailbox = selectedMailbox, quiet = false) => {
+    const requestId = ++messageRequestId.current
     quiet ? setRefreshing(true) : setLoading(true)
     setError('')
     try {
       const result = await sendExtensionMessage<InboxResult>({
         type: 'api:messages', mailbox: mailbox || undefined,
       })
-      setMessages(result.messages)
+      if (requestId === messageRequestId.current) setMessages(result.messages)
     } catch (loadError) {
-      setError(errorText(loadError))
+      if (requestId === messageRequestId.current) setError(errorText(loadError))
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (requestId === messageRequestId.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [selectedMailbox])
 
@@ -194,6 +198,7 @@ export function PanelApp() {
   }
 
   async function logout() {
+    messageRequestId.current += 1
     setLoading(true)
     try {
       await sendExtensionMessage({ type: 'auth:logout' })

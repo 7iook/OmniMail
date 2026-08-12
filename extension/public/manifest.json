@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OmniMail Float",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minimum_chrome_version": "120",
   "description": "在任意网页快速生成邮箱并接收 OmniMail 邮件。",
   "icons": {

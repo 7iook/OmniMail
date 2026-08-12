@@ -7,11 +7,16 @@ import { chromium } from '@playwright/test'
 
 const extensionPath = resolve('dist-extension')
 const previewMode = process.argv.includes('--preview')
+const updateStoreAssets = process.argv.includes('--update-store-assets')
 const profilePath = await mkdtemp(resolve(tmpdir(), 'omnimail-extension-'))
 const screenshotPath = resolve('test-results', 'extension-smoke.png')
 const dropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open.png')
 const darkDropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open-dark.png')
 const storeAssetsPath = resolve('extension', 'store-assets')
+const capturedAssetsPath = updateStoreAssets
+  ? storeAssetsPath
+  : resolve('test-results', 'extension-store-assets')
+await mkdir(resolve('test-results'), { recursive: true })
 const user = {
   id: 'user-1', email: 'owner@example.com', displayName: 'Owner', role: 'super_admin',
   mailboxLimit: 20, storageQuotaBytes: 1024, storageUsedBytes: 0,
@@ -31,6 +36,14 @@ const message = {
 let exchangeBody = null
 let messageListRequests = 0
 let lastMessageMailbox = ''
+let messageGate = null
+let refreshResponseStatus = 200
+
+function deferred() {
+  let resolvePromise
+  const promise = new Promise((resolve) => { resolvePromise = resolve })
+  return { promise, resolve: resolvePromise }
+}
 
 async function requestBody(request) {
   const chunks = []
@@ -87,6 +100,10 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/auth/token/refresh') {
+      if (refreshResponseStatus !== 200) {
+        json(response, { error: `Refresh failed (${refreshResponseStatus})` }, refreshResponseStatus)
+        return
+      }
       json(response, {
         accessToken: 'om_at_refreshed_access_token_123456', expiresIn: 900,
         refreshToken: 'om_rt_refreshed_refresh_token_123456', refreshExpiresIn: 2592000,
@@ -129,14 +146,21 @@ const server = createServer(async (request, response) => {
       messageListRequests += 1
       const requestedMailbox = url.searchParams.get('mailbox')
       lastMessageMailbox = requestedMailbox || ''
+      const activeGate = messageGate
+      if (activeGate?.mailbox === requestedMailbox) {
+        activeGate.started.resolve()
+        await activeGate.release.promise
+      }
       const listedMessage = requestedMailbox
         ? { ...message, mailboxAddress: requestedMailbox, recipients: [requestedMailbox] }
         : message
+      if (activeGate) listedMessage.subject = `Mail for ${requestedMailbox || 'all mailboxes'}`
       json(response, {
         unchanged: false, version: 1, messages: [listedMessage],
         counts: { unread: 1, starred: 0, drafts: 0, sent: 0, trash: 0 },
         page: { hasMore: false, nextCursor: null, limit: 30 },
       })
+      if (activeGate?.mailbox === requestedMailbox) activeGate.completed.resolve()
       return
     }
     if (url.pathname === '/api/messages/message-1' && request.method === 'GET') {
@@ -268,10 +292,10 @@ try {
   await panelFrame.getByRole('option', { name: '@example.com' }).click()
   assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
   assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{43}$/)
-  await mkdir(storeAssetsPath, { recursive: true })
+  await mkdir(capturedAssetsPath, { recursive: true })
   await panelFrame.locator('.panel-main').evaluate((element) => element.scrollTo({ top: 0 }))
   await page.screenshot({
-    path: resolve(storeAssetsPath, '01-floating-generate.jpg'),
+    path: resolve(capturedAssetsPath, '01-floating-generate.jpg'),
     type: 'jpeg', quality: 94,
   })
 
@@ -309,14 +333,37 @@ try {
   await panelFrame.getByRole('option', { name: '全部邮箱' }).click()
   await panelFrame.getByText('Your verification code').waitFor()
   await page.screenshot({
-    path: resolve(storeAssetsPath, '02-floating-inbox.jpg'),
+    path: resolve(capturedAssetsPath, '02-floating-inbox.jpg'),
     type: 'jpeg', quality: 94,
   })
+
+  messageGate = {
+    mailbox: 'custom-box@example.com',
+    started: deferred(),
+    release: deferred(),
+    completed: deferred(),
+  }
+  await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
+  await panelFrame.getByRole('option', { name: 'custom-box@example.com' }).click()
+  await messageGate.started.promise
+  await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
+  await panelFrame.getByRole('option', { name: 'inbox@example.com' }).click()
+  await panelFrame.getByText('Mail for inbox@example.com').waitFor()
+  messageGate.release.resolve()
+  await messageGate.completed.promise
+  await page.waitForTimeout(100)
+  assert.equal(await panelFrame.getByText('Mail for inbox@example.com').count(), 1)
+  assert.equal(await panelFrame.getByText('Mail for custom-box@example.com').count(), 0)
+  messageGate = null
+  await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
+  await panelFrame.getByRole('option', { name: '全部邮箱' }).click()
+  await panelFrame.getByText('Your verification code').waitFor()
+
   await panelFrame.getByText('Your verification code').click()
   await panelFrame.getByRole('heading', { name: 'Your verification code' }).waitFor()
   await panelFrame.frameLocator('iframe[title="邮件正文"]').getByText('123456').waitFor()
   await page.screenshot({
-    path: resolve(storeAssetsPath, '03-floating-message.jpg'),
+    path: resolve(capturedAssetsPath, '03-floating-message.jpg'),
     type: 'jpeg', quality: 94,
   })
 
@@ -387,6 +434,30 @@ try {
   const expandedNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
   assert.match(nodeAttribute(nodeWithClass(expandedNodes, 'omnimail-float-panel'), 'class'), /\bis-visible\b/)
   await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded.png') })
+
+  if (!previewMode) {
+    refreshResponseStatus = 500
+    await serviceWorker.evaluate(() => chrome.storage.session.set({ accessExpiresAt: 0 }))
+    const transientRefresh = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
+    }))
+    assert.equal(transientRefresh.error, 'Refresh failed (500)')
+    const preservedAuth = await serviceWorker.evaluate(
+      () => chrome.storage.session.get(['refreshToken']),
+    )
+    assert.equal(preservedAuth.refreshToken, 'om_rt_smoke_refresh_token_1234567890')
+
+    refreshResponseStatus = 401
+    const rejectedRefresh = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
+    }))
+    assert.equal(rejectedRefresh.error, 'Refresh failed (401)')
+    const clearedAuth = await serviceWorker.evaluate(
+      () => chrome.storage.session.get(['refreshToken']),
+    )
+    assert.equal(clearedAuth.refreshToken, undefined)
+  }
+
   if (previewMode) {
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.waitForTimeout(220)
@@ -407,11 +478,10 @@ try {
     div{margin-left:24px}h1{margin:0 0 9px;font-size:27px;letter-spacing:-.6px}p{margin:0;color:#cbd0d9;font-size:15px;line-height:1.45}
   </style></head><body><main><img src="data:image/png;base64,${icon.toString('base64')}" alt=""><div><h1>OmniMail Float</h1><p>邮箱随页面而行<br>生成 · 填入 · 收件</p></div></main></body></html>`)
   await promoPage.screenshot({
-    path: resolve(storeAssetsPath, 'promo-small-440x280.jpg'),
+    path: resolve(capturedAssetsPath, 'promo-small-440x280.jpg'),
     type: 'jpeg', quality: 95,
   })
   await promoPage.close()
-  await mkdir(resolve('test-results'), { recursive: true })
   await page.screenshot({ path: screenshotPath })
   console.log(`Extension smoke test passed: ${screenshotPath}`)
 } finally {

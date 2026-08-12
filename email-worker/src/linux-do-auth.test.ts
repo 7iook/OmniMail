@@ -161,16 +161,32 @@ describe('Linux DO OAuth flow', () => {
     )
   })
 
-  it('preserves an approved same-origin authorization path', async () => {
-    const { env } = testEnvironment()
+  it('preserves an approved same-origin authorization path through the callback', async () => {
+    const { env } = testEnvironment({ existing: true })
     const returnTo = 'https://mail.example/extension/authorize?client_id=example'
-    const result = await beginLinuxDoAuth(
+    const started = await beginLinuxDoAuth(
       env,
       new Request(`https://mail.example/api/auth/linux-do?returnTo=${encodeURIComponent(returnTo)}`),
     )
-    expect(result.stateCookie).toContain(
+    expect(started.stateCookie).toContain(
       btoa(returnTo).replaceAll('=', ''),
     )
+    const state = new URL(started.response.headers.get('Location') || '')
+      .searchParams.get('state') || ''
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(Response.json({ access_token: 'token' }))
+      .mockResolvedValueOnce(Response.json({
+        id: 1189,
+        username: 'Reno',
+        active: true,
+      })))
+    const finished = await finishLinuxDoAuth(
+      env,
+      new Request(`https://mail.example/api/auth/linux-do/callback?state=${state}&code=code-1`),
+      '127.0.0.1',
+      started.stateCookie,
+    )
+    expect(finished.response.headers.get('Location')).toBe(returnTo)
   })
 
   it('creates an OAuth-only user without persisting the provider token', async () => {

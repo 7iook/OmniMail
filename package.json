@@ -1,6 +1,6 @@
 {
   "name": "omnimail",
-  "version": "0.1.4",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "A small, self-hosted webmail deployed as one Cloudflare Worker with Static Assets, D1, R2, Queues, and Resend.",
@@ -29,6 +29,7 @@
     "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:extension": "node scripts/extension-smoke.mjs",
+    "update:extension-store-assets": "npm run build:extension && node scripts/extension-smoke.mjs --update-store-assets",
     "preview:extension": "npm run build:extension && node scripts/extension-smoke.mjs --preview",
     "test:e2e": "playwright test",
     "build": "npm run check && vite build",
