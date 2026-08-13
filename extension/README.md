@@ -56,6 +56,8 @@ Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`
 - 授权码两分钟内有效、只能兑换一次，并且在 D1 中只保存哈希。
 - Access Token 和 Refresh Token 仅存放在 `chrome.storage.session`，浏览器重启后需要
   重新登录。
+- 扩展令牌使用最小权限 Scope，只能读取域名和邮箱、创建邮箱、读取邮件及标记已读；
+  不能调用管理、发信、删除、原文下载或账户设置接口。
 - Content Script 只负责悬浮窗口和当前页面邮箱输入框填充，不能读取令牌。
 - Service Worker 只接受预定义的 OmniMail API 操作，不提供任意 URL 请求代理。
 - 邮件 HTML 在 sandbox iframe 中显示，脚本、表单、远程图片和危险属性会被移除。

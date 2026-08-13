@@ -3,6 +3,7 @@ import { clientIp } from './api-helpers'
 import { writeAudit } from './audit'
 import { configuredOrigins } from './origin-policy'
 import { createDeviceSession, type DeviceUserRow } from './token-api'
+import { EXTENSION_DEVICE_SCOPES } from './token-scope'
 import type { Env, SessionUser } from './types'
 
 const CODE_PREFIX = 'om_ac_'
@@ -165,7 +166,12 @@ export async function exchangeExtensionAuthorization(
   if (!consumed.meta.changes) {
     return json({ error: '扩展授权码已经使用，请重新授权。' }, 401)
   }
-  const response = await createDeviceSession(env, row, 'OmniMail Float')
+  const response = await createDeviceSession(
+    env,
+    row,
+    'OmniMail Float',
+    EXTENSION_DEVICE_SCOPES,
+  )
   if (response.ok) {
     await writeAudit(env, row.id, 'auth.token.issue', row.id, clientIp(request.headers), {
       channel: 'extension', clientId,

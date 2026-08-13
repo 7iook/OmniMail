@@ -427,7 +427,8 @@ SMTP 阶段返回 `Mailbox unavailable`，不会被写入 R2 或 D1。
 - `SUPER_ADMIN_EMAIL`
 - `SETUP_TOKEN`
 
-全部就绪后，填写显示名称、主管理员密码和 `SETUP_TOKEN`。创建成功后会自动进入
+`SETUP_TOKEN` 必须是至少 32 个 UTF-8 字节的随机 Secret。全部就绪后，填写显示
+名称、主管理员密码和 `SETUP_TOKEN`。创建成功后会自动进入
 三步部署向导，继续检查核心资源、身份安全和邮件服务。
 
 部署向导只返回配置状态，不返回 Secret 或环境变量值。Cloudflare Email Routing
@@ -530,6 +531,7 @@ npm run dev
 npm run check:lines
 npm run check
 npm test
+npm run test:worker
 npm run build:extension
 npm run test:extension
 npm run test:e2e
@@ -554,8 +556,9 @@ Wrangler 构建产物不计入限制。
 - 浏览器会话只通过安全 Cookie 传递。
 - 管理员可启用 TOTP 二次验证；浏览器密码登录、Linux DO 登录和设备令牌签发使用
   同一套验证与限速策略，恢复码只保存摘要。
-- Access Token 短期有效，Refresh Token 轮换并仅保存摘要。
-- 登录、邮箱密码公开注册和邀请注册均有限速保护。
+- Access Token 短期有效，Refresh Token 轮换并仅保存摘要；刷新会继承原设备 Scope，
+  OmniMail Float 令牌只允许扩展实际使用的邮箱与邮件操作。
+- 登录、首次初始化、邮箱密码公开注册和邀请注册均有限速保护。
 - 邮箱密码公开注册和多人邀请使用 Turnstile 服务端校验；Linux DO 注册使用一次性
   OAuth state 和服务端授权码交换。
 - API 自动允许当前 Worker 同源请求；额外跨域来源必须在 `APP_ORIGINS` 中精确配置。

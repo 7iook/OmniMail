@@ -25,7 +25,7 @@ function environment(): Env {
     CLEANUP_WORKFLOW: { create: async () => ({}) },
     APP_ORIGINS: 'https://mail.example.com',
     SUPER_ADMIN_EMAIL: 'owner@example.com',
-    SETUP_TOKEN: 'do-not-return-this-secret',
+    SETUP_TOKEN: 'do-not-return-this-secret'.repeat(2),
     RESEND_DOMAIN_CONFIGS: JSON.stringify({
       'example.com': { apiKey: 're_do-not-return' },
     }),
@@ -41,6 +41,12 @@ describe('deployment check', () => {
       superAdminReady: true,
       setupTokenReady: true,
     })
+  })
+
+  it('rejects a SETUP_TOKEN shorter than 32 UTF-8 bytes', () => {
+    const env = environment()
+    env.SETUP_TOKEN = 'too-short'
+    expect(publicSetupRequirements(env).setupTokenReady).toBe(false)
   })
 
   it('returns grouped checks to administrators without exposing secrets', async () => {

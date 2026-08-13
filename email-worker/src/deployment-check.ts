@@ -1,6 +1,7 @@
 import { normalizeEmail, validEmail } from './api-helpers'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import { resendWebhookSecrets } from './resend-webhook'
+import { validSetupTokenSecret } from './setup-security'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -39,7 +40,7 @@ export function publicSetupRequirements(env: Env): SetupRequirements {
     storageReady: bindingHasMethod(env.MAIL_BUCKET, 'get'),
     queueReady: bindingHasMethod(env.MAIL_QUEUE, 'send'),
     superAdminReady: validEmail(superAdmin),
-    setupTokenReady: Boolean(env.SETUP_TOKEN?.trim()),
+    setupTokenReady: validSetupTokenSecret(env.SETUP_TOKEN),
   }
 }
 
@@ -145,7 +146,7 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
     check({
       id: 'setup-token', group: 'security', label: '初始化令牌',
       ready: bindings.setupTokenReady, required: false, missingState: 'warning',
-      detail: 'SETUP_TOKEN 已作为 Worker Secret 配置。',
+      detail: 'SETUP_TOKEN 已作为至少 32 字节的 Worker Secret 配置。',
       action: '如果已经完成初始化，可以删除 SETUP_TOKEN；重新初始化前需要再次配置。',
     }),
     check({

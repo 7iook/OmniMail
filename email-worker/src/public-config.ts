@@ -53,10 +53,11 @@ export async function publicConfig(env: Env) {
   ) || 'password'
   const linuxDoLoginEnabled = linuxDoAuthReady(env)
   const passwordRegistrationReady = registrationProtectionReady(env)
+  const setupComplete = settings.get('setup_complete') === '1'
 
   return {
     appName: env.APP_NAME || 'OmniMail',
-    setupComplete: settings.get('setup_complete') === '1',
+    setupComplete,
     replyEnabled: hasOutboundProviderConfig(env),
     registrationEnabled,
     registrationAvailable: registrationEnabled && (
@@ -72,7 +73,7 @@ export async function publicConfig(env: Env) {
     ) ?? 30,
     remoteImagesEnabled: settings.get('remote_images_enabled') === '1',
     unassignedMailEnabled: settings.get('unassigned_mail_enabled') === '1',
-    superAdminEmail: superAdminEmail(env),
+    superAdminEmail: setupComplete ? '' : superAdminEmail(env),
     setupRequirements: publicSetupRequirements(env),
   }
 }

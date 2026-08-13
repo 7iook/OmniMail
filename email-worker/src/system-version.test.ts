@@ -50,11 +50,11 @@ describe('system version', () => {
   })
 
   it('checks the configured release repository and reports manual mode', async () => {
-    const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.2.2' }))
+    const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.2.3' }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.2.1',
-      latestVersion: '0.2.2',
+      currentVersion: '0.2.2',
+      latestVersion: '0.2.3',
       updateAvailable: true,
       automaticUpdate: false,
       automaticUpdateReason: 'not_configured',
@@ -89,7 +89,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.2.1',
+      currentVersion: '0.2.2',
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,
@@ -114,7 +114,7 @@ describe('system update builds', () => {
     const buildId = '11111111-1111-4111-8111-111111111111'
     const releaseFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.endsWith('/releases/latest')) return Response.json({ tag_name: 'v0.2.2' })
+      if (url.endsWith('/releases/latest')) return Response.json({ tag_name: 'v0.2.3' })
       if (url.includes('/git/ref/tags/')) {
         return Response.json({ object: { type: 'commit', sha: commitHash } })
       }
@@ -128,7 +128,7 @@ describe('system update builds', () => {
       administrator,
       new Request('https://mail.example/api/admin/version/update', {
         method: 'POST',
-        body: JSON.stringify({ targetVersion: '0.2.2' }),
+        body: JSON.stringify({ targetVersion: '0.2.3' }),
       }),
       '127.0.0.1',
       releaseFetch as typeof fetch,
@@ -137,7 +137,7 @@ describe('system update builds', () => {
     const init = cloudflareCall?.[1] as RequestInit
     expect(response.status).toBe(202)
     expect(await response.json()).toEqual({
-      build: { id: buildId, targetVersion: '0.2.2', state: 'queued' },
+      build: { id: buildId, targetVersion: '0.2.3', state: 'queued' },
     })
     expect(String(cloudflareCall?.[0])).toContain('/builds/triggers/trigger-id/builds')
     expect(JSON.parse(String(init.body))).toEqual({ branch: 'main', commit_hash: commitHash })

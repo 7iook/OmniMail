@@ -236,7 +236,7 @@ export function AdminWorkspace({
           <dl className="settings-list">
             <div>
               <dt><Mail size={15} />{t('配置邮箱')}</dt>
-              <dd>{config.superAdminEmail || t('未配置 SUPER_ADMIN_EMAIL')}</dd>
+              <dd>{user.role === 'super_admin' ? user.email : t('已配置')}</dd>
             </div>
             <div>
               <dt><ShieldCheck size={15} />{t('身份来源')}</dt>

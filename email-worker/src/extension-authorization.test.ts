@@ -6,6 +6,7 @@ import {
   validAuthorizationInput,
 } from './extension-authorization'
 import { sha256 } from './auth'
+import { EXTENSION_DEVICE_SCOPES } from './token-scope'
 import type { Env } from './types'
 
 const clientId = 'abcdefghijklmnopabcdefghijklmnop'
@@ -162,6 +163,7 @@ describe('extension authorization', () => {
     expect(first.status).toBe(200)
     await expect(first.json()).resolves.toMatchObject({
       tokenType: 'Bearer',
+      scopes: EXTENSION_DEVICE_SCOPES.split(' '),
       user: { id: 'user-1', role: 'super_admin' },
     })
     const replay = await exchangeExtensionAuthorization(environment(db), makeRequest())

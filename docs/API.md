@@ -26,7 +26,9 @@ GET /api/config
 `registrationDomainPolicy` 包含公开注册邮箱规则模式和后缀数组。`blocklist`
 表示拒绝列表内的后缀，`allowlist` 表示只允许列表内的后缀。
 `setupRequirements` 只返回 D1、R2、Queue、主管理员邮箱和 `SETUP_TOKEN`
-是否已经配置的布尔值，不会返回变量或 Secret 的内容。
+是否已经配置的布尔值，不会返回变量或 Secret 的内容。首次初始化完成后，公开配置
+中的 `superAdminEmail` 固定为空字符串；`SETUP_TOKEN` 必须至少为 32 个 UTF-8 字节。
+初始化令牌校验按来源 IP 和全局窗口限速，超限返回 `429` 与 `Retry-After`。
 
 ```http
 POST /api/register
@@ -193,6 +195,7 @@ Content-Type: application/json
   "expiresIn": 900,
   "refreshToken": "om_rt_...",
   "refreshExpiresIn": 2592000,
+  "scopes": ["*"],
   "user": {
     "id": "user-id",
     "email": "user@example.com",
@@ -206,6 +209,7 @@ Content-Type: application/json
   Keychain 或 Linux Secret Service，不能写入普通配置文件或日志。
 - 令牌在 D1 中只保存 SHA-256 摘要，服务端无法还原明文。
 - 登录失败与网页密码登录共用 IP + 邮箱限速。
+- 密码/MFA 签发的设备令牌 Scope 为 `*`；刷新令牌只轮换凭据并继承原 Scope。
 
 ## 使用 Access Token
 
@@ -266,7 +270,8 @@ DELETE /api/auth/devices/{deviceSessionId}
 Authorization: Bearer om_at_...
 ```
 
-用户只能操作自己的设备会话。设备列表不会返回任何令牌明文。
+用户只能操作自己的设备会话。设备列表不会返回任何令牌明文；每项的 `scopes`
+数组说明该会话当前可以调用的能力。
 
 ## 浏览器扩展网站授权
 
@@ -309,6 +314,9 @@ Content-Type: application/json
 
 Worker 同时验证请求 Origin、客户端 ID、精确回调地址、PKCE、有效期和单次使用状态，
 成功后返回与设备令牌接口相同的 Access Token、轮换 Refresh Token 和用户信息。
+扩展令牌只包含 `domains:read`、`mailboxes:read`、`mailboxes:create`、
+`messages:read` 与 `messages:mark-read`。最后一项只接受请求体恰好为
+`{ "isRead": true }` 的邮件更新；管理、发信、删除、原文下载及账户接口返回 `403`。
 
 ## 游标分页
 

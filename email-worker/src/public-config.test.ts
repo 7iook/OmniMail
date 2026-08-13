@@ -15,6 +15,7 @@ function environment(settings: Record<string, string>, credentials = false): Env
     MAIL_QUEUE: { send: async () => undefined },
     LINUX_DO_CLIENT_ID: credentials ? 'client' : undefined,
     LINUX_DO_CLIENT_SECRET: credentials ? 'secret' : undefined,
+    SUPER_ADMIN_EMAIL: 'owner@example.com',
   } as unknown as Env
 }
 
@@ -49,5 +50,13 @@ describe('public registration configuration', () => {
     const config = await publicConfig(env)
     expect(config.replyEnabled).toBe(true)
     expect(JSON.stringify(config)).not.toContain('sf_do-not-return')
+  })
+
+  it('exposes the configured administrator email only before setup', async () => {
+    const pending = await publicConfig(environment({}))
+    const complete = await publicConfig(environment({ setup_complete: '1' }))
+
+    expect(pending.superAdminEmail).toBe('owner@example.com')
+    expect(complete.superAdminEmail).toBe('')
   })
 })

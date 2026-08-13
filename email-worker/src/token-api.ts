@@ -9,6 +9,7 @@ import { clientIp } from './api-helpers'
 import { writeAudit } from './audit'
 import { authenticatePassword } from './password-login'
 import { mfaEnabled, verifyMfaForLogin } from './mfa'
+import { FULL_DEVICE_SCOPES } from './token-scope'
 import type { Env, SessionUser, UserRow } from './types'
 
 const ACCESS_TOKEN_SECONDS = 15 * 60
@@ -36,6 +37,7 @@ export type DeviceUserRow = Pick<
 interface RefreshRow extends DeviceUserRow {
   device_session_id: string
   device_name: string
+  scopes: string
 }
 
 interface DeviceRow {
@@ -45,11 +47,13 @@ interface DeviceRow {
   refresh_expires_at: number
   last_used_at: number
   created_at: number
+  scopes: string
 }
 
 export interface DeviceIdentity {
   user: SessionUser
   deviceSessionId: string
+  scopes: string
 }
 
 function json(body: unknown, status = 200): Response {
@@ -77,6 +81,7 @@ export async function createDeviceSession(
   env: Env,
   user: DeviceUserRow,
   name: string,
+  scopes = FULL_DEVICE_SCOPES,
   existingId?: string,
   oldRefreshHash?: string,
 ): Promise<Response> {
@@ -110,8 +115,8 @@ export async function createDeviceSession(
     await env.DB.prepare(
       `INSERT INTO device_sessions (
         id, user_id, device_name, access_token_hash, access_expires_at,
-        refresh_token_hash, refresh_expires_at, last_used_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        refresh_token_hash, refresh_expires_at, last_used_at, scopes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       user.id,
@@ -121,6 +126,7 @@ export async function createDeviceSession(
       refreshHash,
       now + REFRESH_TOKEN_SECONDS,
       now,
+      scopes,
     ).run()
   }
 
@@ -130,6 +136,7 @@ export async function createDeviceSession(
     expiresIn: ACCESS_TOKEN_SECONDS,
     refreshToken,
     refreshExpiresIn: REFRESH_TOKEN_SECONDS,
+    scopes: scopes.split(' '),
     user: applySuperAdminRole(sessionFromUser(user), env.SUPER_ADMIN_EMAIL),
   })
 }
@@ -147,7 +154,7 @@ export async function authenticateAccessToken(
   if (!validToken(accessToken, ACCESS_PREFIX)) return null
   const now = Math.floor(Date.now() / 1000)
   const row = await env.DB.prepare(
-    `SELECT d.id AS device_session_id, d.device_name,
+    `SELECT d.id AS device_session_id, d.device_name, d.scopes,
             u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.can_create_mailboxes, u.can_reply, u.can_translate,
             u.storage_quota_bytes, u.storage_used_bytes,
@@ -165,6 +172,7 @@ export async function authenticateAccessToken(
   return {
     user: applySuperAdminRole(sessionFromUser(row), env.SUPER_ADMIN_EMAIL),
     deviceSessionId: row.device_session_id,
+    scopes: row.scopes,
   }
 }
 
@@ -240,7 +248,7 @@ export async function refreshDeviceToken(env: Env, request: Request): Promise<Re
   const now = Math.floor(Date.now() / 1000)
   const refreshHash = await sha256(body.refreshToken)
   const row = await env.DB.prepare(
-    `SELECT d.id AS device_session_id, d.device_name,
+    `SELECT d.id AS device_session_id, d.device_name, d.scopes,
             u.id, u.email, u.display_name, u.role, u.status,
             u.mailbox_limit, u.can_create_mailboxes, u.can_reply, u.can_translate,
             u.storage_quota_bytes, u.storage_used_bytes,
@@ -257,6 +265,7 @@ export async function refreshDeviceToken(env: Env, request: Request): Promise<Re
     env,
     row,
     row.device_name,
+    row.scopes,
     row.device_session_id,
     refreshHash,
   )
@@ -294,7 +303,7 @@ export async function listDevices(
 ): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT id, device_name, access_expires_at, refresh_expires_at,
-            last_used_at, created_at
+            last_used_at, created_at, scopes
        FROM device_sessions
       WHERE user_id = ? AND revoked_at IS NULL AND refresh_expires_at > unixepoch()
       ORDER BY last_used_at DESC, id`,
@@ -307,6 +316,7 @@ export async function listDevices(
       refreshExpiresAt: row.refresh_expires_at,
       lastUsedAt: row.last_used_at,
       createdAt: row.created_at,
+      scopes: row.scopes.split(' '),
       current: row.id === currentId,
     })),
   })

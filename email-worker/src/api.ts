@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
-import { applySuperAdminRole, createSessionToken, deleteSession, hashPassword, secretsEqual, sessionFromUser, sessionMaxAge, sessionUser, storeSession, validatePassword } from './auth'
+import { applySuperAdminRole, createSessionToken, deleteSession, sessionFromUser, sessionMaxAge, sessionUser, storeSession } from './auth'
 import { clientIp, normalizeEmail, validEmail } from './api-helpers'
 import { deleteAccount, updateAccount } from './account-api'
 import { previewAdminMailCleanup, runAdminMailCleanup } from './admin-mail-cleanup'
@@ -30,6 +30,7 @@ import { registrationProtectionReady } from './registration-security'
 import { sendReply } from './reply'
 import { sendMessage, type NewMessageInput } from './send-message'
 import { ensureSchema } from './schema'
+import { completeSetup } from './setup-api'
 import { mailStatistics } from './statistics-api'
 import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
@@ -37,6 +38,7 @@ import { updateMailRefreshInterval, updateRemoteImagesSetting, updateUnassignedM
 import { systemVersionRoutes } from './system-version-routes'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
+import { deviceScopesAllow } from './token-scope'
 import { createManagedUser, listManagedUsers, updateManagedUser } from './user-admin-api'
 import type { Env, SessionUser } from './types'
 const SESSION_COOKIE = 'omnimail_session'
@@ -110,13 +112,6 @@ function clearOAuthStateCookie(
   })
 }
 
-async function setupComplete(db: D1Database): Promise<boolean> {
-  const setting = await db.prepare(
-    "SELECT value FROM settings WHERE key = 'setup_complete'",
-  ).first<{ value: string }>()
-  return setting?.value === '1'
-}
-
 function configuredSuperAdminEmail(env: Env): string {
   const email = normalizeEmail(env.SUPER_ADMIN_EMAIL || '')
   return validEmail(email) ? email : ''
@@ -169,6 +164,9 @@ app.use('/api/*', async (context, next) => {
   if (authorization) {
     const identity = await authenticateAccessToken(context.env, authorization)
     if (!identity) return context.json({ error: '访问令牌已失效，请刷新或重新登录。' }, 401)
+    if (!await deviceScopesAllow(identity.scopes, context.req.raw)) {
+      return context.json({ error: '当前设备令牌没有执行此操作的权限。' }, 403)
+    }
     context.set('user', identity.user)
     context.set('authKind', 'bearer')
     context.set('deviceSessionId', identity.deviceSessionId)
@@ -222,74 +220,13 @@ app.get('/api/remote-images', (context) => proxyRemoteImage(context.req.raw))
 app.post('/api/webhooks/resend', (context) => handleResendWebhook(context.env, context.req.raw))
 
 app.post('/api/setup', async (context) => {
-  if (await setupComplete(context.env.DB)) {
-    return context.json({ error: 'OmniMail 已完成初始化。' }, 409)
-  }
-  if (!context.env.SETUP_TOKEN) {
-    return context.json({ error: '请先在 Worker 中配置 SETUP_TOKEN Secret。' }, 503)
-  }
-  const email = configuredSuperAdminEmail(context.env)
-  if (!email) {
-    return context.json({ error: '请先在 Worker 中配置有效的 SUPER_ADMIN_EMAIL。' }, 503)
-  }
-
-  const body = await context.req.json<{
-    displayName?: string
-    password?: string
-    setupToken?: string
-  }>().catch(() => ({} as {
-    displayName?: string
-    password?: string
-    setupToken?: string
-  }))
-  const displayName = (body.displayName || '').trim()
-  const password = body.password || ''
-  const passwordError = validatePassword(password)
-
-  if (!displayName || displayName.length > 60) {
-    return context.json({ error: '显示名称需要在 1–60 个字符之间。' }, 400)
-  }
-  if (passwordError) return context.json({ error: passwordError }, 400)
-  if (!await secretsEqual(body.setupToken || '', context.env.SETUP_TOKEN)) {
-    return context.json({ error: '初始化令牌不正确。' }, 403)
-  }
-
-  const userId = crypto.randomUUID()
-  const passwordHash = await hashPassword(password)
-  try {
-    await context.env.DB.batch([
-      context.env.DB.prepare(
-        "INSERT INTO settings (key, value) VALUES ('setup_complete', '1')",
-      ),
-      context.env.DB.prepare(
-        `INSERT INTO users (
-          id, email, display_name, password_hash, role, mailbox_limit,
-          storage_quota_bytes, can_create_mailboxes, can_reply
-        ) VALUES (?, ?, ?, ?, 'super_admin', 100, 5368709120, 1, 1)`,
-      ).bind(userId, email, displayName, passwordHash),
-    ])
-  } catch {
-    return context.json({ error: '初始化失败，可能已有管理员账户。' }, 409)
-  }
-
-  const token = createSessionToken()
-  await storeSession(context.env.DB, userId, token)
-  setSessionCookie(context, context.env, token)
-  await writeAudit(context.env, userId, 'setup.complete', userId, clientIp(context.req.raw.headers))
-  return context.json({
-    user: {
-      id: userId,
-      email,
-      displayName,
-      role: 'super_admin' as const,
-      mailboxLimit: 100,
-      storageQuotaBytes: 5368709120,
-      storageUsedBytes: 0,
-      canCreateMailboxes: true,
-      canReply: true, canTranslate: true,
-      temporaryExpiresAt: null,
-    },
-  }, 201)
+  const result = await completeSetup(
+    context.env,
+    context.req.raw,
+    clientIp(context.req.raw.headers),
+  )
+  if (result.sessionToken) setSessionCookie(context, context.env, result.sessionToken)
+  return result.response
 })
 app.post('/api/login', async (context) => {
   const body = await context.req.json<{
