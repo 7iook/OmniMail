@@ -554,6 +554,54 @@ Authorization: Bearer om_at_...
 API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker 直接读取，
 因此始终标记为需要管理员人工确认。
 
+## iCloud 隐藏邮箱
+
+该功能复用当前 Cookie 会话与完整权限设备令牌。OmniMail Float 的受限令牌不能访问
+这些接口。先在 Worker 中配置至少 32 字节的 `ICLOUD_CREDENTIALS_KEY`；公开配置只返回
+`iCloudEnabled` 布尔值，不返回密钥或任何 Apple 凭据。
+
+账号与凭据接口：
+
+```http
+GET /api/icloud/accounts
+POST /api/icloud/accounts
+Content-Type: application/json
+
+{ "name": "个人 iCloud", "host": "icloud.com", "cookies": "name=value; ..." }
+
+PUT /api/icloud/accounts/{id}/cookies
+{ "cookies": "name=value; ..." }
+
+PUT /api/icloud/accounts/{id}/app-password
+{ "icloudEmail": "name@icloud.com", "appPassword": "xxxx-xxxx-xxxx-xxxx" }
+
+DELETE /api/icloud/accounts/{id}
+```
+
+列表响应只包含账号状态、邮箱、别名数量以及 `hasCookies`、`hasAppPassword`；Cookie、
+应用专用密码和用户归属 ID 永不返回。所有账号查询同时按当前用户 ID 过滤。
+
+隐藏地址与远程收件接口：
+
+```http
+GET /api/icloud/aliases?accountId={id}
+POST /api/icloud/aliases
+{ "accountId": "...", "label": "购物网站" }
+
+PATCH /api/icloud/aliases/{anonymousId}
+{ "accountId": "...", "action": "deactivate" }
+
+DELETE /api/icloud/aliases/{anonymousId}
+{ "accountId": "..." }
+
+GET /api/icloud/inbox?accountId={id}&alias={address}&limit=20&days=7
+GET /api/icloud/inbox/{uid}?accountId={id}
+```
+
+收件为按需远程读取，不写入 OmniMail 的 `messages`、R2 或搜索索引。配置应用专用密码
+时优先使用 iCloud IMAP；全部邮件视图可在 IMAP 失败时回退到 iCloud Web 摘要，按隐藏
+地址筛选和读取完整正文必须使用 IMAP。
+
 ## 版本与更新
 
 管理员打开系统设置时可以查询当前安装版本与 GitHub 最新 Release：
@@ -610,6 +658,13 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `DELETE /api/messages/{id}` | 永久删除垃圾箱邮件并释放空间 |
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 在线程内回复，支持 multipart 附件 |
+| `GET/POST /api/icloud/accounts` | 列出或连接当前用户的 iCloud 账号 |
+| `PUT /api/icloud/accounts/{id}/{credential}` | 覆盖 Cookie 或应用专用密码 |
+| `DELETE /api/icloud/accounts/{id}` | 删除 iCloud 账号及其加密凭据 |
+| `GET/POST /api/icloud/aliases` | 同步或创建 Hide My Email 地址 |
+| `PATCH/DELETE /api/icloud/aliases/{anonymousId}` | 停用、恢复或删除隐藏地址 |
+| `GET /api/icloud/inbox` | 按需读取 iCloud 最近来信 |
+| `GET /api/icloud/inbox/{uid}` | 通过 IMAP 读取完整正文 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/messages` | 主管理员查询和筛选全站邮件 |
 | `GET /api/admin/messages/{id}` | 主管理员读取任意用户邮件正文 |

@@ -55,6 +55,7 @@ export interface Env {
   SENDFLARE_FROM?: string
   SENDFLARE_DOMAIN_CONFIGS?: string
   TOTP_ENCRYPTION_KEY?: string
+  ICLOUD_CREDENTIALS_KEY?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string

@@ -1,6 +1,6 @@
 {
   "name": "omnimail",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "A small, self-hosted webmail deployed as one Cloudflare Worker with Static Assets, D1, R2, Queues, and Resend.",
@@ -11,6 +11,9 @@
       },
       "SUPER_ADMIN_EMAIL": {
         "description": "Required email address of the super administrator, for example owner@example.com."
+      },
+      "ICLOUD_CREDENTIALS_KEY": {
+        "description": "Optional. At least 32 random UTF-8 bytes for encrypting iCloud cookies and app-specific passwords."
       }
     }
   },

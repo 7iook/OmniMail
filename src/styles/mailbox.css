@@ -89,6 +89,10 @@
   border-top: 1px solid var(--line);
 }
 
+.account-nav-secondary {
+  display: contents;
+}
+
 .folder-nav button small {
   min-width: 20px;
   color: inherit;

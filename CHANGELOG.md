@@ -83,6 +83,27 @@
 
 - 网页应用与 OmniMail Float 扩展版本统一为 `0.2.3`。
 
+## [0.3.0] - 2026-08-13
+
+### 新增
+
+- 将 OmniIMail 的 iCloud+ Hide My Email 能力融合为 OmniMail 的独立 `/icloud`
+  工作区，共用现有登录、用户权限、主题、语言与响应式导航。
+- 支持连接 `icloud.com` / `icloud.com.cn` 账号，同步、创建、停用、恢复和删除隐藏
+  邮箱地址。
+- 支持应用专用密码验证、iCloud IMAP 最近来信与完整正文读取；全部邮件视图在 IMAP
+  不可用时回退到 iCloud Web 摘要。
+- 新增 `ICLOUD_CREDENTIALS_KEY`，使用带用户、账号和字段上下文的 AES-GCM 加密
+  iCloud Cookie 与应用专用密码；API 永不回传凭据。
+- 新增 D1 迁移 `0021_icloud_accounts.sql`、iCloud API、部署自检项，以及 Node / workerd
+  的加密、解析、迁移、用户隔离和 Scope 回归测试。
+
+### 说明
+
+- iCloud 邮件按需从 Apple 读取，不复制到 OmniMail 的 D1、R2 或现有收件箱。
+- OmniMail Float 的受限设备令牌默认不能访问 iCloud 凭据与接口。
+- Web 预览版本为 `0.3.0`；OmniMail Float 保持独立版本，不包含 iCloud 管理接口。
+
 ## [0.2.2] - 2026-08-13
 
 ### 修复
@@ -147,3 +168,4 @@
 [0.2.3]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.3
 [0.2.4]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.4
 [0.2.5]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.5
+[0.3.0]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.0

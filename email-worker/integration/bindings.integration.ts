@@ -61,9 +61,8 @@ describe('Worker storage bindings', () => {
       "SELECT name, dflt_value FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).first<{ name: string; dflt_value: string }>()
 
-    expect(migration?.name).toBe('0020_device_token_scopes.sql')
+    expect(migration?.name).toBe('0021_icloud_accounts.sql')
     expect(columns).toMatchObject({ name: 'scopes', dflt_value: "'*'" })
-
     const recovered = await env.DB.prepare(
       `SELECT COUNT(*) AS count FROM d1_migrations
        WHERE name IN (
@@ -83,6 +82,11 @@ describe('Worker storage bindings', () => {
       'SELECT COUNT(*) AS count FROM d1_migrations WHERE name = ?',
     ).bind('0020_device_token_scopes.sql').first<{ count: number }>()
     expect(recorded?.count).toBe(1)
+
+    const accountTable = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
+    ).first<{ name: string }>()
+    expect(accountTable?.name).toBe('icloud_accounts')
   })
 
   it('uses real D1, R2, and Queue bindings inside workerd', async () => {
@@ -134,9 +138,15 @@ describe('Worker storage bindings', () => {
     const context = createExecutionContext()
     const allowed = await worker.fetch(request('/api/mailboxes'), env, context)
     const denied = await worker.fetch(request('/api/admin/users'), env, context)
+    const iCloudDenied = await worker.fetch(
+      request('/api/icloud/accounts'),
+      env,
+      createExecutionContext(),
+    )
 
     expect(allowed.status).toBe(200)
     expect(denied.status).toBe(403)
+    expect(iCloudDenied.status).toBe(403)
     await expect(denied.json()).resolves.toMatchObject({
       error: '当前设备令牌没有执行此操作的权限。',
     })

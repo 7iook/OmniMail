@@ -1,4 +1,4 @@
-const REQUIRED_MIGRATION = '0020_device_token_scopes.sql'
+const REQUIRED_MIGRATION = '0021_icloud_accounts.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -21,6 +21,7 @@ const WRANGLER_MIGRATION_NAMES = [
   '0017_multiple_drafts.sql',
   '0018_schema_baseline_and_message_indexes.sql',
   '0019_extension_authorization.sql',
+  '0020_device_token_scopes.sql',
   REQUIRED_MIGRATION,
 ] as const
 
@@ -203,9 +204,35 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: '0020_device_token_scopes.sql',
     statements: [
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS icloud_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        real_email TEXT NOT NULL DEFAULT '',
+        icloud_email TEXT NOT NULL DEFAULT '',
+        cookies_cipher TEXT NOT NULL DEFAULT '',
+        host TEXT NOT NULL DEFAULT 'icloud.com'
+          CHECK (host IN ('icloud.com', 'icloud.com.cn')),
+        app_password_cipher TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('active', 'pending', 'error')),
+        alias_total INTEGER NOT NULL DEFAULT 0 CHECK (alias_total >= 0),
+        alias_active INTEGER NOT NULL DEFAULT 0 CHECK (alias_active >= 0),
+        last_validated TEXT NOT NULL DEFAULT '',
+        last_error TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_icloud_accounts_user
+       ON icloud_accounts(user_id, created_at)`,
     ],
   },
 ] as const

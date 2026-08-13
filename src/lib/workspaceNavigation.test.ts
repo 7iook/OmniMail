@@ -23,6 +23,10 @@ describe('workspace routes', () => {
       kind: 'admin',
       view: 'account',
     })
+    expect(workspaceRoute('/icloud', 'user')).toMatchObject({
+      kind: 'admin',
+      view: 'icloud',
+    })
   })
 
   it('falls back to the inbox for unknown or unauthorized paths', () => {

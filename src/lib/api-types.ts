@@ -6,6 +6,7 @@ export interface AppConfig {
   appName: string
   setupComplete: boolean
   replyEnabled: boolean
+  iCloudEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod
@@ -90,6 +91,42 @@ export interface User {
   canReply: boolean
   canTranslate: boolean
   temporaryExpiresAt: number | null
+}
+
+export type ICloudHost = 'icloud.com' | 'icloud.com.cn'
+
+export interface ICloudAccount {
+  id: string
+  name: string
+  realEmail: string
+  icloudEmail: string
+  host: ICloudHost
+  status: 'active' | 'pending' | 'error'
+  aliasTotal: number
+  aliasActive: number
+  lastValidated: string
+  lastError: string
+  createdAt: string
+  hasCookies: boolean
+  hasAppPassword: boolean
+}
+
+export interface ICloudAlias {
+  email: string
+  anonymousId: string
+  label: string
+  active: boolean
+  createdAt?: string
+}
+
+export interface ICloudMessage {
+  id: string
+  from: string
+  to: string
+  subject: string
+  date: string
+  preview: string
+  body: string
 }
 
 export interface MfaStatus {

@@ -12,6 +12,7 @@ import {
 } from './system-settings'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env } from './types'
+import { iCloudCredentialsReady } from './icloud-credentials'
 
 type Setting = { key: string; value: string }
 
@@ -62,6 +63,7 @@ export async function publicConfig(env: Env) {
     appName: env.APP_NAME || 'OmniMail',
     setupComplete,
     replyEnabled: hasOutboundProviderConfig(env),
+    iCloudEnabled: iCloudCredentialsReady(env),
     registrationEnabled,
     registrationAvailable: registrationEnabled && (
       registrationMethod === 'linuxdo' ? linuxDoLoginEnabled : passwordRegistrationReady

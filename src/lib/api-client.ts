@@ -19,6 +19,10 @@ import type {
   DraftAttachment,
   DraftSummary,
   Folder,
+  ICloudAccount,
+  ICloudAlias,
+  ICloudHost,
+  ICloudMessage,
   MailboxAddress,
   MailboxScope,
   MailCleanupFilter,
@@ -420,6 +424,54 @@ export const api = {
     body: jsonBody(input),
   }),
   mailboxes: () => request<{ mailboxes: MailboxAddress[] }>('/api/mailboxes'),
+  iCloudAccounts: () => request<{ accounts: ICloudAccount[] }>('/api/icloud/accounts'),
+  createICloudAccount: (input: { name: string; host: ICloudHost; cookies: string }) => (
+    request<{ account: ICloudAccount }>('/api/icloud/accounts', {
+      method: 'POST', body: jsonBody(input),
+    })
+  ),
+  deleteICloudAccount: (id: string) => request<{ ok: true }>(
+    `/api/icloud/accounts/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  ),
+  updateICloudCookies: (id: string, cookies: string) => request<{ account: ICloudAccount }>(
+    `/api/icloud/accounts/${encodeURIComponent(id)}/cookies`,
+    { method: 'PUT', body: jsonBody({ cookies }) },
+  ),
+  updateICloudAppPassword: (id: string, icloudEmail: string, appPassword: string) => (
+    request<{ ok: true; icloudEmail: string }>(
+      `/api/icloud/accounts/${encodeURIComponent(id)}/app-password`,
+      { method: 'PUT', body: jsonBody({ icloudEmail, appPassword }) },
+    )
+  ),
+  iCloudAliases: (accountId: string) => request<{ aliases: ICloudAlias[] }>(
+    `/api/icloud/aliases?accountId=${encodeURIComponent(accountId)}`,
+  ),
+  createICloudAlias: (accountId: string, label: string) => request<{ alias: ICloudAlias }>(
+    '/api/icloud/aliases',
+    { method: 'POST', body: jsonBody({ accountId, label }) },
+  ),
+  updateICloudAlias: (
+    anonymousId: string,
+    accountId: string,
+    action: 'deactivate' | 'reactivate',
+  ) => request<{ ok: true }>(`/api/icloud/aliases/${encodeURIComponent(anonymousId)}`, {
+    method: 'PATCH', body: jsonBody({ accountId, action }),
+  }),
+  deleteICloudAlias: (anonymousId: string, accountId: string) => request<{ ok: true }>(
+    `/api/icloud/aliases/${encodeURIComponent(anonymousId)}`,
+    { method: 'DELETE', body: jsonBody({ accountId }) },
+  ),
+  iCloudInbox: (accountId: string, alias = '') => {
+    const search = new URLSearchParams({ accountId, limit: '20', days: '7' })
+    if (alias) search.set('alias', alias)
+    return request<{ messages: ICloudMessage[]; method: 'imap' | 'web' }>(
+      `/api/icloud/inbox?${search}`,
+    )
+  },
+  iCloudMessage: (accountId: string, uid: string) => request<{ message: ICloudMessage }>(
+    `/api/icloud/inbox/${encodeURIComponent(uid)}?accountId=${encodeURIComponent(accountId)}`,
+  ),
   addMailbox: (address: string) => request<{ mailbox: MailboxAddress }>('/api/mailboxes', {
     method: 'POST',
     body: jsonBody({ address }),

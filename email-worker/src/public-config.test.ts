@@ -52,6 +52,15 @@ describe('public registration configuration', () => {
     expect(JSON.stringify(config)).not.toContain('sf_do-not-return')
   })
 
+  it('exposes only iCloud readiness, never the credential key', async () => {
+    const env = environment({})
+    env.ICLOUD_CREDENTIALS_KEY = 'icloud-do-not-return-this-secret-value'
+    const config = await publicConfig(env)
+
+    expect(config.iCloudEnabled).toBe(true)
+    expect(JSON.stringify(config)).not.toContain('do-not-return')
+  })
+
   it('exposes the configured administrator email only before setup', async () => {
     const pending = await publicConfig(environment({}))
     const complete = await publicConfig(environment({ setup_complete: '1' }))

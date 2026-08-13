@@ -24,3 +24,6 @@ SENDFLARE_DOMAIN_CONFIGS={"sendflare.example":{"apiKey":"sf_example","from":"mai
 
 # At least 32 random characters. Encrypts administrator TOTP secrets in D1.
 TOTP_ENCRYPTION_KEY=
+
+# At least 32 UTF-8 bytes. Encrypts iCloud cookies and app-specific passwords in D1.
+ICLOUD_CREDENTIALS_KEY=

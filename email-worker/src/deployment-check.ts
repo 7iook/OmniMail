@@ -2,6 +2,7 @@ import { normalizeEmail, validEmail } from './api-helpers'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import { resendWebhookSecrets } from './resend-webhook'
 import { validSetupTokenSecret } from './setup-security'
+import { iCloudCredentialsReady } from './icloud-credentials'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -167,6 +168,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       required: false, missingState: 'warning',
       detail: 'TOTP_ENCRYPTION_KEY 用于加密保存管理员的验证器密钥。',
       action: '配置至少 32 个随机字符的 TOTP_ENCRYPTION_KEY Worker Secret。',
+    }),
+    check({
+      id: 'icloud-key', group: 'security', label: 'iCloud 凭据加密密钥',
+      ready: iCloudCredentialsReady(env), required: false, missingState: 'warning',
+      detail: 'ICLOUD_CREDENTIALS_KEY 用于加密保存 iCloud Cookie 和应用专用密码。',
+      action: '需要 iCloud 隐藏邮箱时，配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY Secret。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,

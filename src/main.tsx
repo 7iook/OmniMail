@@ -45,6 +45,7 @@ import './styles/system-settings.css'
 import './styles/storage-policy.css'
 import './styles/outbound-rate-limit.css'
 import './styles/deployment-wizard.css'
+import './styles/icloud-workspace.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

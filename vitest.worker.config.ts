@@ -15,6 +15,7 @@ export default defineConfig(async () => {
             APP_ORIGINS: 'https://mail.example.com',
             SUPER_ADMIN_EMAIL: 'owner@example.com',
             SETUP_TOKEN: 'integration-setup-token-32-bytes',
+            ICLOUD_CREDENTIALS_KEY: 'integration-icloud-key-at-least-32-bytes',
           },
           d1Databases: ['DB'],
           r2Buckets: ['MAIL_BUCKET'],

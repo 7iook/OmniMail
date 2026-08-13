@@ -54,6 +54,7 @@ export function AdminWorkspace({
   onConfigChange,
   onUserChange,
   onLogout,
+  onOpenICloud,
   onOpenDeploymentWizard,
 }: {
   view: AdminView
@@ -65,6 +66,7 @@ export function AdminWorkspace({
   onConfigChange: (config: AppConfig) => void
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
+  onOpenICloud: () => void
   onOpenDeploymentWizard: () => void
 }) {
   const [registrationSaving, setRegistrationSaving] = useState(false)
@@ -191,7 +193,7 @@ export function AdminWorkspace({
   if (view === 'logs') return <AuditLogs />
   if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement />
   if (view === 'account') {
-    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} />
+    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenICloud={onOpenICloud} />
   }
 
   const activeMailboxes = mailboxes.filter((mailbox) => mailbox.isActive)

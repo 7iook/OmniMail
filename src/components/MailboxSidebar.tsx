@@ -3,6 +3,7 @@ import {
   ChevronUp,
   FilePenLine,
   Inbox,
+  Cloud,
   Link2,
   LogOut,
   ScrollText,
@@ -157,6 +158,19 @@ export function MailboxSidebar({
       )}
 
       <nav className="account-nav" aria-label={t('个人账户')}>
+        <span className="account-nav-secondary">
+          <button
+            className={adminView === 'icloud' ? 'is-active' : ''}
+            type="button"
+            onClick={() => {
+              setAdminMenuOpen(false)
+              onAdminViewChange('icloud')
+            }}
+          >
+            <Cloud size={18} />
+            <span>{t('iCloud 隐藏邮箱')}</span>
+          </button>
+        </span>
         <button
           className={adminView === 'account' ? 'is-active' : ''}
           type="button"

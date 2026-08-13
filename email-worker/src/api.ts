@@ -20,6 +20,7 @@ import { completeMfaChallenge, createMfaChallenge, mfaEnabled } from './mfa'
 import { clearMfaChallengeCookie, mfaChallengeCookie, setMfaChallengeCookie } from './mfa-cookie'
 import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
 import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
+import { iCloudRoutes } from './icloud-routes'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
 import { proxyRemoteImage } from './remote-image'
@@ -142,7 +143,7 @@ app.use('*', async (context, next) => {
     if (requestOrigin) response.headers.set('Access-Control-Allow-Origin', requestOrigin)
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
     response.headers.set('Access-Control-Max-Age', '86400')
     response.headers.append('Vary', 'Origin')
     return response
@@ -497,6 +498,7 @@ app.delete('/api/mailboxes/:address', (context) => (
 ))
 
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
+app.route('/api', iCloudRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)
 app.post('/api/messages', async (context) => {

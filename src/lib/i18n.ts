@@ -11,6 +11,7 @@ import { enErrors } from './i18n-en-errors'
 import { enExtension } from './i18n-en-extension'
 import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
+import { enICloud } from './i18n-en-icloud'
 
 export type Locale = 'zh-CN' | 'en-US'
 export type TranslationValues = Record<string, string | number>
@@ -53,6 +54,7 @@ const english = {
   ...enMailboxSettings,
   ...enRateLimit,
   ...enVersion,
+  ...enICloud,
 }
 const englishPlurals: Record<string, [string, string]> = {
   '{count} 个邮箱地址': ['{count} mailbox', '{count} mailboxes'],

@@ -3,6 +3,7 @@ import {
   AtSign,
   CheckCircle2,
   Clock3,
+  Cloud,
   HardDrive,
   KeyRound,
   LoaderCircle,
@@ -66,10 +67,12 @@ export function AccountSettings({
   user,
   onUserChange,
   onLogout,
+  onOpenICloud,
 }: {
   user: User
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
+  onOpenICloud: () => void
 }) {
   const [displayName, setDisplayName] = useState(user.displayName)
   const [profileBusy, setProfileBusy] = useState(false)
@@ -163,6 +166,7 @@ export function AccountSettings({
         eyebrow="ACCOUNT · PERSONAL"
         title={t('账号设置')}
         description={t('管理你的个人资料、登录密码和当前设备偏好。')}
+        actions={<button className="button button--secondary user-header-actions" type="button" onClick={onOpenICloud}><Cloud size={16} />{t('iCloud 隐藏邮箱')}</button>}
       />
 
       <div className="account-settings-grid">

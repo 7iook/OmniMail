@@ -40,6 +40,7 @@ import { useNewMailNotifications } from './lib/useNewMailNotifications'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
+const ICloudWorkspace = lazy(async () => ({ default: (await import('./components/ICloudWorkspace')).ICloudWorkspace }))
 const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
@@ -317,9 +318,7 @@ function Mailbox({
     await api.updateMessage(detail.id, {
       folder: detail.direction === 'outgoing' ? 'sent' : 'inbox',
     })
-    setSelectedId(null)
-    setDetail(null)
-    setThread([])
+    setSelectedId(null); setDetail(null); setThread([])
     setNotice(t('邮件已恢复'))
     await loadMessages(true)
   }
@@ -348,7 +347,7 @@ function Mailbox({
   }
 
   function changeAdminView(next: AdminView) {
-    if (next !== 'account' && !isAdminRole(user.role)) return
+    if (next !== 'account' && next !== 'icloud' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
     setSelectedId(null)
@@ -380,7 +379,7 @@ function Mailbox({
               </div>
             </main>
           )}>
-            <AdminWorkspace
+            {adminView === 'icloud' ? <ICloudWorkspace enabled={config.iCloudEnabled} /> : <AdminWorkspace
               key={adminView}
               view={adminView}
               user={user}
@@ -391,8 +390,9 @@ function Mailbox({
               onConfigChange={onConfigChange}
               onUserChange={onUserChange}
               onLogout={onLogout}
+              onOpenICloud={() => changeAdminView('icloud')}
               onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
-            />
+            />}
           </Suspense>
         </DelayedScrollbar>
       ) : (

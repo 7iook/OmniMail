@@ -75,6 +75,7 @@ const FINAL_MIGRATIONS = [
   '0018_schema_baseline_and_message_indexes.sql',
   '0019_extension_authorization.sql',
   '0020_device_token_scopes.sql',
+  '0021_icloud_accounts.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -95,10 +96,10 @@ describe('D1 migration check', () => {
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 7],
-    ['2026-08-01-p2-translation-permissions', 16, 5],
-    ['2026-08-03-p3-multiple-drafts', 17, 4],
-  ])('recovers legacy schema %s through migration 0020', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 8],
+    ['2026-08-01-p2-translation-permissions', 16, 6],
+    ['2026-08-03-p3-multiple-drafts', 17, 5],
+  ])('recovers legacy schema %s through migration 0021', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -108,10 +109,15 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(20)
+    expect(fixture.applied.size).toBe(21)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
+    expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
+    )
+    expect(fixture.prepare.mock.calls.some(([sql]) => (
+      String(sql).includes('CREATE TABLE IF NOT EXISTS icloud_accounts')
+    ))).toBe(true)
     )
   })
 
@@ -123,7 +129,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(20)
+    expect(fixture.applied.size).toBe(21)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -142,7 +148,7 @@ describe('D1 migration check', () => {
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0020_device_token_scopes.sql',
+      concurrentMigration: '0021_icloud_accounts.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()

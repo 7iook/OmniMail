@@ -26,6 +26,7 @@ function environment(): Env {
     APP_ORIGINS: 'https://mail.example.com',
     SUPER_ADMIN_EMAIL: 'owner@example.com',
     SETUP_TOKEN: 'do-not-return-this-secret'.repeat(2),
+    ICLOUD_CREDENTIALS_KEY: 'icloud-do-not-return-this-secret'.repeat(2),
     RESEND_DOMAIN_CONFIGS: JSON.stringify({
       'example.com': { apiKey: 're_do-not-return' },
     }),

@@ -58,6 +58,7 @@ Serverless Webmail：
 | 可选发信能力 | 通过 Resend 或 SendFlare 新建邮件与回复；不配置时仍可正常收件 |
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
+| iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -78,6 +79,16 @@ Serverless Webmail：
 - 左侧草稿箱默认保留最近 5 封未发送邮件，管理员可按用户级别设置 1–20 封上限；
   草稿附件随草稿自动保存
 - Webmail 打开期间可选浏览器新邮件通知
+
+### iCloud 隐藏邮箱
+
+- 每个 OmniMail 用户可以连接自己的 `icloud.com` 或 `icloud.com.cn` 账号
+- 同步、创建、停用、恢复和删除 iCloud+ Hide My Email 地址
+- 应用专用密码可通过 iCloud IMAP 按隐藏地址筛选并读取完整正文；IMAP 不可用时，
+  全部邮件视图会回退到 iCloud Web 摘要
+- iCloud Cookie 与应用专用密码使用 AES-GCM 加密后保存到 D1，密文绑定用户、账号
+  与字段，读取接口只返回“已配置”状态
+- iCloud 邮件按需从 Apple 读取，不会复制到 OmniMail 的 D1 / R2，也不进入现有收件箱
 
 ### 多域名与用户
 
@@ -290,6 +301,7 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `SENDFLARE_FROM` | Text | 可选固定发件邮箱地址，例如 `reply@example.com` |
 | `SENDFLARE_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 SendFlare API Key 与可选发件邮箱 |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
+| `ICLOUD_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 iCloud Cookie 与应用专用密码；不使用 iCloud 功能时可留空 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份或自动更新所需的 Cloudflare Account ID |
 | `CLOUDFLARE_BUILDS_TRIGGER_ID` | Text | 自动更新使用的 production build trigger UUID |
 | `CLOUDFLARE_BUILDS_BRANCH` | Text | 自动更新对应的生产分支，默认 `main` |

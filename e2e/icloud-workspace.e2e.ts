@@ -1,0 +1,69 @@
+import { expect, type Page, type Route, test } from '@playwright/test'
+
+function json(route: Route, body: unknown) {
+  return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
+}
+
+async function mockICloud(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
+    localStorage.setItem('omnimail-locale', 'zh-CN')
+  })
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    if (path === '/api/config') return json(route, {
+      appName: 'OmniMail', setupComplete: true, replyEnabled: false,
+      iCloudEnabled: true, registrationEnabled: false, registrationAvailable: false,
+      registrationMethod: 'password', linuxDoLoginEnabled: false,
+      registrationDomainPolicy: { mode: 'blocklist', domains: [] },
+      registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: 0,
+      remoteImagesEnabled: false, unassignedMailEnabled: false, superAdminEmail: '',
+      setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
+        superAdminReady: true, setupTokenReady: false },
+    })
+    if (path === '/api/session') return json(route, { user: {
+      id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
+      mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
+      canCreateMailboxes: false, canReply: false, canTranslate: false,
+      temporaryExpiresAt: null,
+    } })
+    if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
+    if (path === '/api/domains') return json(route, { domains: [] })
+    if (path === '/api/icloud/accounts') return json(route, { accounts: [{
+      id: 'icloud-1', name: 'Personal', realEmail: 'owner@example.com',
+      icloudEmail: 'owner@icloud.com', host: 'icloud.com', status: 'active',
+      aliasTotal: 1, aliasActive: 1, lastValidated: '2026-08-13T00:00:00.000Z',
+      lastError: '', createdAt: '2026-08-13T00:00:00.000Z',
+      hasCookies: true, hasAppPassword: true,
+    }] })
+    if (path === '/api/icloud/aliases') return json(route, { aliases: [{
+      email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
+    }] })
+    if (path === '/api/icloud/inbox') return json(route, { method: 'imap', messages: [{
+      id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
+      subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
+      preview: 'Thanks for your order.', body: 'Thanks for your order.',
+    }] })
+    if (path === '/api/icloud/inbox/42') return json(route, { message: {
+      id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
+      subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
+      preview: 'Thanks for your order.', body: 'Full receipt body.',
+    } })
+    return route.abort()
+  })
+}
+
+test('iCloud workspace is available to a regular user and reads a message', async ({ page }) => {
+  await mockICloud(page)
+  await page.goto('/icloud')
+
+  await expect(page.getByRole('heading', { name: 'iCloud 隐藏邮箱' })).toBeVisible()
+  await expect(page.getByText('Personal')).toBeVisible()
+  await expect(page.getByText('shop@icloud.com')).toBeVisible()
+  await expect(page.getByText('Your receipt')).toBeVisible()
+
+  await page.getByRole('button', { name: /Your receipt/ }).click()
+  await expect(page.getByText('Full receipt body.')).toBeVisible()
+})
