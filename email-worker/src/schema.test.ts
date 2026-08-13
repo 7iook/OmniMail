@@ -7,8 +7,15 @@ function database(result: { applied: number } | null, error?: Error) {
     return result
   })
   const bind = vi.fn(() => ({ first }))
-  const prepare = vi.fn(() => ({ bind }))
-  return { db: { prepare } as unknown as D1Database, prepare, bind, first }
+  const prepare = vi.fn(() => ({ bind, first }))
+  const batch = vi.fn(async () => [])
+  return {
+    db: { prepare, batch } as unknown as D1Database,
+    prepare,
+    bind,
+    first,
+    batch,
+  }
 }
 
 describe('D1 migration check', () => {
@@ -24,13 +31,34 @@ describe('D1 migration check', () => {
     expect(fixture.bind).toHaveBeenCalledWith(
       '0020_device_token_scopes.sql',
     )
+    expect(fixture.batch).not.toHaveBeenCalled()
   })
 
-  it('fails clearly when migrations were not applied', async () => {
+  it('applies and records the required migration when it is missing', async () => {
     const fixture = database(null)
-    await expect(ensureSchema(fixture.db)).rejects.toThrow(
-      'D1 数据库迁移未完成，请在部署前运行 npm run db:migrate。',
+    await ensureSchema(fixture.db)
+
+    expect(fixture.batch).toHaveBeenCalledOnce()
+    expect(fixture.prepare).toHaveBeenCalledWith(
+      "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
+    expect(fixture.prepare).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO d1_migrations (name)'),
+    )
+    expect(fixture.bind).toHaveBeenCalledWith(
+      '0020_device_token_scopes.sql',
+      '0020_device_token_scopes.sql',
+    )
+  })
+
+  it('accepts a concurrent migration completed by another isolate', async () => {
+    const fixture = database(null)
+    fixture.first
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ applied: 1 })
+    fixture.batch.mockRejectedValueOnce(new Error('duplicate column name: scopes'))
+
+    await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
   })
 
   it('adds context when the migration table cannot be queried', async () => {

@@ -4,6 +4,11 @@
 
 ## [0.2.2] - 2026-08-13
 
+### 修复
+
+- 修复通过 Cloudflare Builds 更新时可能绕过 D1 迁移、导致新版 Worker 因缺少
+  `0020_device_token_scopes.sql` 而返回 `500` 的问题；Worker 会安全补齐并登记该迁移。
+
 ### 安全
 
 - 为设备会话增加持久化 Scope；现有桌面令牌保持完整权限，OmniMail Float 新令牌仅

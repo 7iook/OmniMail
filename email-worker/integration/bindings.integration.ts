@@ -20,7 +20,10 @@ declare global {
 }
 
 beforeAll(async () => {
-  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+  await applyD1Migrations(
+    env.DB,
+    env.TEST_MIGRATIONS.filter(({ name }) => name !== '0020_device_token_scopes.sql'),
+  )
   await env.DB.prepare(
     `INSERT INTO users (
       id, email, display_name, password_hash, role, mailbox_limit,
@@ -30,7 +33,19 @@ beforeAll(async () => {
 })
 
 describe('Worker storage bindings', () => {
-  it('applies every D1 migration and preserves legacy device permissions', async () => {
+  it('self-applies the device scope migration and preserves legacy permissions', async () => {
+    const before = await env.DB.prepare(
+      "SELECT name, dflt_value FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
+    ).first<{ name: string; dflt_value: string }>()
+    expect(before).toBeNull()
+
+    const response = await worker.fetch(
+      new Request('https://mail.example.com/api/config'),
+      env,
+      createExecutionContext(),
+    )
+    expect(response.status).toBe(200)
+
     const migration = await env.DB.prepare(
       'SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1',
     ).first<{ name: string }>()
@@ -40,6 +55,12 @@ describe('Worker storage bindings', () => {
 
     expect(migration?.name).toBe('0020_device_token_scopes.sql')
     expect(columns).toMatchObject({ name: 'scopes', dflt_value: "'*'" })
+
+    await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+    const recorded = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM d1_migrations WHERE name = ?',
+    ).bind('0020_device_token_scopes.sql').first<{ count: number }>()
+    expect(recorded?.count).toBe(1)
   })
 
   it('uses real D1, R2, and Queue bindings inside workerd', async () => {
