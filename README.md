@@ -171,7 +171,7 @@ API path       https://mail.example.com/api/*
 
 同源部署不需要额外的 Pages 项目或独立 API 域名，登录 Cookie 和 CORS 配置也更简单。
 
-### 一键部署（推荐）
+### 一键部署（独立快照）
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mibgb65-cloud/OmniMail)
 
@@ -179,16 +179,22 @@ Cloudflare 会把仓库导入你的 GitHub 账户，创建并绑定 D1、R2、Qu
 `SETUP_TOKEN` 和 `SUPER_ADMIN_EMAIL`，然后通过 Workers Builds 完成构建、数据库迁移
 和 Worker 部署。
 
+> [!NOTE]
+> Deploy to Cloudflare 会创建一个独立 Git 仓库，而不是 GitHub Fork。该仓库不会显示
+> **Sync fork**，也不会自动同步上游提交或 Release Tag。此方式适合快速试用；需要
+> 持续获取后续更新时，请使用下一节的 Fork 部署流程。
+
 > [!IMPORTANT]
 > 一键部署不会修改域名 DNS、MX 或 Email Routing。Worker 部署完成后，仍需继续完成
 > [配置 Worker](#3-配置-worker)和[启用 Email Routing](#4-启用-email-routing)。
 
-### 手动部署
+### Fork 后部署（支持同步更新，长期使用推荐）
 
-#### 1. Fork 仓库
+#### 1. 创建 Fork
 
-Fork [mibgb65-cloud/OmniMail](https://github.com/mibgb65-cloud/OmniMail)，
-然后让 Cloudflare Worker 连接你的 Fork。
+打开 [Fork OmniMail](https://github.com/mibgb65-cloud/OmniMail/fork)，在 GitHub 中创建
+Fork。创建完成后，仓库标题下方应显示 `forked from mibgb65-cloud/OmniMail`，然后让
+Cloudflare Worker 连接这个 Fork。
 
 如果使用本地 Git：
 
@@ -212,7 +218,7 @@ Import a repository**，选择你的 OmniMail 仓库：
 | Non-production branch builds | 首次部署暂时关闭 |
 | API token | 让 Cloudflare 自动创建 |
 
-无论使用一键按钮还是手动导入，第一次部署都会依据
+无论使用独立快照一键部署还是导入 Fork，第一次部署都会依据
 [`wrangler.jsonc`](./wrangler.jsonc) 完成两件事：
 
 1. `npm run build` 将 React 前端生成到 `dist/`。
@@ -225,6 +231,13 @@ Import a repository**，选择你的 OmniMail 仓库：
 Cloudflare Workers Builds 会在 `main` 更新后自动拉取、构建并部署，不需要在
 GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责运行测试、
 类型检查和部署预检。
+
+#### 后续同步上游更新
+
+原仓库发布更新后，在自己的 Fork 页面选择 **Sync fork → Update branch**。GitHub
+会把上游提交同步到 Fork 的 `main`；Workers Builds 检测到新提交后会自动运行上述
+构建、D1 迁移和部署命令。存在冲突时，先按 GitHub 提示创建 Pull Request 并人工解决，
+不要强制覆盖包含自定义修改的生产分支。
 
 ### 3. 配置 Worker
 
