@@ -6,6 +6,10 @@ import {
   validAuthorizationInput,
 } from './extension-authorization'
 import { sha256 } from './auth'
+import {
+  OFFICIAL_CHROME_EXTENSION_ID,
+  OFFICIAL_CHROME_EXTENSION_ORIGIN,
+} from './origin-policy'
 import { EXTENSION_DEVICE_SCOPES } from './token-scope'
 import type { Env } from './types'
 
@@ -39,6 +43,19 @@ describe('extension authorization', () => {
       ...input,
       redirectUri: `${redirectUri}/extra`,
     })).toBe(false)
+  })
+
+  it('keeps the official store client behind the global switch', () => {
+    const input = {
+      clientId: OFFICIAL_CHROME_EXTENSION_ID,
+      redirectUri: `https://${OFFICIAL_CHROME_EXTENSION_ID}.chromiumapp.org/omnimail`,
+      state: 'a'.repeat(43),
+      codeChallenge: challenge,
+    }
+    const env = { ...environment(), APP_ORIGINS: OFFICIAL_CHROME_EXTENSION_ORIGIN }
+
+    expect(validAuthorizationInput(env, input, false)).toBe(false)
+    expect(validAuthorizationInput(env, input, true)).toBe(true)
   })
 
   it('implements the RFC 7636 S256 challenge', async () => {

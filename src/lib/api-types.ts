@@ -16,6 +16,7 @@ export interface AppConfig {
   mailRefreshInterval: MailRefreshInterval
   remoteImagesEnabled: boolean
   unassignedMailEnabled: boolean
+  officialExtensionEnabled: boolean
   superAdminEmail: string
   setupRequirements: SetupRequirements
 }

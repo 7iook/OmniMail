@@ -19,7 +19,7 @@ import { confirmMfaSetup, disableMfa, mfaStatus, startMfaSetup } from './mfa-api
 import { completeMfaChallenge, createMfaChallenge, mfaEnabled } from './mfa'
 import { clearMfaChallengeCookie, mfaChallengeCookie, setMfaChallengeCookie } from './mfa-cookie'
 import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
-import { isAllowedOrigin } from './origin-policy'
+import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
 import { proxyRemoteImage } from './remote-image'
@@ -34,7 +34,13 @@ import { completeSetup } from './setup-api'
 import { mailStatistics } from './statistics-api'
 import { startManualBackup, storagePolicy, updateStoragePolicy } from './storage-policy'
 import { syncSuperAdminIdentity } from './super-admin-sync'
-import { updateMailRefreshInterval, updateRemoteImagesSetting, updateUnassignedMailSetting } from './system-settings'
+import {
+  officialExtensionEnabled,
+  updateMailRefreshInterval,
+  updateOfficialExtensionSetting,
+  updateRemoteImagesSetting,
+  updateUnassignedMailSetting,
+} from './system-settings'
 import { systemVersionRoutes } from './system-version-routes'
 import { createTemporaryInvite, listTemporaryInvites, registerTemporaryInvite, revokeTemporaryInvite, temporaryInvitePreview } from './temporary-invite-api'
 import { authenticateAccessToken, bearerToken, issueDeviceToken, listDevices, refreshDeviceToken, revokeDevice, revokeRefreshToken } from './token-api'
@@ -119,10 +125,14 @@ function configuredSuperAdminEmail(env: Env): string {
 
 app.use('*', async (context, next) => {
   const requestOrigin = context.req.header('Origin')
+  const officialEnabled = isOfficialChromeExtensionOrigin(requestOrigin)
+    ? await officialExtensionEnabled(context.env.DB)
+    : false
   const originAllowed = isAllowedOrigin(
     requestOrigin,
     context.req.url,
     context.env.APP_ORIGINS,
+    officialEnabled,
   )
 
   if (context.req.method === 'OPTIONS') {
@@ -424,6 +434,7 @@ app.patch('/api/admin/settings/registration-domains', (context) => updateRegistr
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/unassigned-mail', (context) => updateUnassignedMailSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/official-extension', (context) => updateOfficialExtensionSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.get('/api/admin/settings/storage', async (context) => {
   const user = context.get('user')
   if (user.role !== 'super_admin' && user.role !== 'admin') {

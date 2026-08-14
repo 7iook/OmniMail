@@ -1,3 +1,8 @@
+export const OFFICIAL_CHROME_EXTENSION_ID = 'fpeecjailboemocpmpcbjaghpkpcaihf'
+export const OFFICIAL_CHROME_EXTENSION_ORIGIN = (
+  `chrome-extension://${OFFICIAL_CHROME_EXTENSION_ID}`
+)
+
 function normalizedOrigin(value: string): string {
   try {
     const url = new URL(value)
@@ -23,12 +28,29 @@ export function isAllowedOrigin(
   requestOrigin: string | undefined,
   requestUrl: string,
   configured: string | undefined,
+  officialExtensionEnabled = false,
 ): boolean {
   if (!requestOrigin) return true
   const origin = normalizedOrigin(requestOrigin)
   if (!origin) return false
-  return origin === normalizedOrigin(requestUrl)
-    || configuredOrigins(configured).includes(origin)
+  if (origin === normalizedOrigin(requestUrl)) return true
+  if (origin === OFFICIAL_CHROME_EXTENSION_ORIGIN) return officialExtensionEnabled
+  return configuredOrigins(configured).includes(origin)
+}
+
+export function isOfficialChromeExtensionOrigin(value: string | undefined): boolean {
+  return normalizedOrigin(value || '') === OFFICIAL_CHROME_EXTENSION_ORIGIN
+}
+
+export function isAllowedExtensionClient(
+  clientId: string,
+  configured: string | undefined,
+  officialExtensionEnabled = false,
+): boolean {
+  const origin = `chrome-extension://${clientId}`
+  return origin === OFFICIAL_CHROME_EXTENSION_ORIGIN
+    ? officialExtensionEnabled
+    : configuredOrigins(configured).includes(origin)
 }
 
 export function allowedTurnstileHostnames(

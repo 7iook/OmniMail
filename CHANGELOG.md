@@ -2,6 +2,31 @@
 
 本项目的正式版本变更记录在此文件中。
 
+## [0.2.4] - 2026-08-14
+
+### 新增
+
+- 内置 Chrome Web Store 正式版 OmniMail Float 的固定扩展 ID，主管理员可在
+  **系统设置 → 官方浏览器扩展** 中直接开启或关闭，无需配置 `APP_ORIGINS`。
+- 新增全局扩展开关 API 与中英文设置卡片；开发版和其他扩展 ID 仍可继续通过
+  `APP_ORIGINS` 精确配置。
+
+### 安全
+
+- 官方扩展默认关闭；关闭时同时拒绝固定来源的 CORS、授权码签发、授权码兑换和
+  后续 API 请求。
+- 即使固定商店来源被重复写入 `APP_ORIGINS`，也不能绕过主管理员的全局开关。
+
+### 测试
+
+- 新增官方扩展来源、授权流程、公开配置及主管理员权限的回归测试。
+- 完整单元测试、Worker 类型检查、前端生产构建及发布门禁均覆盖该功能。
+
+### 发布
+
+- 网页应用版本升级为 `0.2.4`；Chrome Web Store 的 OmniMail Float 保持
+  `0.2.1`，本次不发布新的扩展包。
+
 ## [0.2.3] - 2026-08-14
 
 ### 修复
@@ -87,3 +112,4 @@
 [0.2.1]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.1
 [0.2.2]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.2
 [0.2.3]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.3
+[0.2.4]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.4

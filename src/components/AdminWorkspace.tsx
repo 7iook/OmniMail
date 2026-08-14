@@ -20,6 +20,7 @@ import { InvitationManagement } from './InvitationManagement'
 import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
 import { OutboundRateLimitSettings } from './OutboundRateLimitSettings'
+import { OfficialExtensionSettings } from './OfficialExtensionSettings'
 import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
 import { VersionStatusCard } from './VersionStatusCard'
@@ -253,6 +254,16 @@ export function AdminWorkspace({
             <ArrowRight size={16} />
           </button>
         </section>
+
+        {user.role === 'super_admin' && (
+          <OfficialExtensionSettings
+            enabled={config.officialExtensionEnabled}
+            onChange={(officialExtensionEnabled) => onConfigChange({
+              ...config,
+              officialExtensionEnabled,
+            })}
+          />
+        )}
 
         <section className="admin-card admin-card--settings">
           <header>

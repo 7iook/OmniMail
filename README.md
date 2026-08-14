@@ -241,7 +241,7 @@ GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责�
 | --- | --- | --- |
 | `APP_NAME` | Text | 自定义站点名称，默认 `OmniMail` |
 | `COOKIE_SECURE` | Text | 生产环境保持 `true`；仅本地 HTTP 使用 `false` |
-| `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端或 `chrome-extension://扩展ID` 来源 |
+| `APP_ORIGINS` | Text | 允许访问 API 的额外跨域前端、开发版或其他扩展 ID；商店版由系统设置开关管理 |
 | `TURNSTILE_SITE_KEY` | Text | Turnstile 公开 Site Key |
 | `TURNSTILE_SECRET_KEY` | Secret | Turnstile 私密 Secret Key |
 | `LINUX_DO_CLIENT_ID` | Text | Linux DO Connect Client ID |
@@ -346,8 +346,10 @@ Signing Secret 以 JSON 数组保存为 `RESEND_WEBHOOK_SECRETS`：
 显示一次；TOTP 密钥经过 `TOTP_ENCRYPTION_KEY` 加密后才写入 D1。更换此 Secret 前
 应先让管理员停用二次验证，否则旧密钥无法解密；恢复码仍可用于解除锁定。
 
-同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。只有另一个
-Web 前端需要跨域调用 API 时才配置它；支持英文逗号分隔的精确来源，不能使用 `*`。
+同一个 Worker 提供的前端会被自动允许，不需要设置 `APP_ORIGINS`。主管理员可在
+**系统设置 → 官方浏览器扩展** 中直接允许 Chrome Web Store 固定版本；只有另一个
+Web 前端、开发版或其他扩展 ID 需要跨域调用 API 时才配置 `APP_ORIGINS`。它支持
+英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
 
 ### Release Tag 自动更新
@@ -493,8 +495,9 @@ OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
 npm run build:extension
 ```
 
-构建后在 `chrome://extensions/` 中加载 `dist-extension/`。生产 Worker 还需要把扩展
-管理页显示的固定 ID 以 `chrome-extension://扩展ID` 形式加入 `APP_ORIGINS`。
+构建后在 `chrome://extensions/` 中加载 `dist-extension/`。开发版需要把扩展管理页
+显示的 ID 以 `chrome-extension://扩展ID` 形式加入 `APP_ORIGINS`；Chrome Web Store
+固定版本只需由主管理员在系统设置中开启，不需要配置该变量。
 完整安装步骤和安全边界见 [`extension/README.md`](./extension/README.md)，扩展的数据
 处理方式见 [`docs/EXTENSION_PRIVACY.md`](./docs/EXTENSION_PRIVACY.md)。
 

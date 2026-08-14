@@ -174,6 +174,12 @@ export const api = {
       body: jsonBody({ enabled }),
     })
   ),
+  updateOfficialExtensionSetting: (enabled: boolean) => (
+    request<{ officialExtensionEnabled: boolean }>(
+      '/api/admin/settings/official-extension',
+      { method: 'PATCH', body: jsonBody({ enabled }) },
+    )
+  ),
   outboundRateLimitSettings: () => request<{
     outboundRateLimit: OutboundRateLimitSettings
   }>('/api/admin/settings/outbound-rate-limit'),

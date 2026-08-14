@@ -6,6 +6,7 @@ export type MailRefreshInterval = 0 | 5 | 10 | 30 | 60 | 120
 const REFRESH_SETTING = 'mail_refresh_interval'
 const REMOTE_IMAGES_SETTING = 'remote_images_enabled'
 const UNASSIGNED_MAIL_SETTING = 'unassigned_mail_enabled'
+const OFFICIAL_EXTENSION_SETTING = 'official_extension_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -31,6 +32,10 @@ export function parseUnassignedMailEnabled(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
+export function parseOfficialExtensionEnabled(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
 export async function mailRefreshInterval(db: D1Database): Promise<MailRefreshInterval> {
   const setting = await db.prepare(
     'SELECT value FROM settings WHERE key = ?',
@@ -43,6 +48,17 @@ export async function remoteImagesEnabled(db: D1Database): Promise<boolean> {
     'SELECT value FROM settings WHERE key = ?',
   ).bind(REMOTE_IMAGES_SETTING).first<{ value: string }>()
   return setting?.value === '1'
+}
+
+export async function officialExtensionEnabled(db: D1Database): Promise<boolean> {
+  try {
+    const setting = await db.prepare(
+      'SELECT value FROM settings WHERE key = ?',
+    ).bind(OFFICIAL_EXTENSION_SETTING).first<{ value: string }>()
+    return setting?.value === '1'
+  } catch {
+    return false
+  }
 }
 
 export async function updateMailRefreshInterval(
@@ -112,4 +128,27 @@ export async function updateUnassignedMailSetting(
   ).bind(UNASSIGNED_MAIL_SETTING, enabled ? '1' : '0').run()
   await writeAudit(env, actor.id, 'system.unassigned_mail.update', null, ip, { enabled })
   return json({ unassignedMailEnabled: enabled })
+}
+
+export async function updateOfficialExtensionSetting(
+  env: Env,
+  actor: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  if (actor.role !== 'super_admin') {
+    return json({ error: '只有主管理员可以修改官方浏览器扩展设置。' }, 403)
+  }
+  const body = await request.json<{ enabled?: unknown }>()
+    .catch(() => ({} as { enabled?: unknown }))
+  const enabled = parseOfficialExtensionEnabled(body.enabled)
+  if (enabled === null) {
+    return json({ error: '官方浏览器扩展设置无效。' }, 400)
+  }
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+  ).bind(OFFICIAL_EXTENSION_SETTING, enabled ? '1' : '0').run()
+  await writeAudit(env, actor.id, 'system.official_extension.update', null, ip, { enabled })
+  return json({ officialExtensionEnabled: enabled })
 }

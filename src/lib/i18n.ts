@@ -7,6 +7,7 @@ import { enMailFeatures } from './i18n-en-mail-features'
 import { enRateLimit } from './i18n-en-rate-limit'
 import { enVersion } from './i18n-en-version'
 import { enErrors } from './i18n-en-errors'
+import { enExtension } from './i18n-en-extension'
 import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
 
@@ -44,6 +45,7 @@ const english = {
   ...enAdminMail,
   ...enInvites,
   ...enErrors,
+  ...enExtension,
   ...enOauth,
   ...enSecurity,
   ...enMailFeatures,

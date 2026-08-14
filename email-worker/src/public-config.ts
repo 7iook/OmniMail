@@ -43,7 +43,8 @@ export async function publicConfig(env: Env) {
       'registration_blocked_domains',
       'mail_refresh_interval',
       'remote_images_enabled',
-      'unassigned_mail_enabled'
+      'unassigned_mail_enabled',
+      'official_extension_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -73,6 +74,7 @@ export async function publicConfig(env: Env) {
     ) ?? 30,
     remoteImagesEnabled: settings.get('remote_images_enabled') === '1',
     unassignedMailEnabled: settings.get('unassigned_mail_enabled') === '1',
+    officialExtensionEnabled: settings.get('official_extension_enabled') === '1',
     superAdminEmail: setupComplete ? '' : superAdminEmail(env),
     setupRequirements: publicSetupRequirements(env),
   }

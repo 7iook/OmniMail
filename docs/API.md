@@ -22,6 +22,7 @@ GET /api/config
 是否已经配置完整的 Turnstile 公钥和密钥，`turnstileSiteKey` 是前端渲染组件时
 使用的公开 Site Key。`mailRefreshInterval` 是管理员设置的收件箱自动刷新秒数，
 `unassignedMailEnabled` 表示是否将未知收件地址的邮件交给主管理员，
+`officialExtensionEnabled` 表示主管理员是否允许固定 Chrome Web Store 扩展来源，
 值为 `0`、`5`、`10`、`30`、`60` 或 `120`，其中 `0` 表示关闭自动刷新。
 `registrationDomainPolicy` 包含公开注册邮箱规则模式和后缀数组。`blocklist`
 表示拒绝列表内的后缀，`allowlist` 表示只允许列表内的后缀。
@@ -293,8 +294,9 @@ Content-Type: application/json
 }
 ```
 
-`clientId` 必须对应 `APP_ORIGINS` 中精确配置的
-`chrome-extension://扩展ID`，回调地址必须严格等于 Chrome Identity 为该 ID 生成的
+`clientId` 必须是已由主管理员开启的 Chrome Web Store 固定扩展 ID，或对应
+`APP_ORIGINS` 中精确配置的开发版/其他 `chrome-extension://扩展ID`。回调地址必须
+严格等于 Chrome Identity 为该 ID 生成的
 地址。成功响应中的 `redirectTo` 只包含两分钟有效的一次性授权码和原始 `state`。
 
 扩展验证回调和 `state` 后兑换授权码：
@@ -630,6 +632,7 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `PATCH /api/admin/settings/mail-refresh` | 管理员设置邮件自动刷新间隔 |
 | `PATCH /api/admin/settings/remote-images` | 管理员设置邮件远程图片默认策略 |
 | `PATCH /api/admin/settings/unassigned-mail` | 管理员开启或关闭无人收件 |
+| `PATCH /api/admin/settings/official-extension` | 主管理员开启或关闭固定 Chrome Web Store 扩展 |
 | `GET /api/admin/settings/outbound-rate-limit` | 查询全局发信限速设置 |
 | `PATCH /api/admin/settings/outbound-rate-limit` | 更新全局发信限速设置 |
 | `PATCH /api/admin/users/{id}/outbound-rate-limit` | 设置用户发信限速覆盖值 |

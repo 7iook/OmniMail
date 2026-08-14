@@ -59,4 +59,12 @@ describe('public registration configuration', () => {
     expect(pending.superAdminEmail).toBe('owner@example.com')
     expect(complete.superAdminEmail).toBe('')
   })
+
+  it('exposes the official extension switch with a safe disabled default', async () => {
+    const disabled = await publicConfig(environment({}))
+    const enabled = await publicConfig(environment({ official_extension_enabled: '1' }))
+
+    expect(disabled.officialExtensionEnabled).toBe(false)
+    expect(enabled.officialExtensionEnabled).toBe(true)
+  })
 })

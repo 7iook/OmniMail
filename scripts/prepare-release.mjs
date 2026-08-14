@@ -13,15 +13,10 @@ if (!match || !outputPath) {
 const version = match[1]
 const packageMetadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const packageLock = JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8'))
-const extensionManifest = JSON.parse(readFileSync(
-  join(root, 'extension/public/manifest.json'),
-  'utf8',
-))
 const versions = {
   'package.json': packageMetadata.version,
   'package-lock.json': packageLock.version,
   'package-lock root package': packageLock.packages?.['']?.version,
-  'extension manifest': extensionManifest.version,
 }
 
 for (const [source, actual] of Object.entries(versions)) {

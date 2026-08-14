@@ -47,17 +47,24 @@ jobs:
       - run: npm run build:extension
       - run: npm run test:extension
       - run: npx wrangler deploy --dry-run
-      - name: Package extension
+      - name: Package extension when versions match
+        id: extension
         run: |
           VERSION="${RELEASE_TAG#v}"
+          EXTENSION_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('extension/public/manifest.json', 'utf8')).version")"
+          if [ "$EXTENSION_VERSION" != "$VERSION" ]; then
+            echo "Skipping extension asset: manifest is $EXTENSION_VERSION, release is $VERSION"
+            exit 0
+          fi
           cd dist-extension
-          zip -q -r "$RUNNER_TEMP/omnimail-float-$VERSION.zip" .
+          ASSET="$RUNNER_TEMP/omnimail-float-$VERSION.zip"
+          zip -q -r "$ASSET" .
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          EXTENSION_ASSET: ${{ steps.extension.outputs.asset }}
         run: |
-          VERSION="${RELEASE_TAG#v}"
-          ASSET="$RUNNER_TEMP/omnimail-float-$VERSION.zip"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
               --title "OmniMail $RELEASE_TAG" \
@@ -68,4 +75,6 @@ jobs:
               --title "OmniMail $RELEASE_TAG" \
               --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
-          gh release upload "$RELEASE_TAG" "$ASSET" --clobber
+          if [ -n "$EXTENSION_ASSET" ]; then
+            gh release upload "$RELEASE_TAG" "$EXTENSION_ASSET" --clobber
+          fi

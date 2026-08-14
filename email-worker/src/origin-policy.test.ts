@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  OFFICIAL_CHROME_EXTENSION_ORIGIN,
   allowedTurnstileHostnames,
   configuredOrigins,
   isAllowedOrigin,
@@ -47,6 +48,21 @@ describe('request origin policy', () => {
       'https://mail.example.com/api/auth/token',
       configured,
     )).toBe(false)
+  })
+
+  it('allows the official store extension only when the global switch is enabled', () => {
+    expect(isAllowedOrigin(
+      OFFICIAL_CHROME_EXTENSION_ORIGIN,
+      'https://mail.example.com/api/config',
+      OFFICIAL_CHROME_EXTENSION_ORIGIN,
+      false,
+    )).toBe(false)
+    expect(isAllowedOrigin(
+      OFFICIAL_CHROME_EXTENSION_ORIGIN,
+      'https://mail.example.com/api/config',
+      undefined,
+      true,
+    )).toBe(true)
   })
 
   it('rejects opaque and malformed extension origins', () => {

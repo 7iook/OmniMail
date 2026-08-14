@@ -25,20 +25,21 @@ afterEach(() => {
 })
 
 describe('release metadata preparation', () => {
-  it('extracts the matching changelog section', () => {
-    const { output, result } = prepare('v0.2.3')
+  it('extracts the matching web release section when the extension version differs', () => {
+    const { output, result } = prepare('v0.2.4')
 
     expect(result.status).toBe(0)
     const notes = readFileSync(output, 'utf8')
-    expect(notes).toContain('### 修复')
-    expect(notes).toContain('D1 文件')
-    expect(notes).not.toContain('## [0.2.2]')
+    expect(notes).toContain('### 新增')
+    expect(notes).toContain('官方浏览器扩展')
+    expect(notes).toContain('OmniMail Float 保持')
+    expect(notes).not.toContain('## [0.2.3]')
   })
 
   it('rejects a tag that does not match package metadata', () => {
-    const { result } = prepare('v0.2.4')
+    const { result } = prepare('v0.2.5')
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain('does not match tag v0.2.4')
+    expect(result.stderr).toContain('does not match tag v0.2.5')
   })
 })

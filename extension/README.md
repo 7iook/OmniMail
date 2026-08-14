@@ -23,6 +23,11 @@ npm run build:extension
 
 Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`。
 
+Chrome Web Store 正式版本无需配置 `APP_ORIGINS`。主管理员登录 OmniMail 后，在
+**系统设置 → 官方浏览器扩展** 中开启固定商店版本即可。
+
+使用开发者模式加载 `dist-extension/` 时：
+
 1. 在 `chrome://extensions/` 复制 OmniMail Float 的 32 位扩展 ID。
 2. 在 Worker 的 `APP_ORIGINS` 中加入对应来源：
 
@@ -34,8 +39,8 @@ Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`
 4. 重新部署 Worker 后，在扩展中填写 OmniMail 站点根地址并点击“前往 OmniMail
    授权”。
 
-通过 Chrome Web Store 安装时扩展 ID 固定；开发者模式下只要保持扩展目录和清单
-不变，ID 通常也会保持不变。
+通过 Chrome Web Store 安装时扩展 ID 固定，并由全局开关控制；开发者模式下只要
+保持扩展目录和清单不变，ID 通常也会保持不变。
 
 ## Chrome Web Store 发布会话
 
@@ -65,5 +70,5 @@ Chrome Web Store 正式版本的扩展 ID 是 `fpeecjailboemocpmpcbjaghpkpcaihf`
   悬浮按钮。
 
 开发者模式扩展和 Chrome Web Store 扩展通常具有不同 ID。如果两者都需要访问同一
-个 OmniMail 实例，应把两个 `chrome-extension://扩展ID` 来源都加入 `APP_ORIGINS`，
-并使用英文逗号分隔。
+个 OmniMail 实例，应开启官方扩展开关，并把开发版的
+`chrome-extension://扩展ID` 加入 `APP_ORIGINS`。

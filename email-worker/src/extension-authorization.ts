@@ -1,7 +1,11 @@
 import { activeUser, createSessionToken, secretsEqual, sha256 } from './auth'
 import { clientIp } from './api-helpers'
 import { writeAudit } from './audit'
-import { configuredOrigins } from './origin-policy'
+import {
+  OFFICIAL_CHROME_EXTENSION_ID,
+  isAllowedExtensionClient,
+} from './origin-policy'
+import { officialExtensionEnabled } from './system-settings'
 import { createDeviceSession, type DeviceUserRow } from './token-api'
 import { EXTENSION_DEVICE_SCOPES } from './token-scope'
 import type { Env, SessionUser } from './types'
@@ -36,18 +40,18 @@ function expectedRedirectUri(clientId: string): string {
   return `https://${clientId}.chromiumapp.org/omnimail`
 }
 
-function allowedClient(env: Env, clientId: string): boolean {
-  return configuredOrigins(env.APP_ORIGINS)
-    .includes(`chrome-extension://${clientId}`)
+function allowedClient(env: Env, clientId: string, officialEnabled: boolean): boolean {
+  return isAllowedExtensionClient(clientId, env.APP_ORIGINS, officialEnabled)
 }
 
 export function validAuthorizationInput(
   env: Env,
   input: Partial<AuthorizationInput>,
+  officialEnabled = false,
 ): input is AuthorizationInput {
   return typeof input.clientId === 'string'
     && CLIENT_ID_PATTERN.test(input.clientId)
-    && allowedClient(env, input.clientId)
+    && allowedClient(env, input.clientId, officialEnabled)
     && input.redirectUri === expectedRedirectUri(input.clientId)
     && typeof input.state === 'string'
     && STATE_PATTERN.test(input.state)
@@ -79,7 +83,10 @@ export async function issueExtensionAuthorization(
   }
   const input = await request.json<Partial<AuthorizationInput>>()
     .catch(() => ({} as Partial<AuthorizationInput>))
-  if (!validAuthorizationInput(env, input)) {
+  const officialEnabled = input.clientId === OFFICIAL_CHROME_EXTENSION_ID
+    ? await officialExtensionEnabled(env.DB)
+    : false
+  if (!validAuthorizationInput(env, input, officialEnabled)) {
     return json({ error: '扩展授权请求无效或扩展尚未被允许。' }, 400)
   }
   const code = `${CODE_PREFIX}${createSessionToken()}`
@@ -128,12 +135,15 @@ export async function exchangeExtensionAuthorization(
   const verifier = typeof body.codeVerifier === 'string' ? body.codeVerifier : ''
   const clientId = typeof body.clientId === 'string' ? body.clientId : ''
   const redirectUri = typeof body.redirectUri === 'string' ? body.redirectUri : ''
+  const officialEnabled = clientId === OFFICIAL_CHROME_EXTENSION_ID
+    ? await officialExtensionEnabled(env.DB)
+    : false
   if (
     !code.startsWith(CODE_PREFIX)
     || code.length > 160
     || !VERIFIER_PATTERN.test(verifier)
     || !CLIENT_ID_PATTERN.test(clientId)
-    || !allowedClient(env, clientId)
+    || !allowedClient(env, clientId, officialEnabled)
     || redirectUri !== expectedRedirectUri(clientId)
     || !validExchangeOrigin(request, clientId)
   ) return json({ error: '扩展授权码无效，请重新授权。' }, 401)
