@@ -6,6 +6,7 @@ interface MockStatement {
   bindings: unknown[]
   bind: (...values: unknown[]) => MockStatement
   first: () => Promise<unknown>
+  run: () => Promise<unknown>
 }
 
 function database(options: {
@@ -13,11 +14,14 @@ function database(options: {
   legacyVersion?: string
   applied?: string[]
   concurrentMigration?: string
+  scopesPresent?: boolean
+  failBatchOnce?: boolean
 } = {}) {
   let migrationTable = options.migrationTable ?? true
   const applied = new Set(options.applied ?? [])
   const batches: MockStatement[][] = []
   let concurrentMigration = options.concurrentMigration
+  let failBatchOnce = options.failBatchOnce ?? false
 
   const prepare = vi.fn((sql: string) => {
     const statement: MockStatement = {
@@ -37,13 +41,26 @@ function database(options: {
         if (sql.includes('SELECT 1 AS applied FROM d1_migrations')) {
           return applied.has(String(statement.bindings[0])) ? { applied: 1 } : null
         }
+        if (sql.includes("pragma_table_info('device_sessions')")) {
+          return options.scopesPresent ? { present: 1 } : null
+        }
         return null
+      }),
+      run: vi.fn(async () => {
+        if (sql.includes('d1_migrations (name)')) {
+          applied.add(String(statement.bindings[0]))
+        }
+        return { success: true }
       }),
     }
     return statement
   })
   const batch = vi.fn(async (statements: MockStatement[]) => {
     batches.push(statements)
+    if (failBatchOnce) {
+      failBatchOnce = false
+      throw new Error('temporary D1 failure')
+    }
     if (statements.some(({ sql }) => sql.includes('CREATE TABLE IF NOT EXISTS d1_migrations'))) {
       migrationTable = true
     }
@@ -54,7 +71,7 @@ function database(options: {
     }
     if (concurrentMigration && applied.has(concurrentMigration)) {
       concurrentMigration = undefined
-      throw new Error('duplicate column name: scopes')
+      throw new Error('migration completed by another isolate')
     }
     return []
   })
@@ -86,9 +103,6 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).not.toHaveBeenCalled()
     for (const name of FINAL_MIGRATIONS) {
-      expect(fixture.prepare).toHaveBeenCalledWith(
-        'SELECT 1 AS applied FROM d1_migrations WHERE name = ? LIMIT 1',
-      )
       expect(fixture.prepare.mock.results.some(({ value }) => (
         (value as MockStatement).bindings[0] === name
       ))).toBe(true)
@@ -118,7 +132,6 @@ describe('D1 migration check', () => {
     expect(fixture.prepare.mock.calls.some(([sql]) => (
       String(sql).includes('CREATE TABLE IF NOT EXISTS icloud_accounts')
     ))).toBe(true)
-    )
   })
 
   it('repairs migration records left empty by an earlier failed Wrangler run', async () => {
@@ -145,6 +158,22 @@ describe('D1 migration check', () => {
     expect(fixture.batch).not.toHaveBeenCalled()
   })
 
+  it('records an existing scopes column before applying the iCloud migration', async () => {
+    const fixture = database({
+      applied: FINAL_MIGRATIONS.slice(0, -2),
+      scopesPresent: true,
+    })
+
+    await ensureSchema(fixture.db)
+
+    expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
+    expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
+    expect(fixture.prepare).not.toHaveBeenCalledWith(
+      "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
+    )
+    expect(fixture.batch).toHaveBeenCalledOnce()
+  })
+
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
@@ -153,5 +182,16 @@ describe('D1 migration check', () => {
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledOnce()
+  })
+
+  it('drops a rejected cached check so the next request can retry', async () => {
+    const fixture = database({
+      applied: FINAL_MIGRATIONS.slice(0, -1),
+      failBatchOnce: true,
+    })
+
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0021_icloud_accounts.sql')
+    await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
+    expect(fixture.batch).toHaveBeenCalledTimes(2)
   })
 })

@@ -249,11 +249,11 @@ function appliedMigration(db: D1Database, name: string) {
   ).bind(name).first<{ applied: number }>()
 }
 
-function migrationError(cause?: unknown): Error {
-  const detail = cause instanceof Error ? ` ${cause.message}` : ''
+function migrationError(cause?: unknown, migration = REQUIRED_MIGRATION): Error {
+  const detail = cause instanceof Error && cause.message ? ` ${cause.message}` : ''
   return new Error(
     `D1 数据库迁移未完成，请在部署前运行 npm run db:migrate。`
-      + ` 缺少迁移：${REQUIRED_MIGRATION}。${detail}`,
+      + ` 缺少迁移：${migration}。${detail}`,
   )
 }
 
@@ -303,10 +303,20 @@ async function applyRecoverableMigration(
 ): Promise<void> {
   if (await appliedMigration(db, migration.name)) return
 
+  if (migration.name === '0020_device_token_scopes.sql') {
+    const column = await db.prepare(
+      "SELECT 1 AS present FROM pragma_table_info('device_sessions') WHERE name = 'scopes' LIMIT 1",
+    ).first<{ present: number }>()
+    if (column?.present === 1) {
+      await recordMigration(db, migration.name).run()
+      return
+    }
+  }
+
   try {
     await db.batch([
       ...migration.statements.map((sql) => db.prepare(sql)),
-      db.prepare('INSERT INTO d1_migrations (name) VALUES (?)').bind(migration.name),
+      recordMigration(db, migration.name),
     ])
   } catch (error) {
     // Another isolate may have completed the migration after our first check.
@@ -315,10 +325,21 @@ async function applyRecoverableMigration(
   }
 }
 
+function recordMigration(db: D1Database, migration: string): D1PreparedStatement {
+  return db.prepare(
+    `INSERT INTO d1_migrations (name)
+     SELECT ? WHERE NOT EXISTS (SELECT 1 FROM d1_migrations WHERE name = ?)`,
+  ).bind(migration, migration)
+}
+
 async function ensureRequiredMigrations(db: D1Database): Promise<void> {
   await bootstrapLegacyMigrations(db)
   for (const migration of RECOVERABLE_MIGRATIONS) {
-    await applyRecoverableMigration(db, migration)
+    try {
+      await applyRecoverableMigration(db, migration)
+    } catch (error) {
+      throw migrationError(error, migration.name)
+    }
   }
 }
 
@@ -326,14 +347,10 @@ export function ensureSchema(db: D1Database): Promise<void> {
   const current = schemaChecks.get(db)
   if (current) return current
 
-  const check = ensureRequiredMigrations(db).catch((error) => {
-    schemaChecks.delete(db)
-    if (error instanceof Error && error.message.startsWith('D1 数据库迁移未完成')) {
-      throw error
-    }
-    throw migrationError(error)
-  })
-
+  const check = ensureRequiredMigrations(db)
   schemaChecks.set(db, check)
+  check.catch(() => {
+    if (schemaChecks.get(db) === check) schemaChecks.delete(db)
+  })
   return check
 }

@@ -7,11 +7,33 @@ const IMAP_HOST = 'imap.mail.me.com'
 const IMAP_PORT = 993
 const LIST_MESSAGE_BYTES = 65_536
 const DETAIL_MESSAGE_BYTES = 524_288
+const CONNECT_TIMEOUT_MS = 10_000
+const COMMAND_TIMEOUT_MS = 20_000
+const CLOSE_TIMEOUT_MS = 2_000
 const encoder = new TextEncoder()
 
 interface CommandResult {
   lines: string[]
   literals: Array<{ line: string; data: Uint8Array }>
+}
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      onTimeout()
+      reject(new ICloudRemoteError(504, 'iCloud IMAP 请求超时。'))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([operation, timeout])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
 }
 
 class SocketReader {
@@ -112,59 +134,99 @@ export class ICloudImapClient {
     private readonly appPassword: string,
   ) {}
 
+  private abort(): void {
+    const socket = this.socket
+    this.socket = undefined
+    this.reader = undefined
+    this.writer = undefined
+    if (socket) void socket.close().catch(() => undefined)
+  }
+
   async open(): Promise<void> {
-    this.socket = connect(
-      { hostname: IMAP_HOST, port: IMAP_PORT },
-      { secureTransport: 'on', allowHalfOpen: false },
-    )
-    await this.socket.opened
-    this.reader = new SocketReader(this.socket.readable.getReader())
-    this.writer = this.socket.writable.getWriter()
-    const greeting = await this.reader.line()
-    if (!greeting.startsWith('* OK')) {
-      throw new ICloudRemoteError(502, `IMAP 服务未就绪：${greeting.slice(0, 160)}`)
-    }
     try {
+      this.socket = connect(
+        { hostname: IMAP_HOST, port: IMAP_PORT },
+        { secureTransport: 'on', allowHalfOpen: false },
+      )
+      await withTimeout(this.socket.opened, CONNECT_TIMEOUT_MS, () => this.abort())
+      this.reader = new SocketReader(this.socket.readable.getReader())
+      this.writer = this.socket.writable.getWriter()
+      const greeting = await withTimeout(
+        this.reader.line(),
+        CONNECT_TIMEOUT_MS,
+        () => this.abort(),
+      )
+      if (!greeting.startsWith('* OK')) {
+        throw new ICloudRemoteError(502, 'iCloud IMAP 服务未就绪。')
+      }
       await this.command(
         `LOGIN ${quoteICloudImapValue(this.email)} ${quoteICloudImapValue(this.appPassword)}`,
+        401,
       )
     } catch (error) {
-      throw new ICloudRemoteError(
-        400,
-        `IMAP 登录失败，请检查 iCloud 邮箱和应用专用密码：${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.abort()
+      if (error instanceof ICloudRemoteError && error.status === 401) {
+        throw new ICloudRemoteError(400, 'IMAP 登录失败，请检查 iCloud 邮箱和应用专用密码。')
+      }
+      if (error instanceof ICloudRemoteError) throw error
+      throw new ICloudRemoteError(502, '连接 iCloud IMAP 失败。')
     }
   }
 
   async close(): Promise<void> {
-    if (!this.socket) return
-    try { await this.command('LOGOUT') } catch { /* server may close first */ }
-    try { await this.socket.close() } catch { /* socket may already be closed */ }
+    const socket = this.socket
+    if (!socket) return
+    try { await this.command('LOGOUT', 502, CLOSE_TIMEOUT_MS) } catch { /* close below */ }
     this.socket = undefined
+    this.reader = undefined
+    this.writer = undefined
+    try {
+      await withTimeout(socket.close(), CLOSE_TIMEOUT_MS, () => undefined)
+    } catch { /* socket may already be closed */ }
   }
 
-  private async command(command: string): Promise<CommandResult> {
+  private async command(
+    command: string,
+    failureStatus = 502,
+    timeoutMs = COMMAND_TIMEOUT_MS,
+  ): Promise<CommandResult> {
     if (!this.reader || !this.writer) throw new ICloudRemoteError(500, 'IMAP 尚未连接。')
-    const tag = `A${String(++this.tagNumber).padStart(4, '0')}`
-    await this.writer.write(encoder.encode(`${tag} ${command}\r\n`))
-    const result: CommandResult = { lines: [], literals: [] }
-    for (;;) {
-      const line = await this.reader.line()
-      result.lines.push(line)
-      const literal = line.match(/\{(\d+)\}$/)
-      if (literal) {
-        const length = Number(literal[1])
-        if (length > DETAIL_MESSAGE_BYTES) {
-          throw new ICloudRemoteError(502, '邮件内容超过单封读取上限。')
+    const operation = (async () => {
+      const tag = `A${String(++this.tagNumber).padStart(4, '0')}`
+      await this.writer!.write(encoder.encode(`${tag} ${command}\r\n`))
+      const result: CommandResult = { lines: [], literals: [] }
+      for (;;) {
+        const line = await this.reader!.line()
+        result.lines.push(line)
+        const literal = line.match(/\{(\d+)\}$/)
+        if (literal) {
+          const length = Number(literal[1])
+          if (length > DETAIL_MESSAGE_BYTES) {
+            throw new ICloudRemoteError(502, '邮件内容超过单封读取上限。')
+          }
+          result.literals.push({ line, data: await this.reader!.exactly(length) })
         }
-        result.literals.push({ line, data: await this.reader.exactly(length) })
-      }
-      if (line.startsWith(`${tag} `)) {
-        if (!line.startsWith(`${tag} OK`)) {
-          throw new ICloudRemoteError(502, `IMAP 命令失败：${line.slice(tag.length + 1, 240)}`)
+        if (line.startsWith(`${tag} `)) {
+          if (!line.startsWith(`${tag} OK`)) {
+            throw new ICloudRemoteError(
+              failureStatus,
+              failureStatus === 401 ? 'iCloud IMAP 拒绝了登录凭据。' : 'iCloud IMAP 命令失败。',
+              true,
+            )
+          }
+          return result
         }
-        return result
       }
+    })()
+    try {
+      return await withTimeout(operation, timeoutMs, () => this.abort())
+    } catch (error) {
+      if (error instanceof ICloudRemoteError) {
+        if (!error.definitive) this.abort()
+        throw error
+      }
+      this.abort()
+      throw new ICloudRemoteError(502, 'iCloud IMAP 连接失败。')
     }
   }
 

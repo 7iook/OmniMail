@@ -8,6 +8,10 @@ async function mockICloud(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    })
   })
   await page.route('**/api/**', async (route) => {
     const request = route.request()
@@ -63,6 +67,17 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByText('Personal')).toBeVisible()
   await expect(page.getByText('shop@icloud.com')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
+
+  await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: '账号名称' }))
+    .toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+
+  await page.getByRole('button', { name: /Shopping/ }).click()
+  await page.getByRole('button', { name: '复制', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('已复制：shop@icloud.com')
 
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('Full receipt body.')).toBeVisible()

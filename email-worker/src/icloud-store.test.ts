@@ -5,6 +5,7 @@ import type { ICloudAccount } from './icloud-types'
 describe('iCloud account storage boundary', () => {
   it('accepts Cookie header and JSON object formats', () => {
     expect(parseICloudCookies('a=1; b=two=three')).toEqual({ a: '1', b: 'two=three' })
+    expect(parseICloudCookies('quoted="value"')).toEqual({ quoted: 'value' })
     expect(parseICloudCookies('{"session":"secret"}')).toEqual({ session: 'secret' })
   })
 
@@ -12,6 +13,16 @@ describe('iCloud account storage boundary', () => {
     expect(() => parseICloudCookies('')).toThrow('请填写')
     expect(() => parseICloudCookies('{}')).toThrow('没有可用值')
     expect(() => parseICloudCookies('not-a-cookie')).toThrow('无法解析')
+  })
+
+  it('rejects oversized or header-injecting Cookie input', () => {
+    expect(() => parseICloudCookies({ session: 'ok\r\nX-Test: injected' }))
+      .toThrow('无效名称或值')
+    expect(() => parseICloudCookies({ session: 'x'.repeat(8 * 1024 + 1) }))
+      .toThrow('无效名称或值')
+    expect(() => parseICloudCookies(Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [`cookie-${index}`, 'value']),
+    ))).toThrow('不能超过 64 个')
   })
 
   it('never exposes credentials or user ownership in public accounts', () => {

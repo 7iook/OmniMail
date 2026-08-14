@@ -41,11 +41,15 @@ beforeAll(async () => {
 })
 
 describe('Worker storage bindings', () => {
-  it('recovers a legacy database without Wrangler migration records', async () => {
-    const before = await env.DB.prepare(
-      "SELECT name, dflt_value FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
-    ).first<{ name: string; dflt_value: string }>()
-    expect(before).toBeNull()
+  it('recovers a legacy database through iCloud and preserves Wrangler history', async () => {
+    const beforeScopes = await env.DB.prepare(
+      "SELECT 1 AS present FROM pragma_table_info('device_sessions') WHERE name = 'scopes' LIMIT 1",
+    ).first<{ present: number }>()
+    const beforeICloud = await env.DB.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts' LIMIT 1",
+    ).first<{ present: number }>()
+    expect(beforeScopes).toBeNull()
+    expect(beforeICloud).toBeNull()
 
     const response = await worker.fetch(
       new Request('https://mail.example.com/api/config'),
@@ -54,14 +58,9 @@ describe('Worker storage bindings', () => {
     )
     expect(response.status).toBe(200)
 
-    const migration = await env.DB.prepare(
-      'SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1',
-    ).first<{ name: string }>()
     const columns = await env.DB.prepare(
       "SELECT name, dflt_value FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).first<{ name: string; dflt_value: string }>()
-
-    expect(migration?.name).toBe('0021_icloud_accounts.sql')
     expect(columns).toMatchObject({ name: 'scopes', dflt_value: "'*'" })
     const recovered = await env.DB.prepare(
       `SELECT COUNT(*) AS count FROM d1_migrations
@@ -77,16 +76,21 @@ describe('Worker storage bindings', () => {
     expect(recovered?.count).toBe(3)
     expect(authorizationTable?.name).toBe('extension_authorization_codes')
 
-    await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
-    const recorded = await env.DB.prepare(
-      'SELECT COUNT(*) AS count FROM d1_migrations WHERE name = ?',
-    ).bind('0020_device_token_scopes.sql').first<{ count: number }>()
-    expect(recorded?.count).toBe(1)
-
     const accountTable = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
     ).first<{ name: string }>()
     expect(accountTable?.name).toBe('icloud_accounts')
+
+    await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+    const migrations = await env.DB.prepare(
+      `SELECT name, COUNT(*) AS total FROM d1_migrations
+       WHERE name IN ('0020_device_token_scopes.sql', '0021_icloud_accounts.sql')
+       GROUP BY name ORDER BY name`,
+    ).all<{ name: string; total: number }>()
+    expect(migrations.results).toEqual([
+      { name: '0020_device_token_scopes.sql', total: 1 },
+      { name: '0021_icloud_accounts.sql', total: 1 },
+    ])
   })
 
   it('uses real D1, R2, and Queue bindings inside workerd', async () => {

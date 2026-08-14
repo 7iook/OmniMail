@@ -7,11 +7,16 @@ import type {
 
 const HME_BUILD_NUMBER = '2624Build22'
 const DEFAULT_BUILD_NUMBER = '2624Build13'
+const REQUEST_TIMEOUT_MS = 15_000
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
   + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
 
 export class ICloudRemoteError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly definitive = false,
+  ) {
     super(message)
   }
 }
@@ -169,11 +174,17 @@ export class ICloudClient {
     return url.toString()
   }
 
-  private async request<T>(method: string, rawUrl: string, body?: unknown): Promise<T> {
+  private async request<T>(
+    method: string,
+    rawUrl: string,
+    body?: unknown,
+    retryable = method === 'GET',
+  ): Promise<T> {
     const fullUrl = this.buildUrl(rawUrl)
     const hostname = new URL(fullUrl).hostname
     let lastError: unknown
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    const attempts = retryable ? 2 : 1
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       const headers = new Headers({
         Accept: hostname.includes('maildomainws') ? '*/*' : 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
@@ -189,6 +200,7 @@ export class ICloudClient {
           headers,
           body: body === undefined ? undefined : JSON.stringify(body),
           redirect: 'manual',
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         })
         mergeSetCookies(this.cookies, response.headers)
         const text = await response.text()
@@ -196,8 +208,10 @@ export class ICloudClient {
           const error = new ICloudRemoteError(
             response.status === 401 || response.status === 403 ? 401 : 502,
             `iCloud 请求失败（HTTP ${response.status}）。`,
+            response.status < 500 && response.status !== 429,
           )
           if (error.status === 401) throw error
+          if (!retryable || error.definitive) throw error
           lastError = error
           continue
         }
@@ -208,13 +222,17 @@ export class ICloudClient {
         }
       } catch (error) {
         if (error instanceof ICloudRemoteError && error.status === 401) throw error
-        lastError = error
+        if (error instanceof ICloudRemoteError && error.definitive) throw error
+        lastError = error instanceof DOMException
+          && (error.name === 'TimeoutError' || error.name === 'AbortError')
+          ? new ICloudRemoteError(504, '连接 iCloud 超时。')
+          : error
       }
     }
     if (lastError instanceof ICloudRemoteError) throw lastError
     throw new ICloudRemoteError(
       502,
-      `连接 iCloud 失败：${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      '连接 iCloud 失败。',
     )
   }
 
@@ -222,6 +240,8 @@ export class ICloudClient {
     const data = await this.request<ValidateResponse>(
       'POST',
       `https://setup.${this.host}/setup/ws/1/validate`,
+      undefined,
+      true,
     )
     const serviceUrl = data.webservices?.premiummailsettings?.url
     if (!serviceUrl) throw new ICloudRemoteError(401, 'Cookie 已过期，或账号未开通 iCloud+。')
@@ -280,7 +300,7 @@ export class ICloudClient {
       `${this.serviceUrl}/v1/hme/${action}`,
       { anonymousId },
     )
-    if (!data.success) throw new ICloudRemoteError(502, `iCloud ${action} 操作失败。`)
+    if (!data.success) throw new ICloudRemoteError(502, `iCloud ${action} 操作失败。`, true)
   }
 
   deactivate(anonymousId: string): Promise<void> {
@@ -295,6 +315,9 @@ export class ICloudClient {
     try {
       await this.aliasAction('delete', anonymousId)
     } catch (firstError) {
+      if (!(firstError instanceof ICloudRemoteError) || !firstError.definitive) {
+        throw firstError
+      }
       await this.aliasAction('deactivate', anonymousId).catch(() => undefined)
       try {
         await this.aliasAction('delete', anonymousId)
@@ -319,6 +342,7 @@ export class ICloudClient {
           condstore: 1, qresync: 1, threadmode: 1,
         },
       },
+      true,
     )
     if (data.success === false) throw new ICloudRemoteError(502, 'iCloud Web 邮件接口返回失败。')
     return (Array.isArray(data.threadList) ? data.threadList : [])

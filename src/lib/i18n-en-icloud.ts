@@ -75,4 +75,18 @@ export const enICloud: Record<string, string> = {
   '隐藏邮箱已停用': 'Hide My Email address deactivated',
   '隐藏邮箱已恢复': 'Hide My Email address reactivated',
   'iCloud 账号已添加': 'iCloud account added',
+  '连接 iCloud 超时。': 'The iCloud connection timed out.',
+  '连接 iCloud 失败。': 'Could not connect to iCloud.',
+  'iCloud IMAP 请求超时。': 'The iCloud IMAP request timed out.',
+  'iCloud IMAP 服务未就绪。': 'The iCloud IMAP service is not ready.',
+  'IMAP 登录失败，请检查 iCloud 邮箱和应用专用密码。':
+    'IMAP sign-in failed. Check the iCloud email and app-specific password.',
+  '连接 iCloud IMAP 失败。': 'Could not connect to iCloud IMAP.',
+  'iCloud IMAP 命令失败。': 'The iCloud IMAP command failed.',
+  'iCloud IMAP 连接失败。': 'The iCloud IMAP connection failed.',
+  'Cookie 数量不能超过 64 个。': 'No more than 64 cookies are allowed.',
+  'Cookie 包含无效名称或值。': 'A cookie has an invalid name or value.',
+  'Cookie 总大小不能超过 32 KiB。': 'The total cookie size must not exceed 32 KiB.',
+  '隐藏邮箱操作已完成，但账号状态同步失败。':
+    'The alias operation completed, but the account status could not be refreshed.',
 }

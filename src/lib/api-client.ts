@@ -71,11 +71,12 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   }
   let response: Response
   try {
+    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     response = await fetch(`${API_ORIGIN}${path}`, {
       ...init,
       headers,
       credentials: 'include',
-      signal: init.signal || AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
     })
   } catch (error) {
     if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
@@ -424,7 +425,9 @@ export const api = {
     body: jsonBody(input),
   }),
   mailboxes: () => request<{ mailboxes: MailboxAddress[] }>('/api/mailboxes'),
-  iCloudAccounts: () => request<{ accounts: ICloudAccount[] }>('/api/icloud/accounts'),
+  iCloudAccounts: (signal?: AbortSignal) => request<{ accounts: ICloudAccount[] }>(
+    '/api/icloud/accounts', { signal },
+  ),
   createICloudAccount: (input: { name: string; host: ICloudHost; cookies: string }) => (
     request<{ account: ICloudAccount }>('/api/icloud/accounts', {
       method: 'POST', body: jsonBody(input),
@@ -444,8 +447,9 @@ export const api = {
       { method: 'PUT', body: jsonBody({ icloudEmail, appPassword }) },
     )
   ),
-  iCloudAliases: (accountId: string) => request<{ aliases: ICloudAlias[] }>(
+  iCloudAliases: (accountId: string, signal?: AbortSignal) => request<{ aliases: ICloudAlias[] }>(
     `/api/icloud/aliases?accountId=${encodeURIComponent(accountId)}`,
+    { signal },
   ),
   createICloudAlias: (accountId: string, label: string) => request<{ alias: ICloudAlias }>(
     '/api/icloud/aliases',
@@ -462,15 +466,17 @@ export const api = {
     `/api/icloud/aliases/${encodeURIComponent(anonymousId)}`,
     { method: 'DELETE', body: jsonBody({ accountId }) },
   ),
-  iCloudInbox: (accountId: string, alias = '') => {
+  iCloudInbox: (accountId: string, alias = '', signal?: AbortSignal) => {
     const search = new URLSearchParams({ accountId, limit: '20', days: '7' })
     if (alias) search.set('alias', alias)
     return request<{ messages: ICloudMessage[]; method: 'imap' | 'web' }>(
       `/api/icloud/inbox?${search}`,
+      { signal },
     )
   },
-  iCloudMessage: (accountId: string, uid: string) => request<{ message: ICloudMessage }>(
+  iCloudMessage: (accountId: string, uid: string, signal?: AbortSignal) => request<{ message: ICloudMessage }>(
     `/api/icloud/inbox/${encodeURIComponent(uid)}?accountId=${encodeURIComponent(accountId)}`,
+    { signal },
   ),
   addMailbox: (address: string) => request<{ mailbox: MailboxAddress }>('/api/mailboxes', {
     method: 'POST',

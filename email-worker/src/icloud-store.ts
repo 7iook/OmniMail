@@ -10,23 +10,73 @@ import type {
 } from './icloud-types'
 import type { Env } from './types'
 
+const MAX_COOKIE_COUNT = 64
+const MAX_COOKIE_NAME_LENGTH = 128
+const MAX_COOKIE_VALUE_BYTES = 8 * 1024
+const MAX_COOKIE_HEADER_BYTES = 32 * 1024
+const COOKIE_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+const COOKIE_VALUE = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/
+
+type PublicICloudAccountRow = Omit<
+  ICloudAccountRow,
+  'user_id' | 'cookies_cipher' | 'app_password_cipher' | 'updated_at'
+> & {
+  has_cookies: number
+  has_app_password: number
+}
+
 export class ICloudStoreError extends Error {
   constructor(readonly status: number, message: string) {
     super(message)
   }
 }
 
+function validatedCookies(entries: Array<[string, string]>): Record<string, string> {
+  if (!entries.length) throw new ICloudStoreError(400, 'Cookie 中没有可用值。')
+  if (entries.length > MAX_COOKIE_COUNT) {
+    throw new ICloudStoreError(400, `Cookie 数量不能超过 ${MAX_COOKIE_COUNT} 个。`)
+  }
+  const encoder = new TextEncoder()
+  let totalBytes = 0
+  const result: Record<string, string> = {}
+  for (const [rawName, rawValue] of entries) {
+    const name = rawName.trim()
+    const trimmedValue = rawValue.trim()
+    const value = trimmedValue.startsWith('"') && trimmedValue.endsWith('"')
+      ? trimmedValue.slice(1, -1)
+      : trimmedValue
+    const valueBytes = encoder.encode(value).byteLength
+    if (
+      !name
+      || name.length > MAX_COOKIE_NAME_LENGTH
+      || !COOKIE_NAME.test(name)
+      || !value
+      || valueBytes > MAX_COOKIE_VALUE_BYTES
+      || !COOKIE_VALUE.test(value)
+    ) throw new ICloudStoreError(400, 'Cookie 包含无效名称或值。')
+    // Includes `=`, quotes, and the `; ` separator used by the outbound header.
+    totalBytes += encoder.encode(name).byteLength + valueBytes + 5
+    result[name] = value
+  }
+  if (totalBytes > MAX_COOKIE_HEADER_BYTES) {
+    throw new ICloudStoreError(400, 'Cookie 总大小不能超过 32 KiB。')
+  }
+  return result
+}
+
 export function parseICloudCookies(raw: unknown): Record<string, string> {
   if (raw && !Array.isArray(raw) && typeof raw === 'object') {
-    const entries = Object.entries(raw).filter(
-      (entry): entry is [string, string] => Boolean(entry[0]) && typeof entry[1] === 'string'
-        && Boolean(entry[1]),
-    )
-    if (entries.length) return Object.fromEntries(entries)
-    throw new ICloudStoreError(400, 'Cookie 中没有可用值。')
+    const entries = Object.entries(raw)
+    if (!entries.every((entry): entry is [string, string] => typeof entry[1] === 'string')) {
+      throw new ICloudStoreError(400, 'Cookie 包含无效名称或值。')
+    }
+    return validatedCookies(entries)
   }
   const value = typeof raw === 'string' ? raw.trim() : ''
   if (!value) throw new ICloudStoreError(400, '请填写 iCloud Cookie。')
+  if (new TextEncoder().encode(value).byteLength > MAX_COOKIE_HEADER_BYTES) {
+    throw new ICloudStoreError(400, 'Cookie 总大小不能超过 32 KiB。')
+  }
   if (value.startsWith('{')) {
     try {
       return parseICloudCookies(JSON.parse(value) as unknown)
@@ -43,7 +93,7 @@ export function parseICloudCookies(raw: unknown): Record<string, string> {
     return name && cookieValue ? [[name, cookieValue]] : []
   })
   if (!entries.length) throw new ICloudStoreError(400, '无法解析 iCloud Cookie。')
-  return Object.fromEntries(entries)
+  return validatedCookies(entries)
 }
 
 export function publicICloudAccount(account: ICloudAccount): PublicICloudAccount {
@@ -52,6 +102,24 @@ export function publicICloudAccount(account: ICloudAccount): PublicICloudAccount
     ...safe,
     hasCookies: Object.keys(cookies).length > 0,
     hasAppPassword: Boolean(appPassword),
+  }
+}
+
+function publicICloudAccountRow(row: PublicICloudAccountRow): PublicICloudAccount {
+  return {
+    id: row.id,
+    name: row.name,
+    realEmail: row.real_email,
+    icloudEmail: row.icloud_email,
+    host: row.host,
+    status: row.status,
+    aliasTotal: Number(row.alias_total),
+    aliasActive: Number(row.alias_active),
+    lastValidated: row.last_validated,
+    lastError: row.last_error,
+    createdAt: row.created_at,
+    hasCookies: Boolean(row.has_cookies),
+    hasAppPassword: Boolean(row.has_app_password),
   }
 }
 
@@ -112,11 +180,15 @@ export class ICloudAccountStore {
 
   async list(): Promise<PublicICloudAccount[]> {
     const { results } = await this.env.DB.prepare(
-      `SELECT * FROM icloud_accounts WHERE user_id = ?
+      `SELECT id, name, real_email, icloud_email, host, status,
+              alias_total, alias_active, last_validated, last_error, created_at,
+              CASE WHEN cookies_cipher <> '' THEN 1 ELSE 0 END AS has_cookies,
+              CASE WHEN app_password_cipher <> '' THEN 1 ELSE 0 END AS has_app_password
+       FROM icloud_accounts WHERE user_id = ?
        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
                 created_at`,
-    ).bind(this.userId).all<ICloudAccountRow>()
-    return Promise.all(results.map(async (row) => publicICloudAccount(await this.fromRow(row))))
+    ).bind(this.userId).all<PublicICloudAccountRow>()
+    return results.map(publicICloudAccountRow)
   }
 
   async get(id: string): Promise<ICloudAccount> {

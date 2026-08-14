@@ -79,6 +79,31 @@ async function validateAccount(account: ICloudAccount): Promise<void> {
   }
 }
 
+async function refreshAliasSummary(
+  store: ICloudAccountStore,
+  account: ICloudAccount,
+  client: ICloudClient,
+): Promise<void> {
+  account.cookies = client.cookies
+  account.status = 'active'
+  account.lastError = ''
+  try {
+    const aliases = await client.listAliases()
+    account.cookies = client.cookies
+    account.aliasTotal = aliases.length
+    account.aliasActive = aliases.filter((alias) => alias.active).length
+    account.lastValidated = new Date().toISOString()
+  } catch (error) {
+    account.lastError = '隐藏邮箱操作已完成，但账号状态同步失败。'
+    if (error instanceof ICloudRemoteError && error.status === 401) account.status = 'error'
+    console.warn('iCloud alias statistics refresh failed', {
+      accountId: account.id,
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+  await store.saveCookies(account)
+}
+
 export async function listICloudAccounts(env: Env, user: SessionUser): Promise<Response> {
   try {
     return Response.json({ accounts: await new ICloudAccountStore(env, user.id).list() })
@@ -252,12 +277,7 @@ export async function createICloudAlias(
     }
     const client = new ICloudClient(account.cookies, account.host)
     const alias = await client.createAlias(label)
-    account.cookies = client.cookies
-    account.status = 'active'
-    account.lastError = ''
-    account.aliasTotal += 1
-    account.aliasActive += 1
-    await store.saveCookies(account)
+    await refreshAliasSummary(store, account, client)
     await writeAudit(env, user.id, 'icloud.alias.create', accountId, ip, {
       alias: alias.email,
     })
@@ -291,9 +311,7 @@ export async function updateICloudAlias(
     const client = new ICloudClient(account.cookies, account.host)
     if (action === 'deactivate') await client.deactivate(anonymousId)
     else await client.reactivate(anonymousId)
-    account.cookies = client.cookies
-    account.lastError = ''
-    await store.saveCookies(account)
+    await refreshAliasSummary(store, account, client)
     await writeAudit(env, user.id, `icloud.alias.${action}`, accountId, ip, { anonymousId })
     return Response.json({ ok: true, action })
   } catch (error) {
@@ -319,11 +337,7 @@ export async function deleteICloudAlias(
     }
     const client = new ICloudClient(account.cookies, account.host)
     await client.delete(anonymousId)
-    account.cookies = client.cookies
-    account.lastError = ''
-    account.aliasTotal = Math.max(0, account.aliasTotal - 1)
-    account.aliasActive = Math.min(account.aliasActive, account.aliasTotal)
-    await store.saveCookies(account)
+    await refreshAliasSummary(store, account, client)
     await writeAudit(env, user.id, 'icloud.alias.delete', accountId, ip, { anonymousId })
     return Response.json({ ok: true })
   } catch (error) {

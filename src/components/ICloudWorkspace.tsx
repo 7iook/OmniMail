@@ -59,11 +59,47 @@ function Modal({ title, description, onClose, children }: {
   onClose: () => void
   children: ReactNode
 }) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const dialog = dialogRef.current
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ) || [])
+    const first = dialog?.querySelector<HTMLElement>('[data-modal-autofocus]') || focusable()[0]
+    first?.focus()
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const firstItem = items[0]
+      const lastItem = items.at(-1)!
+      if (!dialog?.contains(document.activeElement)) {
+        event.preventDefault(); (event.shiftKey ? lastItem : firstItem).focus()
+      } else if (event.shiftKey && document.activeElement === firstItem) {
+        event.preventDefault(); lastItem.focus()
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault(); firstItem.focus()
+      }
+    }
+    document.addEventListener('keydown', keydown)
+    return () => {
+      document.removeEventListener('keydown', keydown)
+      previous?.focus()
+    }
+  }, [])
   return (
     <div className="icloud-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="icloud-modal" role="dialog" aria-modal="true" aria-labelledby="icloud-modal-title">
+      <section ref={dialogRef} className="icloud-modal" role="dialog" aria-modal="true" aria-labelledby="icloud-modal-title" aria-describedby="icloud-modal-description">
         <header>
-          <div><h2 id="icloud-modal-title">{title}</h2><p>{description}</p></div>
+          <div><h2 id="icloud-modal-title">{title}</h2><p id="icloud-modal-description">{description}</p></div>
           <button className="icon-button" type="button" onClick={onClose} aria-label={t('关闭')}><X size={17} /></button>
         </header>
         {children}
@@ -91,7 +127,7 @@ function AddAccountModal({ onClose, onCreated }: {
   return (
     <Modal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
       <form className="icloud-form" onSubmit={submit}>
-        <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
+        <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
         <label><span>{t('iCloud 区域')}</span><select value={host} onChange={(event) => setHost(event.target.value as ICloudHost)}><option value="icloud.com">{t('全球 · icloud.com')}</option><option value="icloud.com.cn">{t('中国大陆 · icloud.com.cn')}</option></select></label>
         <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
@@ -186,31 +222,54 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   const [messageLoading, setMessageLoading] = useState(false)
   const aliasRequestId = useRef(0)
   const inboxRequestId = useRef(0)
+  const messageRequestId = useRef(0)
+  const accountsRequestId = useRef(0)
+  const accountsController = useRef<AbortController | null>(null)
+  const aliasController = useRef<AbortController | null>(null)
+  const inboxController = useRef<AbortController | null>(null)
+  const messageController = useRef<AbortController | null>(null)
   const selected = accounts.find((account) => account.id === selectedId)
 
   const loadAccounts = useCallback(async () => {
     if (!enabled) { setLoading(false); return }
+    accountsController.current?.abort()
+    const controller = new AbortController()
+    accountsController.current = controller
+    const current = ++accountsRequestId.current
     try {
-      const result = await api.iCloudAccounts()
+      const result = await api.iCloudAccounts(controller.signal)
+      if (current !== accountsRequestId.current) return
       setAccounts(result.accounts)
       setSelectedId((current) => result.accounts.some((item) => item.id === current) ? current : result.accounts[0]?.id || '')
       setCredentials((current) => current ? result.accounts.find((item) => item.id === current.id) || null : null)
-    } catch (loadError) { setError(errorMessage(loadError)) } finally { setLoading(false) }
+    } catch (loadError) {
+      if (current === accountsRequestId.current) setError(errorMessage(loadError))
+    } finally {
+      if (current === accountsRequestId.current) setLoading(false)
+    }
   }, [enabled])
 
   const sync = useCallback(async () => {
     const id = selectedId
     if (!id) return
+    aliasController.current?.abort()
+    inboxController.current?.abort()
+    const aliasAbort = new AbortController()
+    aliasController.current = aliasAbort
     const aliasCurrent = ++aliasRequestId.current
     const inboxCurrent = ++inboxRequestId.current
     setSyncing(true); setError('')
     try {
-      const aliasResult = await api.iCloudAliases(id)
+      const aliasResult = await api.iCloudAliases(id, aliasAbort.signal)
       if (aliasCurrent !== aliasRequestId.current) return
       setAliases(aliasResult.aliases)
       await loadAccounts()
+      if (aliasCurrent !== aliasRequestId.current || inboxCurrent !== inboxRequestId.current) return
       try {
-        const inboxResult = await api.iCloudInbox(id, selectedAlias)
+        inboxController.current?.abort()
+        const inboxAbort = new AbortController()
+        inboxController.current = inboxAbort
+        const inboxResult = await api.iCloudInbox(id, selectedAlias, inboxAbort.signal)
         if (inboxCurrent === inboxRequestId.current) setMessages(inboxResult.messages)
       } catch (inboxError) {
         if (inboxCurrent === inboxRequestId.current) {
@@ -230,10 +289,13 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   const loadInbox = useCallback(async () => {
     const id = selectedId
     if (!id) return
+    inboxController.current?.abort()
+    const inboxAbort = new AbortController()
+    inboxController.current = inboxAbort
     const current = ++inboxRequestId.current
     setSyncing(true); setError('')
     try {
-      const result = await api.iCloudInbox(id, selectedAlias)
+      const result = await api.iCloudInbox(id, selectedAlias, inboxAbort.signal)
       if (current === inboxRequestId.current) setMessages(result.messages)
     } catch (inboxError) {
       if (current === inboxRequestId.current) {
@@ -244,8 +306,10 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
 
   useEffect(() => { void loadAccounts() }, [loadAccounts])
   useEffect(() => {
+    aliasController.current?.abort(); inboxController.current?.abort()
+    messageController.current?.abort(); messageRequestId.current += 1
     aliasRequestId.current += 1; inboxRequestId.current += 1
-    setAliases([]); setMessages([]); setSelectedAlias('')
+    setAliases([]); setMessages([]); setSelectedAlias(''); setOpened(null)
   }, [selectedId])
   useEffect(() => { if (selectedId) void sync() }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -256,6 +320,16 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
     const timer = window.setTimeout(() => setNotice(''), 3000)
     return () => window.clearTimeout(timer)
   }, [notice])
+  useEffect(() => () => {
+    accountsRequestId.current += 1
+    aliasRequestId.current += 1
+    inboxRequestId.current += 1
+    messageRequestId.current += 1
+    accountsController.current?.abort()
+    aliasController.current?.abort()
+    inboxController.current?.abort()
+    messageController.current?.abort()
+  }, [])
 
   async function createAlias(event: FormEvent) {
     event.preventDefault(); if (!selected) return
@@ -275,11 +349,36 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
     } catch (actionError) { setError(errorMessage(actionError)) }
   }
   async function openMessage(message: ICloudMessage) {
+    messageController.current?.abort()
+    const current = ++messageRequestId.current
     setOpened(message)
+    setMessageLoading(false)
     if (!selected?.hasAppPassword || !/^\d+$/.test(message.id)) return
+    const controller = new AbortController()
+    messageController.current = controller
     setMessageLoading(true)
-    try { setOpened((await api.iCloudMessage(selected.id, message.id)).message) }
-    catch (openError) { setError(errorMessage(openError)) } finally { setMessageLoading(false) }
+    try {
+      const result = await api.iCloudMessage(selected.id, message.id, controller.signal)
+      if (current === messageRequestId.current) setOpened(result.message)
+    } catch (openError) {
+      if (current === messageRequestId.current) setError(errorMessage(openError))
+    } finally {
+      if (current === messageRequestId.current) setMessageLoading(false)
+    }
+  }
+  async function copyAlias(address: string) {
+    try {
+      await navigator.clipboard.writeText(address)
+      setNotice(t('已复制：{address}', { address }))
+    } catch {
+      setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
+    }
+  }
+  function closeMessage() {
+    messageController.current?.abort()
+    messageRequestId.current += 1
+    setOpened(null)
+    setMessageLoading(false)
   }
 
   return (
@@ -299,14 +398,14 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
             <form className="icloud-create-bar" onSubmit={createAlias}><AtSign size={17} /><input value={label} maxLength={80} onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /><button className="button button--primary button--small" disabled={creating || !selected.hasCookies}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建隐藏邮箱')}</button></form>
             <div className="icloud-mail-grid">
               <aside className="icloud-aliases"><header><div><h2>{t('隐藏邮箱')}</h2><p>{t('{count} 个地址', { count: aliases.length })}</p></div><button className="icon-button icon-button--small" type="button" disabled={syncing} onClick={() => void sync()} aria-label={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={15} />}</button></header><div><button className={!selectedAlias ? 'is-active' : ''} type="button" onClick={() => setSelectedAlias('')}><Inbox size={16} /><span><strong>{t('全部邮件')}</strong><small>{t('所有收件地址')}</small></span></button>{aliases.map((alias) => <button className={selectedAlias === alias.email ? 'is-active' : ''} type="button" key={alias.anonymousId || alias.email} onClick={() => setSelectedAlias(alias.email)}><AtSign size={16} /><span><strong>{alias.label || t('未命名地址')}</strong><small>{alias.email}</small></span></button>)}</div></aside>
-              <section className="icloud-inbox"><header><div><h2>{selectedAlias ? aliases.find((alias) => alias.email === selectedAlias)?.label || t('隐藏邮箱') : t('全部邮件')}</h2><p>{selectedAlias || t('最近 7 天来信')} · {t('{count} 封', { count: messages.length })}</p></div>{selectedAlias && aliases.find((alias) => alias.email === selectedAlias) && <div className="icloud-alias-actions"><button type="button" onClick={() => void navigator.clipboard.writeText(selectedAlias)}><Copy size={14} />{t('复制')}</button>{(() => { const alias = aliases.find((item) => item.email === selectedAlias)!; return <><button type="button" onClick={() => void aliasAction(alias, alias.active ? 'deactivate' : 'reactivate')}>{alias.active ? <PowerOff size={14} /> : <Power size={14} />}{t(alias.active ? '停用' : '恢复')}</button><button className="is-danger" type="button" onClick={() => void aliasAction(alias, 'delete')}><Trash2 size={14} />{t('删除')}</button></> })()}</div>}</header>{syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div> : selectedAlias && !selected.hasAppPassword ? <Empty icon={<KeyRound />} title={t('需要应用专用密码')} description={t('配置后才能准确筛选这个隐藏邮箱收到的邮件。')} action={<button className="button button--secondary button--small" onClick={() => setCredentials(selected)}>{t('配置凭据')}</button>} /> : messages.length ? <div className="icloud-message-list">{messages.map((message) => <button type="button" key={`${message.id}-${message.to}`} onClick={() => void openMessage(message)}><span>{(message.from || '?').slice(0, 1).toUpperCase()}</span><div><header><strong>{message.from || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleString() : ''}</time></header><h3>{message.subject || t('无主题')}</h3><p>{message.preview || t('暂无正文预览')}</p></div></button>)}</div> : <Empty icon={<Inbox />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}</section>
+              <section className="icloud-inbox"><header><div><h2>{selectedAlias ? aliases.find((alias) => alias.email === selectedAlias)?.label || t('隐藏邮箱') : t('全部邮件')}</h2><p>{selectedAlias || t('最近 7 天来信')} · {t('{count} 封', { count: messages.length })}</p></div>{selectedAlias && aliases.find((alias) => alias.email === selectedAlias) && <div className="icloud-alias-actions"><button type="button" onClick={() => void copyAlias(selectedAlias)}><Copy size={14} />{t('复制')}</button>{(() => { const alias = aliases.find((item) => item.email === selectedAlias)!; return <><button type="button" onClick={() => void aliasAction(alias, alias.active ? 'deactivate' : 'reactivate')}>{alias.active ? <PowerOff size={14} /> : <Power size={14} />}{t(alias.active ? '停用' : '恢复')}</button><button className="is-danger" type="button" onClick={() => void aliasAction(alias, 'delete')}><Trash2 size={14} />{t('删除')}</button></> })()}</div>}</header>{syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div> : selectedAlias && !selected.hasAppPassword ? <Empty icon={<KeyRound />} title={t('需要应用专用密码')} description={t('配置后才能准确筛选这个隐藏邮箱收到的邮件。')} action={<button className="button button--secondary button--small" onClick={() => setCredentials(selected)}>{t('配置凭据')}</button>} /> : messages.length ? <div className="icloud-message-list">{messages.map((message) => <button type="button" key={`${message.id}-${message.to}`} onClick={() => void openMessage(message)}><span>{(message.from || '?').slice(0, 1).toUpperCase()}</span><div><header><strong>{message.from || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleString() : ''}</time></header><h3>{message.subject || t('无主题')}</h3><p>{message.preview || t('暂无正文预览')}</p></div></button>)}</div> : <Empty icon={<Inbox />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}</section>
             </div>
           </>}
         </>
       )}
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
       {credentials && <CredentialsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]) }} />}
-      {opened && <MessageModal message={opened} loading={messageLoading} onClose={() => { setOpened(null); setMessageLoading(false) }} />}
+      {opened && <MessageModal message={opened} loading={messageLoading} onClose={closeMessage} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
     </main>
   )

@@ -3,9 +3,6 @@ import { applyD1Migrations, createExecutionContext } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import worker from '../src/index'
 import { createSessionToken, storeSession } from '../src/auth'
-import {
-  encryptICloudCredential,
-} from '../src/icloud-credentials'
 import type { Env as OmniMailEnv } from '../src/types'
 
 declare global {
@@ -47,16 +44,8 @@ beforeAll(async () => {
     ) VALUES (?, 'icloud-owner', 'Personal', ?, ?, 'active', ?, ?)`,
   ).bind(
     id,
-    await encryptICloudCredential(
-      env,
-      JSON.stringify({ session: 'never-return-this-cookie' }),
-      `icloud-owner:${id}:cookies`,
-    ),
-    await encryptICloudCredential(
-      env,
-      'never-return-this-password',
-      `icloud-owner:${id}:app-password`,
-    ),
+    'not-a-valid-cookie-cipher',
+    'not-a-valid-password-cipher',
     new Date().toISOString(),
     new Date().toISOString(),
   ).run()
