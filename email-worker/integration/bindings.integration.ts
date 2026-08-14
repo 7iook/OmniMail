@@ -22,8 +22,16 @@ declare global {
 beforeAll(async () => {
   await applyD1Migrations(
     env.DB,
-    env.TEST_MIGRATIONS.filter(({ name }) => name !== '0020_device_token_scopes.sql'),
+    env.TEST_MIGRATIONS.filter(({ name }) => (
+      Number(name.slice(0, 4)) <= 14
+    )),
   )
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at)
+     VALUES ('schema_version', '2026-07-29-p5-outbound-rate-limit-admin', unixepoch())
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  ).run()
+  await env.DB.prepare('DROP TABLE d1_migrations').run()
   await env.DB.prepare(
     `INSERT INTO users (
       id, email, display_name, password_hash, role, mailbox_limit,
@@ -33,7 +41,7 @@ beforeAll(async () => {
 })
 
 describe('Worker storage bindings', () => {
-  it('self-applies the device scope migration and preserves legacy permissions', async () => {
+  it('recovers a legacy database without Wrangler migration records', async () => {
     const before = await env.DB.prepare(
       "SELECT name, dflt_value FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).first<{ name: string; dflt_value: string }>()
@@ -55,6 +63,20 @@ describe('Worker storage bindings', () => {
 
     expect(migration?.name).toBe('0020_device_token_scopes.sql')
     expect(columns).toMatchObject({ name: 'scopes', dflt_value: "'*'" })
+
+    const recovered = await env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM d1_migrations
+       WHERE name IN (
+         '0018_schema_baseline_and_message_indexes.sql',
+         '0019_extension_authorization.sql',
+         '0020_device_token_scopes.sql'
+       )`,
+    ).first<{ count: number }>()
+    const authorizationTable = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'extension_authorization_codes'",
+    ).first<{ name: string }>()
+    expect(recovered?.count).toBe(3)
+    expect(authorizationTable?.name).toBe('extension_authorization_codes')
 
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
     const recorded = await env.DB.prepare(

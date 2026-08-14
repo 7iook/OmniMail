@@ -1,4 +1,4 @@
--- Runtime code only verifies this migration. All schema changes belong here.
+-- Runtime recovery applies this migration to recognized legacy databases.
 
 CREATE TABLE IF NOT EXISTS oauth_identities (
   provider TEXT NOT NULL,
