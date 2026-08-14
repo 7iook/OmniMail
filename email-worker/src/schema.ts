@@ -260,7 +260,12 @@ async function bootstrapLegacyMigrations(db: D1Database): Promise<void> {
       applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
     ...WRANGLER_MIGRATION_NAMES.slice(0, baseline).map((name) => (
-      db.prepare('INSERT OR IGNORE INTO d1_migrations (name) VALUES (?)').bind(name)
+      db.prepare(
+        `INSERT INTO d1_migrations (name)
+         SELECT ? WHERE NOT EXISTS (
+           SELECT 1 FROM d1_migrations WHERE name = ?
+         )`,
+      ).bind(name, name)
     )),
   ])
 }

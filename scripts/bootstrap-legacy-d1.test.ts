@@ -10,10 +10,12 @@ const migrationNames = readdirSync(join(root, 'migrations'))
   .filter((name) => /^\d{4}_.+\.sql$/.test(name))
   .sort()
 
-function applyMigration(db: DatabaseSync, position: number): void {
-  const name = migrationNames[position - 1]
-  db.exec(readFileSync(join(root, 'migrations', name), 'utf8'))
-  db.prepare('INSERT INTO d1_migrations (name) VALUES (?)').run(name)
+function applyMigrations(db: DatabaseSync, firstPosition: number): void {
+  const sql = migrationNames.slice(firstPosition - 1).map((name) => {
+    const migration = readFileSync(join(root, 'migrations', name), 'utf8').trimEnd()
+    return `${migration}\nINSERT INTO d1_migrations (name) VALUES ('${name}');`
+  }).join('\n\n')
+  db.exec(sql)
 }
 
 function legacyDatabase(position: number, version: string): DatabaseSync {
@@ -34,10 +36,11 @@ describe('legacy D1 deployment bootstrap', () => {
     db.exec(bootstrap)
 
     expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 0 })
-    applyMigration(db, 1)
+    applyMigrations(db, 1)
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'users'").get()).toEqual({
       name: 'users',
     })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 20 })
   })
 
   it.each([
@@ -51,9 +54,7 @@ describe('legacy D1 deployment bootstrap', () => {
     expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({
       count: position,
     })
-    for (let current = position + 1; current <= 20; current += 1) {
-      applyMigration(db, current)
-    }
+    applyMigrations(db, position + 1)
     expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 20 })
     expect(db.prepare(
       "SELECT name FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",

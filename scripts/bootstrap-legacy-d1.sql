@@ -38,8 +38,12 @@ WITH legacy_migrations(name, position) AS (
   FROM settings
   WHERE key = 'schema_version'
 )
-INSERT OR IGNORE INTO d1_migrations (name)
+INSERT INTO d1_migrations (name)
 SELECT legacy_migrations.name
 FROM legacy_migrations
 CROSS JOIN legacy_baseline
-WHERE legacy_migrations.position <= legacy_baseline.position;
+WHERE legacy_migrations.position <= legacy_baseline.position
+  AND NOT EXISTS (
+    SELECT 1 FROM d1_migrations applied
+    WHERE applied.name = legacy_migrations.name
+  );
