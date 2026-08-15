@@ -439,6 +439,17 @@ export async function purgeUserDraft(env: Env, userId: string): Promise<void> {
   await purgeDraftIds(env, results.map((draft) => draft.id))
 }
 
+export async function purgeMailboxDrafts(
+  env: Env,
+  userId: string,
+  mailboxAddress: string,
+): Promise<void> {
+  const { results } = await env.DB.prepare(
+    'SELECT id FROM mail_drafts WHERE user_id = ? AND mailbox_address = ?',
+  ).bind(userId, mailboxAddress).all<{ id: string }>()
+  await purgeDraftIds(env, results.map((draft) => draft.id))
+}
+
 export async function sendDraft(
   env: Env,
   user: SessionUser,

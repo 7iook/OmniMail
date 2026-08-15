@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { addMailbox, canCreateMailbox, mailboxDomain, updateMailbox } from './mailbox-api'
+import {
+  addMailbox,
+  canCreateMailbox,
+  deleteMailbox,
+  mailboxDomain,
+  updateMailbox,
+} from './mailbox-api'
 import type { Env, SessionUser, UserRole } from './types'
 
 function user(role: UserRole, canCreateMailboxes: boolean): SessionUser {
@@ -107,5 +113,140 @@ describe('mailboxDomain', () => {
 
     expect(response.status).toBe(403)
     expect(update).not.toHaveBeenCalled()
+  })
+
+  it('atomically moves the primary flag to an active mailbox', async () => {
+    const statements: string[] = []
+    const database = {
+      prepare(sql: string) {
+        statements.push(sql)
+        const statement = {
+          bind() { return statement },
+          first: async () => {
+            if (sql.includes('FROM mailboxes WHERE address')) {
+              return { address: 'alias@example.com', is_primary: 0, is_active: 1 }
+            }
+            if (sql.includes('FROM domains')) return { is_active: 1 }
+            return null
+          },
+          run: async () => ({ meta: { changes: 1 } }),
+        }
+        return statement
+      },
+    }
+    const response = await updateMailbox(
+      { DB: database } as unknown as Env,
+      user('user', true),
+      encodeURIComponent('alias@example.com'),
+      new Request('https://mail.example/api/mailboxes/alias', {
+        method: 'PATCH',
+        body: JSON.stringify({ isPrimary: true }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ mailbox: { isPrimary: true } })
+    expect(statements.some((sql) => sql.includes('SET is_primary = CASE'))).toBe(true)
+  })
+
+  it('does not make a disabled mailbox primary', async () => {
+    const batch = vi.fn(async () => [])
+    const database = {
+      prepare: () => ({
+        bind() { return this },
+        first: async () => ({ address: 'alias@example.com', is_primary: 0, is_active: 0 }),
+      }),
+      batch,
+    }
+    const response = await updateMailbox(
+      { DB: database } as unknown as Env,
+      user('user', true),
+      encodeURIComponent('alias@example.com'),
+      new Request('https://mail.example/api/mailboxes/alias', {
+        method: 'PATCH',
+        body: JSON.stringify({ isPrimary: true }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(409)
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('hides a secondary mailbox before scheduling permanent cleanup', async () => {
+    const create = vi.fn(async () => ({}))
+    const statements: string[] = []
+    const database = {
+      prepare(sql: string) {
+        statements.push(sql)
+        const statement = {
+          bind() { return statement },
+          first: async () => ({ address: 'alias@example.com', is_primary: 0, is_active: 1 }),
+          run: async () => ({ meta: { changes: 1 } }),
+        }
+        return statement
+      },
+    }
+    const response = await deleteMailbox(
+      { DB: database, CLEANUP_WORKFLOW: { create } } as unknown as Env,
+      user('user', true),
+      encodeURIComponent('alias@example.com'),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(202)
+    expect(statements.some((sql) => sql.includes('is_hidden = 1'))).toBe(true)
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      params: expect.objectContaining({
+        mailboxDeletion: expect.objectContaining({ address: 'alias@example.com' }),
+      }),
+    }))
+  })
+
+  it('does not delete the primary mailbox', async () => {
+    const create = vi.fn(async () => ({}))
+    const database = {
+      prepare: () => ({
+        bind() { return this },
+        first: async () => ({ address: 'owner@example.com', is_primary: 1, is_active: 1 }),
+      }),
+    }
+    const response = await deleteMailbox(
+      { DB: database, CLEANUP_WORKFLOW: { create } } as unknown as Env,
+      user('user', true),
+      encodeURIComponent('owner@example.com'),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(409)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('restores a mailbox when its cleanup workflow cannot start', async () => {
+    const statements: string[] = []
+    const database = {
+      prepare(sql: string) {
+        statements.push(sql)
+        const statement = {
+          bind() { return statement },
+          first: async () => ({ address: 'alias@example.com', is_primary: 0, is_active: 1 }),
+          run: async () => ({ meta: { changes: 1 } }),
+        }
+        return statement
+      },
+    }
+    const response = await deleteMailbox(
+      {
+        DB: database,
+        CLEANUP_WORKFLOW: { create: vi.fn(async () => { throw new Error('unavailable') }) },
+      } as unknown as Env,
+      user('user', true),
+      encodeURIComponent('alias@example.com'),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(503)
+    expect(statements.some((sql) => sql.includes('is_hidden = 0'))).toBe(true)
   })
 })

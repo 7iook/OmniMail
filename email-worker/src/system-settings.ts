@@ -7,6 +7,7 @@ const REFRESH_SETTING = 'mail_refresh_interval'
 const REMOTE_IMAGES_SETTING = 'remote_images_enabled'
 const UNASSIGNED_MAIL_SETTING = 'unassigned_mail_enabled'
 const OFFICIAL_EXTENSION_SETTING = 'official_extension_enabled'
+const RANDOM_MAILBOX_PREFIX_SETTING = 'random_mailbox_prefix'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -34,6 +35,14 @@ export function parseUnassignedMailEnabled(value: unknown): boolean | null {
 
 export function parseOfficialExtensionEnabled(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
+}
+
+export function parseRandomMailboxPrefix(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const prefix = value.trim().toLowerCase()
+  return prefix === '' || /^[a-z0-9][a-z0-9._+-]{0,19}$/.test(prefix)
+    ? prefix
+    : null
 }
 
 export async function mailRefreshInterval(db: D1Database): Promise<MailRefreshInterval> {
@@ -151,4 +160,27 @@ export async function updateOfficialExtensionSetting(
   ).bind(OFFICIAL_EXTENSION_SETTING, enabled ? '1' : '0').run()
   await writeAudit(env, actor.id, 'system.official_extension.update', null, ip, { enabled })
   return json({ officialExtensionEnabled: enabled })
+}
+
+export async function updateRandomMailboxPrefix(
+  env: Env,
+  actor: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  if (!isAdministrator(actor)) {
+    return json({ error: '只有管理员可以修改随机邮箱格式。' }, 403)
+  }
+  const body = await request.json<{ prefix?: unknown }>()
+    .catch(() => ({} as { prefix?: unknown }))
+  const prefix = parseRandomMailboxPrefix(body.prefix)
+  if (prefix === null) {
+    return json({ error: '随机邮箱前缀格式无效。' }, 400)
+  }
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+  ).bind(RANDOM_MAILBOX_PREFIX_SETTING, prefix).run()
+  await writeAudit(env, actor.id, 'system.random_mailbox_prefix.update', null, ip, { prefix })
+  return json({ randomMailboxPrefix: prefix })
 }

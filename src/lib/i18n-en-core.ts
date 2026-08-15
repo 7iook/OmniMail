@@ -255,6 +255,16 @@ export const enCore: Record<string, string> = {
   '关闭快速生成邮箱': 'Close quick mailbox generator',
   '选择域名后缀，系统会生成一个未占用的随机邮箱地址。':
     'Choose a domain and OmniMail will create an unused random address.',
+  '输入邮箱前缀，或者留空让系统随机生成。':
+    'Enter a mailbox prefix, or leave it blank to generate one at random.',
+  '邮箱前缀': 'Mailbox prefix',
+  '可选': 'Optional',
+  '留空随机生成': 'Leave blank for a random address',
+  '即将创建': 'Address to create',
+  '创建自定义邮箱': 'Create custom mailbox',
+  '随机生成邮箱': 'Create random mailbox',
+  '邮箱前缀支持字母、数字、点、下划线、加号和连字符，长度为 1–64 个字符。':
+    'Mailbox prefixes support letters, numbers, periods, underscores, plus signs, and hyphens, with 1–64 characters.',
   '邮箱域名后缀': 'Mailbox domain',
   '生成格式': 'Generated format',
   '随机字符': 'random',
@@ -271,6 +281,8 @@ export const enCore: Record<string, string> = {
   '所有邮箱': 'All mailboxes',
   '邮箱地址已启用': 'Mailbox enabled',
   '邮箱地址已停用': 'Mailbox disabled',
+  '邮箱已设为主邮箱': 'Primary mailbox updated',
+  '邮箱删除任务已开始': 'Mailbox deletion has started',
   '当前邮箱': 'Current mailbox',
   '返回邮箱选择': 'Back to mailbox selection',
   '管理邮箱地址': 'Manage mailboxes',
@@ -283,6 +295,18 @@ export const enCore: Record<string, string> = {
   '系统尚未启用可创建邮箱的域名，请联系管理员。':
     'No mailbox domains are enabled. Contact an administrator.',
   '主邮箱 · 始终启用': 'Primary · Always enabled',
+  '当前主邮箱': 'Current primary',
+  '设为主邮箱': 'Make primary',
+  '删除邮箱': 'Delete mailbox',
+  '删除邮箱：{address}': 'Delete mailbox: {address}',
+  '邮箱地址管理': 'Mailbox management',
+  '删除邮箱地址？': 'Delete this mailbox?',
+  '邮箱地址“{address}”将从当前账户中移除。':
+    'The mailbox “{address}” will be removed from this account.',
+  '主存储数据无法恢复': 'Primary storage data cannot be recovered',
+  '该地址的历史邮件、草稿和附件将从主存储永久删除；备份仍按保留策略保存，地址也会被释放。':
+    'Messages, drafts, and attachments for this address will be permanently deleted from primary storage. Backups remain under the retention policy, and the address will be released.',
+  '正在删除…': 'Deleting…',
   '正在接收邮件': 'Receiving messages',
   '已停止接收新邮件': 'New messages paused',
   '停用': 'Disable',

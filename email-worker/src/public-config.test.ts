@@ -67,4 +67,14 @@ describe('public registration configuration', () => {
     expect(disabled.officialExtensionEnabled).toBe(false)
     expect(enabled.officialExtensionEnabled).toBe(true)
   })
+
+  it('exposes an empty random mailbox prefix by default', async () => {
+    const defaultConfig = await publicConfig(environment({}))
+    const configured = await publicConfig(environment({ random_mailbox_prefix: 'alias-' }))
+    const invalid = await publicConfig(environment({ random_mailbox_prefix: '-invalid' }))
+
+    expect(defaultConfig.randomMailboxPrefix).toBe('')
+    expect(configured.randomMailboxPrefix).toBe('alias-')
+    expect(invalid.randomMailboxPrefix).toBe('')
+  })
 })

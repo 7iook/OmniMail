@@ -13,6 +13,7 @@ interface Props {
   domains: ManagedDomain[]
   scope: MailboxScope
   canGenerate: boolean
+  randomMailboxPrefix: string
   canCompose: boolean
   refreshing: boolean
   notifications: MailNotificationControls
@@ -28,6 +29,7 @@ export function MailboxHeaderActions({
   domains,
   scope,
   canGenerate,
+  randomMailboxPrefix,
   canCompose,
   refreshing,
   notifications,
@@ -75,6 +77,7 @@ export function MailboxHeaderActions({
       <QuickMailboxGenerator
         domains={domains}
         disabled={!canGenerate}
+        randomMailboxPrefix={randomMailboxPrefix}
         onCreated={onMailboxCreated}
       />
       {notifications.supported && (

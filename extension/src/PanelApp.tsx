@@ -23,6 +23,10 @@ import type {
   User,
 } from '../../src/lib/api-types'
 import { useAutoRefresh } from '../../src/lib/useAutoRefresh'
+import {
+  randomMailboxLocalPart,
+  validMailboxLocalPart,
+} from '../../src/lib/mailboxAddress'
 import { safeEmailDocument } from './email-document'
 import { PanelRecentMail } from './PanelRecentMail'
 import { PanelSelect } from './PanelSelect'
@@ -37,15 +41,6 @@ type View = 'generate' | 'inbox' | 'settings'
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : '操作失败，请稍后重试。'
-}
-
-function randomLocalPart(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(6))
-  return `omni-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
-}
-
-function validLocalPart(value: string): boolean {
-  return /^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?$/.test(value)
 }
 
 function formatDate(timestamp: number): string {
@@ -214,7 +209,7 @@ export function PanelApp() {
   async function generateMailbox() {
     if (!domain || generating) return
     const requestedLocalPart = localPart.trim().toLowerCase()
-    if (requestedLocalPart && !validLocalPart(requestedLocalPart)) {
+    if (requestedLocalPart && !validMailboxLocalPart(requestedLocalPart)) {
       setError('邮箱前缀支持字母、数字、点、下划线、加号和连字符，长度为 1–64 个字符。')
       return
     }
@@ -223,7 +218,8 @@ export function PanelApp() {
     const maximumAttempts = requestedLocalPart ? 1 : 3
     for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
       try {
-        const address = `${requestedLocalPart || randomLocalPart()}@${domain}`
+        const address = `${requestedLocalPart
+          || randomMailboxLocalPart(config?.randomMailboxPrefix || '')}@${domain}`
         const result = await sendExtensionMessage<{ mailbox: MailboxAddress }>({
           type: 'api:create-mailbox', address,
         })
@@ -332,6 +328,7 @@ export function PanelApp() {
               mailLoading={loading}
               refreshing={refreshing}
               refreshInterval={config?.mailRefreshInterval ?? 0}
+              randomMailboxPrefix={config?.randomMailboxPrefix || ''}
               onDomain={setDomain}
               onLocalPart={setLocalPart}
               onGenerate={generateMailbox}
@@ -414,7 +411,7 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
   )
 }
 
-function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, messages, canGenerate, busy, mailLoading, refreshing, refreshInterval, onDomain, onLocalPart, onGenerate, onCopy, onFill, onRefresh, onSelect }: {
+function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, messages, canGenerate, busy, mailLoading, refreshing, refreshInterval, randomMailboxPrefix, onDomain, onLocalPart, onGenerate, onCopy, onFill, onRefresh, onSelect }: {
   domains: ManagedDomain[]
   domain: string
   localPart: string
@@ -426,6 +423,7 @@ function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAd
   mailLoading: boolean
   refreshing: boolean
   refreshInterval: number
+  randomMailboxPrefix: string
   onDomain: (domain: string) => void
   onLocalPart: (localPart: string) => void
   onGenerate: () => void
@@ -435,7 +433,8 @@ function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAd
   onSelect: (message: MessageSummary) => void
 }) {
   const address = generatedAddress || fallbackAddress
-  const previewLocalPart = localPart.trim().toLowerCase() || 'omni-随机字符'
+  const previewLocalPart = localPart.trim().toLowerCase()
+    || `${randomMailboxPrefix}随机字符`
   return (
     <section className="panel-page generate-page">
       <header className="page-heading"><p className="eyebrow">QUICK MAILBOX</p><h1>快速生成邮箱</h1><p>输入邮箱前缀，或者留空让系统随机生成。</p></header>

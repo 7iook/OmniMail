@@ -1,13 +1,13 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const [tag, outputPath] = process.argv.slice(2)
+const [tag] = process.argv.slice(2)
 const match = /^v(\d+\.\d+\.\d+)$/.exec(tag || '')
 
-if (!match || !outputPath) {
-  throw new Error('Usage: node scripts/prepare-release.mjs vX.Y.Z <notes-path>')
+if (!match) {
+  throw new Error('Usage: node scripts/prepare-release.mjs vX.Y.Z')
 }
 
 const version = match[1]
@@ -25,20 +25,16 @@ for (const [source, actual] of Object.entries(versions)) {
   }
 }
 
-const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8')
-  .replaceAll('\r\n', '\n')
-const heading = `## [${version}]`
-const headingStart = changelog.indexOf(heading)
-if (headingStart < 0) throw new Error(`CHANGELOG.md is missing ${heading}`)
+const notesPath = join(root, 'docs', 'releases', `${tag}.md`)
+let notes = ''
+try {
+  notes = readFileSync(notesPath, 'utf8').trim()
+} catch (error) {
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    throw new Error(`Release notes file is missing: docs/releases/${tag}.md`)
+  }
+  throw error
+}
+if (!notes) throw new Error(`Release notes file is empty: docs/releases/${tag}.md`)
 
-const contentStart = headingStart + heading.length
-const nextHeading = changelog.indexOf('\n## [', contentStart)
-const notes = changelog.slice(
-  contentStart,
-  nextHeading < 0 ? changelog.length : nextHeading,
-).trim()
-if (!notes) throw new Error(`CHANGELOG.md section ${heading} is empty`)
-
-mkdirSync(dirname(outputPath), { recursive: true })
-writeFileSync(outputPath, `${notes}\n`, 'utf8')
-console.log(`Prepared release metadata for ${tag}`)
+console.log(`Verified release metadata for ${tag}: ${relative(root, notesPath)}`)

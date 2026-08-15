@@ -3,9 +3,11 @@ import {
   officialExtensionEnabled,
   parseMailRefreshInterval,
   parseOfficialExtensionEnabled,
+  parseRandomMailboxPrefix,
   parseRemoteImagesEnabled,
   parseUnassignedMailEnabled,
   updateOfficialExtensionSetting,
+  updateRandomMailboxPrefix,
 } from './system-settings'
 import type { Env, SessionUser } from './types'
 
@@ -99,6 +101,48 @@ describe('official browser extension settings', () => {
     expect(allowed.status).toBe(200)
     expect(statements.some(({ bindings }) => (
       bindings[0] === 'official_extension_enabled' && bindings[1] === '1'
+    ))).toBe(true)
+  })
+})
+
+describe('random mailbox prefix settings', () => {
+  it('normalizes a short local-part prefix and allows an empty prefix', () => {
+    expect(parseRandomMailboxPrefix(' Promo- ')).toBe('promo-')
+    expect(parseRandomMailboxPrefix('')).toBe('')
+  })
+
+  it('rejects unsupported characters and prefixes longer than 20 characters', () => {
+    expect(parseRandomMailboxPrefix('-promo')).toBeNull()
+    expect(parseRandomMailboxPrefix('promo address')).toBeNull()
+    expect(parseRandomMailboxPrefix('a'.repeat(21))).toBeNull()
+    expect(parseRandomMailboxPrefix(undefined)).toBeNull()
+  })
+
+  it('persists the normalized prefix for administrators', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const db = {
+      prepare: vi.fn((sql: string) => ({
+        bind: vi.fn((...bindings: unknown[]) => {
+          statements.push({ sql, bindings })
+          return { run: vi.fn(async () => ({ meta: { changes: 1 } })) }
+        }),
+      })),
+    } as unknown as D1Database
+    const response = await updateRandomMailboxPrefix(
+      { DB: db } as Env,
+      { id: 'admin-1', role: 'admin' } as SessionUser,
+      new Request('https://mail.example.com/api/admin/settings/random-mailbox-prefix', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: ' Alias- ' }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ randomMailboxPrefix: 'alias-' })
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'random_mailbox_prefix' && bindings[1] === 'alias-'
     ))).toBe(true)
   })
 })

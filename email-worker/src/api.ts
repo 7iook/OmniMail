@@ -10,7 +10,7 @@ import { createDomain, deleteDomain, listDomains, updateDomain } from './domain-
 import { deploymentCheck, publicSetupRequirements } from './deployment-check'
 import { extensionAuthorizationRoutes } from './extension-authorization-routes'
 import { listFailedMessages, retryFailedMessage } from './failed-mail-api'
-import { addMailbox, listMailboxes, updateMailbox } from './mailbox-api'
+import { addMailbox, deleteMailbox, listMailboxes, updateMailbox } from './mailbox-api'
 import { bulkUpdateMessages } from './message-bulk-api'
 import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, previewMessageAttachment, updateMessage } from './message-detail-api'
 import { listMessages } from './message-list-api'
@@ -38,6 +38,7 @@ import {
   officialExtensionEnabled,
   updateMailRefreshInterval,
   updateOfficialExtensionSetting,
+  updateRandomMailboxPrefix,
   updateRemoteImagesSetting,
   updateUnassignedMailSetting,
 } from './system-settings'
@@ -435,6 +436,7 @@ app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInte
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/unassigned-mail', (context) => updateUnassignedMailSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/official-extension', (context) => updateOfficialExtensionSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/random-mailbox-prefix', (context) => updateRandomMailboxPrefix(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.get('/api/admin/settings/storage', async (context) => {
   const user = context.get('user')
   if (user.role !== 'super_admin' && user.role !== 'admin') {
@@ -482,6 +484,14 @@ app.patch('/api/mailboxes/:address', (context) => (
     context.get('user'),
     context.req.param('address'),
     context.req.raw,
+    clientIp(context.req.raw.headers),
+  )
+))
+app.delete('/api/mailboxes/:address', (context) => (
+  deleteMailbox(
+    context.env,
+    context.get('user'),
+    context.req.param('address'),
     clientIp(context.req.raw.headers),
   )
 ))

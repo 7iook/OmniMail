@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 30
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      RELEASE_NOTES_PATH: docs/releases/${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}.md
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify release metadata
-        run: node scripts/prepare-release.mjs "$RELEASE_TAG" "$RUNNER_TEMP/release-notes.md"
+        run: node scripts/prepare-release.mjs "$RELEASE_TAG"
       - run: npm test
       - run: npm run test:worker
       - run: npm run build
@@ -68,12 +69,12 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
               --title "OmniMail $RELEASE_TAG" \
-              --notes-file "$RUNNER_TEMP/release-notes.md"
+              --notes-file "$RELEASE_NOTES_PATH"
           else
             gh release create "$RELEASE_TAG" \
               --verify-tag \
               --title "OmniMail $RELEASE_TAG" \
-              --notes-file "$RUNNER_TEMP/release-notes.md"
+              --notes-file "$RELEASE_NOTES_PATH"
           fi
           if [ -n "$EXTENSION_ASSET" ]; then
             gh release upload "$RELEASE_TAG" "$EXTENSION_ASSET" --clobber

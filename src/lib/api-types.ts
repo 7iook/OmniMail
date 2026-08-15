@@ -17,6 +17,7 @@ export interface AppConfig {
   remoteImagesEnabled: boolean
   unassignedMailEnabled: boolean
   officialExtensionEnabled: boolean
+  randomMailboxPrefix: string
   superAdminEmail: string
   setupRequirements: SetupRequirements
 }

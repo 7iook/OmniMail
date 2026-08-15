@@ -595,6 +595,8 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `GET /api/session` | 查询当前 Cookie 或 Bearer 会话 |
 | `GET /api/mailboxes` | 当前用户邮箱列表 |
 | `POST /api/mailboxes` | 按用户权限创建邮箱 |
+| `PATCH /api/mailboxes/{address}` | 启停邮箱或将已启用地址设为主邮箱 |
+| `DELETE /api/mailboxes/{address}` | 隐藏非主邮箱并启动邮件、草稿与附件清理任务 |
 | `GET /api/messages` | 邮件列表、筛选与分页 |
 | `POST /api/messages` | 使用已配置的发信服务主动发送邮件 |
 | `GET/POST /api/drafts` | 列出或新建当前用户草稿 |

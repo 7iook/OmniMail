@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { claimRetentionCleanup, purgeMessagesBatch } from './cleanup'
+import {
+  claimRetentionCleanup,
+  purgeMailboxMessagesBatch,
+  purgeMessagesBatch,
+} from './cleanup'
 import type { Env } from './types'
 
 describe('retention cleanup batches', () => {
@@ -43,5 +47,26 @@ describe('retention cleanup batches', () => {
     await expect(purgeMessagesBatch(env, 'expired', 1_800_000_000)).resolves.toBe(2)
     expect(remove).toHaveBeenCalledTimes(2)
     expect(batches).toHaveBeenCalledTimes(2)
+  })
+
+  it('limits mailbox cleanup to the requested owner and address', async () => {
+    const bindings: unknown[][] = []
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind(...values: unknown[]) {
+            bindings.push(values)
+            return this
+          },
+          all: async () => ({ results: [] }),
+        }
+      },
+    }
+    const env = { DB: db } as unknown as Env
+
+    await expect(purgeMailboxMessagesBatch(
+      env, 'user-1', 'alias@example.com',
+    )).resolves.toBe(0)
+    expect(bindings).toContainEqual(['user-1', 'alias@example.com', 20])
   })
 })

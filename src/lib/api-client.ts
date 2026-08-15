@@ -180,6 +180,12 @@ export const api = {
       { method: 'PATCH', body: jsonBody({ enabled }) },
     )
   ),
+  updateRandomMailboxPrefix: (prefix: string) => (
+    request<{ randomMailboxPrefix: string }>(
+      '/api/admin/settings/random-mailbox-prefix',
+      { method: 'PATCH', body: jsonBody({ prefix }) },
+    )
+  ),
   outboundRateLimitSettings: () => request<{
     outboundRateLimit: OutboundRateLimitSettings
   }>('/api/admin/settings/outbound-rate-limit'),
@@ -423,6 +429,16 @@ export const api = {
       method: 'PATCH',
       body: jsonBody({ isActive }),
     })
+  ),
+  setPrimaryMailbox: (address: string) => (
+    request<{ mailbox: MailboxAddress }>(`/api/mailboxes/${encodeURIComponent(address)}`, {
+      method: 'PATCH',
+      body: jsonBody({ isPrimary: true }),
+    })
+  ),
+  deleteMailbox: (address: string) => request<{ ok: true }>(
+    `/api/mailboxes/${encodeURIComponent(address)}`,
+    { method: 'DELETE' },
   ),
   messages: (
     folder: Folder,

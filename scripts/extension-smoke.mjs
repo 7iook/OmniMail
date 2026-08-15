@@ -116,7 +116,7 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/config') {
-      json(response, { appName: 'OmniMail', mailRefreshInterval: 5 })
+      json(response, { appName: 'OmniMail', mailRefreshInterval: 5, randomMailboxPrefix: 'alias-' })
       return
     }
     if (url.pathname === '/api/domains') {
@@ -307,7 +307,7 @@ try {
   await randomMailboxButton.click()
   await panelFrame.getByText('邮箱已生成').waitFor()
   const generatedAddress = mailboxes.at(-1).address
-  assert.match(generatedAddress, /^omni-[a-f0-9]{12}@example\.com$/)
+  assert.match(generatedAddress, /^alias-[a-f0-9]{12}@example\.com$/)
   const recentMail = panelFrame.getByRole('region', { name: '当前邮箱邮件' })
   await recentMail.getByText('Your verification code').waitFor()
   assert.equal(lastMessageMailbox, generatedAddress)

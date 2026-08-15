@@ -55,6 +55,7 @@ export const enErrors: Record<string, string> = {
     'This account cannot manage mailboxes.',
   '请输入有效的完整邮箱地址。': 'Enter a valid complete email address.',
   '缺少邮箱状态。': 'The mailbox status is missing.',
+  '邮箱更新内容无效。': 'The mailbox update is invalid.',
   '邮箱地址不存在。': 'The mailbox address does not exist.',
   '邮箱地址格式无效。': 'The mailbox address format is invalid.',
   '这个邮箱地址已经启用。': 'This mailbox address is already enabled.',
@@ -65,6 +66,15 @@ export const enErrors: Record<string, string> = {
   '这个域名尚未在系统设置中启用。':
     'This domain is not enabled in System settings.',
   '主邮箱不能停用。': 'The primary mailbox cannot be disabled.',
+  '只能将已启用的邮箱设为主邮箱。': 'Only an enabled mailbox can be made primary.',
+  '主邮箱不能删除。': 'The primary mailbox cannot be deleted.',
+  '邮箱删除服务暂时不可用，请稍后重试。':
+    'Mailbox deletion is temporarily unavailable. Try again later.',
+  '邮箱删除任务启动失败，请稍后重试。':
+    'The mailbox deletion task could not start. Try again later.',
+  '只有管理员可以修改随机邮箱格式。':
+    'Only administrators can change the random mailbox format.',
+  '随机邮箱前缀格式无效。': 'The random mailbox prefix is invalid.',
   '邮件分页游标无效。': 'The message cursor is invalid.',
   '邮箱筛选条件无效。': 'The mailbox filter is invalid.',
   '登录尝试过多，请 15 分钟后再试。':

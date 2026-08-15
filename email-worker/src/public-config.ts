@@ -8,6 +8,7 @@ import {
 import { registrationProtectionReady } from './registration-security'
 import {
   parseMailRefreshInterval,
+  parseRandomMailboxPrefix,
 } from './system-settings'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env } from './types'
@@ -44,7 +45,8 @@ export async function publicConfig(env: Env) {
       'mail_refresh_interval',
       'remote_images_enabled',
       'unassigned_mail_enabled',
-      'official_extension_enabled'
+      'official_extension_enabled',
+      'random_mailbox_prefix'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -75,6 +77,9 @@ export async function publicConfig(env: Env) {
     remoteImagesEnabled: settings.get('remote_images_enabled') === '1',
     unassignedMailEnabled: settings.get('unassigned_mail_enabled') === '1',
     officialExtensionEnabled: settings.get('official_extension_enabled') === '1',
+    randomMailboxPrefix: parseRandomMailboxPrefix(
+      settings.get('random_mailbox_prefix') || '',
+    ) ?? '',
     superAdminEmail: setupComplete ? '' : superAdminEmail(env),
     setupRequirements: publicSetupRequirements(env),
   }

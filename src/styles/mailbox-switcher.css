@@ -486,7 +486,7 @@
   box-shadow: 0 0 0 3px var(--success-soft);
 }
 
-.managed-mailbox > div {
+.managed-mailbox__details {
   display: grid;
   min-width: 0;
 }
@@ -581,8 +581,4 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .managed-mailbox .button {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
 }

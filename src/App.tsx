@@ -414,7 +414,7 @@ function Mailbox({
           </div>
           <MailboxHeaderActions
             mailboxes={mailboxes} domains={domains} scope={scope}
-            canGenerate={isAdminRole(user.role) || user.canCreateMailboxes}
+            canGenerate={isAdminRole(user.role) || user.canCreateMailboxes} randomMailboxPrefix={config.randomMailboxPrefix || ''}
             canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
             refreshing={refreshing} notifications={mailNotifications}
             onRefresh={() => folder === 'drafts'

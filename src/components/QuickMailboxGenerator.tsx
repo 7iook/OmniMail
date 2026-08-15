@@ -13,29 +13,35 @@ import {
   type ManagedDomain,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import {
+  randomMailboxLocalPart,
+  validMailboxLocalPart,
+} from '../lib/mailboxAddress'
 
 interface Props {
   domains: ManagedDomain[]
   disabled: boolean
+  randomMailboxPrefix: string
   onCreated: (mailbox: MailboxAddress) => Promise<void>
-}
-
-function randomLocalPart(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(6))
-  return `omni-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
 function message(error: unknown): string {
   return t(error instanceof Error ? error.message : '无法生成邮箱，请稍后重试。')
 }
 
-export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
+export function QuickMailboxGenerator({
+  domains,
+  disabled,
+  randomMailboxPrefix,
+  onCreated,
+}: Props) {
   const enabledDomains = useMemo(
     () => domains.filter((domain) => domain.isActive),
     [domains],
   )
   const [open, setOpen] = useState(false)
   const [domain, setDomain] = useState('')
+  const [localPart, setLocalPart] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
@@ -63,19 +69,28 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
 
   async function generate() {
     if (!domain || busy) return
+    const requestedLocalPart = localPart.trim().toLowerCase()
+    if (requestedLocalPart && !validMailboxLocalPart(requestedLocalPart)) {
+      setError(t('邮箱前缀支持字母、数字、点、下划线、加号和连字符，长度为 1–64 个字符。'))
+      return
+    }
     setBusy(true)
     setError('')
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    const maximumAttempts = requestedLocalPart ? 1 : 3
+    for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
       try {
-        const result = await api.addMailbox(`${randomLocalPart()}@${domain}`)
+        const nextLocalPart = requestedLocalPart
+          || randomMailboxLocalPart(randomMailboxPrefix)
+        const result = await api.addMailbox(`${nextLocalPart}@${domain}`)
         await onCreated(result.mailbox)
+        setLocalPart('')
         setOpen(false)
         setBusy(false)
         return
       } catch (generateError) {
         const mayRetry = generateError instanceof ApiError
           && generateError.status === 409
-          && attempt < 2
+          && attempt < maximumAttempts - 1
         if (mayRetry) continue
         setError(message(generateError))
         break
@@ -123,7 +138,24 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
           </header>
 
           <div className="quick-mailbox__content">
-            <p>{t('选择域名后缀，系统会生成一个未占用的随机邮箱地址。')}</p>
+            <p>{t('输入邮箱前缀，或者留空让系统随机生成。')}</p>
+            <label className="quick-mailbox__local-part" htmlFor="quick-mailbox-local-part">
+              <span>{t('邮箱前缀')} <small>{t('可选')}</small></span>
+              <input
+                id="quick-mailbox-local-part"
+                type="text"
+                value={localPart}
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={t('留空随机生成')}
+                disabled={busy}
+                onChange={(event) => {
+                  setLocalPart(event.target.value)
+                  setError('')
+                }}
+              />
+            </label>
             <div className="quick-mailbox__domains" role="radiogroup" aria-label={t('邮箱域名后缀')}>
               {enabledDomains.map((item) => (
                 <button
@@ -142,8 +174,9 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
               ))}
             </div>
             <div className="quick-mailbox__preview">
-              <span>{t('生成格式')}</span>
-              <strong>omni-{t('随机字符')}@{domain}</strong>
+              <span>{t('即将创建')}</span>
+              <strong>{localPart.trim().toLowerCase()
+                || `${randomMailboxPrefix}${t('随机字符')}`}@{domain}</strong>
             </div>
             {error && <p className="quick-mailbox__error" role="alert">{error}</p>}
             <button
@@ -153,7 +186,9 @@ export function QuickMailboxGenerator({ domains, disabled, onCreated }: Props) {
               onClick={() => void generate()}
             >
               {busy ? <LoaderCircle className="spin" size={16} /> : <MailPlus size={16} />}
-              {t(busy ? '正在生成…' : '一键生成邮箱')}
+              {t(busy
+                ? '正在生成…'
+                : localPart.trim() ? '创建自定义邮箱' : '随机生成邮箱')}
             </button>
           </div>
         </section>

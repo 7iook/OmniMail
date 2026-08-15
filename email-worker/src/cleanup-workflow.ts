@@ -7,9 +7,11 @@ import {
   CLEANUP_BATCH_SIZE,
   completeRetentionCleanup,
   purgeDeletedAccountBatch,
+  purgeMailboxMessagesBatch,
   purgeMessagesBatch,
   releaseRetentionClaim,
 } from './cleanup'
+import { purgeMailboxDrafts } from './draft-api'
 import { BACKUP_RETENTION_RULES, purgeBackupObjectsPage } from './backup-retention'
 import { ensureSchema } from './schema'
 import { retentionValues } from './storage-policy'
@@ -24,6 +26,9 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
     step: WorkflowStep,
   ): Promise<unknown> {
     const now = event.payload?.startedAt || Math.floor(Date.now() / 1000)
+    if (event.payload?.mailboxDeletion) {
+      return this.purgeMailbox(step, now, event.payload.mailboxDeletion)
+    }
     try {
       await step.do('Ensure schema', () => ensureSchema(this.env.DB))
       const policy = await step.do('Read retention policy', () => retentionValues(this.env.DB))
@@ -67,6 +72,49 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
       await step.do('Release failed cleanup claim', () => releaseRetentionClaim(this.env.DB, now))
       throw error
     }
+  }
+
+  private async purgeMailbox(
+    step: WorkflowStep,
+    startedAt: number,
+    mailbox: NonNullable<CleanupWorkflowParams['mailboxDeletion']>,
+  ): Promise<unknown> {
+    for (let index = 0; index < MAX_BATCHES_PER_PHASE; index += 1) {
+      const count = await step.do(
+        `Purge mailbox messages ${index + 1}`,
+        () => purgeMailboxMessagesBatch(this.env, mailbox.userId, mailbox.address),
+      )
+      if (count < CLEANUP_BATCH_SIZE) {
+        await step.do(
+          'Purge mailbox drafts',
+          () => purgeMailboxDrafts(this.env, mailbox.userId, mailbox.address),
+        )
+        await step.do('Delete mailbox record', async () => {
+          await this.env.DB.batch([
+            this.env.DB.prepare(
+              `DELETE FROM mailboxes
+                WHERE address = ? AND user_id = ? AND is_primary = 0 AND is_hidden = 1`,
+            ).bind(mailbox.address, mailbox.userId),
+            this.env.DB.prepare(
+              `INSERT INTO audit_logs (user_id, action, target_id, ip, detail_json)
+               VALUES ((SELECT id FROM users WHERE id = ?),
+                       'mailbox.delete', ?, 'workflow', '{"scheduledCleanup":true}')`,
+            ).bind(mailbox.requestedBy, mailbox.address),
+          ])
+        })
+        return { pending: false, mailbox: mailbox.address }
+      }
+    }
+
+    await step.do('Schedule mailbox cleanup continuation', async () => {
+      if (!this.env.CLEANUP_WORKFLOW) throw new Error('CLEANUP_WORKFLOW is not configured')
+      await this.env.CLEANUP_WORKFLOW.create({
+        id: `mailbox-delete-${crypto.randomUUID()}`,
+        params: { startedAt, mailboxDeletion: mailbox },
+        retention: { successRetention: '3 days', errorRetention: '7 days' },
+      })
+    })
+    return { pending: true, mailbox: mailbox.address }
   }
 
   private async purgeMessagePhase(

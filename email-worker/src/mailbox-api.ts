@@ -126,15 +126,43 @@ export async function updateMailbox(
   } catch {
     return json({ error: '邮箱地址格式无效。' }, 400)
   }
-  const body = await request.json<{ isActive?: boolean }>()
-    .catch(() => ({} as { isActive?: boolean }))
-  if (typeof body.isActive !== 'boolean') return json({ error: '缺少邮箱状态。' }, 400)
+  const body = await request.json<{ isActive?: boolean; isPrimary?: boolean }>()
+    .catch(() => ({} as { isActive?: boolean; isPrimary?: boolean }))
+  const changesStatus = typeof body.isActive === 'boolean'
+  const makesPrimary = body.isPrimary === true
+  if (changesStatus === makesPrimary) return json({ error: '邮箱更新内容无效。' }, 400)
 
   const mailbox = await env.DB.prepare(
     `SELECT address, is_primary, is_active
-       FROM mailboxes WHERE address = ? AND user_id = ?`,
+       FROM mailboxes WHERE address = ? AND user_id = ? AND is_hidden = 0`,
   ).bind(address, user.id).first<MailboxRow>()
   if (!mailbox) return json({ error: '邮箱地址不存在。' }, 404)
+  if (makesPrimary) {
+    if (!mailbox.is_active) {
+      return json({ error: '只能将已启用的邮箱设为主邮箱。' }, 409)
+    }
+    if (!mailbox.is_primary) {
+      const domain = await env.DB.prepare(
+        'SELECT is_active FROM domains WHERE name = ?',
+      ).bind(mailboxDomain(address)).first<{ is_active: number }>()
+      if (!domain?.is_active) {
+        return json({ error: '这个域名尚未在系统设置中启用。' }, 403)
+      }
+      const updated = await env.DB.prepare(
+        `UPDATE mailboxes
+            SET is_primary = CASE WHEN address = ? THEN 1 ELSE 0 END
+          WHERE user_id = ? AND is_hidden = 0
+            AND EXISTS (
+              SELECT 1 FROM mailboxes target
+               WHERE target.address = ? AND target.user_id = ?
+                 AND target.is_active = 1 AND target.is_hidden = 0
+            )`,
+      ).bind(address, user.id, address, user.id).run()
+      if (!updated.meta.changes) return json({ error: '邮箱地址不存在。' }, 404)
+      await auditMailbox(env, user.id, 'mailbox.set_primary', address, ip)
+    }
+    return json({ mailbox: mailboxJson({ ...mailbox, is_primary: 1 }) })
+  }
   if (mailbox.is_primary && !body.isActive) {
     return json({ error: '主邮箱不能停用。' }, 409)
   }
@@ -160,4 +188,52 @@ export async function updateMailbox(
   return json({
     mailbox: mailboxJson({ ...mailbox, is_active: Number(body.isActive) }),
   })
+}
+
+export async function deleteMailbox(
+  env: Env,
+  user: SessionUser,
+  encodedAddress: string,
+  ip: string,
+): Promise<Response> {
+  if (!canCreateMailbox(user)) return json({ error: '当前账户没有管理邮箱的权限。' }, 403)
+  if (!env.CLEANUP_WORKFLOW) {
+    return json({ error: '邮箱删除服务暂时不可用，请稍后重试。' }, 503)
+  }
+  let address = ''
+  try {
+    address = normalizeEmail(decodeURIComponent(encodedAddress))
+  } catch {
+    return json({ error: '邮箱地址格式无效。' }, 400)
+  }
+  const mailbox = await env.DB.prepare(
+    `SELECT address, is_primary, is_active
+       FROM mailboxes WHERE address = ? AND user_id = ? AND is_hidden = 0`,
+  ).bind(address, user.id).first<MailboxRow>()
+  if (!mailbox) return json({ error: '邮箱地址不存在。' }, 404)
+  if (mailbox.is_primary) return json({ error: '主邮箱不能删除。' }, 409)
+
+  const hidden = await env.DB.prepare(
+    `UPDATE mailboxes SET is_active = 0, is_hidden = 1
+      WHERE address = ? AND user_id = ? AND is_primary = 0`,
+  ).bind(address, user.id).run()
+  if (!hidden.meta.changes) return json({ error: '邮箱地址不存在。' }, 404)
+  try {
+    await env.CLEANUP_WORKFLOW.create({
+      id: `mailbox-delete-${crypto.randomUUID()}`,
+      params: {
+        startedAt: Math.floor(Date.now() / 1000),
+        mailboxDeletion: { address: mailbox.address, userId: user.id, requestedBy: user.id },
+      },
+      retention: { successRetention: '3 days', errorRetention: '7 days' },
+    })
+  } catch {
+    await env.DB.prepare(
+      `UPDATE mailboxes SET is_active = ?, is_hidden = 0
+        WHERE address = ? AND user_id = ? AND is_primary = 0`,
+    ).bind(mailbox.is_active, address, user.id).run()
+    return json({ error: '邮箱删除任务启动失败，请稍后重试。' }, 503)
+  }
+  await auditMailbox(env, user.id, 'mailbox.delete_scheduled', address, ip)
+  return json({ ok: true }, 202)
 }

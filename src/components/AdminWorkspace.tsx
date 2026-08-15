@@ -21,6 +21,7 @@ import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
 import { OutboundRateLimitSettings } from './OutboundRateLimitSettings'
 import { OfficialExtensionSettings } from './OfficialExtensionSettings'
+import { RandomMailboxSettings } from './RandomMailboxSettings'
 import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
 import { VersionStatusCard } from './VersionStatusCard'
@@ -264,6 +265,14 @@ export function AdminWorkspace({
             })}
           />
         )}
+
+        <RandomMailboxSettings
+          prefix={config.randomMailboxPrefix || ''}
+          onChange={(randomMailboxPrefix) => onConfigChange({
+            ...config,
+            randomMailboxPrefix,
+          })}
+        />
 
         <section className="admin-card admin-card--settings">
           <header>

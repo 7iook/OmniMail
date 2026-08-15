@@ -85,6 +85,30 @@ export async function purgeMessagesBatch(
   return results.length
 }
 
+export async function purgeMailboxMessagesBatch(
+  env: Env,
+  userId: string,
+  mailboxAddress: string,
+): Promise<number> {
+  const { results } = await env.DB.prepare(
+    `SELECT m.id, m.raw_key, m.body_key, m.quota_bytes
+       FROM messages m
+       JOIN mailboxes mb ON mb.address = m.mailbox_address
+      WHERE mb.user_id = ? AND mb.address = ?
+      ORDER BY m.id
+      LIMIT ?`,
+  ).bind(userId, mailboxAddress, CLEANUP_BATCH_SIZE).all<{
+    id: string
+    raw_key: string | null
+    body_key: string | null
+    quota_bytes: number
+  }>()
+  for (const message of results) {
+    await permanentlyDeleteMessage(env, userId, message)
+  }
+  return results.length
+}
+
 export async function purgeDeletedAccountBatch(env: Env, cutoff: number): Promise<boolean> {
   const user = await env.DB.prepare(
     `SELECT id FROM users

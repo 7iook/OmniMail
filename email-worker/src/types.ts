@@ -27,6 +27,11 @@ export interface BackupWorkflowParams {
 
 export interface CleanupWorkflowParams {
   startedAt: number
+  mailboxDeletion?: {
+    address: string
+    userId: string
+    requestedBy: string
+  }
 }
 
 export interface Env {

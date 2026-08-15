@@ -28,6 +28,7 @@ import {
 } from '../lib/api'
 import { t } from '../lib/i18n'
 import { MailboxAddressOption } from './MailboxAddressOption'
+import { ManagedMailboxList } from './ManagedMailboxList'
 
 const SWITCHER_EXIT_MS = 190
 
@@ -375,24 +376,6 @@ export function MailboxSwitcher({
     }
   }
 
-  async function toggle(mailbox: MailboxAddress) {
-    setBusyAddress(mailbox.address)
-    setError('')
-    setNotice('')
-    try {
-      await api.updateMailbox(mailbox.address, !mailbox.isActive)
-      await onMailboxesChanged()
-      if (mailbox.isActive && scope.type === 'mailbox' && scope.value === mailbox.address) {
-        onScopeChange({ type: 'all' })
-      }
-      setNotice(t(mailbox.isActive ? '邮箱地址已停用' : '邮箱地址已启用'))
-    } catch (toggleError) {
-      setError(errorMessage(toggleError))
-    } finally {
-      setBusyAddress('')
-    }
-  }
-
   return (
     <div className="mailbox-switcher">
       <button
@@ -498,32 +481,15 @@ export function MailboxSwitcher({
                     : '系统尚未启用可创建邮箱的域名，请联系管理员。')}
                 </p>
 
-                <div className="managed-mailboxes">
-                  {mailboxes.map((mailbox) => (
-                    <div className="managed-mailbox" key={mailbox.address}>
-                      <span className={mailbox.isActive ? 'is-active' : ''} aria-hidden="true" />
-                      <div>
-                        <strong>{mailbox.address}</strong>
-                        <small>
-                          {t(mailbox.isPrimary
-                            ? '主邮箱 · 始终启用'
-                            : mailbox.isActive ? '正在接收邮件' : '已停止接收新邮件')}
-                        </small>
-                      </div>
-                      <button
-                        className="button button--secondary button--small"
-                        type="button"
-                        disabled={mailbox.isPrimary || Boolean(busyAddress)}
-                        onClick={() => void toggle(mailbox)}
-                      >
-                        {busyAddress === mailbox.address && (
-                          <LoaderCircle className="spin" size={14} />
-                        )}
-                        {t(mailbox.isActive ? '停用' : '启用')}
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <ManagedMailboxList
+                  mailboxes={mailboxes}
+                  scope={scope}
+                  disabled={Boolean(busyAddress)}
+                  onMailboxesChanged={onMailboxesChanged}
+                  onScopeChange={onScopeChange}
+                  onError={setError}
+                  onNotice={setNotice}
+                />
               </div>
             ) : (
               <div className="mailbox-scope-list">
