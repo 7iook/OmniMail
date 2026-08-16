@@ -1,5 +1,5 @@
 <!--
-复制本文件为 docs/releases/vX.Y.Z.md，并删除本注释及所有不适用的章节。
+复制本文件为 docs/releases/web/vX.Y.Z.md，并删除本注释及所有不适用的章节。
 文件名必须与 Git Tag 完全一致；正文会原样发布到 GitHub Release。
 -->
 

@@ -19,7 +19,7 @@ describe('release metadata preparation', () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('v0.2.5.md')
     const notes = readFileSync(
-      join(process.cwd(), 'docs', 'releases', 'v0.2.5.md'),
+      join(process.cwd(), 'docs', 'releases', 'web', 'v0.2.5.md'),
       'utf8',
     )
     expect(notes).toContain('### 新增')

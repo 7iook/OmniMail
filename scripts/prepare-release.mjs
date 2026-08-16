@@ -25,16 +25,16 @@ for (const [source, actual] of Object.entries(versions)) {
   }
 }
 
-const notesPath = join(root, 'docs', 'releases', `${tag}.md`)
+const notesPath = join(root, 'docs', 'releases', 'web', `${tag}.md`)
 let notes = ''
 try {
   notes = readFileSync(notesPath, 'utf8').trim()
 } catch (error) {
   if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-    throw new Error(`Release notes file is missing: docs/releases/${tag}.md`)
+    throw new Error(`Release notes file is missing: docs/releases/web/${tag}.md`)
   }
   throw error
 }
-if (!notes) throw new Error(`Release notes file is empty: docs/releases/${tag}.md`)
+if (!notes) throw new Error(`Release notes file is empty: docs/releases/web/${tag}.md`)
 
 console.log(`Verified release metadata for ${tag}: ${relative(root, notesPath)}`)
