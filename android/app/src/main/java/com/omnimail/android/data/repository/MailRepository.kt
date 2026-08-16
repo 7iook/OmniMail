@@ -3,6 +3,8 @@ package com.omnimail.android.data.repository
 import com.omnimail.android.BuildConfig
 import com.omnimail.android.data.model.MailFolder
 import com.omnimail.android.data.model.AccountUpdateRequest
+import com.omnimail.android.data.model.BulkMessageAction
+import com.omnimail.android.data.model.BulkMessageRequest
 import com.omnimail.android.data.model.MailboxAddress
 import com.omnimail.android.data.model.MailboxScope
 import com.omnimail.android.data.model.MessageDetailResponse
@@ -122,6 +124,13 @@ class MailRepository(
 
     suspend fun updateMessage(id: String, update: UpdateMessageRequest) {
         authorized { baseUrl, token -> service.updateMessage(baseUrl, token, id, update) }
+    }
+
+    suspend fun updateMessages(ids: List<String>, action: BulkMessageAction) {
+        require(ids.isNotEmpty() && ids.size <= 50)
+        authorized { baseUrl, token ->
+            service.updateMessages(baseUrl, token, BulkMessageRequest(ids, action.apiValue))
+        }
     }
 
     suspend fun sendMessage(message: SendMessageRequest): OutboundMessageResponse =

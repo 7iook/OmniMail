@@ -1,6 +1,7 @@
 package com.omnimail.android.data.network
 
 import com.omnimail.android.data.model.ErrorResponse
+import com.omnimail.android.data.model.BulkMessageRequest
 import com.omnimail.android.data.model.AccountUpdateRequest
 import com.omnimail.android.data.model.AccountUpdateResponse
 import com.omnimail.android.data.model.InstanceConfig
@@ -58,6 +59,11 @@ interface OmniMailService {
         accessToken: String,
         id: String,
         update: UpdateMessageRequest,
+    ): OkResponse
+    suspend fun updateMessages(
+        baseUrl: String,
+        accessToken: String,
+        update: BulkMessageRequest,
     ): OkResponse
     suspend fun updateAccount(
         baseUrl: String,
@@ -161,6 +167,18 @@ class OmniMailApi(
     ): OkResponse = request(
         baseUrl,
         "/api/messages/${encodePathSegment(id)}",
+        method = "PATCH",
+        accessToken = accessToken,
+        body = json.encodeToString(update),
+    )
+
+    override suspend fun updateMessages(
+        baseUrl: String,
+        accessToken: String,
+        update: BulkMessageRequest,
+    ): OkResponse = request(
+        baseUrl,
+        "/api/messages/bulk",
         method = "PATCH",
         accessToken = accessToken,
         body = json.encodeToString(update),

@@ -16,6 +16,7 @@ enum class AppPage { Mail, Compose, Profile, Settings }
 
 data class ComposerState(
     val replyMessageId: String? = null,
+    val isForward: Boolean = false,
     val mailboxAddress: String = "",
     val to: String = "",
     val subject: String = "",
@@ -56,6 +57,7 @@ data class AppUiState(
     val isWorking: Boolean = false,
     val isRefreshing: Boolean = false,
     val isLoadingMore: Boolean = false,
+    val isMarkingAllRead: Boolean = false,
     val isDetailLoading: Boolean = false,
     val composer: ComposerState? = null,
     val isSending: Boolean = false,

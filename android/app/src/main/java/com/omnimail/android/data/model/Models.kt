@@ -161,6 +161,22 @@ data class UpdateMessageRequest(
     val folder: String? = null,
 )
 
+enum class BulkMessageAction(val apiValue: String) {
+    Read("read"),
+    Unread("unread"),
+    Star("star"),
+    Unstar("unstar"),
+    Trash("trash"),
+    Restore("restore"),
+    Delete("delete"),
+}
+
+@Serializable
+data class BulkMessageRequest(
+    val ids: List<String>,
+    val action: String,
+)
+
 @Serializable
 data class SendMessageRequest(
     val mailboxAddress: String,

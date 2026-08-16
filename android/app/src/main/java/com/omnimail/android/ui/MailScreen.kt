@@ -63,6 +63,7 @@ private fun CompactMailLayout(state: AppUiState, viewModel: AppViewModel) {
                 onBack = viewModel::closeMessage,
                 onToggleStar = viewModel::toggleStar,
                 onReply = viewModel::openReply,
+                onForward = viewModel::openForward,
             )
         } else {
             MailDrawerLayout(state, viewModel) { openDrawer ->
@@ -72,7 +73,10 @@ private fun CompactMailLayout(state: AppUiState, viewModel: AppViewModel) {
                         MessageList(
                             state = state,
                             onSelect = viewModel::selectMessage,
+                            onRefresh = viewModel::refresh,
                             onLoadMore = viewModel::loadMoreMessages,
+                            onMarkAllRead = viewModel::markLoadedMessagesRead,
+                            onAction = viewModel::performMessageAction,
                             modifier = Modifier.weight(1f),
                             bottomContentPadding = if (state.canComposeNew()) 96.dp else 8.dp,
                         )
@@ -99,7 +103,10 @@ private fun MediumMailLayout(state: AppUiState, viewModel: AppViewModel) {
                     MessageList(
                         state = state,
                         onSelect = viewModel::selectMessage,
+                        onRefresh = viewModel::refresh,
                         onLoadMore = viewModel::loadMoreMessages,
+                        onMarkAllRead = viewModel::markLoadedMessagesRead,
+                        onAction = viewModel::performMessageAction,
                         modifier = Modifier.fillMaxSize(),
                         bottomContentPadding = if (state.canComposeNew()) 96.dp else 8.dp,
                     )
@@ -115,6 +122,7 @@ private fun MediumMailLayout(state: AppUiState, viewModel: AppViewModel) {
                     state = state,
                     onToggleStar = viewModel::toggleStar,
                     onReply = viewModel::openReply,
+                    onForward = viewModel::openForward,
                     modifier = Modifier.weight(.57f),
                 )
             }
@@ -141,7 +149,10 @@ private fun ExpandedMailLayout(state: AppUiState, viewModel: AppViewModel) {
             MessageList(
                 state = state,
                 onSelect = viewModel::selectMessage,
+                onRefresh = viewModel::refresh,
                 onLoadMore = viewModel::loadMoreMessages,
+                onMarkAllRead = viewModel::markLoadedMessagesRead,
+                onAction = viewModel::performMessageAction,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -150,6 +161,7 @@ private fun ExpandedMailLayout(state: AppUiState, viewModel: AppViewModel) {
             state = state,
             onToggleStar = viewModel::toggleStar,
             onReply = viewModel::openReply,
+            onForward = viewModel::openForward,
             modifier = Modifier.weight(.6f),
         )
     }

@@ -80,7 +80,7 @@ fun LoginScreen(state: AppUiState, viewModel: AppViewModel) {
             Modifier
                 .fillMaxSize()
                 .imePadding()
-                .padding(WindowInsets.safeDrawing.asPaddingValues()),
+                .safeDrawingPadding(),
         ) {
             LoginHeader(displayedLanguage) {
                 val next = if (displayedLanguage == AppLanguage.English) {

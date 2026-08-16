@@ -46,4 +46,20 @@ class SafeEmailWebViewTest {
         assertTrue(document.indexOf("<header>Subject</header>") < document.indexOf("Message body"))
         assertTrue(document.indexOf("Message body") < document.indexOf("<footer>Attachment</footer>"))
     }
+
+    @Test
+    fun `uses dark document colors when the app theme is dark`() {
+        val document = buildSafeEmailDocument(
+            html = "<meta name='color-scheme' content='light only'><p style='color-scheme: light'>Message body</p>",
+            loadRemoteImages = false,
+            darkTheme = true,
+        )
+
+        assertTrue(document.contains("--omnimail-bg:#0f1513"))
+        assertTrue(document.contains("--omnimail-text:#dfe4e1"))
+        assertFalse(document.contains("light only"))
+        assertFalse(document.contains("color-scheme: light"))
+        assertFalse(document.contains("color-scheme:dark"))
+        assertFalse(document.contains("color-scheme:light"))
+    }
 }

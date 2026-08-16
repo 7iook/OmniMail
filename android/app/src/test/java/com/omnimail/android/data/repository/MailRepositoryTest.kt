@@ -3,6 +3,8 @@ package com.omnimail.android.data.repository
 import com.omnimail.android.data.model.InstanceConfig
 import com.omnimail.android.data.model.AccountUpdateRequest
 import com.omnimail.android.data.model.AccountUpdateResponse
+import com.omnimail.android.data.model.BulkMessageAction
+import com.omnimail.android.data.model.BulkMessageRequest
 import com.omnimail.android.data.model.MailFolder
 import com.omnimail.android.data.model.MailboxesResponse
 import com.omnimail.android.data.model.MailboxScope
@@ -136,6 +138,19 @@ class MailRepositoryTest {
         assertEquals(listOf("message-1" to reply), service.sentReplies)
     }
 
+    @Test
+    fun `forwards bulk message actions to the authenticated service`() = runBlocking {
+        val service = RefreshingService()
+        val repository = loggedInRepository(service, MemorySessionStore())
+
+        repository.updateMessages(listOf("message-1", "message-2"), BulkMessageAction.Read)
+
+        assertEquals(
+            listOf(BulkMessageRequest(listOf("message-1", "message-2"), "read")),
+            service.bulkUpdates,
+        )
+    }
+
     private suspend fun loggedInRepository(
         service: RefreshingService,
         store: MemorySessionStore,
@@ -175,6 +190,7 @@ private class RefreshingService(
     val messageCursors = mutableListOf<String?>()
     val sentMessages = mutableListOf<SendMessageRequest>()
     val sentReplies = mutableListOf<Pair<String, ReplyRequest>>()
+    val bulkUpdates = mutableListOf<BulkMessageRequest>()
     private val user = SessionUser("user-id", "user@example.com")
 
     override suspend fun config(baseUrl: String) = InstanceConfig(setupComplete = true)
@@ -240,6 +256,15 @@ private class RefreshingService(
         id: String,
         update: UpdateMessageRequest,
     ) = OkResponse()
+
+    override suspend fun updateMessages(
+        baseUrl: String,
+        accessToken: String,
+        update: BulkMessageRequest,
+    ): OkResponse {
+        bulkUpdates += update
+        return OkResponse()
+    }
 
     override suspend fun updateAccount(
         baseUrl: String,

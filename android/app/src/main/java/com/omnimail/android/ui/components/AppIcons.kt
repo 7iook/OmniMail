@@ -32,6 +32,7 @@ enum class AppIcon {
     Send,
     Edit,
     Reply,
+    Forward,
     Trash,
     Refresh,
     Back,
@@ -72,6 +73,7 @@ private fun AppIcon.drawable(filled: Boolean): Int = when (this) {
     AppIcon.Send -> R.drawable.ic_send
     AppIcon.Edit -> R.drawable.ic_edit
     AppIcon.Reply -> R.drawable.ic_reply
+    AppIcon.Forward -> R.drawable.ic_forward
     AppIcon.Trash -> R.drawable.ic_delete
     AppIcon.Refresh -> R.drawable.ic_refresh
     AppIcon.Back -> R.drawable.ic_arrow_back

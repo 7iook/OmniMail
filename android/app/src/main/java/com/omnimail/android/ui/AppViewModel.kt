@@ -9,6 +9,7 @@ import com.omnimail.android.data.preferences.ThemePreference
 import com.omnimail.android.data.model.MailFolder
 import com.omnimail.android.data.model.MailboxScope
 import com.omnimail.android.data.model.PageInfo
+import com.omnimail.android.data.model.BulkMessageAction
 import com.omnimail.android.data.model.UpdateMessageRequest
 import com.omnimail.android.data.repository.ActiveSession
 import com.omnimail.android.data.repository.MailRepository
@@ -83,6 +84,14 @@ class AppViewModel(
         val detail = state.messageDetail ?: return
         if (!state.canSendMail || detail.direction != "incoming" || detail.status != "ready") return
         _uiState.update { it.copy(page = AppPage.Compose, composer = mailComposer.replyTo(detail)) }
+    }
+    fun openForward() {
+        val state = _uiState.value
+        val detail = state.messageDetail ?: return
+        if (!state.canComposeNew() || detail.status != "ready") return
+        _uiState.update {
+            it.copy(page = AppPage.Compose, composer = mailComposer.forwardTo(detail, it))
+        }
     }
     fun closeComposer() = _uiState.update {
         it.copy(page = AppPage.Mail, composer = null, isSending = false)
@@ -236,6 +245,7 @@ class AppViewModel(
     }
 
     fun refresh() {
+        if (_uiState.value.isRefreshing) return
         searchDebounceJob?.cancel()
         loadMessages()
     }
@@ -317,9 +327,44 @@ class AppViewModel(
     }
 
     fun toggleStar() {
+        val id = _uiState.value.selectedMessageId ?: return
+        toggleMessageStar(id)
+    }
+
+    internal fun performMessageAction(id: String, action: MessageAction) {
+        when (action) {
+            MessageAction.ToggleRead -> toggleMessageRead(id)
+            MessageAction.ToggleStar -> toggleMessageStar(id)
+            MessageAction.Trash -> moveMessage(id, BulkMessageAction.Trash)
+            MessageAction.Restore -> moveMessage(id, BulkMessageAction.Restore)
+            MessageAction.Delete -> moveMessage(id, BulkMessageAction.Delete)
+        }
+    }
+
+    fun markLoadedMessagesRead() {
         val state = _uiState.value
-        val id = state.selectedMessageId ?: return
-        val current = state.messageDetail?.isStarred
+        if (state.isMarkingAllRead) return
+        val unreadIds = state.messages.filterNot { it.isRead }.map { it.id }
+        if (unreadIds.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isMarkingAllRead = true, error = null) }
+            runCatching {
+                messageIdBatches(unreadIds).forEach { ids ->
+                    repository.updateMessages(ids, BulkMessageAction.Read)
+                }
+            }.onSuccess {
+                updateReadLocally(unreadIds.toSet(), true)
+                _uiState.update { it.copy(isMarkingAllRead = false) }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isMarkingAllRead = false) }
+                handleOperationFailure(error)
+            }
+        }
+    }
+
+    private fun toggleMessageStar(id: String) {
+        val state = _uiState.value
+        val current = state.messageDetail?.takeIf { it.id == id }?.isStarred
             ?: state.messages.firstOrNull { it.id == id }?.isStarred
             ?: return
         val target = !current
@@ -327,11 +372,74 @@ class AppViewModel(
         viewModelScope.launch {
             runCatching {
                 repository.updateMessage(id, UpdateMessageRequest(isStarred = target))
+            }.onSuccess {
+                if (state.folder == MailFolder.Starred && !target) loadMessages()
             }.onFailure { error ->
                 updateStarLocally(id, current)
                 handleOperationFailure(error)
             }
         }
+    }
+
+    private fun toggleMessageRead(id: String) {
+        val state = _uiState.value
+        val current = state.messageDetail?.takeIf { it.id == id }?.isRead
+            ?: state.messages.firstOrNull { it.id == id }?.isRead
+            ?: return
+        val target = !current
+        updateReadLocally(setOf(id), target)
+        viewModelScope.launch {
+            runCatching {
+                repository.updateMessage(id, UpdateMessageRequest(isRead = target))
+            }.onFailure { error ->
+                updateReadLocally(setOf(id), current)
+                handleOperationFailure(error)
+            }
+        }
+    }
+
+    private fun moveMessage(id: String, action: BulkMessageAction) {
+        val state = _uiState.value
+        val message = state.messages.firstOrNull { it.id == id } ?: return
+        val index = state.messages.indexOf(message)
+        val folder = state.folder
+        val query = state.searchQuery
+        val mailboxScope = state.mailboxScope
+        _uiState.update {
+            it.copy(
+                messages = it.messages.filterNot { summary -> summary.id == id },
+                selectedMessageId = it.selectedMessageId.takeUnless { selected -> selected == id },
+                messageDetail = if (it.messageDetail?.id == id) null else it.messageDetail,
+                isDetailLoading = if (it.selectedMessageId == id) false else it.isDetailLoading,
+                error = null,
+            )
+        }
+        viewModelScope.launch {
+            runCatching { repository.updateMessages(listOf(id), action) }
+                .onSuccess {
+                    if (listContextMatches(folder, query, mailboxScope)) loadMessages()
+                }
+                .onFailure { error ->
+                    if (listContextMatches(folder, query, mailboxScope)) {
+                        _uiState.update { current ->
+                            if (current.messages.any { it.id == id }) current else current.copy(
+                                messages = current.messages.toMutableList().apply {
+                                    add(index.coerceAtMost(size), message)
+                                },
+                            )
+                        }
+                    }
+                    handleOperationFailure(error)
+                }
+        }
+    }
+
+    private fun listContextMatches(
+        folder: MailFolder,
+        query: String,
+        mailboxScope: MailboxScope,
+    ): Boolean = _uiState.value.let {
+        it.folder == folder && it.searchQuery == query && it.mailboxScope == mailboxScope
     }
 
     fun updateDisplayName(displayName: String) {
@@ -439,6 +547,27 @@ class AppViewModel(
         }
     }
 
+    private fun updateReadLocally(ids: Set<String>, isRead: Boolean) {
+        _uiState.update {
+            val changedCount = it.messages.count { summary ->
+                summary.id in ids && summary.isRead != isRead
+            }
+            it.copy(
+                messages = it.messages.map { summary ->
+                    if (summary.id in ids) summary.copy(isRead = isRead) else summary
+                },
+                messageDetail = it.messageDetail?.let { detail ->
+                    if (detail.id in ids) detail.copy(isRead = isRead) else detail
+                },
+                counts = it.counts.copy(
+                    unread = (
+                        it.counts.unread + if (isRead) -changedCount else changedCount
+                    ).coerceAtLeast(0),
+                ),
+            )
+        }
+    }
+
     private fun updateComposer(update: (ComposerState) -> ComposerState) = _uiState.update {
         it.copy(composer = it.composer?.let(update))
     }
@@ -468,3 +597,6 @@ class AppViewModel(
     }
 
 }
+
+internal fun messageIdBatches(ids: List<String>): List<List<String>> =
+    ids.distinct().chunked(50)

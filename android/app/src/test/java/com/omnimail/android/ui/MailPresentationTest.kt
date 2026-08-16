@@ -2,7 +2,9 @@ package com.omnimail.android.ui
 
 import com.omnimail.android.data.model.MailCounts
 import com.omnimail.android.data.model.MailFolder
+import com.omnimail.android.data.model.MessageDetail
 import com.omnimail.android.data.model.MessageSummary
+import com.omnimail.android.data.preferences.AppLanguage
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -55,6 +57,26 @@ class MailPresentationTest {
     }
 
     @Test
+    fun `forward composer quotes the original message in the selected language`() {
+        val detail = MessageDetail(
+            id = "message-1",
+            senderName = "Alice",
+            senderAddress = "alice@example.com",
+            recipients = listOf("me@example.com"),
+            subject = "Status",
+            text = "Original message",
+        )
+
+        val forwarded = forwardedMessageText(detail, AppLanguage.SimplifiedChinese)
+
+        assertEquals("Fwd: Status", forwardSubject("Status"))
+        assertEquals("Fwd: Status", forwardSubject("Fwd: Status"))
+        assertTrue(forwarded.contains("转发的邮件"))
+        assertTrue(forwarded.contains("发件人: Alice <alice@example.com>"))
+        assertTrue(forwarded.endsWith("Original message"))
+    }
+
+    @Test
     fun `folder counts and summary use server totals`() {
         val state = AppUiState(
             folder = MailFolder.Inbox,
@@ -68,5 +90,15 @@ class MailPresentationTest {
             "2 messages loaded · 4 unread",
             state.folderSummary("2 messages loaded", "4 unread"),
         )
+    }
+
+    @Test
+    fun `mark all read batches API requests at fifty unique messages`() {
+        val ids = List(105) { "message-$it" } + "message-0"
+
+        val batches = messageIdBatches(ids)
+
+        assertEquals(listOf(50, 50, 5), batches.map { it.size })
+        assertEquals(105, batches.flatten().distinct().size)
     }
 }

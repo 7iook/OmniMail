@@ -1,7 +1,8 @@
 package com.omnimail.android.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,11 +24,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,16 +62,22 @@ import com.omnimail.android.ui.components.LineIcon
 import com.omnimail.android.ui.components.OmniMailLogo
 import kotlinx.coroutines.flow.distinctUntilChanged
 
+internal enum class MessageAction { ToggleRead, ToggleStar, Trash, Restore, Delete }
+
 @Composable
 internal fun MessageList(
     state: AppUiState,
     onSelect: (String) -> Unit,
+    onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onMarkAllRead: () -> Unit,
+    onAction: (String, MessageAction) -> Unit,
     modifier: Modifier = Modifier,
     bottomContentPadding: Dp = 8.dp,
 ) {
     val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val listState = rememberLazyListState()
+    var pendingDelete by remember { mutableStateOf<MessageSummary?>(null) }
     LaunchedEffect(
         listState,
         state.messages.size,
@@ -74,6 +91,7 @@ internal fun MessageList(
                 if (
                     lastVisible != null &&
                     lastVisible >= loadThreshold &&
+                    state.messages.isNotEmpty() &&
                     state.messagePage.hasMore &&
                     !state.isLoadingMore
                 ) {
@@ -81,55 +99,124 @@ internal fun MessageList(
                 }
         }
     }
-    when {
-        state.isRefreshing && state.messages.isEmpty() -> MessageListSkeleton(modifier)
-        state.messages.isEmpty() -> EmptyPane(
-            title = if (state.searchQuery.isBlank()) {
-                stringResource(R.string.empty_mail_title)
-            } else {
-                stringResource(R.string.no_search_results_title)
-            },
-            detail = if (state.searchQuery.isBlank()) {
-                emptyFolderDetail(state.folder)
-            } else {
-                stringResource(R.string.no_search_results_detail)
-            },
-            modifier = modifier,
-        )
-        else -> LazyColumn(
-            state = listState,
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(
-                start = 8.dp,
-                top = 4.dp,
-                end = 8.dp,
-                bottom = navigationBarInset + bottomContentPadding,
-            ),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+    Box(modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            items(state.messages, key = { it.id }) { message ->
-                MessageRow(
-                    message = message,
-                    selected = message.id == state.selectedMessageId,
-                    onClick = { onSelect(message.id) },
-                )
-            }
-            if (state.isLoadingMore) {
-                item(key = "loading-more") {
-                    val loadingLabel = stringResource(R.string.loading_more_mail)
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .semantics { contentDescription = loadingLabel },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            if (state.isRefreshing && state.messages.isEmpty()) {
+                MessageListSkeleton(Modifier.fillMaxSize())
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = PaddingValues(
+                        start = 8.dp,
+                        top = 4.dp,
+                        end = 8.dp,
+                        bottom = navigationBarInset + bottomContentPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    if (state.messages.isEmpty()) {
+                        item(key = "empty") {
+                            EmptyPane(
+                                title = if (state.searchQuery.isBlank()) {
+                                    stringResource(R.string.empty_mail_title)
+                                } else {
+                                    stringResource(R.string.no_search_results_title)
+                                },
+                                detail = if (state.searchQuery.isBlank()) {
+                                    emptyFolderDetail(state.folder)
+                                } else {
+                                    stringResource(R.string.no_search_results_detail)
+                                },
+                                modifier = Modifier.fillParentMaxSize(),
+                            )
+                        }
+                    } else {
+                        if (state.messages.any { !it.isRead }) {
+                            item(key = "list-actions") {
+                                MarkAllReadButton(
+                                    loading = state.isMarkingAllRead,
+                                    onClick = onMarkAllRead,
+                                )
+                            }
+                        }
+                        items(state.messages, key = { it.id }) { message ->
+                            MessageRow(
+                                message = message,
+                                selected = message.id == state.selectedMessageId,
+                                onClick = { onSelect(message.id) },
+                                onAction = { action -> onAction(message.id, action) },
+                                onRequestPermanentDelete = { pendingDelete = message },
+                            )
+                        }
+                        if (state.isLoadingMore) {
+                            item(key = "loading-more") {
+                                val loadingLabel = stringResource(R.string.loading_more_mail)
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                        .semantics { contentDescription = loadingLabel },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator(
+                                        Modifier.size(24.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+    pendingDelete?.let { message ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.delete_message_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.delete_message_detail,
+                        message.subject.ifBlank { stringResource(R.string.no_subject) },
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onAction(message.id, MessageAction.Delete)
+                }) {
+                    Text(stringResource(R.string.delete_permanently))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun MarkAllReadButton(loading: Boolean, onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+        TextButton(onClick = onClick, enabled = !loading) {
+            if (loading) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                LineIcon(AppIcon.Check, null, Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.mark_all_loaded_read))
         }
     }
 }
@@ -181,87 +268,178 @@ private fun MessageListSkeleton(modifier: Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageRow(message: MessageSummary, selected: Boolean, onClick: () -> Unit) {
+private fun MessageRow(
+    message: MessageSummary,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onAction: (MessageAction) -> Unit,
+    onRequestPermanentDelete: () -> Unit,
+) {
     val linkLabel = stringResource(R.string.link_placeholder)
+    val actionLabel = stringResource(R.string.message_actions)
     val sender = message.senderName.ifBlank {
         message.senderAddress.ifBlank { stringResource(R.string.unknown_sender) }
     }
     val locale = LocalConfiguration.current.locales[0]
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-            )
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        SenderAvatar(sender, message.isRead)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    sender,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    formatMessageDate(message.date, locale),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
-                    color = if (message.isRead) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+    var menuExpanded by remember(message.id) { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    if (selected) {
+                        MaterialTheme.colorScheme.secondaryContainer
                     } else {
-                        MaterialTheme.colorScheme.primary
+                        Color.Transparent
                     },
                 )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                readableMessageText(message.subject, linkLabel)
-                    .ifBlank { stringResource(R.string.no_subject) },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+                .combinedClickable(
+                    role = Role.Button,
+                    onLongClickLabel = actionLabel,
+                    onLongClick = { menuExpanded = true },
+                    onClick = onClick,
+                )
+                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            SenderAvatar(sender, message.isRead)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        sender,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        formatMessageDate(message.date, locale),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                        color = if (message.isRead) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    readableMessageText(message.preview, linkLabel),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    readableMessageText(message.subject, linkLabel)
+                        .ifBlank { stringResource(R.string.no_subject) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-                if (message.attachmentCount > 0) {
-                    Spacer(Modifier.width(6.dp))
-                    LineIcon(
-                        AppIcon.Attachment,
-                        stringResource(R.string.has_attachments),
-                        Modifier.size(16.dp),
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        readableMessageText(message.preview, linkLabel),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
-                }
-                if (message.isStarred) {
-                    Spacer(Modifier.width(6.dp))
-                    LineIcon(
-                        AppIcon.Star,
-                        stringResource(R.string.starred_state),
-                        Modifier.size(16.dp),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        filled = true,
-                    )
+                    if (message.attachmentCount > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        LineIcon(
+                            AppIcon.Attachment,
+                            stringResource(R.string.has_attachments),
+                            Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+            IconButton(onClick = { onAction(MessageAction.ToggleStar) }) {
+                LineIcon(
+                    AppIcon.Star,
+                    stringResource(
+                        if (message.isStarred) R.string.remove_star else R.string.add_star,
+                    ),
+                    color = if (message.isStarred) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    filled = message.isStarred,
+                )
+            }
+        }
+        MessageActionsMenu(
+            message = message,
+            expanded = menuExpanded,
+            onDismiss = { menuExpanded = false },
+            onAction = {
+                menuExpanded = false
+                onAction(it)
+            },
+            onRequestPermanentDelete = {
+                menuExpanded = false
+                onRequestPermanentDelete()
+            },
+        )
+    }
+}
+
+@Composable
+private fun MessageActionsMenu(
+    message: MessageSummary,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onAction: (MessageAction) -> Unit,
+    onRequestPermanentDelete: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = {
+                Text(
+                    stringResource(
+                        if (message.isRead) R.string.mark_as_unread else R.string.mark_as_read,
+                    ),
+                )
+            },
+            leadingIcon = { LineIcon(AppIcon.Check, null) },
+            onClick = { onAction(MessageAction.ToggleRead) },
+        )
+        DropdownMenuItem(
+            text = {
+                Text(
+                    stringResource(
+                        if (message.isStarred) R.string.remove_star else R.string.add_star,
+                    ),
+                )
+            },
+            leadingIcon = {
+                LineIcon(AppIcon.Star, null, filled = message.isStarred)
+            },
+            onClick = { onAction(MessageAction.ToggleStar) },
+        )
+        if (message.folder == MailFolder.Trash.apiValue) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.restore_message)) },
+                leadingIcon = { LineIcon(AppIcon.Inbox, null) },
+                onClick = { onAction(MessageAction.Restore) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.delete_permanently)) },
+                leadingIcon = { LineIcon(AppIcon.Trash, null) },
+                onClick = onRequestPermanentDelete,
+            )
+        } else {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.move_to_trash)) },
+                leadingIcon = { LineIcon(AppIcon.Trash, null) },
+                onClick = { onAction(MessageAction.Trash) },
+            )
         }
     }
 }

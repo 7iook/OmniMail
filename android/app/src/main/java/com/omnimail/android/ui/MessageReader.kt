@@ -8,19 +8,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -57,6 +62,7 @@ internal fun MessageReader(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     onReply: (() -> Unit)? = null,
+    onForward: (() -> Unit)? = null,
 ) {
     val detail = state.messageDetail
     when {
@@ -78,6 +84,9 @@ internal fun MessageReader(
             onReply = onReply?.takeIf {
                 state.canSendMail && detail.direction == "incoming" && detail.status == "ready"
             },
+            onForward = onForward?.takeIf {
+                state.canComposeNew() && detail.status == "ready"
+            },
             loadRemoteImages = state.readerPreferences.loadRemoteImages,
             confirmExternalLinks = state.readerPreferences.confirmExternalLinks,
             modifier = modifier,
@@ -91,11 +100,13 @@ private fun MessageDetailContent(
     onBack: (() -> Unit)?,
     onToggleStar: () -> Unit,
     onReply: (() -> Unit)?,
+    onForward: (() -> Unit)?,
     loadRemoteImages: Boolean,
     confirmExternalLinks: Boolean,
     modifier: Modifier,
 ) {
     val motionEnabled = mailMotionEnabled()
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val linkLabel = stringResource(R.string.link_placeholder)
@@ -134,8 +145,10 @@ private fun MessageDetailContent(
         label = stringResource(R.string.star_feedback),
     )
 
+    val hasBottomActions = onReply != null || onForward != null
     EmailNavigationBarAppearance(
-        darkBackground = detail.html.isNotBlank() && emailUsesDarkBackground(detail.html),
+        darkBackground = darkTheme || (!hasBottomActions &&
+            detail.html.isNotBlank() && emailUsesDarkBackground(detail.html)),
     )
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -163,13 +176,6 @@ private fun MessageDetailContent(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (onReply != null) {
-                TextButton(onClick = onReply) {
-                    LineIcon(AppIcon.Reply, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.reply_action))
-                }
-            }
             IconButton(
                 onClick = onToggleStar,
                 colors = IconButtonDefaults.iconButtonColors(
@@ -218,6 +224,7 @@ private fun MessageDetailContent(
                 locale = locale,
             ),
             trustedFooterHtml = messageAttachmentsHtml(detail, emailStrings),
+            darkTheme = darkTheme,
             modifier = Modifier.weight(1f),
             onScrolledChange = { contentScrolled = it },
             onShowRemoteImages = { showRemoteImages = true },
@@ -225,6 +232,9 @@ private fun MessageDetailContent(
                 if (confirmExternalLinks) pendingExternalLink = url else openExternalUrl(context, url)
             },
         )
+        if (hasBottomActions) {
+            MessageActionBar(onReply = onReply, onForward = onForward)
+        }
     }
     pendingExternalLink?.let { url ->
         AlertDialog(
@@ -243,5 +253,45 @@ private fun MessageDetailContent(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun MessageActionBar(
+    onReply: (() -> Unit)?,
+    onForward: (() -> Unit)?,
+) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                onReply?.let {
+                    FilledTonalButton(
+                        onClick = it,
+                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                    ) {
+                        LineIcon(AppIcon.Reply, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.reply_action))
+                    }
+                }
+                onForward?.let {
+                    FilledTonalButton(
+                        onClick = it,
+                        modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                    ) {
+                        LineIcon(AppIcon.Forward, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.forward_action))
+                    }
+                }
+            }
+        }
     }
 }

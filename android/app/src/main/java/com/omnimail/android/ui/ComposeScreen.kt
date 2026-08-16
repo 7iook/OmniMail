@@ -59,6 +59,7 @@ internal fun ComposeScreen(
 ) {
     val composer = state.composer ?: return
     val isReply = composer.replyMessageId != null
+    val isForward = composer.isForward
     var confirmDiscard by rememberSaveable(composer.idempotencyKey) { mutableStateOf(false) }
     val hasEdits = composer.text.isNotBlank() || (!isReply && (
         composer.to.isNotBlank() || composer.subject.isNotBlank()
@@ -83,7 +84,13 @@ internal fun ComposeScreen(
                 LineIcon(AppIcon.Back, stringResource(R.string.close_composer))
             }
             Text(
-                stringResource(if (isReply) R.string.reply_mail else R.string.compose_mail),
+                stringResource(
+                    when {
+                        isReply -> R.string.reply_mail
+                        isForward -> R.string.forward_mail
+                        else -> R.string.compose_mail
+                    },
+                ),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
@@ -103,7 +110,14 @@ internal fun ComposeScreen(
                     LineIcon(AppIcon.Send, null, Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (isReply) R.string.send_reply else R.string.send_mail))
+                Text(
+                    stringResource(
+                        when {
+                            isReply -> R.string.send_reply
+                            else -> R.string.send_mail
+                        },
+                    ),
+                )
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
