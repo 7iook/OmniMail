@@ -232,6 +232,27 @@ Cloudflare Workers Builds 会在 `main` 更新后自动拉取、构建并部署�
 GitHub Actions 中重复配置 Cloudflare API Token。GitHub Actions 只负责运行测试、
 类型检查和部署预检。
 
+#### Android 更新的构建过滤
+
+本仓库同时包含 Web/Worker 与 Android App。为了避免只修改 Android 代码时仍重新
+部署网站，请在 Cloudflare Dashboard 的 **Workers & Pages → omni-mail → Settings →
+Build → Build watch paths** 中设置：
+
+```text
+Includes:
+*
+
+Excludes:
+android/*
+docs/releases/android/*
+.github/workflows/android-release.yml
+```
+
+纯 Android 更新会因此跳过 Workers Builds；如果同一次提交还修改了 Web 或 Worker
+文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths 属于 Cloudflare 项目配置，
+不会写入 `wrangler.jsonc`，新建或迁移项目时需要手动复现。更多规则参见
+[Cloudflare Build watch paths](https://developers.cloudflare.com/workers/ci-cd/builds/build-watch-paths/)。
+
 #### 后续同步上游更新
 
 原仓库发布更新后，在自己的 Fork 页面选择 **Sync fork → Update branch**。GitHub
