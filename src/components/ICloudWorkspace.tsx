@@ -60,14 +60,23 @@ function Modal({ title, description, onClose, children }: {
   title: string
   description: string
   onClose: () => void
-  children: ReactNode
+  children: ReactNode | ((close: () => void) => ReactNode)
 }) {
   const dialogRef = useRef<HTMLElement>(null)
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
+  const onCloseRef = useRef(onClose)
+  const closeTimer = useRef<number | undefined>(undefined)
+  const [visible, setVisible] = useState(false)
+  onCloseRef.current = onClose
+  function close() {
+    if (closeTimer.current !== undefined) return
+    setVisible(false)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    closeTimer.current = window.setTimeout(() => onCloseRef.current(), reducedMotion ? 0 : 210)
+  }
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const dialog = dialogRef.current
+    const enterFrame = requestAnimationFrame(() => setVisible(true))
     const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
       'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
     ) || [])
@@ -76,7 +85,7 @@ function Modal({ title, description, onClose, children }: {
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        closeRef.current()
+        close()
         return
       }
       if (event.key !== 'Tab') return
@@ -94,18 +103,20 @@ function Modal({ title, description, onClose, children }: {
     }
     document.addEventListener('keydown', keydown)
     return () => {
+      cancelAnimationFrame(enterFrame)
+      if (closeTimer.current !== undefined) window.clearTimeout(closeTimer.current)
       document.removeEventListener('keydown', keydown)
       previous?.focus()
     }
   }, [])
   return (
-    <div className="icloud-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className={`icloud-modal-backdrop${visible ? ' is-visible' : ''}`} onMouseDown={(event) => event.target === event.currentTarget && close()}>
       <section ref={dialogRef} className="icloud-modal" role="dialog" aria-modal="true" aria-labelledby="icloud-modal-title" aria-describedby="icloud-modal-description">
         <header>
           <div><h2 id="icloud-modal-title">{title}</h2><p id="icloud-modal-description">{description}</p></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label={t('关闭')}><X size={17} /></button>
+          <button className="icon-button" type="button" onClick={close} aria-label={t('关闭')}><X size={17} /></button>
         </header>
-        {children}
+        {typeof children === 'function' ? children(close) : children}
       </section>
     </div>
   )
@@ -120,23 +131,23 @@ function AddAccountModal({ onClose, onCreated }: {
   const [cookies, setCookies] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  async function submit(event: FormEvent) {
+  async function submit(event: FormEvent, close: () => void) {
     event.preventDefault(); setSaving(true); setError('')
     try {
       const result = await api.createICloudAccount({ name, host, cookies })
-      onCreated(result.account); onClose()
+      onCreated(result.account); close()
     } catch (submitError) { setError(errorMessage(submitError)) } finally { setSaving(false) }
   }
   return (
     <Modal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
-      <form className="icloud-form" onSubmit={submit}>
+      {(close) => <form className="icloud-form" onSubmit={(event) => void submit(event, close)}>
         <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
         <div className="icloud-form-field"><span>{t('iCloud 区域')}</span><ICloudRegionSelect value={host} onChange={setHost} /></div>
         <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-        <footer><button className="button button--secondary" type="button" onClick={onClose}>{t('取消')}</button><button className="button button--primary" disabled={saving}>{saving ? <Spinner /> : <Plus size={16} />}{t('验证并添加')}</button></footer>
-      </form>
+        <footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={saving}>{saving ? <Spinner /> : <Plus size={16} />}{t('验证并添加')}</button></footer>
+      </form>}
     </Modal>
   )
 }
@@ -164,14 +175,15 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
       setAppPassword(''); await onChanged()
     } catch (saveError) { setError(errorMessage(saveError)) } finally { setSaving('') }
   }
-  async function remove() {
+  async function remove(close: () => void) {
     if (!window.confirm(t('确定删除 iCloud 账号“{name}”及其加密凭据吗？', { name: account.name }))) return
     setSaving('delete'); setError('')
-    try { await api.deleteICloudAccount(account.id); await onDeleted(); onClose() }
+    try { await api.deleteICloudAccount(account.id); await onDeleted(); close() }
     catch (deleteError) { setError(errorMessage(deleteError)); setSaving('') }
   }
   return (
     <Modal title={t('管理 {name}', { name: account.name })} description={t('覆盖更新凭据；原值不会显示。')} onClose={onClose}>
+      {(close) => <>
       <div className="icloud-credential-forms">
         <form className="icloud-form" onSubmit={saveCookies}>
           <h3><EyeOff size={17} />iCloud Cookie <small>{t(account.hasCookies ? '已配置' : '未配置')}</small></h3>
@@ -187,7 +199,8 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
         </form>
       </div>
       {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button type="button" onClick={() => void remove()} disabled={Boolean(saving)}>{saving === 'delete' ? <Spinner /> : <Trash2 size={15} />}{t('删除这个 iCloud 账号')}</button></footer>
+      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button type="button" onClick={() => void remove(close)} disabled={Boolean(saving)}>{saving === 'delete' ? <Spinner /> : <Trash2 size={15} />}{t('删除这个 iCloud 账号')}</button></footer>
+      </>}
     </Modal>
   )
 }
@@ -372,10 +385,10 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     messageController.current?.abort()
   }, [])
 
-  async function createAlias(event: FormEvent) {
+  async function createAlias(event: FormEvent, close: () => void) {
     event.preventDefault(); if (!selected) return
     setCreating(true); setError('')
-    try { await api.createICloudAlias(selected.id, label); setLabel(''); setCreateOpen(false); setNotice(t('新的隐藏邮箱已创建')); await sync() }
+    try { await api.createICloudAlias(selected.id, label); setLabel(''); close(); setNotice(t('新的隐藏邮箱已创建')); await sync() }
     catch (createError) { setError(errorMessage(createError)) } finally { setCreating(false) }
   }
   async function aliasAction(alias: ICloudAlias, action: 'deactivate' | 'reactivate' | 'delete') {
@@ -485,7 +498,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       </main>
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
-      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => setCreateOpen(false)}><form className="icloud-form" onSubmit={createAlias}><label><span>{t('用途标签')}</span><input value={label} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /></label><footer><button className="button button--secondary" type="button" onClick={() => setCreateOpen(false)}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form></Modal>}
+      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => setCreateOpen(false)}>{(close) => <form className="icloud-form" onSubmit={(event) => void createAlias(event, close)}><label><span>{t('用途标签')}</span><input value={label} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /></label><footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form>}</Modal>}
       {credentials && <CredentialsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
     </div>

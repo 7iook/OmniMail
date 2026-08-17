@@ -80,6 +80,7 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
 
   await addAccount.click()
   await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.locator('.icloud-modal-backdrop')).toHaveClass(/is-visible/)
   await expect(page.getByRole('dialog').getByRole('textbox', { name: '账号名称' }))
     .toBeFocused()
   const region = page.getByRole('dialog').getByRole('combobox', { name: 'iCloud 区域' })
@@ -95,6 +96,7 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(regionOptions).toBeHidden()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
+  await expect(page.locator('.icloud-modal-backdrop')).not.toHaveClass(/is-visible/)
   await expect(page.getByRole('dialog')).toBeHidden()
 
   await page.getByRole('button', { name: /当前 iCloud.*Personal/ }).click()
