@@ -5,7 +5,7 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
-## [0.3.0] - 待发布
+## [0.3.0] - 2026-08-17
 
 ### 新增
 
@@ -24,7 +24,7 @@
 
 - iCloud 邮件按需从 Apple 读取，不复制到 OmniMail 的 D1、R2 或现有收件箱。
 - OmniMail Float 的受限设备令牌默认不能访问 iCloud 凭据与接口。
-- Web 预览版本为 `0.3.0`；OmniMail Float 保持独立版本，不包含 iCloud 管理接口。
+- Web 版本为 `0.3.0`；OmniMail Float 保持独立版本，不包含 iCloud 管理接口。
 
 ### 优化
 
