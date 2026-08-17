@@ -37,6 +37,7 @@ import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
 import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
+import { ICloudMessageBody } from './ICloudMessageBody'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -220,7 +221,7 @@ function ICloudReader({ message, loading, method, onBack }: {
           </div>
         </div>
         {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
-        <div className="icloud-reader-body">{message.body || message.preview || t('这封邮件没有可显示的文本内容。')}</div>
+        <div className="icloud-reader-body"><ICloudMessageBody message={message} /></div>
       </div>
     </article>
   )

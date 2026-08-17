@@ -127,6 +127,7 @@ export interface ICloudMessage {
   date: string
   preview: string
   body: string
+  html: string
 }
 
 export interface MfaStatus {

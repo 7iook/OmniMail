@@ -1,6 +1,6 @@
-import PostalMime from 'postal-mime'
 import { connect } from 'cloudflare:sockets'
 import { ICloudRemoteError } from './icloud-apple'
+import { parseICloudMessage } from './icloud-message-parser'
 import type { ICloudMessage } from './icloud-types'
 
 const IMAP_HOST = 'imap.mail.me.com'
@@ -81,46 +81,6 @@ function sinceDate(days: number): string {
   date.setUTCDate(date.getUTCDate() - days)
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `${date.getUTCDate()}-${months[date.getUTCMonth()]}-${date.getUTCFullYear()}`
-}
-
-function mailboxText(address: { name: string; address?: string } | undefined): string {
-  if (!address) return ''
-  return address.name && address.address
-    ? `${address.name} <${address.address}>`
-    : address.address || address.name
-}
-
-function mailboxList(addresses: Array<{ name: string; address?: string }> | undefined): string {
-  return (addresses || []).map(mailboxText).filter(Boolean).join(', ')
-}
-
-function cleanBody(value: string): string {
-  return value
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/\r\n?/g, '\n')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/\n(?:[^\S\n]*\n)+/g, '\n\n')
-    .trim()
-}
-
-async function parsedMessage(data: Uint8Array, uid: string): Promise<ICloudMessage> {
-  const parsed = await PostalMime.parse(data)
-  const body = cleanBody(parsed.text?.trim() || parsed.html || '')
-  const preview = body.replace(/\s+/g, ' ').trim()
-  const date = parsed.date ? new Date(parsed.date) : undefined
-  return {
-    id: uid,
-    from: mailboxText(parsed.from as { name: string; address?: string } | undefined),
-    to: mailboxList(parsed.to as Array<{ name: string; address?: string }> | undefined),
-    subject: parsed.subject?.trim() || '',
-    date: date && !Number.isNaN(date.getTime()) ? date.toISOString() : parsed.date || '',
-    preview: preview.length > 400 ? `${preview.slice(0, 400)}…` : preview,
-    body: body.length > 12_000 ? `${body.slice(0, 12_000)}…` : body,
-  }
 }
 
 export class ICloudImapClient {
@@ -251,7 +211,7 @@ export class ICloudImapClient {
       `UID FETCH ${selected.join(',')} (UID BODY.PEEK[]<0.${LIST_MESSAGE_BYTES}>)`,
     )
     const messages = await Promise.all(result.literals.map(({ line, data }) => (
-      parsedMessage(data, line.match(/\bUID (\d+)\b/i)?.[1] || '')
+      parseICloudMessage(data, line.match(/\bUID (\d+)\b/i)?.[1] || '')
     )))
     return messages.sort((left, right) => Number(right.id) - Number(left.id))
   }
@@ -277,6 +237,6 @@ export class ICloudImapClient {
     )
     const literal = result.literals.find(({ line }) => new RegExp(`\\bUID ${uid}\\b`, 'i').test(line))
     if (!literal) throw new ICloudRemoteError(404, '邮件不存在或已被移动。')
-    return parsedMessage(literal.data, uid)
+    return parseICloudMessage(literal.data, uid, true)
   }
 }

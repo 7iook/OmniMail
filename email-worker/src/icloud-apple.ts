@@ -356,6 +356,7 @@ export class ICloudClient {
           subject: nonEmpty(thread.subject),
           preview: body.length > 400 ? `${body.slice(0, 400)}…` : body,
           body: body.length > 12_000 ? `${body.slice(0, 12_000)}…` : body,
+          html: '',
           date: Number(thread.timestamp) > 0
             ? new Date(Number(thread.timestamp)).toISOString()
             : '',

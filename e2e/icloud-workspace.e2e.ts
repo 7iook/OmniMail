@@ -49,12 +49,13 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     if (path === '/api/icloud/inbox') return json(route, { method: hasAppPassword ? 'imap' : 'web', messages: [{
       id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
-      preview: 'Thanks for your order.', body: 'Thanks for your order.',
+      preview: 'Thanks for your order.', body: 'Thanks for your order.', html: '',
     }] })
     if (path === '/api/icloud/inbox/42') return json(route, { message: {
       id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Full receipt body.',
+      html: '<html><body><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p><script>document.body.textContent="unsafe"</script></body></html>',
     } })
     return route.abort()
   })
@@ -96,11 +97,17 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByRole('status')).toContainText('已复制：shop@icloud.com')
 
   await page.getByRole('button', { name: /Your receipt/ }).click()
-  await expect(page.getByText('Full receipt body.')).toBeVisible()
+  const messageFrame = page.frameLocator('iframe[title^="邮件正文"]')
+  await expect(messageFrame.getByRole('heading', { name: 'Full receipt body.' })).toBeVisible()
+  await expect(messageFrame.getByText('unsafe')).toHaveCount(0)
+  await messageFrame.getByRole('link', { name: 'Open receipt' }).click()
+  const externalLink = page.getByRole('alertdialog')
+  await expect(externalLink).toContainText('github.com')
+  await externalLink.getByRole('button', { name: '取消' }).click()
   await page.setViewportSize({ width: 375, height: 812 })
   await expect(page.getByRole('button', { name: '返回邮件列表' })).toBeVisible()
   await page.getByRole('button', { name: '返回邮件列表' }).click()
-  await expect(page.getByText('Full receipt body.')).toBeHidden()
+  await expect(page.locator('iframe[title^="邮件正文"]')).toBeHidden()
   await expect(page.getByRole('button', { name: /Your receipt/ })).toBeVisible()
 })
 
