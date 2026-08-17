@@ -2,6 +2,8 @@
 
 本文件保留聚合版本历史。GitHub Release 使用
 [`docs/releases`](./docs/releases/README.md) 中与 Tag 同名的独立 Markdown 文件。
+后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
+`android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
 ## [0.2.5] - 2026-08-15
 

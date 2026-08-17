@@ -3,6 +3,7 @@
 Android releases use their own tags and version sequence:
 
 - Website: `v0.2.5`
+- OmniMail Float: `float-v0.3.0`
 - Android: `android-v0.1.0`
 
 Only an `android-vMAJOR.MINOR.PATCH` tag runs the Android release workflow. Android

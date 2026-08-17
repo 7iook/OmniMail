@@ -1,4 +1,4 @@
-name: Release
+name: Web Release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag, for example v0.2.3
+        description: Existing Web release tag, for example v0.2.6
         required: true
         type: string
 
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: web-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -45,26 +45,10 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - run: npm run build:extension
-      - run: npm run test:extension
       - run: npx wrangler deploy --dry-run
-      - name: Package extension when versions match
-        id: extension
-        run: |
-          VERSION="${RELEASE_TAG#v}"
-          EXTENSION_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('extension/public/manifest.json', 'utf8')).version")"
-          if [ "$EXTENSION_VERSION" != "$VERSION" ]; then
-            echo "Skipping extension asset: manifest is $EXTENSION_VERSION, release is $VERSION"
-            exit 0
-          fi
-          cd dist-extension
-          ASSET="$RUNNER_TEMP/omnimail-float-$VERSION.zip"
-          zip -q -r "$ASSET" .
-          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
-      - name: Publish GitHub Release
+      - name: Publish Web GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          EXTENSION_ASSET: ${{ steps.extension.outputs.asset }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
@@ -75,7 +59,4 @@ jobs:
               --verify-tag \
               --title "OmniMail $RELEASE_TAG" \
               --notes-file "$RELEASE_NOTES_PATH"
-          fi
-          if [ -n "$EXTENSION_ASSET" ]; then
-            gh release upload "$RELEASE_TAG" "$EXTENSION_ASSET" --clobber
           fi
