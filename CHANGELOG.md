@@ -5,6 +5,38 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.3.0] - 待发布
+
+### 新增
+
+- 将 OmniIMail 的 iCloud+ Hide My Email 能力融合为 OmniMail 的独立 `/icloud`
+  工作区，共用现有登录、用户权限、主题、语言与响应式导航。
+- 支持连接 `icloud.com` / `icloud.com.cn` 账号，同步、创建、停用、恢复和删除隐藏
+  邮箱地址。
+- 支持应用专用密码验证、iCloud IMAP 最近来信与完整正文读取；全部邮件视图在 IMAP
+  不可用时回退到 iCloud Web 摘要。
+- 新增 `ICLOUD_CREDENTIALS_KEY`，使用带用户、账号和字段上下文的 AES-GCM 加密
+  iCloud Cookie 与应用专用密码；API 永不回传凭据。
+- 新增 D1 迁移 `0021_icloud_accounts.sql`、iCloud API、部署自检项，以及 Node / workerd
+  的加密、解析、迁移、用户隔离和 Scope 回归测试。
+
+### 说明
+
+- iCloud 邮件按需从 Apple 读取，不复制到 OmniMail 的 D1、R2 或现有收件箱。
+- OmniMail Float 的受限设备令牌默认不能访问 iCloud 凭据与接口。
+- Web 预览版本为 `0.3.0`；OmniMail Float 保持独立版本，不包含 iCloud 管理接口。
+
+### 优化
+
+- Worker 可按顺序补齐 `0020` / `0021` 并写回 Wrangler 迁移记录，避免旧实例因漏跑
+  D1 迁移持续返回 `500`；部署前仍会正常执行 `npm run db:migrate`。
+- iCloud HTTP 与 IMAP 请求增加明确超时和安全重试边界；别名写操作不再因不确定的
+  网络失败自动重放，操作后的地址统计以 Apple 返回列表为准。
+- 账号列表不再解密 Cookie 或应用专用密码，并限制 Cookie 数量、单值大小、总大小及
+  非法头部字符。
+- 切换账号、地址或邮件时会取消失效请求；iCloud 弹窗支持 Escape、焦点循环和焦点
+  恢复，复制地址会显示成功或失败反馈。
+
 ## [0.2.5] - 2026-08-15
 
 ### 新增
@@ -82,38 +114,6 @@
 ### 发布
 
 - 网页应用与 OmniMail Float 扩展版本统一为 `0.2.3`。
-
-## [0.3.0] - 2026-08-13
-
-### 新增
-
-- 将 OmniIMail 的 iCloud+ Hide My Email 能力融合为 OmniMail 的独立 `/icloud`
-  工作区，共用现有登录、用户权限、主题、语言与响应式导航。
-- 支持连接 `icloud.com` / `icloud.com.cn` 账号，同步、创建、停用、恢复和删除隐藏
-  邮箱地址。
-- 支持应用专用密码验证、iCloud IMAP 最近来信与完整正文读取；全部邮件视图在 IMAP
-  不可用时回退到 iCloud Web 摘要。
-- 新增 `ICLOUD_CREDENTIALS_KEY`，使用带用户、账号和字段上下文的 AES-GCM 加密
-  iCloud Cookie 与应用专用密码；API 永不回传凭据。
-- 新增 D1 迁移 `0021_icloud_accounts.sql`、iCloud API、部署自检项，以及 Node / workerd
-  的加密、解析、迁移、用户隔离和 Scope 回归测试。
-
-### 说明
-
-- iCloud 邮件按需从 Apple 读取，不复制到 OmniMail 的 D1、R2 或现有收件箱。
-- OmniMail Float 的受限设备令牌默认不能访问 iCloud 凭据与接口。
-- Web 预览版本为 `0.3.0`；OmniMail Float 保持独立版本，不包含 iCloud 管理接口。
-
-### 优化
-
-- Worker 可按顺序补齐 `0020` / `0021` 并写回 Wrangler 迁移记录，避免旧实例因漏跑
-  D1 迁移持续返回 `500`；部署前仍会正常执行 `npm run db:migrate`。
-- iCloud HTTP 与 IMAP 请求增加明确超时和安全重试边界；别名写操作不再因不确定的
-  网络失败自动重放，操作后的地址统计以 Apple 返回列表为准。
-- 账号列表不再解密 Cookie 或应用专用密码，并限制 Cookie 数量、单值大小、总大小及
-  非法头部字符。
-- 切换账号、地址或邮件时会取消失效请求；iCloud 弹窗支持 Escape、焦点循环和焦点
-  恢复，复制地址会显示成功或失败反馈。
 
 ## [0.2.2] - 2026-08-13
 
