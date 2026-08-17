@@ -50,8 +50,8 @@ export const enICloud: Record<string, string> = {
   '账号名称': 'Account name',
   '例如：个人 iCloud': 'For example: Personal iCloud',
   'iCloud 区域': 'iCloud region',
-  '全球 · icloud.com': 'Global · icloud.com',
-  '中国大陆 · icloud.com.cn': 'Mainland China · icloud.com.cn',
+  '全球': 'Global',
+  '中国大陆': 'Mainland China',
   '凭据会在 Worker 内加密，保存后不会回传到浏览器。':
     'Credentials are encrypted in the Worker and are not returned after saving.',
   '验证并添加': 'Verify and add',

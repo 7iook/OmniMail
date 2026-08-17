@@ -2,9 +2,11 @@ import {
   AlertCircle,
   AtSign,
   Check,
+  ChevronDown,
   Cloud,
   Copy,
   EyeOff,
+  Globe2,
   Inbox,
   KeyRound,
   LoaderCircle,
@@ -16,7 +18,16 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 import {
   api,
   type ICloudAccount,
@@ -108,6 +119,127 @@ function Modal({ title, description, onClose, children }: {
   )
 }
 
+const iCloudRegions: Array<{ value: ICloudHost; label: string; domain: string }> = [
+  { value: 'icloud.com', label: '全球', domain: 'icloud.com' },
+  { value: 'icloud.com.cn', label: '中国大陆', domain: 'icloud.com.cn' },
+]
+
+function ICloudRegionSelect({ value, onChange }: {
+  value: ICloudHost
+  onChange: (value: ICloudHost) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const menuId = useId()
+  const selectedIndex = Math.max(0, iCloudRegions.findIndex((region) => region.value === value))
+  const selected = iCloudRegions[selectedIndex]
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [open])
+
+  function showMenu(index = selectedIndex) {
+    setOpen(true)
+    requestAnimationFrame(() => optionRefs.current[index]?.focus())
+  }
+
+  function closeMenu(focusTrigger = false) {
+    setOpen(false)
+    if (focusTrigger) requestAnimationFrame(() => trigger.current?.focus())
+  }
+
+  function handleTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Escape' && open) {
+      event.preventDefault()
+      event.stopPropagation()
+      closeMenu()
+      return
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    showMenu(event.key === 'ArrowUp' ? iCloudRegions.length - 1 : selectedIndex)
+  }
+
+  function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const current = optionRefs.current.findIndex((option) => option === document.activeElement)
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeMenu(true)
+      return
+    }
+    if (event.key === 'Tab') {
+      setOpen(false)
+      return
+    }
+    let next = current
+    if (event.key === 'ArrowDown') next = Math.min(iCloudRegions.length - 1, current + 1)
+    else if (event.key === 'ArrowUp') next = Math.max(0, current - 1)
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = iCloudRegions.length - 1
+    else return
+    event.preventDefault()
+    optionRefs.current[next]?.focus()
+  }
+
+  return (
+    <div className={`icloud-region-select${open ? ' is-open' : ''}`} ref={root}>
+      <button
+        ref={trigger}
+        className="icloud-region-select__trigger"
+        type="button"
+        role="combobox"
+        aria-label={t('iCloud 区域')}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => open ? closeMenu() : showMenu()}
+        onKeyDown={handleTriggerKeyDown}
+      >
+        <span className="icloud-region-select__icon"><Globe2 size={16} aria-hidden="true" /></span>
+        <span><strong>{t(selected.label)}</strong><small>{selected.domain}</small></span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          className="icloud-region-select__menu"
+          id={menuId}
+          role="listbox"
+          aria-label={t('iCloud 区域')}
+          onKeyDown={handleMenuKeyDown}
+        >
+          {iCloudRegions.map((region, index) => (
+            <button
+              ref={(node) => { optionRefs.current[index] = node }}
+              className={region.value === value ? 'is-selected' : ''}
+              type="button"
+              role="option"
+              aria-selected={region.value === value}
+              tabIndex={region.value === value ? 0 : -1}
+              key={region.value}
+              onClick={() => {
+                onChange(region.value)
+                closeMenu(true)
+              }}
+            >
+              <span className="icloud-region-select__icon"><Globe2 size={16} aria-hidden="true" /></span>
+              <span><strong>{t(region.label)}</strong><small>{region.domain}</small></span>
+              {region.value === value && <Check size={16} aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AddAccountModal({ onClose, onCreated }: {
   onClose: () => void
   onCreated: (account: ICloudAccount) => void
@@ -128,7 +260,7 @@ function AddAccountModal({ onClose, onCreated }: {
     <Modal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
       <form className="icloud-form" onSubmit={submit}>
         <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
-        <label><span>{t('iCloud 区域')}</span><select value={host} onChange={(event) => setHost(event.target.value as ICloudHost)}><option value="icloud.com">{t('全球 · icloud.com')}</option><option value="icloud.com.cn">{t('中国大陆 · icloud.com.cn')}</option></select></label>
+        <div className="icloud-form-field"><span>{t('iCloud 区域')}</span><ICloudRegionSelect value={host} onChange={setHost} /></div>
         <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
