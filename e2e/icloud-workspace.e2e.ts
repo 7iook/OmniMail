@@ -61,15 +61,13 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
 }
 
 test('iCloud workspace is available to a regular user and reads a message', async ({ page }) => {
-  await page.setViewportSize({ width: 1600, height: 1000 })
+  await page.setViewportSize({ width: 2048, height: 1150 })
   await mockICloud(page)
   await page.goto('/icloud')
 
-  await expect(page.getByRole('heading', { name: 'iCloud 隐藏邮箱' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
   await expect(page.getByText('Personal')).toBeVisible()
-  await expect(page.getByText('shop@icloud.com')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
-  await expect(page.getByText('IMAP 完整模式已启用')).toBeVisible()
   await expect(page.getByText('IMAP 完整邮件')).toBeVisible()
 
   await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
@@ -91,21 +89,28 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
 
-  await page.getByRole('button', { name: /Shopping/ }).click()
+  await page.getByRole('button', { name: /当前 iCloud.*Personal/ }).click()
+  await expect(page.getByRole('dialog', { name: '选择查看范围' })).toBeVisible()
+  await page.getByRole('dialog', { name: '选择查看范围' }).getByRole('button', { name: /Shopping/ }).click()
   await page.getByRole('button', { name: '复制', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('已复制：shop@icloud.com')
 
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('Full receipt body.')).toBeVisible()
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(page.getByRole('button', { name: '返回邮件列表' })).toBeVisible()
+  await page.getByRole('button', { name: '返回邮件列表' }).click()
+  await expect(page.getByText('Full receipt body.')).toBeHidden()
+  await expect(page.getByRole('button', { name: /Your receipt/ })).toBeVisible()
 })
 
 test('explains Cookie summary mode before an app-specific password is configured', async ({ page }) => {
   await mockICloud(page, { hasAppPassword: false })
   await page.goto('/icloud')
 
-  await expect(page.getByText('Cookie 模式')).toBeVisible()
-  await expect(page.getByText('当前为 Cookie 摘要模式')).toBeVisible()
   await expect(page.getByText('Web 摘要', { exact: true })).toBeVisible()
+  await expect(page.getByText('配置应用专用密码后可读取完整正文')).toBeVisible()
+  await expect(page.getByRole('button', { name: '配置', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('当前显示 iCloud Web 摘要')).toBeVisible()
-  await expect(page.getByRole('button', { name: '配置应用密码' }).first()).toBeVisible()
 })

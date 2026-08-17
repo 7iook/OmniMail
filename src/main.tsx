@@ -47,6 +47,7 @@ import './styles/outbound-rate-limit.css'
 import './styles/deployment-wizard.css'
 import './styles/icloud-workspace.css'
 import './styles/icloud-region-select.css'
+import './styles/icloud-scope-switcher.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

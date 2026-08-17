@@ -370,7 +370,16 @@ function Mailbox({
         onLogout={onLogout}
       />
 
-      {adminView ? (
+      {adminView === 'icloud' ? (
+        <Suspense fallback={(
+          <div className="icloud-mail-view">
+            <section className="list-pane"><div className="statistics-loading" role="status"><LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}</div></section>
+            <main className="reader-pane" />
+          </div>
+        )}>
+          <ICloudWorkspace enabled={config.iCloudEnabled} />
+        </Suspense>
+      ) : adminView ? (
         <DelayedScrollbar className="admin-scroll-shell" resetKey={adminView}>
           <Suspense fallback={(
             <main className="admin-workspace">
@@ -379,7 +388,7 @@ function Mailbox({
               </div>
             </main>
           )}>
-            {adminView === 'icloud' ? <ICloudWorkspace enabled={config.iCloudEnabled} /> : <AdminWorkspace
+            <AdminWorkspace
               key={adminView}
               view={adminView}
               user={user}
@@ -392,7 +401,7 @@ function Mailbox({
               onLogout={onLogout}
               onOpenICloud={() => changeAdminView('icloud')}
               onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
-            />}
+            />
           </Suspense>
         </DelayedScrollbar>
       ) : (

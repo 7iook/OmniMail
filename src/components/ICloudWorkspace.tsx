@@ -1,14 +1,15 @@
 import {
   AlertCircle,
+  ArrowLeft,
   AtSign,
   Check,
   Cloud,
   Copy,
   EyeOff,
-  Globe2,
   Inbox,
   KeyRound,
   LoaderCircle,
+  Mail,
   Plus,
   Power,
   PowerOff,
@@ -34,8 +35,8 @@ import {
 } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
-import { AdminPageHeader } from './AdminPageHeader'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
+import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -51,21 +52,6 @@ function Empty({ icon, title, description, action }: {
     <div className="icloud-empty">
       <span>{icon}</span><h3>{title}</h3><p>{description}</p>{action}
     </div>
-  )
-}
-
-function Status({ account }: { account: ICloudAccount }) {
-  const mode = account.status === 'error'
-    ? { label: '需处理', className: 'is-error' }
-    : account.status === 'pending' || !account.hasCookies
-      ? { label: '待配置', className: '' }
-      : account.hasAppPassword
-        ? { label: 'IMAP 完整模式', className: 'is-active' }
-        : { label: 'Cookie 模式', className: 'is-limited' }
-  return (
-    <span className={`icloud-status ${mode.className}`}>
-      <span />{t(mode.label)}
-    </span>
   )
 }
 
@@ -205,19 +191,38 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
   )
 }
 
-function MessageModal({ message, loading, onClose }: {
-  message: ICloudMessage
+function ICloudReader({ message, loading, method, onBack }: {
+  message: ICloudMessage | null
   loading: boolean
-  onClose: () => void
+  method: 'imap' | 'web' | ''
+  onBack: () => void
 }) {
+  if (loading) {
+    return <div className="reader-state reader-state--loading" role="status"><Spinner size={23} />{t('正在读取完整正文…')}</div>
+  }
+  if (!message) {
+    return <div className="reader-state reader-state--empty"><span className="reader-empty-symbol"><Mail size={29} /></span><h2>{t('选择一封 iCloud 邮件')}</h2></div>
+  }
   return (
-    <Modal title={message.subject || t('无主题')} description={message.date ? new Date(message.date).toLocaleString() : ''} onClose={onClose}>
-      <article className="icloud-message-reader">
-        <header><strong>{message.from || t('未知发件人')}</strong>{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</header>
-        {loading && <p><Spinner />{t('正在读取完整正文…')}</p>}
-        <div>{message.body || message.preview || t('这封邮件没有可显示的文本内容。')}</div>
-      </article>
-    </Modal>
+    <article className="icloud-reader">
+      <header className="reader-toolbar">
+        <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
+        <h2 className="reader-toolbar__title">{t('iCloud 邮件')}</h2>
+        {method && <span className={`icloud-source-badge is-${method}`}>{t(method === 'imap' ? 'IMAP 完整邮件' : 'Web 摘要')}</span>}
+      </header>
+      <div className="reader-content icloud-reader-content">
+        <div className="icloud-reader-heading">
+          <h1>{message.subject || t('无主题')}</h1>
+          <div className="icloud-reader-sender">
+            <span>{(message.from || '?').slice(0, 1).toUpperCase()}</span>
+            <p><strong>{message.from || t('未知发件人')}</strong>{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
+            {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+          </div>
+        </div>
+        {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
+        <div className="icloud-reader-body">{message.body || message.preview || t('这封邮件没有可显示的文本内容。')}</div>
+      </div>
+    </article>
   )
 }
 
@@ -233,6 +238,7 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [credentials, setCredentials] = useState<ICloudAccount | null>(null)
   const [label, setLabel] = useState('')
   const [creating, setCreating] = useState(false)
@@ -339,6 +345,10 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   }, [selectedId])
   useEffect(() => { if (selectedId) void sync() }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
+    messageController.current?.abort()
+    messageRequestId.current += 1
+    setOpened(null)
+    setMessageLoading(false)
     if (selectedId) void loadInbox()
   }, [selectedAlias]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -360,7 +370,7 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   async function createAlias(event: FormEvent) {
     event.preventDefault(); if (!selected) return
     setCreating(true); setError('')
-    try { await api.createICloudAlias(selected.id, label); setLabel(''); setNotice(t('新的隐藏邮箱已创建')); await sync() }
+    try { await api.createICloudAlias(selected.id, label); setLabel(''); setCreateOpen(false); setNotice(t('新的隐藏邮箱已创建')); await sync() }
     catch (createError) { setError(errorMessage(createError)) } finally { setCreating(false) }
   }
   async function aliasAction(alias: ICloudAlias, action: 'deactivate' | 'reactivate' | 'delete') {
@@ -408,80 +418,67 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <main className="admin-workspace icloud-workspace">
-      <AdminPageHeader icon={Cloud} eyebrow="iCloud · HIDE MY EMAIL" title={t('iCloud 隐藏邮箱')} description={t('在 OmniMail 中管理 iCloud+ 隐藏地址，并按需查看最近来信。')} actions={enabled ? <button className="button button--secondary user-header-actions icloud-header-action" type="button" onClick={() => setAddOpen(true)}><Plus size={16} />{t('添加 iCloud 账号')}</button> : undefined} />
-      {!enabled ? (
-        <Empty icon={<KeyRound size={24} />} title={t('iCloud 功能尚未启用')} description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY，然后重新部署。')} />
-      ) : loading ? <div className="icloud-loading"><Spinner size={22} />{t('正在读取 iCloud 账号…')}</div> : (
-        <>
-          {error && <p className="inline-error icloud-alert" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-          <div className="icloud-account-strip" aria-label={t('iCloud 账号')}>
-            {accounts.map((account) => {
-              const active = account.id === selectedId
-              return (
-                <button className={active ? 'is-selected' : ''} type="button" aria-pressed={active} key={account.id} onClick={() => setSelectedId(account.id)}>
-                  <span className="icloud-account-icon"><Cloud size={18} aria-hidden="true" /></span>
-                  <span className="icloud-account-copy">
-                    <span className="icloud-account-title"><strong>{account.name}</strong><Status account={account} /></span>
-                    <small>{account.realEmail || account.icloudEmail || t('尚未识别 Apple ID')}</small>
-                    <span className="icloud-account-meta">
-                      <span><AtSign size={12} aria-hidden="true" />{t('{count} 个地址', { count: account.aliasTotal })}</span>
-                      <span>{t('{count} 个启用', { count: account.aliasActive })}</span>
-                      <span><Globe2 size={12} aria-hidden="true" />{t(account.host === 'icloud.com.cn' ? '中国大陆' : '全球')}</span>
-                    </span>
-                  </span>
-                  {active && <Check className="icloud-account-selected" size={17} aria-hidden="true" />}
-                </button>
-              )
-            })}
-            {!accounts.length && <Empty icon={<Cloud size={24} />} title={t('还没有 iCloud 账号')} description={t('添加 Cookie 后即可同步隐藏邮箱；应用专用密码用于按地址筛选和读取完整正文。')} action={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}><Plus size={16} />{t('添加第一个账号')}</button>} />}
+    <div className={`icloud-mail-view${opened ? ' has-selection' : ''}`}>
+      <section className="list-pane icloud-list-pane page-content-enter">
+        <header className="list-header icloud-list-header">
+          <div>
+            {accounts.length ? <ICloudScopeSwitcher accounts={accounts} aliases={aliases}
+              selectedAccountId={selectedId} selectedAlias={selectedAlias}
+              onAccountChange={setSelectedId} onAliasChange={setSelectedAlias} />
+              : <p className="eyebrow">ICLOUD · HIDE MY EMAIL</p>}
+            <h1>iCloud</h1>
           </div>
-          {selected && <>
-            <div className="icloud-control-grid">
-              <section className={`icloud-security-row ${selected.hasAppPassword ? 'is-imap' : 'is-cookie'}`}>
-                <span>{selected.hasAppPassword ? <ShieldCheck size={18} /> : <KeyRound size={18} />}</span>
-                <p>
-                  <strong>{t(selected.hasAppPassword ? 'IMAP 完整模式已启用' : '当前为 Cookie 摘要模式')}</strong>
-                  {t(selected.hasAppPassword
-                    ? 'Cookie 和应用专用密码已加密保存，可筛选地址并读取完整正文。'
-                    : '可管理隐藏地址并查看 Web 摘要；完整正文和按地址筛选需要应用专用密码。')}
-                </p>
-                <button className="button button--secondary button--small" type="button" onClick={() => setCredentials(selected)}><KeyRound size={15} />{t(selected.hasAppPassword ? '管理凭据' : '配置应用密码')}</button>
-              </section>
-              <form className="icloud-create-bar" onSubmit={createAlias}><span><AtSign size={17} /></span><label><span>{t('创建隐藏邮箱')}</span><input aria-label={t('用途标签')} value={label} maxLength={80} onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /></label><button className="button button--primary button--small" disabled={creating || !selected.hasCookies}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></form>
-            </div>
-            <div className="icloud-mail-grid">
-              <aside className="icloud-aliases"><header><div><h2>{t('隐藏邮箱')}</h2><p>{t('{count} 个地址', { count: aliases.length })}</p></div><button className="icon-button icon-button--small" type="button" disabled={syncing} onClick={() => void sync()} aria-label={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={15} />}</button></header><div><button className={!selectedAlias ? 'is-active' : ''} type="button" onClick={() => setSelectedAlias('')}><Inbox size={16} /><span><strong>{t('全部邮件')}</strong><small>{t('所有收件地址')}</small></span></button>{aliases.map((alias) => <button className={selectedAlias === alias.email ? 'is-active' : ''} type="button" key={alias.anonymousId || alias.email} onClick={() => setSelectedAlias(alias.email)}><AtSign size={16} /><span><strong>{alias.label || t('未命名地址')}</strong><small>{alias.email}</small></span></button>)}</div></aside>
-              <section className="icloud-inbox">
-                <header>
-                  <div>
-                    <div className="icloud-inbox-title">
-                      <h2>{selectedAlias ? activeAlias?.label || t('隐藏邮箱') : t('全部邮件')}</h2>
-                      {inboxMethod && <span className={`icloud-source-badge is-${inboxMethod}`}>{t(inboxMethod === 'imap' ? 'IMAP 完整邮件' : 'Web 摘要')}</span>}
-                    </div>
-                    <p>{selectedAlias || t('最近 7 天来信')} · {t('{count} 封', { count: messages.length })}</p>
-                  </div>
-                  {activeAlias && <div className="icloud-alias-actions">
-                    <button type="button" onClick={() => void copyAlias(selectedAlias)}><Copy size={14} />{t('复制')}</button>
-                    <button type="button" onClick={() => void aliasAction(activeAlias, activeAlias.active ? 'deactivate' : 'reactivate')}>{activeAlias.active ? <PowerOff size={14} /> : <Power size={14} />}{t(activeAlias.active ? '停用' : '恢复')}</button>
-                    <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')}><Trash2 size={14} />{t('删除')}</button>
-                  </div>}
-                </header>
-                {inboxMethod === 'web' && !selectedAlias && <div className="icloud-mode-notice">
-                  <span><KeyRound size={16} /></span>
-                  <p><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('这不是 IMAP 完整邮件；配置当前账号的应用专用密码后，可按隐藏地址筛选并读取完整正文。')}</p>
-                  <button className="button button--secondary button--small" type="button" onClick={() => setCredentials(selected)}>{t('配置应用密码')}</button>
-                </div>}
-                {syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div> : selectedAlias && !selected.hasAppPassword ? <Empty icon={<KeyRound />} title={t('需要应用专用密码')} description={t('配置后才能准确筛选这个隐藏邮箱收到的邮件。')} action={<button className="button button--secondary button--small" type="button" onClick={() => setCredentials(selected)}>{t('配置应用密码')}</button>} /> : messages.length ? <div className="icloud-message-list">{messages.map((message) => <button type="button" key={`${message.id}-${message.to}`} onClick={() => void openMessage(message)}><span>{(message.from || '?').slice(0, 1).toUpperCase()}</span><div><header><strong>{message.from || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleString() : ''}</time></header><h3>{message.subject || t('无主题')}</h3><p>{message.preview || t('暂无正文预览')}</p></div></button>)}</div> : <Empty icon={<Inbox />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}
-              </section>
-            </div>
-          </>}
-        </>
-      )}
+          <div className="list-header__actions">
+            <button className="icon-button" type="button" disabled={!enabled}
+              onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}><Plus size={17} /></button>
+            <button className="icon-button" type="button" disabled={!selected?.hasCookies}
+              onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}><AtSign size={17} /></button>
+            <button className="icon-button" type="button" disabled={!selected}
+              onClick={() => selected && setCredentials(selected)} aria-label={t('管理凭据')}><KeyRound size={17} /></button>
+            <button className="icon-button" type="button" disabled={!selected || syncing}
+              onClick={() => void sync()} aria-label={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
+          </div>
+        </header>
+
+        {error && <p className="list-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
+        {selected && <div className={`icloud-list-context ${selected.hasAppPassword ? 'is-imap' : 'is-cookie'}`}>
+          <span>{activeAlias ? <AtSign size={16} /> : selected.hasAppPassword ? <ShieldCheck size={16} /> : <KeyRound size={16} />}</span>
+          <p><strong>{activeAlias?.label || t(selected.hasAppPassword ? 'IMAP 完整邮件' : 'Web 摘要')}</strong><small>{activeAlias?.email || t(selected.hasAppPassword ? '可按隐藏地址筛选并读取完整正文' : '配置应用专用密码后可读取完整正文')}</small></p>
+          {activeAlias ? <div>
+            <button type="button" onClick={() => void copyAlias(activeAlias.email)} aria-label={t('复制')}><Copy size={14} /></button>
+            <button type="button" onClick={() => void aliasAction(activeAlias, activeAlias.active ? 'deactivate' : 'reactivate')} aria-label={t(activeAlias.active ? '停用' : '恢复')}>{activeAlias.active ? <PowerOff size={14} /> : <Power size={14} />}</button>
+            <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')} aria-label={t('删除')}><Trash2 size={14} /></button>
+          </div> : !selected.hasAppPassword && <button type="button" onClick={() => setCredentials(selected)}>{t('配置')}</button>}
+        </div>}
+
+        {!enabled ? <Empty icon={<KeyRound size={24} />} title={t('iCloud 功能尚未启用')} description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY，然后重新部署。')} />
+          : loading ? <div className="icloud-loading"><Spinner size={22} />{t('正在读取 iCloud 账号…')}</div>
+          : !accounts.length ? <Empty icon={<Cloud size={24} />} title={t('还没有 iCloud 账号')} description={t('添加 Cookie 后即可同步隐藏邮箱；应用专用密码用于按地址筛选和读取完整正文。')} action={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}><Plus size={16} />{t('添加第一个账号')}</button>} />
+          : selectedAlias && !selected?.hasAppPassword ? <Empty icon={<KeyRound size={24} />} title={t('需要应用专用密码')} description={t('配置后才能准确筛选这个隐藏邮箱收到的邮件。')} action={<button className="button button--secondary button--small" type="button" onClick={() => selected && setCredentials(selected)}>{t('配置应用密码')}</button>} />
+          : syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div>
+          : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('iCloud 邮件列表')}>
+            {messages.map((message) => {
+              const active = opened?.id === message.id && opened.to === message.to
+              return <article className={`message-row${active ? ' is-selected' : ''}`} role="option" aria-selected={active} key={`${message.id}-${message.to}`}>
+                <button className="message-row__main" type="button" onClick={() => void openMessage(message)}>
+                  <span className="message-row__top"><strong>{message.from || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time></span>
+                  <span className="message-row__subject"><span className="message-row__subject-text">{message.subject || t('无主题')}</span></span>
+                  <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
+                  {message.to && <span className="mailbox-hint"><AtSign size={12} />{message.to}</span>}
+                </button>
+              </article>
+            })}
+          </div></div> : <Empty icon={<Inbox size={24} />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}
+      </section>
+
+      <main className="reader-pane icloud-reader-pane">
+        <ICloudReader message={opened} loading={messageLoading} method={inboxMethod} onBack={closeMessage} />
+      </main>
+
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
+      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => setCreateOpen(false)}><form className="icloud-form" onSubmit={createAlias}><label><span>{t('用途标签')}</span><input value={label} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /></label><footer><button className="button button--secondary" type="button" onClick={() => setCreateOpen(false)}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form></Modal>}
       {credentials && <CredentialsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} />}
-      {opened && <MessageModal message={opened} loading={messageLoading} onClose={closeMessage} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
-    </main>
+    </div>
   )
 }

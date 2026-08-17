@@ -1,375 +1,157 @@
-.icloud-workspace .admin-workspace__header {
-  align-items: flex-start;
-  min-height: 96px;
-  margin-bottom: 18px;
-}
-
-.icloud-header-action {
-  margin: 29px 0 0 auto;
-  white-space: nowrap;
-}
-
-.icloud-alert,
-.icloud-account-strip,
-.icloud-control-grid,
-.icloud-mail-grid,
-.icloud-loading,
-.icloud-workspace > .icloud-empty {
-  width: var(--admin-content-width);
-  margin-inline: auto;
-}
-
-.icloud-loading {
-  display: flex;
-  min-height: 180px;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.icloud-empty {
+.icloud-mail-view {
   display: grid;
-  min-height: 210px;
-  place-items: center;
-  align-content: center;
-  gap: 8px;
-  padding: 30px;
-  border: 1px dashed var(--line-strong);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  text-align: center;
-}
-
-.icloud-empty > span {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 15px;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-}
-
-.icloud-empty h3 {
-  margin: 4px 0 0;
-  font-size: 17px;
-}
-
-.icloud-empty p {
-  max-width: 520px;
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-.icloud-empty .button {
-  margin-top: 8px;
-}
-
-.icloud-account-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 23px;
-  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
-  box-shadow: var(--shadow-sm);
-}
-
-.icloud-account-strip > button {
-  display: grid;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   min-width: 0;
-  min-height: 104px;
+  min-height: 0;
+  grid-column: 2 / -1;
+  grid-template-columns: minmax(320px, 370px) minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.icloud-list-pane {
+  container: icloud-list / inline-size;
+}
+
+.icloud-list-header .eyebrow {
+  margin: 0 0 5px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+
+.icloud-list-context {
+  display: grid;
+  min-height: 58px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 13px;
-  padding: 15px 16px;
-  border: 1px solid transparent;
-  border-radius: 16px;
+  gap: 9px;
+  margin: 0 12px 12px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.icloud-list-context > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
   background: var(--surface);
   color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, color 180ms ease;
 }
 
-.icloud-account-strip > button:hover,
-.icloud-account-strip > button.is-selected {
-  border-color: var(--line-strong);
-  color: var(--text);
+.icloud-list-context.is-cookie > span {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
-.icloud-account-strip > button.is-selected {
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line-strong), var(--shadow-sm);
+.icloud-list-context.is-imap > span {
+  background: var(--success-soft);
+  color: var(--success);
 }
 
-.icloud-account-icon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--surface-muted);
-  color: var(--text);
-}
-
-.icloud-account-copy {
+.icloud-list-context p {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 1px;
+  margin: 0;
 }
 
-.icloud-account-title {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 9px;
-}
-
-.icloud-account-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 5px;
-  margin-top: 3px;
-}
-
-.icloud-account-meta > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: var(--surface-muted);
-  color: var(--text-tertiary);
-  font-size: 9px;
-  font-weight: 620;
-}
-
-.icloud-account-strip strong,
-.icloud-account-strip small {
+.icloud-list-context strong,
+.icloud-list-context small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.icloud-account-strip strong { min-width: 0; font-size: 14px; }
-.icloud-account-strip small { color: var(--text-tertiary); font-size: 10px; }
-.icloud-account-selected { color: var(--text); }
+.icloud-list-context strong { font-size: 11px; }
+.icloud-list-context small { color: var(--text-tertiary); font-size: 9px; }
 
-.icloud-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-tertiary);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.icloud-status > span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.icloud-status.is-active { color: var(--success); }
-.icloud-status.is-limited { color: var(--warning); }
-.icloud-status.is-error { color: var(--danger); }
-
-.icloud-control-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.86fr) minmax(420px, 1.14fr);
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.icloud-security-row {
-  display: grid;
-  min-height: 86px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 15px 16px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.icloud-security-row > span {
-  display: grid;
-  width: 34px;
-  height: 34px;
+.icloud-list-context > button,
+.icloud-list-context > div > button {
+  display: inline-grid;
+  min-width: 30px;
+  height: 30px;
   place-items: center;
-  border-radius: 10px;
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.icloud-security-row.is-cookie > span {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.icloud-security-row p {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.icloud-security-row strong { color: var(--text); font-size: 13px; }
-
-.icloud-create-bar {
-  display: grid;
-  min-height: 86px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 13px 12px 16px;
+  padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 9px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.icloud-create-bar > span {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 11px;
-  background: var(--surface-muted);
   color: var(--text-secondary);
-}
-
-.icloud-create-bar label {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.icloud-create-bar label > span {
-  color: var(--text);
-  font-size: 12px;
+  cursor: pointer;
+  font-size: 10px;
   font-weight: 650;
 }
 
-.icloud-create-bar input {
-  min-width: 0;
-  height: 27px;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
+.icloud-list-context > div { display: flex; gap: 4px; }
+.icloud-list-context > div > button { padding: 0; }
+.icloud-list-context button:hover { border-color: var(--line-strong); color: var(--text); }
+.icloud-list-context button.is-danger { color: var(--danger); }
+
+.icloud-list-pane .message-row__main { padding-right: 18px; }
+.icloud-list-pane .message-list { overscroll-behavior: contain; }
+
+.icloud-loading {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
-.icloud-mail-grid {
+.icloud-empty {
   display: grid;
-  min-height: 610px;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: var(--surface);
-  box-shadow: 0 18px 52px color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.icloud-aliases {
-  min-width: 0;
-  padding: 19px 16px;
-  border-right: 1px solid var(--line);
-  background: var(--surface-muted);
-}
-
-.icloud-aliases > header,
-.icloud-inbox > header {
-  display: flex;
-  min-height: 63px;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.icloud-aliases h2,
-.icloud-inbox h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.icloud-aliases header p,
-.icloud-inbox header p {
-  margin: 2px 0 0;
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.icloud-aliases > div {
-  display: grid;
-  gap: 6px;
-}
-
-.icloud-aliases > div > button {
-  display: grid;
-  min-width: 0;
-  min-height: 58px;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  padding: 9px 11px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-}
-
-.icloud-aliases > div > button:hover { background: var(--surface-hover); }
-.icloud-aliases > div > button.is-active {
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.icloud-aliases button span { display: grid; min-width: 0; }
-.icloud-aliases button strong,
-.icloud-aliases button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.icloud-aliases button strong { font-size: 13px; }
-.icloud-aliases button small { font-size: 10px; opacity: 0.72; }
-
-.icloud-inbox {
-  min-width: 0;
-  padding: 0 22px 22px;
-}
-
-.icloud-inbox > header {
-  min-height: 82px;
-  align-items: center;
-  padding-block: 18px;
-  border-bottom: 1px solid var(--line);
-}
-
-.icloud-inbox-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  min-height: 0;
+  flex: 1;
+  place-items: center;
+  align-content: center;
   gap: 8px;
+  padding: 28px;
+  text-align: center;
 }
+
+.icloud-empty > span {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.icloud-empty h3 { margin: 4px 0 0; font-size: 15px; }
+.icloud-empty p { max-width: 280px; margin: 0; color: var(--text-tertiary); font-size: 11px; line-height: 1.6; }
+.icloud-empty .button { margin-top: 8px; }
+
+.icloud-reader-pane {
+  min-width: 0;
+  min-height: 0;
+}
+
+.icloud-reader {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  animation: icloud-reader-in 180ms ease-out both;
+}
+
+.icloud-reader .reader-toolbar { justify-content: flex-start; }
 
 .icloud-source-badge {
   display: inline-flex;
-  align-items: center;
   min-height: 22px;
+  align-items: center;
   padding-inline: 8px;
   border-radius: 999px;
   background: var(--warning-soft);
@@ -383,98 +165,77 @@
   color: var(--success);
 }
 
-.icloud-mode-notice {
+.icloud-reader-content {
+  width: 100%;
+  max-width: 980px;
+  margin-inline: auto;
+}
+
+.icloud-reader-heading {
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.icloud-reader-heading h1 {
+  margin: 0 0 28px;
+  overflow-wrap: anywhere;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.icloud-reader-sender {
   display: grid;
-  min-height: 64px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--line));
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--warning-soft) 58%, var(--surface));
-}
-
-.icloud-mode-notice > span {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.icloud-mode-notice p { display: grid; gap: 2px; margin: 0; color: var(--text-tertiary); font-size: 10px; }
-.icloud-mode-notice strong { color: var(--text); font-size: 11px; }
-
-.icloud-alias-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
-}
-
-.icloud-alias-actions button,
-.icloud-credential-danger button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 31px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.icloud-alias-actions button:hover { background: var(--surface-hover); color: var(--text); }
-.icloud-alias-actions button.is-danger,
-.icloud-credential-danger button { color: var(--danger); }
-
-.icloud-message-list { display: grid; }
-.icloud-message-list > button {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
-  margin-inline: -10px;
-  padding: 17px 10px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: background 160ms ease;
 }
 
-.icloud-message-list > button:hover { background: var(--surface-muted); }
-.icloud-message-list > button > span {
+.icloud-reader-sender > span {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-contrast);
-  font-size: 12px;
   font-weight: 700;
 }
 
-.icloud-message-list > button > div { min-width: 0; }
-.icloud-message-list header { display: flex; justify-content: space-between; gap: 10px; }
-.icloud-message-list strong,
-.icloud-message-list h3,
-.icloud-message-list p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.icloud-message-list strong { font-size: 13px; }
-.icloud-message-list time { color: var(--text-tertiary); font-size: 10px; white-space: nowrap; }
-.icloud-message-list h3 { margin: 4px 0 2px; font-size: 14px; }
-.icloud-message-list p { margin: 0; color: var(--text-tertiary); font-size: 12px; }
-.icloud-inbox > .icloud-empty { min-height: 360px; border: 0; background: transparent; }
+.icloud-reader-sender p { display: grid; min-width: 0; gap: 2px; margin: 0; }
+.icloud-reader-sender strong,
+.icloud-reader-sender small { overflow-wrap: anywhere; }
+.icloud-reader-sender strong { font-size: 13px; }
+.icloud-reader-sender small,
+.icloud-reader-sender time { color: var(--text-tertiary); font-size: 10px; }
+.icloud-reader-sender time { white-space: nowrap; }
+
+.icloud-reader-web-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 22px 0 0;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning-soft) 58%, var(--surface));
+  color: var(--warning);
+}
+
+.icloud-reader-web-note > span { display: grid; gap: 2px; color: var(--text-tertiary); font-size: 10px; }
+.icloud-reader-web-note strong { color: var(--text); font-size: 11px; }
+
+.icloud-reader-body {
+  margin-top: 28px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.75;
+}
 
 .icloud-modal-backdrop {
   position: fixed;
@@ -538,51 +299,39 @@
 .icloud-credential-forms .icloud-form { padding: 16px; border: 1px solid var(--line); border-radius: 15px; }
 .icloud-credential-danger { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--text-tertiary); font-size: 11px; }
 
-.icloud-message-reader > header { display: grid; gap: 2px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
-.icloud-message-reader > header small { color: var(--text-tertiary); font-size: 11px; }
-.icloud-message-reader > p { display: flex; align-items: center; gap: 6px; color: var(--text-tertiary); font-size: 11px; }
-.icloud-message-reader > div { padding: 20px 2px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.75; }
+@keyframes icloud-reader-in { from { opacity: 0.55; } }
 
-@media (max-width: 1100px) {
-  .icloud-control-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 900px) {
-  .icloud-mail-grid { grid-template-columns: 250px minmax(0, 1fr); }
-  .icloud-credential-forms { grid-template-columns: 1fr; }
+@media (max-width: 1120px) {
+  .icloud-mail-view { grid-template-columns: minmax(310px, 350px) minmax(0, 1fr); }
+  .icloud-reader-content { padding-inline: 28px; }
 }
 
 @media (max-width: 760px) {
-  .icloud-header-action {
-    display: inline-flex;
-    width: 42px;
-    min-width: 42px;
-    min-height: 42px;
+  .icloud-mail-view {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 68px);
+    height: calc(100dvh - 68px);
     grid-column: auto;
-    margin: 24px 0 0 auto;
-    padding: 0;
-    font-size: 0;
   }
-  .icloud-header-action svg { width: 18px; height: 18px; }
-  .icloud-account-strip { grid-template-columns: 1fr; padding: 6px; border-radius: 20px; }
-  .icloud-account-strip > button { min-height: 98px; }
-  .icloud-mail-grid { grid-template-columns: 1fr; }
-  .icloud-aliases { border-right: 0; border-bottom: 1px solid var(--line); }
-  .icloud-aliases > div { max-height: 280px; overflow-y: auto; }
-  .icloud-security-row { grid-template-columns: auto minmax(0, 1fr); }
-  .icloud-security-row .button { grid-column: 1 / -1; }
-}
 
-@media (max-width: 520px) {
-  .icloud-create-bar { grid-template-columns: auto minmax(0, 1fr); }
-  .icloud-create-bar .button { grid-column: 1 / -1; }
-  .icloud-account-meta { gap: 4px; }
-  .icloud-mode-notice { grid-template-columns: auto minmax(0, 1fr); }
-  .icloud-mode-notice .button { grid-column: 1 / -1; }
-  .icloud-inbox { padding: 15px; }
-  .icloud-inbox > header { display: grid; }
-  .icloud-alias-actions { justify-content: flex-start; }
+  .icloud-list-pane { width: 100%; height: 100%; border: 0; }
+  .icloud-reader-pane { position: fixed; z-index: 40; inset: 0 0 68px; display: none; background: var(--surface); }
+  .icloud-mail-view.has-selection .icloud-reader-pane { display: block; animation: icloud-mobile-reader-in 280ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .icloud-reader-content { padding: 22px 14px 36px; }
+  .icloud-reader-heading h1 { margin-bottom: 22px; font-size: clamp(24px, 7.5vw, 29px); }
+  .icloud-reader-sender { grid-template-columns: auto minmax(0, 1fr); }
+  .icloud-reader-sender time { grid-column: 2; }
+  .icloud-reader-body { padding: 20px 17px; }
   .icloud-modal-backdrop { padding: 8px; }
   .icloud-modal { max-height: calc(100dvh - 16px); padding: 17px; border-radius: 18px; }
+  .icloud-credential-forms { grid-template-columns: 1fr; }
   .icloud-credential-danger { align-items: flex-start; flex-direction: column; }
+}
+
+@keyframes icloud-mobile-reader-in { from { opacity: 0.3; transform: translateX(18px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .icloud-reader,
+  .icloud-mail-view.has-selection .icloud-reader-pane { animation: none; }
 }

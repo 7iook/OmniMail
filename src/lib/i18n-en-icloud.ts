@@ -1,7 +1,17 @@
 export const enICloud: Record<string, string> = {
+  '正在打开 iCloud 收件箱…': 'Opening iCloud inbox…',
+  '当前 iCloud': 'Current iCloud',
+  '选择账号': 'Select account',
+  'iCloud 邮件': 'iCloud Mail',
+  '可按隐藏地址筛选并读取完整正文': 'Filter by alias and read full messages',
+  '配置应用专用密码后可读取完整正文': 'Configure an app-specific password to read full messages',
+  '配置': 'Configure',
+  'iCloud 邮件列表': 'iCloud message list',
+  '为当前 iCloud 账号创建新的隐藏地址。': 'Create a new Hide My Email address for the current iCloud account.',
+  '选择一封 iCloud 邮件': 'Select an iCloud message',
+  '配置当前账号的应用专用密码后，可读取 IMAP 完整正文。':
+    'Configure an app-specific password for this account to read the full message over IMAP.',
   'iCloud 隐藏邮箱': 'iCloud Hide My Email',
-  '在 OmniMail 中管理 iCloud+ 隐藏地址，并按需查看最近来信。':
-    'Manage iCloud+ Hide My Email addresses and read recent messages on demand.',
   'iCloud 功能尚未启用': 'iCloud is not enabled',
   '在 Worker Variables & Secrets 中配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY，然后重新部署。':
     'Add an ICLOUD_CREDENTIALS_KEY of at least 32 bytes in Worker Variables & Secrets, then redeploy.',
@@ -13,35 +23,19 @@ export const enICloud: Record<string, string> = {
     'Add cookies to sync aliases. An app-specific password enables recipient filtering and full messages.',
   '正在读取 iCloud 账号…': 'Loading iCloud accounts…',
   '尚未识别 Apple ID': 'Apple ID not identified',
-  '待配置': 'Setup required',
-  '需处理': 'Needs attention',
-  'IMAP 完整模式': 'Full IMAP',
-  'Cookie 模式': 'Cookie mode',
   '管理凭据': 'Manage credentials',
   '配置应用密码': 'Configure app password',
-  'IMAP 完整模式已启用': 'Full IMAP mode enabled',
-  '当前为 Cookie 摘要模式': 'Currently using Cookie summary mode',
-  'Cookie 和应用专用密码已加密保存，可筛选地址并读取完整正文。':
-    'Cookies and the app-specific password are encrypted. Recipient filtering and full messages are available.',
-  '可管理隐藏地址并查看 Web 摘要；完整正文和按地址筛选需要应用专用密码。':
-    'You can manage aliases and view Web summaries. Full messages and recipient filtering require an app-specific password.',
   '用途标签，例如：购物网站': 'Purpose label, such as Shopping',
   '用途标签': 'Purpose label',
   '创建隐藏邮箱': 'Create alias',
   '创建': 'Create',
-  '隐藏邮箱': 'Hide My Email',
-  '{count} 个地址': '{count} addresses',
-  '{count} 个启用': '{count} active',
   '同步': 'Sync',
   '全部邮件': 'All messages',
   '所有收件地址': 'All recipient addresses',
   '未命名地址': 'Unnamed address',
-  '最近 7 天来信': 'Messages from the last 7 days',
   'IMAP 完整邮件': 'Full IMAP messages',
   'Web 摘要': 'Web summaries',
   '当前显示 iCloud Web 摘要': 'Showing iCloud Web summaries',
-  '这不是 IMAP 完整邮件；配置当前账号的应用专用密码后，可按隐藏地址筛选并读取完整正文。':
-    'These are not full IMAP messages. Configure an app-specific password for this account to filter by alias and read full messages.',
   '复制': 'Copy',
   '停用': 'Deactivate',
   '恢复': 'Reactivate',
@@ -49,7 +43,6 @@ export const enICloud: Record<string, string> = {
   '需要应用专用密码': 'App-specific password required',
   '配置后才能准确筛选这个隐藏邮箱收到的邮件。':
     'Configure it to accurately filter messages received by this address.',
-  '配置凭据': 'Configure credentials',
   '正在读取收件箱…': 'Loading inbox…',
   '暂无 iCloud 邮件': 'No iCloud messages',
   '最近 7 天没有找到邮件，或需要更新账号凭据。':
