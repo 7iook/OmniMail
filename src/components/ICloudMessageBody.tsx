@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import type { ICloudMessage } from '../lib/api'
-import { forceLightEmailDocument } from '../lib/emailContent'
+import { api, type ICloudMessage } from '../lib/api'
+import {
+  forceLightEmailDocument,
+  loadDeferredRemoteImages,
+  normalizeRemoteImageSource,
+} from '../lib/emailContent'
 import { EMAIL_FRAME_SANDBOX, emailDocumentHeight } from '../hooks/useSmoothEmailFrame'
 import { t } from '../lib/i18n'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
@@ -20,7 +24,9 @@ function emailLink(target: EventTarget | null): string | null {
   return link ? safeHttpHref(link.dataset.icloudHref || '') : null
 }
 
-export function buildICloudEmailDocument(html: string): string {
+export function buildICloudEmailDocument(html: string, remoteImagesEnabled: boolean): string {
+  const proxyUrl = new URL(api.remoteImageUrl('https://example.invalid/image'), window.location.href)
+  const proxySource = `${proxyUrl.origin}${proxyUrl.pathname}`
   const document = new DOMParser().parseFromString(html, 'text/html')
   document.querySelectorAll('script, iframe, object, embed, form, base, link, meta[http-equiv]')
     .forEach((node) => node.remove())
@@ -35,7 +41,10 @@ export function buildICloudEmailDocument(html: string): string {
   document.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
     const source = image.getAttribute('src') || ''
     image.removeAttribute('srcset')
-    if (!source.startsWith('data:')) image.removeAttribute('src')
+    if (source.startsWith('data:')) return
+    const remoteSource = remoteImagesEnabled ? normalizeRemoteImageSource(source) : null
+    image.removeAttribute('src')
+    if (remoteSource) image.dataset.omnimailSrc = api.remoteImageUrl(remoteSource)
   })
   document.querySelectorAll('source').forEach((source) => source.remove())
   document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => {
@@ -48,7 +57,7 @@ export function buildICloudEmailDocument(html: string): string {
     link.setAttribute('role', 'link')
     link.setAttribute('tabindex', '0')
   })
-  const policy = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"
+  const policy = `default-src 'none'; img-src data: ${proxySource}; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'`
   const styles = `<style>
     :root { color-scheme: light; }
     html { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
@@ -73,18 +82,23 @@ function PlainBody({ text, onLink }: { text: string; onLink: (href: string) => v
   })}</div>
 }
 
-export function ICloudMessageBody({ message }: { message: ICloudMessage }) {
+export function ICloudMessageBody({ message, remoteImagesEnabled }: {
+  message: ICloudMessage
+  remoteImagesEnabled: boolean
+}) {
   const [height, setHeight] = useState(360)
   const [externalLink, setExternalLink] = useState<string | null>(null)
   const document = useMemo(
-    () => message.html ? buildICloudEmailDocument(message.html) : '',
-    [message.html],
+    () => message.html ? buildICloudEmailDocument(message.html, remoteImagesEnabled) : '',
+    [message.html, remoteImagesEnabled],
   )
   const openExternalLink = useCallback((href: string) => setExternalLink(href), [])
   const frameLoaded = useCallback((frame: HTMLIFrameElement) => {
     const content = frame.contentDocument
     if (!content) return
-    setHeight(Math.max(280, emailDocumentHeight(content)))
+    const resize = () => setHeight(Math.max(280, emailDocumentHeight(content)))
+    resize()
+    loadDeferredRemoteImages(content, resize)
     content.addEventListener('click', (event) => {
       const href = emailLink(event.target)
       if (!href) return

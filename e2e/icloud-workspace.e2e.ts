@@ -24,7 +24,7 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
       registrationMethod: 'password', linuxDoLoginEnabled: false,
       registrationDomainPolicy: { mode: 'blocklist', domains: [] },
       registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: 0,
-      remoteImagesEnabled: false, unassignedMailEnabled: false, superAdminEmail: '',
+      remoteImagesEnabled: true, unassignedMailEnabled: false, superAdminEmail: '',
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
     })
@@ -36,6 +36,10 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     } })
     if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
     if (path === '/api/domains') return json(route, { domains: [] })
+    if (path === '/api/remote-images') return route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="32"><rect width="120" height="32" rx="6" fill="#24292f"/><text x="60" y="21" text-anchor="middle" fill="white">GitHub</text></svg>',
+    })
     if (path === '/api/icloud/accounts') return json(route, { accounts: [{
       id: 'icloud-1', name: 'Personal', realEmail: 'owner@example.com',
       icloudEmail: 'owner@icloud.com', host: 'icloud.com', status: 'active',
@@ -55,7 +59,7 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
       id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Full receipt body.',
-      html: '<html><body><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p><script>document.body.textContent="unsafe"</script></body></html>',
+      html: '<html><body><img src="https://github.com/logo.png" alt="GitHub"><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p><script>document.body.textContent="unsafe"</script></body></html>',
     } })
     return route.abort()
   })
@@ -70,8 +74,11 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByText('Personal')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
   await expect(page.getByText('IMAP 完整邮件')).toBeVisible()
+  const addAccount = page.getByRole('button', { name: '添加 iCloud 账号' })
+  await addAccount.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('添加 iCloud 账号')
 
-  await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
+  await addAccount.click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('dialog').getByRole('textbox', { name: '账号名称' }))
     .toBeFocused()
@@ -99,6 +106,7 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await page.getByRole('button', { name: /Your receipt/ }).click()
   const messageFrame = page.frameLocator('iframe[title^="邮件正文"]')
   await expect(messageFrame.getByRole('heading', { name: 'Full receipt body.' })).toBeVisible()
+  await expect(messageFrame.getByRole('img', { name: 'GitHub' })).toHaveJSProperty('naturalWidth', 120)
   await expect(messageFrame.getByText('unsafe')).toHaveCount(0)
   await messageFrame.getByRole('link', { name: 'Open receipt' }).click()
   const externalLink = page.getByRole('alertdialog')

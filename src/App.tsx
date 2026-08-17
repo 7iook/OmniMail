@@ -377,7 +377,7 @@ function Mailbox({
             <main className="reader-pane" />
           </div>
         )}>
-          <ICloudWorkspace enabled={config.iCloudEnabled} />
+          <ICloudWorkspace enabled={config.iCloudEnabled} remoteImagesEnabled={config.remoteImagesEnabled} />
         </Suspense>
       ) : adminView ? (
         <DelayedScrollbar className="admin-scroll-shell" resetKey={adminView}>

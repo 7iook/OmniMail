@@ -192,10 +192,11 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
   )
 }
 
-function ICloudReader({ message, loading, method, onBack }: {
+function ICloudReader({ message, loading, method, remoteImagesEnabled, onBack }: {
   message: ICloudMessage | null
   loading: boolean
   method: 'imap' | 'web' | ''
+  remoteImagesEnabled: boolean
   onBack: () => void
 }) {
   if (loading) {
@@ -221,13 +222,16 @@ function ICloudReader({ message, loading, method, onBack }: {
           </div>
         </div>
         {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
-        <div className="icloud-reader-body"><ICloudMessageBody message={message} /></div>
+        <div className="icloud-reader-body"><ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} /></div>
       </div>
     </article>
   )
 }
 
-export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
+export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
+  enabled: boolean
+  remoteImagesEnabled: boolean
+}) {
   const [accounts, setAccounts] = useState<ICloudAccount[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [aliases, setAliases] = useState<ICloudAlias[]>([])
@@ -431,13 +435,17 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
           </div>
           <div className="list-header__actions">
             <button className="icon-button" type="button" disabled={!enabled}
-              onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}><Plus size={17} /></button>
+              onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}
+              data-tooltip={t('添加 iCloud 账号')}><Plus size={17} /></button>
             <button className="icon-button" type="button" disabled={!selected?.hasCookies}
-              onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}><AtSign size={17} /></button>
+              onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}
+              data-tooltip={t('创建隐藏邮箱')}><AtSign size={17} /></button>
             <button className="icon-button" type="button" disabled={!selected}
-              onClick={() => selected && setCredentials(selected)} aria-label={t('管理凭据')}><KeyRound size={17} /></button>
+              onClick={() => selected && setCredentials(selected)} aria-label={t('管理凭据')}
+              data-tooltip={t('管理凭据')}><KeyRound size={17} /></button>
             <button className="icon-button" type="button" disabled={!selected || syncing}
-              onClick={() => void sync()} aria-label={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
+              onClick={() => void sync()} aria-label={t('同步')}
+              data-tooltip={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
           </div>
         </header>
 
@@ -446,9 +454,9 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
           <span>{activeAlias ? <AtSign size={16} /> : selected.hasAppPassword ? <ShieldCheck size={16} /> : <KeyRound size={16} />}</span>
           <p><strong>{activeAlias?.label || t(selected.hasAppPassword ? 'IMAP 完整邮件' : 'Web 摘要')}</strong><small>{activeAlias?.email || t(selected.hasAppPassword ? '可按隐藏地址筛选并读取完整正文' : '配置应用专用密码后可读取完整正文')}</small></p>
           {activeAlias ? <div>
-            <button type="button" onClick={() => void copyAlias(activeAlias.email)} aria-label={t('复制')}><Copy size={14} /></button>
-            <button type="button" onClick={() => void aliasAction(activeAlias, activeAlias.active ? 'deactivate' : 'reactivate')} aria-label={t(activeAlias.active ? '停用' : '恢复')}>{activeAlias.active ? <PowerOff size={14} /> : <Power size={14} />}</button>
-            <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')} aria-label={t('删除')}><Trash2 size={14} /></button>
+            <button type="button" onClick={() => void copyAlias(activeAlias.email)} aria-label={t('复制')} data-tooltip={t('复制')}><Copy size={14} /></button>
+            <button type="button" onClick={() => void aliasAction(activeAlias, activeAlias.active ? 'deactivate' : 'reactivate')} aria-label={t(activeAlias.active ? '停用' : '恢复')} data-tooltip={t(activeAlias.active ? '停用' : '恢复')}>{activeAlias.active ? <PowerOff size={14} /> : <Power size={14} />}</button>
+            <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')} aria-label={t('删除')} data-tooltip={t('删除')}><Trash2 size={14} /></button>
           </div> : !selected.hasAppPassword && <button type="button" onClick={() => setCredentials(selected)}>{t('配置')}</button>}
         </div>}
 
@@ -473,7 +481,7 @@ export function ICloudWorkspace({ enabled }: { enabled: boolean }) {
       </section>
 
       <main className="reader-pane icloud-reader-pane">
-        <ICloudReader message={opened} loading={messageLoading} method={inboxMethod} onBack={closeMessage} />
+        <ICloudReader message={opened} loading={messageLoading} method={inboxMethod} remoteImagesEnabled={remoteImagesEnabled} onBack={closeMessage} />
       </main>
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
