@@ -4,7 +4,8 @@ function json(route: Route, body: unknown) {
   return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function mockICloud(page: Page) {
+async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}) {
+  const hasAppPassword = options.hasAppPassword ?? true
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -40,12 +41,12 @@ async function mockICloud(page: Page) {
       icloudEmail: 'owner@icloud.com', host: 'icloud.com', status: 'active',
       aliasTotal: 1, aliasActive: 1, lastValidated: '2026-08-13T00:00:00.000Z',
       lastError: '', createdAt: '2026-08-13T00:00:00.000Z',
-      hasCookies: true, hasAppPassword: true,
+      hasCookies: true, hasAppPassword,
     }] })
     if (path === '/api/icloud/aliases') return json(route, { aliases: [{
       email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
     }] })
-    if (path === '/api/icloud/inbox') return json(route, { method: 'imap', messages: [{
+    if (path === '/api/icloud/inbox') return json(route, { method: hasAppPassword ? 'imap' : 'web', messages: [{
       id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Thanks for your order.',
@@ -60,6 +61,7 @@ async function mockICloud(page: Page) {
 }
 
 test('iCloud workspace is available to a regular user and reads a message', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 })
   await mockICloud(page)
   await page.goto('/icloud')
 
@@ -67,6 +69,8 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByText('Personal')).toBeVisible()
   await expect(page.getByText('shop@icloud.com')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
+  await expect(page.getByText('IMAP 完整模式已启用')).toBeVisible()
+  await expect(page.getByText('IMAP 完整邮件')).toBeVisible()
 
   await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
@@ -93,4 +97,15 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
 
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('Full receipt body.')).toBeVisible()
+})
+
+test('explains Cookie summary mode before an app-specific password is configured', async ({ page }) => {
+  await mockICloud(page, { hasAppPassword: false })
+  await page.goto('/icloud')
+
+  await expect(page.getByText('Cookie 模式')).toBeVisible()
+  await expect(page.getByText('当前为 Cookie 摘要模式')).toBeVisible()
+  await expect(page.getByText('Web 摘要', { exact: true })).toBeVisible()
+  await expect(page.getByText('当前显示 iCloud Web 摘要')).toBeVisible()
+  await expect(page.getByRole('button', { name: '配置应用密码' }).first()).toBeVisible()
 })
