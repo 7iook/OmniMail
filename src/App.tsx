@@ -13,18 +13,9 @@ import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
 import { TemporaryInvitePage } from './components/TemporaryInvitePage'
 import {
-  api,
-  ApiError,
-  type AppConfig,
-  type Folder,
-  type ManagedDomain,
-  type MailboxAddress,
-  type MailCounts,
-  type MailboxScope,
-  type MessageDetail,
-  type MessageSummary,
-  type PageInfo,
-  type User,
+  api, ApiError,
+  type AppConfig, type Folder, type ManagedDomain, type MailboxAddress, type MailCounts,
+  type MailboxScope, type MessageDetail, type MessageSummary, type PageInfo, type User,
 } from './lib/api'
 import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
@@ -372,10 +363,9 @@ function Mailbox({
 
       {adminView === 'icloud' ? (
         <Suspense fallback={(
-          <div className="icloud-mail-view">
-            <section className="list-pane"><div className="statistics-loading" role="status"><LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}</div></section>
-            <main className="reader-pane" />
-          </div>
+          <div className="icloud-mail-view"><section className="list-pane"><div className="statistics-loading" role="status">
+            <LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}
+          </div></section><main className="reader-pane" /></div>
         )}>
           <ICloudWorkspace enabled={config.iCloudEnabled} remoteImagesEnabled={config.remoteImagesEnabled} />
         </Suspense>

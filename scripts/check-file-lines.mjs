@@ -6,6 +6,7 @@ const limit = 600
 const ignoredDirectories = new Set([
   '.git',
   '.wrangler',
+  'build',
   'dist',
   'dist-extension',
   'node_modules',

@@ -19,10 +19,6 @@ import type {
   DraftAttachment,
   DraftSummary,
   Folder,
-  ICloudAccount,
-  ICloudAlias,
-  ICloudHost,
-  ICloudMessage,
   MailboxAddress,
   MailboxScope,
   MailCleanupFilter,
@@ -50,6 +46,7 @@ import type {
   User,
 } from './api-types'
 import type { ExtensionAuthorizationRequest } from './extensionAuthorization'
+import { createICloudApi } from './icloud-api-client'
 
 export class ApiError extends Error {
   status: number
@@ -425,59 +422,7 @@ export const api = {
     body: jsonBody(input),
   }),
   mailboxes: () => request<{ mailboxes: MailboxAddress[] }>('/api/mailboxes'),
-  iCloudAccounts: (signal?: AbortSignal) => request<{ accounts: ICloudAccount[] }>(
-    '/api/icloud/accounts', { signal },
-  ),
-  createICloudAccount: (input: { name: string; host: ICloudHost; cookies: string }) => (
-    request<{ account: ICloudAccount }>('/api/icloud/accounts', {
-      method: 'POST', body: jsonBody(input),
-    })
-  ),
-  deleteICloudAccount: (id: string) => request<{ ok: true }>(
-    `/api/icloud/accounts/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
-  ),
-  updateICloudCookies: (id: string, cookies: string) => request<{ account: ICloudAccount }>(
-    `/api/icloud/accounts/${encodeURIComponent(id)}/cookies`,
-    { method: 'PUT', body: jsonBody({ cookies }) },
-  ),
-  updateICloudAppPassword: (id: string, icloudEmail: string, appPassword: string) => (
-    request<{ ok: true; icloudEmail: string }>(
-      `/api/icloud/accounts/${encodeURIComponent(id)}/app-password`,
-      { method: 'PUT', body: jsonBody({ icloudEmail, appPassword }) },
-    )
-  ),
-  iCloudAliases: (accountId: string, signal?: AbortSignal) => request<{ aliases: ICloudAlias[] }>(
-    `/api/icloud/aliases?accountId=${encodeURIComponent(accountId)}`,
-    { signal },
-  ),
-  createICloudAlias: (accountId: string, label: string) => request<{ alias: ICloudAlias }>(
-    '/api/icloud/aliases',
-    { method: 'POST', body: jsonBody({ accountId, label }) },
-  ),
-  updateICloudAlias: (
-    anonymousId: string,
-    accountId: string,
-    action: 'deactivate' | 'reactivate',
-  ) => request<{ ok: true }>(`/api/icloud/aliases/${encodeURIComponent(anonymousId)}`, {
-    method: 'PATCH', body: jsonBody({ accountId, action }),
-  }),
-  deleteICloudAlias: (anonymousId: string, accountId: string) => request<{ ok: true }>(
-    `/api/icloud/aliases/${encodeURIComponent(anonymousId)}`,
-    { method: 'DELETE', body: jsonBody({ accountId }) },
-  ),
-  iCloudInbox: (accountId: string, alias = '', signal?: AbortSignal) => {
-    const search = new URLSearchParams({ accountId, limit: '20', days: '7' })
-    if (alias) search.set('alias', alias)
-    return request<{ messages: ICloudMessage[]; method: 'imap' | 'web' }>(
-      `/api/icloud/inbox?${search}`,
-      { signal },
-    )
-  },
-  iCloudMessage: (accountId: string, uid: string, signal?: AbortSignal) => request<{ message: ICloudMessage }>(
-    `/api/icloud/inbox/${encodeURIComponent(uid)}?accountId=${encodeURIComponent(accountId)}`,
-    { signal },
-  ),
+  ...createICloudApi(request, jsonBody),
   addMailbox: (address: string) => request<{ mailbox: MailboxAddress }>('/api/mailboxes', {
     method: 'POST',
     body: jsonBody({ address }),
