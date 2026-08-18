@@ -11,14 +11,15 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const wranglerCli = join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+const wranglerCli = process.env.OMNIMAIL_WRANGLER_CLI
+  ?? join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
 const mode = process.argv[2]
 
 if (mode !== '--remote' && mode !== '--local') {
   throw new Error('Usage: node scripts/apply-d1-migrations.mjs --remote|--local')
 }
 
-function runWrangler(args, capture = false) {
+function runWrangler(args, capture = false, printCapturedError = true) {
   const result = spawnSync(process.execPath, [wranglerCli, ...args], {
     cwd: root,
     encoding: 'utf8',
@@ -27,10 +28,40 @@ function runWrangler(args, capture = false) {
   })
   if (result.error) throw result.error
   if (result.status !== 0) {
-    if (capture) process.stderr.write(result.stderr)
-    throw new Error(`Wrangler exited with code ${result.status}`)
+    if (capture && printCapturedError) process.stderr.write(result.stderr)
+    const error = new Error(`Wrangler exited with code ${result.status}`)
+    error.stderr = result.stderr
+    throw error
   }
   return result.stdout
+}
+
+function autoProvisionedDatabaseName(error) {
+  if (typeof error?.stderr !== 'string') return null
+  const match = error.stderr.match(
+    /Couldn't find an auto-provisioned D1 DB named '([^']+)' for binding 'DB'/,
+  )
+  return match?.[1] ?? null
+}
+
+function bootstrapRemoteDatabase() {
+  const args = [
+    'd1', 'execute', 'DB', '--remote',
+    '--file', 'scripts/bootstrap-legacy-d1.sql',
+  ]
+  try {
+    const output = runWrangler(args, true, false)
+    process.stdout.write(output)
+  } catch (error) {
+    const databaseName = autoProvisionedDatabaseName(error)
+    if (!databaseName) {
+      if (typeof error?.stderr === 'string') process.stderr.write(error.stderr)
+      throw error
+    }
+    console.log(`Creating first-deploy D1 database '${databaseName}'...`)
+    runWrangler(['d1', 'create', databaseName, '--update-config=false'])
+    runWrangler(args)
+  }
 }
 
 function migrationNames() {
@@ -57,14 +88,14 @@ function migrationImport(names) {
   }).join('\n\n') + '\n'
 }
 
-runWrangler([
-  'd1', 'execute', 'DB', mode,
-  '--file', 'scripts/bootstrap-legacy-d1.sql',
-])
-
 if (mode === '--local') {
+  runWrangler([
+    'd1', 'execute', 'DB', '--local',
+    '--file', 'scripts/bootstrap-legacy-d1.sql',
+  ])
   runWrangler(['d1', 'migrations', 'apply', 'DB', '--local'])
 } else {
+  bootstrapRemoteDatabase()
   const applied = appliedMigrationNames()
   const pending = migrationNames().filter((name) => !applied.has(name))
   if (pending.length === 0) {
