@@ -442,7 +442,8 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
           <div>
             {accounts.length ? <ICloudScopeSwitcher accounts={accounts} aliases={aliases}
               selectedAccountId={selectedId} selectedAlias={selectedAlias}
-              onAccountChange={setSelectedId} onAliasChange={setSelectedAlias} />
+              onAccountChange={setSelectedId} onAliasChange={setSelectedAlias}
+              onAliasCopy={copyAlias} />
               : <p className="eyebrow">ICLOUD · HIDE MY EMAIL</p>}
             <h1>iCloud</h1>
           </div>

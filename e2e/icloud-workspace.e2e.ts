@@ -100,8 +100,12 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByRole('dialog')).toBeHidden()
 
   await page.getByRole('button', { name: /当前 iCloud.*Personal/ }).click()
-  await expect(page.getByRole('dialog', { name: '选择查看范围' })).toBeVisible()
-  await page.getByRole('dialog', { name: '选择查看范围' }).getByRole('button', { name: /Shopping/ }).click()
+  const scopeDialog = page.getByRole('dialog', { name: '选择查看范围' })
+  await expect(scopeDialog).toBeVisible()
+  await scopeDialog.getByRole('button', { name: '复制邮箱地址：shop@icloud.com' }).click()
+  await expect(page.getByRole('status')).toContainText('已复制：shop@icloud.com')
+  await expect(scopeDialog).toBeVisible()
+  await scopeDialog.getByRole('button', { name: /Shopping/ }).click()
   await page.getByRole('button', { name: '复制', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('已复制：shop@icloud.com')
 
