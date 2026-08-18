@@ -6,6 +6,10 @@ function json(route: Route, body: unknown) {
 
 async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}) {
   const hasAppPassword = options.hasAppPassword ?? true
+  const aliases = [{
+    email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
+  }]
+  const inboxAliases: string[] = []
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -47,14 +51,25 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
       lastError: '', createdAt: '2026-08-13T00:00:00.000Z',
       hasCookies: true, hasAppPassword,
     }] })
-    if (path === '/api/icloud/aliases') return json(route, { aliases: [{
-      email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
-    }] })
-    if (path === '/api/icloud/inbox') return json(route, { method: hasAppPassword ? 'imap' : 'web', messages: [{
-      id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
+    if (path === '/api/icloud/aliases' && request.method() === 'POST') {
+      const input = request.postDataJSON() as { label: string }
+      const alias = {
+        email: 'new-alias@icloud.com', anonymousId: 'alias-2',
+        label: input.label, active: true,
+      }
+      aliases.push(alias)
+      return json(route, { alias })
+    }
+    if (path === '/api/icloud/aliases') return json(route, { aliases })
+    if (path === '/api/icloud/inbox') {
+      const alias = url.searchParams.get('alias') || ''
+      inboxAliases.push(alias)
+      return json(route, { method: hasAppPassword ? 'imap' : 'web', messages: [{
+      id: '42', from: 'Store <store@example.com>', to: alias || 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Thanks for your order.', html: '',
     }] })
+    }
     if (path === '/api/icloud/inbox/42') return json(route, { message: {
       id: '42', from: 'Store <store@example.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
@@ -63,6 +78,7 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     } })
     return route.abort()
   })
+  return { inboxAliases }
 }
 
 test('iCloud workspace is available to a regular user and reads a message', async ({ page }) => {
@@ -134,4 +150,18 @@ test('explains Cookie summary mode before an app-specific password is configured
   await expect(page.getByRole('button', { name: '配置', exact: true })).toBeVisible()
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('当前显示 iCloud Web 摘要')).toBeVisible()
+})
+
+test('opens the newly created Hide My Email address', async ({ page }) => {
+  const state = await mockICloud(page)
+  await page.goto('/icloud')
+
+  await page.getByRole('button', { name: '创建隐藏邮箱' }).click()
+  const dialog = page.getByRole('dialog', { name: '创建隐藏邮箱' })
+  await dialog.getByRole('textbox', { name: '用途标签' }).fill('New service')
+  await dialog.getByRole('button', { name: '创建', exact: true }).click()
+
+  await expect(page.locator('.icloud-list-context'))
+    .toContainText('new-alias@icloud.com')
+  await expect.poll(() => state.inboxAliases.at(-1)).toBe('new-alias@icloud.com')
 })

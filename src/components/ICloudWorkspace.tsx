@@ -292,7 +292,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     }
   }, [enabled])
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (alias = selectedAlias) => {
     const id = selectedId
     if (!id) return
     aliasController.current?.abort()
@@ -312,7 +312,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
         inboxController.current?.abort()
         const inboxAbort = new AbortController()
         inboxController.current = inboxAbort
-        const inboxResult = await api.iCloudInbox(id, selectedAlias, inboxAbort.signal)
+        const inboxResult = await api.iCloudInbox(id, alias, inboxAbort.signal)
         if (inboxCurrent === inboxRequestId.current) {
           setMessages(inboxResult.messages)
           setInboxMethod(inboxResult.method)
@@ -388,7 +388,12 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
   async function createAlias(event: FormEvent, close: () => void) {
     event.preventDefault(); if (!selected) return
     setCreating(true); setError('')
-    try { await api.createICloudAlias(selected.id, label); setLabel(''); close(); setNotice(t('新的隐藏邮箱已创建')); await sync() }
+    try {
+      const result = await api.createICloudAlias(selected.id, label)
+      setLabel(''); close(); setSelectedAlias(result.alias.email)
+      setNotice(t('新的隐藏邮箱已创建'))
+      await sync(result.alias.email)
+    }
     catch (createError) { setError(errorMessage(createError)) } finally { setCreating(false) }
   }
   async function aliasAction(alias: ICloudAlias, action: 'deactivate' | 'reactivate' | 'delete') {
