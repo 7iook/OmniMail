@@ -23,6 +23,10 @@ describe('workspace routes', () => {
       kind: 'admin',
       view: 'account',
     })
+    expect(workspaceRoute('/settings/api', 'user')).toMatchObject({
+      kind: 'admin',
+      view: 'api',
+    })
     expect(workspaceRoute('/icloud', 'user')).toMatchObject({
       kind: 'admin',
       view: 'icloud',

@@ -237,6 +237,11 @@
     font-size: 9px;
   }
 
+  .account-nav button.is-active-mobile {
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
+
   .admin-nav-toggle {
     position: absolute;
     z-index: 3;

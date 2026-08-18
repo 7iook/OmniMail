@@ -338,7 +338,7 @@ function Mailbox({
   }
 
   function changeAdminView(next: AdminView) {
-    if (next !== 'account' && next !== 'icloud' && !isAdminRole(user.role)) return
+    if (next !== 'account' && next !== 'api' && next !== 'icloud' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
     setSelectedId(null)
@@ -389,6 +389,7 @@ function Mailbox({
               onConfigChange={onConfigChange}
               onUserChange={onUserChange}
               onLogout={onLogout}
+              onOpenApiGuide={() => changeAdminView('api')}
               onOpenICloud={() => changeAdminView('icloud')}
               onOpenDeploymentWizard={() => setDeploymentWizardOpen(true)}
             />

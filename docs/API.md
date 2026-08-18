@@ -176,6 +176,9 @@ Content-Type: application/json
 
 ## 获取设备令牌
 
+登录 Webmail 后可以打开 `/settings/api`，查看按当前实例地址生成的快速接入指南、
+cURL / JavaScript / Python 示例，以及 n8n、Postman 等 HTTP 工具的通用配置。
+
 ```http
 POST /api/auth/token
 Content-Type: application/json
@@ -183,7 +186,8 @@ Content-Type: application/json
 {
   "email": "user@example.com",
   "password": "your-password",
-  "deviceName": "OmniMail Desktop / Windows"
+  "deviceName": "OmniMail Desktop / Windows",
+  "mfaCode": "123456"
 }
 ```
 
@@ -210,6 +214,9 @@ Content-Type: application/json
   Keychain 或 Linux Secret Service，不能写入普通配置文件或日志。
 - 令牌在 D1 中只保存 SHA-256 摘要，服务端无法还原明文。
 - 登录失败与网页密码登录共用 IP + 邮箱限速。
+- 已启用 MFA 的账号必须同时提交当前验证码或恢复码；未启用时 `mfaCode` 会被忽略。
+- 设备令牌接口当前需要密码凭据；仅通过 Linux DO 创建且没有密码的账号暂时不能使用
+  此签发流程。
 - 密码/MFA 签发的设备令牌 Scope 为 `*`；刷新令牌只轮换凭据并继承原 Scope。
 
 ## 使用 Access Token
@@ -229,6 +236,17 @@ Authorization: Bearer om_at_...
 
 访问令牌过期或被撤销时返回 `401`。桌面端收到 `401` 后应先尝试刷新一次；
 刷新失败则清除本地令牌并让用户重新登录。
+
+### 第三方工具与跨域调用
+
+- cURL、n8n 服务端任务、Postman 和后端程序通常不发送浏览器 `Origin`，可以直接
+  请求实例地址并通过 `Authorization` 头认证。
+- 其他网页前端会触发浏览器跨域检查，必须先把精确来源加入 Worker 的
+  `APP_ORIGINS`；不支持使用通配符放开任意来源。
+- Access Token 只应保存在运行内存；Refresh Token 应保存到操作系统或自动化平台的
+  加密凭据存储，不能写入日志或普通配置文件。
+- 长时间运行的集成收到 `401` 时最多刷新一次，并原子替换服务端返回的新 Access Token
+  与 Refresh Token；刷新失败后需要重新登录。
 
 ## 刷新与退出
 

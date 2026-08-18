@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BookOpen,
   ChevronUp,
   FilePenLine,
   Inbox,
@@ -160,6 +161,17 @@ export function MailboxSidebar({
       <nav className="account-nav" aria-label={t('个人账户')}>
         <span className="account-nav-secondary">
           <button
+            className={adminView === 'api' ? 'is-active' : ''}
+            type="button"
+            onClick={() => {
+              setAdminMenuOpen(false)
+              onAdminViewChange('api')
+            }}
+          >
+            <BookOpen size={18} />
+            <span>{t('API 使用')}</span>
+          </button>
+          <button
             className={adminView === 'icloud' ? 'is-active' : ''}
             type="button"
             onClick={() => {
@@ -172,7 +184,11 @@ export function MailboxSidebar({
           </button>
         </span>
         <button
-          className={adminView === 'account' ? 'is-active' : ''}
+          className={adminView === 'account'
+            ? 'is-active'
+            : adminView === 'api'
+              ? 'is-active-mobile'
+              : ''}
           type="button"
           onClick={() => {
             setAdminMenuOpen(false)

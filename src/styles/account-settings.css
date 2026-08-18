@@ -498,6 +498,28 @@
   user-select: text;
 }
 
+@media (max-width: 760px) {
+  .account-workspace__header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .account-workspace__header .user-header-actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-column: 1 / -1;
+    margin-top: 2px;
+  }
+
+  .account-workspace__header.is-stuck {
+    min-height: 64px;
+  }
+
+  .account-workspace__header.is-stuck .user-header-actions {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .account-settings-grid {
     grid-template-columns: 1fr;

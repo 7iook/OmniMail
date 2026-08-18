@@ -24,6 +24,7 @@ describe('translation', () => {
     expect(translate('邮件详情', {}, 'en-US')).toBe('Message details')
     expect(translate('复制邮箱地址：{address}', { address: 'a@b.com' }, 'en-US'))
       .toBe('Copy mailbox address: a@b.com')
+    expect(translate('API 使用', {}, 'en-US')).toBe('API guide')
   })
 
   it('keeps unknown strings as a safe fallback', () => {

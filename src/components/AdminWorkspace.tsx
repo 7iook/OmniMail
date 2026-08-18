@@ -14,6 +14,7 @@ import { t } from '../lib/i18n'
 import { AccountSettings } from './AccountSettings'
 import { AdminMailManagement } from './AdminMailManagement'
 import { AdminPageHeader } from './AdminPageHeader'
+import { ApiGuide } from './ApiGuide'
 import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
 import { InvitationManagement } from './InvitationManagement'
@@ -54,6 +55,7 @@ export function AdminWorkspace({
   onConfigChange,
   onUserChange,
   onLogout,
+  onOpenApiGuide,
   onOpenICloud,
   onOpenDeploymentWizard,
 }: {
@@ -66,6 +68,7 @@ export function AdminWorkspace({
   onConfigChange: (config: AppConfig) => void
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
+  onOpenApiGuide: () => void
   onOpenICloud: () => void
   onOpenDeploymentWizard: () => void
 }) {
@@ -193,8 +196,9 @@ export function AdminWorkspace({
   if (view === 'logs') return <AuditLogs />
   if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement />
   if (view === 'account') {
-    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenICloud={onOpenICloud} />
+    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenApiGuide={onOpenApiGuide} onOpenICloud={onOpenICloud} />
   }
+  if (view === 'api') return <ApiGuide />
 
   const activeMailboxes = mailboxes.filter((mailbox) => mailbox.isActive)
   if (view === 'statistics') {
