@@ -92,8 +92,7 @@
 
 .api-base-url code,
 .api-authorization-example code,
-.api-tool-grid code,
-.api-endpoint-list code {
+.api-tool-grid code {
   min-width: 0;
   overflow-wrap: anywhere;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -424,62 +423,6 @@
   font-size: 11px;
 }
 
-.api-endpoint-list {
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-}
-
-.api-endpoint-list > div {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 64px minmax(220px, 0.75fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 10px 13px;
-  border-bottom: 1px solid var(--line);
-}
-
-.api-endpoint-list > div:last-child {
-  border-bottom: 0;
-}
-
-.api-endpoint-list p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.api-endpoint-list code {
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.api-method {
-  display: inline-grid;
-  width: 56px;
-  min-height: 26px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-muted);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.api-method.is-get {
-  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.api-method.is-post {
-  border-color: color-mix(in srgb, var(--warning) 30%, var(--line));
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
 @media (max-width: 900px) {
   .api-guide-overview {
     grid-template-columns: 1fr;
@@ -532,15 +475,6 @@
     font-size: 11px;
   }
 
-  .api-endpoint-list > div {
-    grid-template-columns: 60px minmax(0, 1fr);
-    gap: 6px 10px;
-    padding-block: 12px;
-  }
-
-  .api-endpoint-list p {
-    grid-column: 2;
-  }
 }
 
 @media (max-width: 520px) {

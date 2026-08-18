@@ -49,6 +49,7 @@ import './styles/icloud-workspace.css'
 import './styles/icloud-region-select.css'
 import './styles/icloud-scope-switcher.css'
 import './styles/api-guide.css'
+import './styles/api-reference.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

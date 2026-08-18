@@ -1,15 +1,12 @@
 import {
   BookOpen,
   Braces,
-  Check,
   Clock3,
-  Copy,
   ExternalLink,
   Globe2,
   KeyRound,
   RefreshCw,
   ShieldCheck,
-  SquareTerminal,
   TriangleAlert,
   Workflow,
 } from 'lucide-react'
@@ -20,71 +17,18 @@ import {
 } from '../lib/apiGuide'
 import { t } from '../lib/i18n'
 import { AdminPageHeader } from './AdminPageHeader'
+import {
+  ApiCodeBlock as CodeBlock,
+  ApiCopyButton as CopyButton,
+  type ApiCopyState as CopyState,
+} from './ApiCodeBlock'
+import { ApiEndpointCatalog } from './ApiEndpointCatalog'
 
 const exampleLanguages: Array<{ id: ApiExampleLanguage; label: string }> = [
   { id: 'curl', label: 'cURL' },
   { id: 'javascript', label: 'JavaScript' },
   { id: 'python', label: 'Python' },
 ]
-
-const commonEndpoints = [
-  { method: 'GET', path: '/mailboxes', description: '读取当前账户的邮箱地址' },
-  { method: 'GET', path: '/messages', description: '读取、筛选并分页浏览邮件' },
-  { method: 'GET', path: '/messages/{id}', description: '读取邮件正文、线程与附件信息' },
-  { method: 'POST', path: '/messages', description: '使用已配置的发信服务发送邮件' },
-  { method: 'GET', path: '/drafts', description: '读取当前账户的草稿' },
-  { method: 'POST', path: '/messages/{id}/reply', description: '回复邮件并可附加文件' },
-] as const
-
-type CopyState = { key: string; status: 'copied' | 'failed' } | null
-
-function CopyButton({
-  copyKey,
-  value,
-  state,
-  onCopy,
-}: {
-  copyKey: string
-  value: string
-  state: CopyState
-  onCopy: (key: string, value: string) => Promise<void>
-}) {
-  const copied = state?.key === copyKey && state.status === 'copied'
-  return (
-    <button
-      className="api-copy-button"
-      type="button"
-      onClick={() => void onCopy(copyKey, value)}
-    >
-      {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
-      {t(copied ? '已复制' : '复制')}
-    </button>
-  )
-}
-
-function CodeBlock({
-  copyKey,
-  title,
-  code,
-  state,
-  onCopy,
-}: {
-  copyKey: string
-  title: string
-  code: string
-  state: CopyState
-  onCopy: (key: string, value: string) => Promise<void>
-}) {
-  return (
-    <div className="api-code-block">
-      <header>
-        <span><SquareTerminal size={15} aria-hidden="true" />{title}</span>
-        <CopyButton copyKey={copyKey} value={code} state={state} onCopy={onCopy} />
-      </header>
-      <pre><code>{code}</code></pre>
-    </div>
-  )
-}
 
 export function ApiGuide() {
   const origin = typeof window === 'undefined'
@@ -293,29 +237,26 @@ export function ApiGuide() {
           </div>
         </section>
 
-        <section className="api-guide-section" aria-labelledby="api-endpoints-title">
+        <section className="api-guide-section api-guide-section--security" aria-labelledby="api-security-title">
           <header className="api-guide-section__header">
-            <span className="api-step-number">05</span>
+            <span className="api-step-number"><Clock3 size={18} aria-hidden="true" /></span>
             <div>
-              <p className="eyebrow">COMMON ENDPOINTS</p>
-              <h2 id="api-endpoints-title">{t('常用邮件接口')}</h2>
-              <p>{t('路径均相对于上方 API 基础地址；完整参数和返回结构请查看原始文档。')}</p>
+              <p className="eyebrow">SECURITY</p>
+              <h2 id="api-security-title">{t('令牌与凭据安全')}</h2>
+              <p>{t('调用完整接口目录前，请先确认自动化工具能够安全保存和轮换凭据。')}</p>
             </div>
           </header>
-          <div className="api-endpoint-list">
-            {commonEndpoints.map((endpoint) => (
-              <div key={`${endpoint.method}-${endpoint.path}`}>
-                <span className={`api-method is-${endpoint.method.toLowerCase()}`}>{endpoint.method}</span>
-                <code>{endpoint.path}</code>
-                <p>{t(endpoint.description)}</p>
-              </div>
-            ))}
-          </div>
           <div className="api-security-note">
             <Clock3 size={18} aria-hidden="true" />
             <p><strong>{t('不要把令牌写入日志或普通配置文件')}</strong><span>{t('Access Token 只保存在运行内存；Refresh Token 应放入系统或自动化平台提供的加密凭据存储。')}</span></p>
           </div>
         </section>
+
+        <ApiEndpointCatalog
+          baseUrl={snippets.baseUrl}
+          copyState={copyState}
+          onCopy={copyValue}
+        />
       </div>
     </main>
   )
