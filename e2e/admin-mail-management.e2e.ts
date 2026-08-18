@@ -11,6 +11,7 @@ const owner = {
 }
 
 const userOwner = { id: 'user-2', email: 'person@example.com', displayName: 'Person' }
+const pageReadyTimeout = 10_000
 
 function summary(folder: 'inbox' | 'trash') {
   return {
@@ -91,7 +92,8 @@ test('owner can inspect and manage another user message without changing read st
   const state = await mockAdminMail(page)
   await page.goto('/admin/mail')
 
-  await expect(page.getByRole('heading', { name: '邮件管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '邮件管理' }))
+    .toBeVisible({ timeout: pageReadyTimeout })
   await expect(page.getByText('person@example.com')).toBeVisible()
   await page.getByRole('button', { name: 'Private project update' }).click()
   await expect(page.getByRole('dialog', { name: '全站邮件详情' })).toContainText(
@@ -125,6 +127,7 @@ test('mail management stays within a mobile viewport', async ({ page }) => {
   await mockAdminMail(page)
   await page.goto('/admin/mail')
 
-  await expect(page.getByRole('heading', { name: '邮件管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '邮件管理' }))
+    .toBeVisible({ timeout: pageReadyTimeout })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
 })

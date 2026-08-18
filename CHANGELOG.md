@@ -5,6 +5,40 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.3.1] - 2026-08-18
+
+### 新增
+
+- 在登录后的 Webmail 中新增 `/settings/api` API 使用工作区，提供当前实例地址、
+  Bearer Token 获取与轮换流程，以及 cURL、JavaScript、Python、n8n 和 Postman 示例。
+- 按 Worker 路由源码完整记录 102 个 HTTP API；支持按模块、路径、方法、用途和参数
+  搜索，并为每个接口展示权限、请求、响应、限制和可复制 cURL 示例。
+
+### 改进
+
+- iCloud 隐藏邮箱范围选择器为每个地址增加独立快捷复制按钮，复制时不会切换地址或
+  关闭选择弹层。
+- 创建新的 iCloud 隐藏邮箱后自动切换到该地址，并立即加载对应收件箱。
+- 完整 API 目录独立按需加载，不增加其他管理页面的首次打开体积。
+
+### 修复
+
+- 兼容 Apple Hide My Email `generate` 接口当前的扁平 `result.hme` 响应，同时保留
+  对旧嵌套响应的支持，修复创建地址时报“iCloud 响应中没有隐藏邮箱地址”。
+
+### 测试
+
+- API 目录测试会从主路由和子路由源码提取端点，确保 102 个接口无缺失、重复或多余。
+- 增加 iCloud 扁平响应、创建后自动切换和范围选择器快捷复制的单元及端到端覆盖。
+
+### 升级说明
+
+- 无需新增 D1 迁移、Worker 变量或 Secret，正常重新部署即可。
+
+### 发布
+
+- Web 版本为 `0.3.1`；OmniMail Float 与 Android 保持各自独立版本。
+
 ## [0.3.0] - 2026-08-17
 
 ### 新增
@@ -186,3 +220,4 @@
 [0.2.4]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.4
 [0.2.5]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.5
 [0.3.0]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.0
+[0.3.1]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.1

@@ -1,5 +1,5 @@
 import { AlertCircle, ArrowRight, BadgeCheck, Ban, BarChart3, Clock3, Image as ImageIcon, ListChecks, LoaderCircle, Mail, RefreshCw, Save, Send, Settings2, ShieldCheck, UserPlus, Users } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, useState } from 'react'
 import {
   api,
   type AppConfig,
@@ -14,7 +14,6 @@ import { t } from '../lib/i18n'
 import { AccountSettings } from './AccountSettings'
 import { AdminMailManagement } from './AdminMailManagement'
 import { AdminPageHeader } from './AdminPageHeader'
-import { ApiGuide } from './ApiGuide'
 import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
 import { InvitationManagement } from './InvitationManagement'
@@ -26,6 +25,8 @@ import { RandomMailboxSettings } from './RandomMailboxSettings'
 import { StoragePolicySettings } from './StoragePolicySettings'
 import { UserManagement } from './UserManagement'
 import { VersionStatusCard } from './VersionStatusCard'
+
+const ApiGuide = lazy(async () => ({ default: (await import('./ApiGuide')).ApiGuide }))
 
 const refreshOptions: Array<{ value: MailRefreshInterval; label: string }> = [
   { value: 5, label: '5 秒' },
