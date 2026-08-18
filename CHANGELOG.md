@@ -5,6 +5,33 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.3.2] - 2026-08-18
+
+### 改进
+
+- iCloud 隐藏邮箱用途标签改为可选；支持自动生成以及购物、社交、订阅、工作、临时
+  使用等快捷标签，选择后仍可手动修改。
+- iCloud 凭据管理中的删除账号操作改为清晰的危险按钮样式，补齐亮色、暗色、悬停和
+  键盘焦点状态。
+
+### 修复
+
+- 登录后的工作区锁定根页面滚动，修复完整 API 页面滚到底后整个应用可被卷出视口并
+  出现大面积空白的问题；API、管理页面和移动端继续使用各自的内部滚动。
+
+### 测试
+
+- 新增完整 API 页面外层滚动回归测试，验证 102 个接口仍在内部容器中滚动。
+- 覆盖 iCloud 自动标签、快捷标签、自定义标签和危险按钮样式，并完成 53 项全量 E2E。
+
+### 升级说明
+
+- 无需新增 D1 迁移、Worker 变量或 Secret，正常重新部署即可。
+
+### 发布
+
+- Web 版本为 `0.3.2`；OmniMail Float 与 Android 保持各自独立版本。
+
 ## [0.3.1] - 2026-08-18
 
 ### 新增
@@ -221,3 +248,4 @@
 [0.2.5]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.2.5
 [0.3.0]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.0
 [0.3.1]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.1
+[0.3.2]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.2

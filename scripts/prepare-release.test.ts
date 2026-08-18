@@ -14,25 +14,25 @@ function prepare(tag: string) {
 
 describe('release metadata preparation', () => {
   it('validates the matching versioned release notes file', () => {
-    const result = prepare('v0.3.1')
+    const result = prepare('v0.3.2')
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('v0.3.1.md')
+    expect(result.stdout).toContain('v0.3.2.md')
     const notes = readFileSync(
-      join(process.cwd(), 'docs', 'releases', 'web', 'v0.3.1.md'),
+      join(process.cwd(), 'docs', 'releases', 'web', 'v0.3.2.md'),
       'utf8',
     )
-    expect(notes).toContain('### 新增')
-    expect(notes).toContain('102 个 HTTP API')
+    expect(notes).toContain('### 改进')
+    expect(notes).toContain('用途标签')
     expect(notes).toContain('iCloud')
     expect(notes).toContain('无需新增 D1 迁移')
     expect(notes).toContain('OmniMail Float 保持独立版本')
   })
 
   it('rejects a tag that does not match package metadata', () => {
-    const result = prepare('v0.3.2')
+    const result = prepare('v0.3.3')
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain('does not match tag v0.3.2')
+    expect(result.stderr).toContain('does not match tag v0.3.3')
   })
 })
