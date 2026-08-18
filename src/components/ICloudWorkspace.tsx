@@ -43,6 +43,8 @@ function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
 }
 
+const aliasLabelPresets = ['购物', '社交', '订阅', '工作', '临时使用'] as const
+
 function Empty({ icon, title, description, action }: {
   icon: ReactNode
   title: string
@@ -199,7 +201,7 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
         </form>
       </div>
       {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button type="button" onClick={() => void remove(close)} disabled={Boolean(saving)}>{saving === 'delete' ? <Spinner /> : <Trash2 size={15} />}{t('删除这个 iCloud 账号')}</button></footer>
+      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button className="button icloud-danger-button" type="button" onClick={() => void remove(close)} disabled={Boolean(saving)}>{saving === 'delete' ? <Spinner /> : <Trash2 size={15} />}{t('删除这个 iCloud 账号')}</button></footer>
       </>}
     </Modal>
   )
@@ -504,7 +506,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       </main>
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
-      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => setCreateOpen(false)}>{(close) => <form className="icloud-form" onSubmit={(event) => void createAlias(event, close)}><label><span>{t('用途标签')}</span><input value={label} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('用途标签，例如：购物网站')} /></label><footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form>}</Modal>}
+      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => { setCreateOpen(false); setLabel('') }}>{(close) => <form className="icloud-form" onSubmit={(event) => void createAlias(event, close)}><label><span>{t('用途标签（可选）')}</span><input value={label} maxLength={80} autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('留空则由系统自动生成')} /></label><div className="icloud-label-presets" role="group" aria-label={t('快捷用途标签')}><button type="button" aria-pressed={!label} onClick={() => setLabel('')}>{t('自动生成')}</button>{aliasLabelPresets.map((preset) => <button type="button" key={preset} aria-pressed={label === t(preset)} onClick={() => setLabel(t(preset))}>{t(preset)}</button>)}</div><p className="icloud-form-note">{t('选择快捷标签后仍可修改；留空时使用 OmniMail 和创建时间。')}</p><footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form>}</Modal>}
       {credentials && <CredentialsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
     </div>

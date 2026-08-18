@@ -71,6 +71,11 @@ export function useWorkspaceNavigation(role: UserRole) {
   )
 
   useEffect(() => {
+    document.documentElement.classList.add('mail-workspace-active')
+    return () => document.documentElement.classList.remove('mail-workspace-active')
+  }, [])
+
+  useEffect(() => {
     const syncFromLocation = () => {
       const route = workspaceRoute(window.location.pathname, role)
       setFolder(route.kind === 'folder' ? route.folder : 'inbox')

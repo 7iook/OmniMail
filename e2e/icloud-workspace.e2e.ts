@@ -10,6 +10,7 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
   }]
   const inboxAliases: string[] = []
+  const createdLabels: string[] = []
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -53,9 +54,10 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     }] })
     if (path === '/api/icloud/aliases' && request.method() === 'POST') {
       const input = request.postDataJSON() as { label: string }
+      createdLabels.push(input.label)
       const alias = {
         email: 'new-alias@icloud.com', anonymousId: 'alias-2',
-        label: input.label, active: true,
+        label: input.label || 'OmniMail 2026-08-18 10:00', active: true,
       }
       aliases.push(alias)
       return json(route, { alias })
@@ -78,7 +80,7 @@ async function mockICloud(page: Page, options: { hasAppPassword?: boolean } = {}
     } })
     return route.abort()
   })
-  return { inboxAliases }
+  return { createdLabels, inboxAliases }
 }
 
 test('iCloud workspace is available to a regular user and reads a message', async ({ page }) => {
@@ -114,6 +116,12 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await page.keyboard.press('Escape')
   await expect(page.locator('.icloud-modal-backdrop')).not.toHaveClass(/is-visible/)
   await expect(page.getByRole('dialog')).toBeHidden()
+
+  await page.getByRole('button', { name: '管理凭据' }).click()
+  const credentialDialog = page.getByRole('dialog', { name: '管理 Personal' })
+  await expect(credentialDialog.getByRole('button', { name: '删除这个 iCloud 账号' }))
+    .toHaveClass(/icloud-danger-button/)
+  await credentialDialog.getByRole('button', { name: '关闭' }).click()
 
   await page.getByRole('button', { name: /当前 iCloud.*Personal/ }).click()
   const scopeDialog = page.getByRole('dialog', { name: '选择查看范围' })
@@ -158,10 +166,30 @@ test('opens the newly created Hide My Email address', async ({ page }) => {
 
   await page.getByRole('button', { name: '创建隐藏邮箱' }).click()
   const dialog = page.getByRole('dialog', { name: '创建隐藏邮箱' })
-  await dialog.getByRole('textbox', { name: '用途标签' }).fill('New service')
+  const labelInput = dialog.getByRole('textbox', { name: '用途标签（可选）' })
+  await expect(dialog.getByRole('button', { name: '自动生成' })).toHaveAttribute('aria-pressed', 'true')
+  await dialog.getByRole('button', { name: '购物' }).click()
+  await expect(labelInput).toHaveValue('购物')
+  await labelInput.fill('New service')
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
 
   await expect(page.locator('.icloud-list-context'))
     .toContainText('new-alias@icloud.com')
+  expect(state.createdLabels).toEqual(['New service'])
   await expect.poll(() => state.inboxAliases.at(-1)).toBe('new-alias@icloud.com')
+})
+
+test('allows iCloud to create an automatic purpose label', async ({ page }) => {
+  const state = await mockICloud(page)
+  await page.goto('/icloud')
+
+  await page.getByRole('button', { name: '创建隐藏邮箱' }).click()
+  const dialog = page.getByRole('dialog', { name: '创建隐藏邮箱' })
+  await expect(dialog.getByRole('textbox', { name: '用途标签（可选）' }))
+    .not.toHaveAttribute('required')
+  await dialog.getByRole('button', { name: '创建', exact: true }).click()
+
+  expect(state.createdLabels).toEqual([''])
+  await expect(page.locator('.icloud-list-context'))
+    .toContainText('new-alias@icloud.com')
 })

@@ -46,7 +46,7 @@ export const iCloudEndpoints: ApiEndpoint[] = [
     method: 'POST', path: '/api/icloud/aliases', group: 'icloud', auth: 'authenticated',
     title: l('创建隐藏邮箱地址', 'Create a Hide My Email alias'),
     description: l('在指定 iCloud 账户中创建带标签的隐藏地址。', 'Create a labeled Hide My Email alias in the selected iCloud account.'),
-    request: 'JSON · accountId, label', response: '201 · { alias }',
+    request: 'JSON · accountId, label?', response: '201 · { alias }',
     exampleBody: { accountId: 'icloud_account_id', label: 'Shopping' },
   },
   {
