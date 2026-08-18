@@ -37,6 +37,19 @@ function nonEmpty(...values: unknown[]): string {
   return ''
 }
 
+export function generatedAliasAddress(value: unknown): string {
+  if (typeof value === 'string') {
+    const email = value.trim().toLowerCase()
+    return email.includes('@') ? email : ''
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  const item = value as Record<string, unknown>
+  const direct = nonEmpty(item.hme, item.email, item.alias, item.address)
+    .trim().toLowerCase()
+  if (direct.includes('@')) return direct
+  return generatedAliasAddress(item.hme)
+}
+
 function ensureAppleUrl(rawUrl: string): URL {
   let url: URL
   try {
@@ -277,7 +290,7 @@ export class ICloudClient {
       { langCode: 'en-us' },
     )
     if (!generated.success) throw new ICloudRemoteError(502, 'iCloud 无法生成隐藏邮箱。')
-    const email = nonEmpty(generated.result?.hme?.hme, generated.result?.hme?.email)
+    const email = generatedAliasAddress(generated.result)
     if (!email) throw new ICloudRemoteError(502, 'iCloud 响应中没有隐藏邮箱地址。')
     const finalLabel = label || `OmniMail ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`
     const reserved = await this.request<Record<string, any>>(
@@ -287,7 +300,7 @@ export class ICloudClient {
     )
     if (!reserved.success) throw new ICloudRemoteError(502, 'iCloud 无法保留隐藏邮箱。')
     return {
-      email: nonEmpty(reserved.result?.hme?.hme) || email,
+      email: generatedAliasAddress(reserved.result) || email,
       label: finalLabel,
       createdAt: new Date().toISOString(),
     }

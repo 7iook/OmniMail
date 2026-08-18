@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ICloudClient, ICloudRemoteError, parseICloudAliases } from './icloud-apple'
+import {
+  generatedAliasAddress,
+  ICloudClient,
+  ICloudRemoteError,
+  parseICloudAliases,
+} from './icloud-apple'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -24,6 +29,31 @@ describe('iCloud Hide My Email response parsing', () => {
   it('ignores malformed entries', () => {
     expect(parseICloudAliases({ result: { hmeEmails: [{ label: 'missing' }] } }))
       .toEqual([])
+  })
+
+  it('reads generated addresses from current and legacy response shapes', () => {
+    expect(generatedAliasAddress({ hme: 'Current@icloud.com' }))
+      .toBe('current@icloud.com')
+    expect(generatedAliasAddress({ hme: { hme: 'Legacy@icloud.com' } }))
+      .toBe('legacy@icloud.com')
+  })
+
+  it('reserves an address returned as result.hme', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(validationResponse())
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        result: { hme: 'alias@icloud.com' },
+      }))
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        result: { hme: { hme: 'alias@icloud.com', anonymousId: 'alias-id' } },
+      }))
+
+    await expect(new ICloudClient({ session: 'value' }, 'icloud.com').createAlias('Shop'))
+      .resolves.toMatchObject({ email: 'alias@icloud.com', label: 'Shop' })
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body)))
+      .toMatchObject({ hme: 'alias@icloud.com', label: 'Shop' })
   })
 
   it('retries a read request after a transient Apple failure', async () => {
