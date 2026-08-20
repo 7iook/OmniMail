@@ -69,6 +69,7 @@ test('website login continues to extension consent and approval', async ({ page 
 
   await page.goto(authorizationPath())
   await expect(page.getByRole('heading', { name: '授权浏览器扩展' })).toBeVisible()
+  await expect(page.getByText('iCloud 隐藏邮箱')).toBeVisible()
   await expect(page.getByText('密码不会提供给扩展')).toBeVisible()
   await page.getByRole('button', { name: '登录并继续' }).click()
   const dialog = page.getByRole('dialog')

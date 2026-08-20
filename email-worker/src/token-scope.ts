@@ -5,6 +5,10 @@ export const EXTENSION_DEVICE_SCOPES = [
   'mailboxes:create',
   'messages:read',
   'messages:mark-read',
+  'icloud:accounts:read',
+  'icloud:aliases:read',
+  'icloud:aliases:create',
+  'icloud:messages:read',
 ].join(' ')
 
 function hasScope(scopes: string, required: string): boolean {
@@ -37,6 +41,18 @@ export async function deviceScopesAllow(scopes: string, request: Request): Promi
   }
   if (requestMethod === 'PATCH' && /^\/api\/messages\/[^/]+$/.test(path)) {
     return hasScope(scopes, 'messages:mark-read') && await markReadRequest(request)
+  }
+  if (requestMethod === 'GET' && path === '/api/icloud/accounts') {
+    return hasScope(scopes, 'icloud:accounts:read')
+  }
+  if (requestMethod === 'GET' && path === '/api/icloud/aliases') {
+    return hasScope(scopes, 'icloud:aliases:read')
+  }
+  if (requestMethod === 'POST' && path === '/api/icloud/aliases') {
+    return hasScope(scopes, 'icloud:aliases:create')
+  }
+  if (requestMethod === 'GET' && /^\/api\/icloud\/inbox(?:\/[^/]+)?$/.test(path)) {
+    return hasScope(scopes, 'icloud:messages:read')
   }
   return false
 }

@@ -4,7 +4,11 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
-
+import {
+  deferred, extensionScopes, iCloudAccounts, iCloudAliases, iCloudMessage,
+  json, mailboxes, message, requestBody, user,
+} from './extension-smoke-fixtures.mjs'
+import { verifyThemeRestored, verifyThemeSwitch } from './extension-smoke-theme.mjs'
 const extensionPath = resolve('dist-extension')
 const previewMode = process.argv.includes('--preview')
 const updateStoreAssets = process.argv.includes('--update-store-assets')
@@ -13,48 +17,16 @@ const screenshotPath = resolve('test-results', 'extension-smoke.png')
 const dropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open.png')
 const darkDropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open-dark.png')
 const storeAssetsPath = resolve('extension', 'store-assets')
-const capturedAssetsPath = updateStoreAssets
-  ? storeAssetsPath
-  : resolve('test-results', 'extension-store-assets')
+const capturedAssetsPath = updateStoreAssets ? storeAssetsPath : resolve('test-results', 'extension-store-assets')
 await mkdir(resolve('test-results'), { recursive: true })
-const user = {
-  id: 'user-1', email: 'owner@example.com', displayName: 'Owner', role: 'super_admin',
-  mailboxLimit: 20, storageQuotaBytes: 1024, storageUsedBytes: 0,
-  canCreateMailboxes: true, canReply: true, canTranslate: true, temporaryExpiresAt: null,
-}
-const mailboxes = [{
-  address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true,
-}]
-const message = {
-  id: 'message-1', mailboxAddress: 'inbox@example.com', direction: 'incoming',
-  status: 'ready', folder: 'inbox', senderName: 'OmniMail Test',
-  senderAddress: 'sender@example.net', recipients: ['inbox@example.com'],
-  subject: 'Your verification code', preview: 'Code 123456', date: Date.now(),
-  attachmentCount: 0, isRead: false, isStarred: false, processingError: null,
-  deliveryStatus: null, purgeAfter: null,
-}
 let exchangeBody = null
+let iCloudAliasBody = null
+let iCloudAliasGate = null
+let lastICloudInboxAlias = ''
 let messageListRequests = 0
 let lastMessageMailbox = ''
 let messageGate = null
 let refreshResponseStatus = 200
-
-function deferred() {
-  let resolvePromise
-  const promise = new Promise((resolve) => { resolvePromise = resolve })
-  return { promise, resolve: resolvePromise }
-}
-
-async function requestBody(request) {
-  const chunks = []
-  for await (const chunk of request) chunks.push(chunk)
-  return JSON.parse(Buffer.concat(chunks).toString() || '{}')
-}
-
-function json(response, body, status = 200) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
-  response.end(JSON.stringify(body))
-}
 
 const server = createServer(async (request, response) => {
   try {
@@ -95,7 +67,7 @@ const server = createServer(async (request, response) => {
       json(response, {
         accessToken: 'om_at_smoke_access_token_1234567890', expiresIn: 900,
         refreshToken: 'om_rt_smoke_refresh_token_1234567890', refreshExpiresIn: 2592000,
-        user,
+        scopes: extensionScopes, user,
       })
       return
     }
@@ -107,7 +79,7 @@ const server = createServer(async (request, response) => {
       json(response, {
         accessToken: 'om_at_refreshed_access_token_123456', expiresIn: 900,
         refreshToken: 'om_rt_refreshed_refresh_token_123456', refreshExpiresIn: 2592000,
-        user,
+        scopes: extensionScopes, user,
       })
       return
     }
@@ -116,7 +88,48 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/config') {
-      json(response, { appName: 'OmniMail', mailRefreshInterval: 5, randomMailboxPrefix: 'alias-' })
+      json(response, {
+        appName: 'OmniMail', iCloudEnabled: true,
+        mailRefreshInterval: 5, randomMailboxPrefix: 'alias-',
+      })
+      return
+    }
+    if (url.pathname === '/api/icloud/accounts') {
+      json(response, { accounts: iCloudAccounts })
+      return
+    }
+    if (url.pathname === '/api/icloud/aliases' && request.method === 'GET') {
+      const gate = iCloudAliasGate
+      if (gate) {
+        gate.started.resolve()
+        await gate.release.promise
+      }
+      if (previewMode) await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_200))
+      json(response, { aliases: iCloudAliases })
+      return
+    }
+    if (url.pathname === '/api/icloud/aliases' && request.method === 'POST') {
+      iCloudAliasBody = await requestBody(request)
+      const alias = {
+        email: 'float-preview@icloud.com',
+        anonymousId: 'float-preview-1',
+        label: iCloudAliasBody.label,
+        active: true,
+        createdAt: new Date().toISOString(),
+      }
+      iCloudAliases.push(alias)
+      json(response, {
+        alias,
+      }, 201)
+      return
+    }
+    if (url.pathname === '/api/icloud/inbox') {
+      lastICloudInboxAlias = url.searchParams.get('alias') || ''
+      json(response, { messages: [iCloudMessage], method: 'imap' })
+      return
+    }
+    if (url.pathname === '/api/icloud/inbox/icloud-message-1') {
+      json(response, { message: iCloudMessage })
       return
     }
     if (url.pathname === '/api/domains') {
@@ -303,6 +316,7 @@ try {
   await panelFrame.getByRole('button', { name: '创建自定义邮箱' }).click()
   await panelFrame.getByText('邮箱已生成').waitFor()
   assert.equal(mailboxes.at(-1).address, 'custom-box@example.com')
+  await panelFrame.getByText('邮箱已生成').waitFor({ state: 'hidden' })
 
   await randomMailboxButton.click()
   await panelFrame.getByText('邮箱已生成').waitFor()
@@ -327,7 +341,70 @@ try {
   await panelFrame.getByRole('heading', { name: 'Your verification code' }).waitFor()
   await panelFrame.getByRole('button', { name: '返回收件箱' }).click()
 
+  await panelFrame.locator('.panel-nav').getByRole('button', { name: '生成', exact: true }).click()
+  await panelFrame.getByRole('tab', { name: 'iCloud' }).click()
+  await panelFrame.getByRole('combobox', { name: 'iCloud 账号' }).waitFor()
+  const existingAliasSelect = panelFrame.getByRole('combobox', { name: '已有 iCloud 隐藏邮箱' })
+  await existingAliasSelect.waitFor()
+  await existingAliasSelect.getByText('existing-alias@icloud.com', { exact: false }).waitFor()
+  const existingAliasCard = panelFrame.locator('.icloud-existing-card')
+  const cardHeight = (await existingAliasCard.boundingBox()).height
+  iCloudAliasGate = { started: deferred(), release: deferred() }
+  await panelFrame.getByRole('button', { name: '刷新已有 iCloud 隐藏邮箱' }).click()
+  await iCloudAliasGate.started.promise
+  const aliasSkeleton = panelFrame.locator('.icloud-alias-skeleton')
+  await aliasSkeleton.waitFor()
+  const skeletonCardHeight = (await existingAliasCard.boundingBox()).height
+  assert(Math.abs(skeletonCardHeight - cardHeight) < 1, `alias card shifted from ${cardHeight} to ${skeletonCardHeight}`)
+  await page.screenshot({ path: resolve('test-results', 'extension-icloud-skeleton.png') })
+  iCloudAliasGate.release.resolve()
+  await aliasSkeleton.waitFor({ state: 'hidden' })
+  iCloudAliasGate = null
+  await panelFrame.getByRole('button', { name: '填入网页' }).click()
+  assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'existing-alias@icloud.com')
+  await panelFrame.getByRole('button', { name: '创建新的隐藏邮箱' }).click()
+  await panelFrame.getByLabel('用途标签 可选').fill('购物注册')
+  await panelFrame.getByRole('button', { name: '生成 iCloud 隐藏邮箱' }).click()
+  await existingAliasSelect.getByText('float-preview@icloud.com', { exact: false }).waitFor()
+  assert.deepEqual(iCloudAliasBody, {
+    accountId: 'icloud-account-1',
+    label: '购物注册',
+  })
+  await page.waitForTimeout(300)
+  const customScrollbar = panelFrame.locator('.panel-scrollbar')
+  assert.match(await customScrollbar.getAttribute('class'), /has-overflow/)
+  await panelFrame.locator('.panel-main').evaluate((element) => { element.scrollTop = 40 })
+  assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '0')
+  await customScrollbar.hover()
+  await page.waitForTimeout(500)
+  assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '0')
+  await page.waitForTimeout(500)
+  assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '1')
+  await page.screenshot({ path: resolve('test-results', 'extension-scrollbar-visible.png') })
+  await panelFrame.locator('.panel-nav').hover()
+  await page.waitForTimeout(300)
+  assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '0')
+  await page.screenshot({ path: resolve('test-results', 'extension-icloud.png') })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.waitForTimeout(220)
+  await page.screenshot({ path: resolve('test-results', 'extension-icloud-dark.png') })
+  await page.emulateMedia({ colorScheme: 'light' })
+  await panelFrame.getByRole('button', { name: '填入网页' }).click()
+  assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'float-preview@icloud.com')
+  await panelFrame.getByRole('tab', { name: 'OmniMail' }).click()
+  await panelFrame.getByRole('button', { name: '随机生成邮箱' }).waitFor()
+
   await panelFrame.getByRole('button', { name: '收件' }).click()
+  await panelFrame.getByRole('tab', { name: 'iCloud' }).click()
+  await panelFrame.getByRole('heading', { name: 'iCloud 收件' }).waitFor()
+  await panelFrame.getByText('Your iCloud verification code').waitFor()
+  assert.equal(lastICloudInboxAlias, 'float-preview@icloud.com')
+  await panelFrame.getByText('Your iCloud verification code').click()
+  await panelFrame.getByRole('heading', { name: 'Your iCloud verification code' }).waitFor()
+  await panelFrame.frameLocator('iframe[title="iCloud 邮件正文"]').getByText('654321').waitFor()
+  await page.screenshot({ path: resolve('test-results', 'extension-icloud-inbox.png') })
+  await panelFrame.getByRole('button', { name: '返回 iCloud 收件箱' }).click()
+  await panelFrame.getByRole('tab', { name: 'OmniMail' }).click()
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
   await panelFrame.getByRole('listbox', { name: '筛选邮箱' }).waitFor()
   await panelFrame.getByRole('option', { name: '全部邮箱' }).click()
@@ -366,6 +443,7 @@ try {
     path: resolve(capturedAssetsPath, '03-floating-message.jpg'),
     type: 'jpeg', quality: 94,
   })
+  await verifyThemeSwitch(page, panelFrame, serviceWorker)
 
   const dockNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
   const floatHeader = nodeWithClass(dockNodes, 'omnimail-float-header')
@@ -423,6 +501,7 @@ try {
   })
   const restoredFrame = await restoredFramePromise
   await restoredFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  await verifyThemeRestored(page, restoredFrame)
   await restoredFrame.locator('.panel-nav').getByRole('button', { name: '收件', exact: true }).click()
   const transitionState = await restoredFrame.locator('.panel-view').evaluate((element) => ({
     duration: getComputedStyle(element).animationDuration,
@@ -436,34 +515,51 @@ try {
   await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded.png') })
 
   if (!previewMode) {
+    await restoredFrame.locator('.panel-nav').getByRole('button', { name: '设置', exact: true }).click()
+    await restoredFrame.getByRole('button', { name: /跟随系统/ }).click()
+    assert.equal((await serviceWorker.evaluate(() => chrome.storage.local.get('theme'))).theme, 'system')
+    await serviceWorker.evaluate(() => chrome.storage.session.clear())
+    const restoredAuth = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
+    }))
+    assert.equal(restoredAuth.authenticated, true)
+    assert.equal(restoredAuth.iCloudAuthorized, true)
+    assert.equal(restoredAuth.user.email, user.email)
+    const restoredMessages = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
+    }))
+    assert.equal(restoredMessages.messages[0].id, message.id)
+
     refreshResponseStatus = 500
     await serviceWorker.evaluate(() => chrome.storage.session.set({ accessExpiresAt: 0 }))
     const transientRefresh = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
       chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
     }))
     assert.equal(transientRefresh.error, 'Refresh failed (500)')
-    const preservedAuth = await serviceWorker.evaluate(
-      () => chrome.storage.session.get(['refreshToken']),
-    )
-    assert.equal(preservedAuth.refreshToken, 'om_rt_smoke_refresh_token_1234567890')
+    const preservedAuth = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
+    }))
+    assert.equal(preservedAuth.authenticated, true)
 
     refreshResponseStatus = 401
     const rejectedRefresh = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
       chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
     }))
     assert.equal(rejectedRefresh.error, 'Refresh failed (401)')
-    const clearedAuth = await serviceWorker.evaluate(
-      () => chrome.storage.session.get(['refreshToken']),
-    )
-    assert.equal(clearedAuth.refreshToken, undefined)
+    const clearedAuth = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
+    }))
+    assert.equal(clearedAuth.authenticated, false)
   }
 
   if (previewMode) {
-    await page.emulateMedia({ colorScheme: 'dark' })
+    await restoredFrame.locator('.panel-nav').getByRole('button', { name: '设置', exact: true }).click()
+    await restoredFrame.getByRole('button', { name: /^暗色/ }).waitFor()
+    await restoredFrame.locator('.panel-main').evaluate((element) => element.scrollTo({ top: 0 }))
     await page.waitForTimeout(220)
     await page.screenshot({ path: resolve('test-results', 'extension-docked-expanded-dark.png') })
     await page.bringToFront()
-    console.log('OmniMail docked preview is ready. Click the right-edge tab to collapse or expand it.')
+    console.log('Float theme preview is ready. Try System, Light, and Dark in Settings.')
     await new Promise(() => {})
   }
 

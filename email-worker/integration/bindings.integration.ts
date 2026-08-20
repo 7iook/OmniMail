@@ -142,7 +142,7 @@ describe('Worker storage bindings', () => {
     const context = createExecutionContext()
     const allowed = await worker.fetch(request('/api/mailboxes'), env, context)
     const denied = await worker.fetch(request('/api/admin/users'), env, context)
-    const iCloudDenied = await worker.fetch(
+    const iCloudAllowed = await worker.fetch(
       request('/api/icloud/accounts'),
       env,
       createExecutionContext(),
@@ -150,7 +150,7 @@ describe('Worker storage bindings', () => {
 
     expect(allowed.status).toBe(200)
     expect(denied.status).toBe(403)
-    expect(iCloudDenied.status).toBe(403)
+    expect(iCloudAllowed.status).toBe(200)
     await expect(denied.json()).resolves.toMatchObject({
       error: '当前设备令牌没有执行此操作的权限。',
     })

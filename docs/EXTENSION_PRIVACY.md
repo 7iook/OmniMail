@@ -1,6 +1,6 @@
 # OmniMail Float 隐私政策 / Privacy Policy
 
-生效日期 / Effective date: 2026-08-08
+生效日期 / Effective date: 2026-08-20
 
 OmniMail Float 是连接用户指定 OmniMail 实例的浏览器客户端。本政策说明浏览器扩展
 本身如何处理数据。用户所连接实例的数据保留与管理同时受该实例运营者的政策约束。
@@ -12,24 +12,28 @@ by the selected instance is also governed by that instance operator's policy.
 ## 处理的数据 / Data handled
 
 - 用户提供的 OmniMail 站点地址。
-- 获得用户明确授权后，由该实例返回的账户标识、显示名称、邮箱地址、邮件摘要和用户
-  主动查看的邮件正文。
-- 短期访问令牌与可撤销的刷新令牌。密码、MFA 密钥和 OmniMail 网页 Cookie 不会提供
-  给扩展。
-- 本地功能设置，例如悬浮入口开关、面板位置、上次选择的邮箱和用于判断新邮件的邮件
-  标识符。
+- 获得用户明确授权后，由该实例返回的账户标识、显示名称、邮箱地址、邮件摘要、用户
+  主动查看的邮件正文，以及已连接 iCloud 账号的公开名称、邮箱、状态、隐藏地址和
+  iCloud 邮件。
+- 短期访问令牌与可撤销的刷新令牌。密码、MFA 密钥、OmniMail 网页 Cookie，以及
+  iCloud Cookie 和应用专用密码不会提供给扩展。
+- 本地功能设置，例如主题偏好、悬浮入口开关、面板位置、上次选择的邮箱和用于判断新
+  邮件的邮件标识符。
 - 为显示悬浮入口，内容脚本会在普通 HTTP/HTTPS 网页中运行。只有当用户主动选择
   “填入网页”时，它才会在当前页面定位邮箱输入框并写入用户选择的地址。扩展不会收集
   或上传浏览历史、当前网页网址、网页正文、页面 Cookie 或表单中原有的值。
 
 - The OmniMail site address entered by the user.
 - After explicit authorization, the account identifier, display name, mailbox
-  addresses, message summaries, and message bodies the user chooses to view,
-  as returned by that instance.
+  addresses, message summaries, message bodies the user chooses to view, and
+  the public names, email addresses, status, Hide My Email addresses, and mail
+  of connected iCloud accounts, as returned by that instance.
 - Short-lived access tokens and revocable refresh tokens. Passwords, MFA
-  secrets, and OmniMail website cookies are not provided to the extension.
-- Local feature settings such as floating-button state, panel layout, last
-  selected mailbox, and message identifiers used to detect new mail.
+  secrets, OmniMail website cookies, iCloud cookies, and app-specific passwords
+  are not provided to the extension.
+- Local feature settings such as theme preference, floating-button state,
+  panel layout, last selected mailbox, and message identifiers used to detect
+  new mail.
 - A content script runs on ordinary HTTP/HTTPS pages to display the floating
   entry point. Only when the user chooses to fill the page does it locate an
   email input and write the selected address. It does not collect or upload
@@ -38,28 +42,36 @@ by the selected instance is also governed by that instance operator's policy.
 
 ## 使用目的 / How data is used
 
-这些数据只用于连接用户选择的 OmniMail 实例、创建和填入邮箱地址、显示邮箱与邮件，
-以及提醒新邮件。数据不会用于广告、用户画像、信用评估或与扩展功能无关的分析。
+这些数据只用于连接用户选择的 OmniMail 实例、创建和填入普通或 iCloud 隐藏邮箱地址、
+显示邮箱与邮件，以及提醒新邮件。数据不会用于广告、用户画像、信用评估或与扩展功能
+无关的分析。
 
 The data is used only to connect to the user's selected OmniMail instance,
-create and fill mailbox addresses, display mailboxes and messages, and notify
-the user of new mail. It is not used for advertising, profiling, credit
-assessment, or analytics unrelated to the extension's functionality.
+create and fill regular or iCloud Hide My Email addresses, display mailboxes
+and messages, and notify the user of new mail. It is not used for advertising,
+profiling, credit assessment, or analytics unrelated to the extension's
+functionality.
 
 ## 存储、传输和保留 / Storage, transmission, and retention
 
 - 生产环境 API 通信要求 HTTPS；仅允许使用 HTTP 连接本机开发地址。
-- 令牌保存在 `chrome.storage.session`，浏览器会话结束时清除。非敏感设置保存在
-  `chrome.storage.local`，直至用户清除扩展数据或卸载扩展。
+- 短期访问令牌保存在 `chrome.storage.session`；可撤销的刷新令牌与恢复登录所需的
+  账户信息保存在扩展自身的 IndexedDB，普通网页中的内容脚本无法读取。刷新令牌每次
+  成功使用后轮换并续期 30 天，主动退出、令牌被实例拒绝、用户清除扩展数据或卸载
+  扩展时清除。非敏感设置保存在 `chrome.storage.local`。
 - 邮件与账户数据在用户选择的 OmniMail 实例和扩展之间传输。发布者不会因为提供本
   扩展而自动收到这些数据；若用户选择由发布者运营的实例，则由该实例的隐私政策说明
   服务端保留方式。
 
 - Production API traffic requires HTTPS; HTTP is permitted only for local
   development addresses.
-- Tokens are stored in `chrome.storage.session` and cleared with the browser
-  session. Non-sensitive settings remain in `chrome.storage.local` until the
-  user clears extension data or uninstalls the extension.
+- Short-lived access tokens are stored in `chrome.storage.session`. The
+  revocable refresh token and account information needed to restore sign-in are
+  stored in the extension's own IndexedDB, which content scripts on ordinary
+  web pages cannot access. The refresh token is rotated and renewed for 30 days
+  after each successful use, and is cleared when the user signs out, the
+  instance rejects it, extension data is cleared, or the extension is
+  uninstalled. Non-sensitive settings are stored in `chrome.storage.local`.
 - Account and email data travels between the extension and the OmniMail
   instance selected by the user. The publisher does not automatically receive
   that data merely by distributing the extension. If the user selects an

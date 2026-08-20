@@ -34,6 +34,26 @@ describe('device token scopes', () => {
       EXTENSION_DEVICE_SCOPES,
       request('/api/messages/message-1', 'PATCH', { isRead: true }),
     )).resolves.toBe(true)
+    await expect(deviceScopesAllow(
+      EXTENSION_DEVICE_SCOPES,
+      request('/api/icloud/accounts'),
+    )).resolves.toBe(true)
+    await expect(deviceScopesAllow(
+      EXTENSION_DEVICE_SCOPES,
+      request('/api/icloud/aliases?accountId=icloud-1'),
+    )).resolves.toBe(true)
+    await expect(deviceScopesAllow(
+      EXTENSION_DEVICE_SCOPES,
+      request('/api/icloud/aliases', 'POST', { accountId: 'icloud-1', label: '购物' }),
+    )).resolves.toBe(true)
+    await expect(deviceScopesAllow(
+      EXTENSION_DEVICE_SCOPES,
+      request('/api/icloud/inbox?accountId=icloud-1'),
+    )).resolves.toBe(true)
+    await expect(deviceScopesAllow(
+      EXTENSION_DEVICE_SCOPES,
+      request('/api/icloud/inbox/42?accountId=icloud-1'),
+    )).resolves.toBe(true)
   })
 
   it('denies administrative and destructive APIs to extension tokens', async () => {
@@ -42,6 +62,10 @@ describe('device token scopes', () => {
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1/raw'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/auth/devices'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'PATCH'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'DELETE'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/preview', 'POST'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/accounts/icloud-1/cookies', 'PUT'))).resolves.toBe(false)
     await expect(deviceScopesAllow(
       EXTENSION_DEVICE_SCOPES,
       request('/api/messages/message-1', 'PATCH', { folder: 'trash' }),

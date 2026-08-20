@@ -1,15 +1,11 @@
 import {
   AlertCircle,
-  ArrowLeft,
   Check,
-  Copy,
   ExternalLink,
   Inbox,
   LoaderCircle,
   LogOut,
   MailPlus,
-  RefreshCw,
-  SendToBack,
   Settings,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -20,22 +16,26 @@ import type {
   MailboxAddress,
   MessageDetail,
   MessageSummary,
-  User,
 } from '../../src/lib/api-types'
 import { useAutoRefresh } from '../../src/lib/useAutoRefresh'
 import {
   randomMailboxLocalPart,
   validMailboxLocalPart,
 } from '../../src/lib/mailboxAddress'
-import { safeEmailDocument } from './email-document'
-import { PanelRecentMail } from './PanelRecentMail'
-import { PanelSelect } from './PanelSelect'
+import { GenerateView } from './PanelGenerate'
+import { InboxView } from './PanelInbox'
+import type { MailSource } from './PanelMailSourceTabs'
+import { PanelScrollbar } from './PanelScrollbar'
+import { PanelThemeSettings } from './PanelThemeSettings'
 import {
   type AuthStatus,
   type ExtensionSettings,
   type InboxResult,
+  type ThemePreference,
   sendExtensionMessage,
 } from './protocol'
+import { setPanelTheme } from './theme'
+import { usePanelICloud } from './usePanelICloud'
 
 type View = 'generate' | 'inbox' | 'settings'
 
@@ -43,24 +43,15 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : '操作失败，请稍后重试。'
 }
 
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp)
-  const today = new Date()
-  return new Intl.DateTimeFormat('zh-CN', date.toDateString() === today.toDateString()
-    ? { hour: '2-digit', minute: '2-digit', hour12: false }
-    : { month: 'short', day: 'numeric' }).format(date)
-}
-
-function senderName(message: MessageSummary): string {
-  return message.senderName || message.senderAddress || '未知发件人'
-}
-
 export function PanelApp() {
   const mainRef = useRef<HTMLElement>(null)
   const messageRequestId = useRef(0)
   const [view, setView] = useState<View>(() => location.hash === '#inbox' ? 'inbox' : 'generate')
   const [auth, setAuth] = useState<AuthStatus | null>(null)
-  const [settings, setSettings] = useState<ExtensionSettings>({ floatingEnabled: true })
+  const [settings, setSettings] = useState<ExtensionSettings>({
+    floatingEnabled: true,
+    theme: 'system',
+  })
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
   const [domains, setDomains] = useState<ManagedDomain[]>([])
@@ -70,12 +61,22 @@ export function PanelApp() {
   const [domain, setDomain] = useState('')
   const [localPart, setLocalPart] = useState('')
   const [generatedAddress, setGeneratedAddress] = useState('')
+  const [generateSource, setGenerateSource] = useState<MailSource>('omnimail')
+  const [inboxSource, setInboxSource] = useState<MailSource>('omnimail')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const iCloud = usePanelICloud({
+    active: (view === 'generate' && generateSource === 'icloud')
+      || (view === 'inbox' && inboxSource === 'icloud'),
+    authorized: Boolean(auth?.iCloudAuthorized),
+    enabled: Boolean(config?.iCloudEnabled),
+    onError: setError,
+    onNotice: setNotice,
+  })
 
   const enabledDomains = useMemo(() => domains.filter((item) => item.isActive), [domains])
   const canGenerate = Boolean(auth?.user && (
@@ -168,13 +169,15 @@ export function PanelApp() {
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 })
-  }, [view])
+  }, [generateSource, inboxSource, view])
 
   const refreshMailbox = view === 'generate' ? generateAddress : selectedMailbox
+  const omniMailVisible = (view === 'generate' && generateSource === 'omnimail')
+    || (view === 'inbox' && inboxSource === 'omnimail')
   useAutoRefresh(
     config?.mailRefreshInterval ?? 0,
     () => loadMessages(refreshMailbox, true),
-    Boolean(auth?.authenticated && config?.mailRefreshInterval && view !== 'settings'),
+    Boolean(auth?.authenticated && config?.mailRefreshInterval && omniMailVisible),
     false,
   )
 
@@ -197,7 +200,12 @@ export function PanelApp() {
     setLoading(true)
     try {
       await sendExtensionMessage({ type: 'auth:logout' })
-      setAuth((current) => ({ apiOrigin: current?.apiOrigin || '', authenticated: false, user: null }))
+      setAuth((current) => ({
+        apiOrigin: current?.apiOrigin || '',
+        authenticated: false,
+        iCloudAuthorized: false,
+        user: null,
+      }))
       setMailboxes([])
       setMessages([])
       setSelectedMessage(null)
@@ -239,6 +247,27 @@ export function PanelApp() {
       }
     }
     setGenerating(false)
+  }
+
+  async function generateICloudAlias(label: string): Promise<string> {
+    const address = await iCloud.createAlias(label)
+    if (address) {
+      window.requestAnimationFrame(() => {
+        const panel = mainRef.current
+        panel?.scrollTo({
+          top: panel.scrollHeight,
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'auto'
+            : 'smooth',
+        })
+      })
+    }
+    return address
+  }
+
+  function openICloudWeb() {
+    if (!auth?.apiOrigin) return
+    void chrome.tabs.create({ url: new URL('/icloud', auth.apiOrigin).toString() })
   }
 
   async function copyAddress(address: string) {
@@ -289,18 +318,39 @@ export function PanelApp() {
   }
 
   async function toggleFloating(enabled: boolean) {
-    setSettings({ floatingEnabled: enabled })
+    setSettings((current) => ({ ...current, floatingEnabled: enabled }))
     try {
       await sendExtensionMessage({ type: 'settings:set-floating', enabled })
       setNotice(enabled ? '已启用网页悬浮按钮' : '已关闭网页悬浮按钮')
     } catch (settingsError) {
-      setSettings({ floatingEnabled: !enabled })
+      setSettings((current) => ({ ...current, floatingEnabled: !enabled }))
+      setError(errorText(settingsError))
+    }
+  }
+
+  async function changeTheme(theme: ThemePreference) {
+    const previous = settings.theme
+    setSettings((current) => ({ ...current, theme }))
+    setPanelTheme(theme)
+    try {
+      await sendExtensionMessage({ type: 'settings:set-theme', theme })
+      setNotice(theme === 'system'
+        ? '主题已设为跟随系统'
+        : '已切换为' + (theme === 'light' ? '亮色' : '暗色') + '主题')
+    } catch (settingsError) {
+      setSettings((current) => ({ ...current, theme: previous }))
+      setPanelTheme(previous)
       setError(errorText(settingsError))
     }
   }
 
   if (!auth?.authenticated) {
-    return <LoginView apiOrigin={auth?.apiOrigin || ''} busy={loading} error={error} onLogin={login} />
+    return <div className="panel-content login-scroll-shell">
+      <main className="panel-main" ref={mainRef}>
+        <LoginView apiOrigin={auth?.apiOrigin || ''} busy={loading} error={error} onLogin={login} />
+      </main>
+      <PanelScrollbar scrollRef={mainRef} />
+    </div>
   }
 
   return (
@@ -312,11 +362,13 @@ export function PanelApp() {
         <NavButton active={view === 'settings'} icon={<Settings />} label="设置" onClick={() => setView('settings')} />
       </nav>
 
-      <main className="panel-main" ref={mainRef}>
-        {error && <div className="panel-alert" role="alert"><AlertCircle size={15} /><span>{error}</span><button type="button" onClick={() => setError('')}>关闭</button></div>}
-        <div className="panel-view" key={view}>
+      <div className="panel-content">
+        <main className="panel-main" ref={mainRef}>
+          {error && <div className="panel-alert" role="alert"><AlertCircle size={15} /><span>{error}</span><button type="button" onClick={() => setError('')}>关闭</button></div>}
+          <div className="panel-view" key={view}>
           {view === 'generate' && (
             <GenerateView
+              source={generateSource}
               domains={enabledDomains}
               domain={domain}
               localPart={localPart}
@@ -329,13 +381,32 @@ export function PanelApp() {
               refreshing={refreshing}
               refreshInterval={config?.mailRefreshInterval ?? 0}
               randomMailboxPrefix={config?.randomMailboxPrefix || ''}
+              iCloudEnabled={config?.iCloudEnabled ?? false}
+              iCloudAuthorized={auth.iCloudAuthorized}
+              iCloudAccounts={iCloud.accounts}
+              iCloudAccountId={iCloud.accountId}
+              iCloudAliases={iCloud.aliases}
+              iCloudSelectedAlias={iCloud.selectedAlias}
+              iCloudBusy={loading}
+              iCloudCreating={iCloud.creating}
+              iCloudLoadingAccounts={iCloud.loadingAccounts}
+              iCloudLoadingAliases={iCloud.loadingAliases}
+              onSource={setGenerateSource}
               onDomain={setDomain}
               onLocalPart={setLocalPart}
               onGenerate={generateMailbox}
+              onICloudAccount={(accountId) => void iCloud.selectAccount(accountId)}
+              onICloudAlias={iCloud.selectAlias}
+              onICloudGenerate={generateICloudAlias}
+              onICloudOpenWeb={openICloudWeb}
+              onICloudReauthorize={() => void login({ apiOrigin: auth.apiOrigin })}
+              onICloudRetry={() => void iCloud.loadAccounts()}
+              onICloudRetryAliases={() => void iCloud.loadAliases()}
               onCopy={copyAddress}
               onFill={fillAddress}
               onRefresh={() => loadMessages(generateAddress, true)}
               onSelect={(message) => {
+                setInboxSource('omnimail')
                 setView('inbox')
                 void openMessage(message)
               }}
@@ -343,12 +414,25 @@ export function PanelApp() {
           )}
           {view === 'inbox' && (
             <InboxView
+              source={inboxSource}
               messages={messages}
               mailboxes={mailboxes.filter((item) => item.isActive)}
               mailbox={selectedMailbox}
               selected={selectedMessage}
               loading={loading || detailLoading}
               refreshing={refreshing}
+              iCloudEnabled={config?.iCloudEnabled ?? false}
+              iCloudAuthorized={auth.iCloudAuthorized}
+              iCloudAccounts={iCloud.accounts}
+              iCloudAccountId={iCloud.accountId}
+              iCloudAliases={iCloud.aliases}
+              iCloudPreferredAlias={iCloud.selectedAlias}
+              iCloudLoadingAccounts={iCloud.loadingAccounts}
+              iCloudLoadingAliases={iCloud.loadingAliases}
+              onSource={setInboxSource}
+              onICloudAccount={(accountId) => void iCloud.selectAccount(accountId)}
+              onICloudOpenWeb={openICloudWeb}
+              onICloudReauthorize={() => void login({ apiOrigin: auth.apiOrigin })}
               onMailbox={changeMailbox}
               onRefresh={() => loadMessages(selectedMailbox, true)}
               onSelect={openMessage}
@@ -360,12 +444,15 @@ export function PanelApp() {
               auth={auth}
               settings={settings}
               onToggleFloating={toggleFloating}
+              onTheme={(theme) => void changeTheme(theme)}
               onOpenWeb={() => void chrome.tabs.create({ url: auth.apiOrigin })}
               onLogout={logout}
             />
           )}
-        </div>
-      </main>
+          </div>
+        </main>
+        <PanelScrollbar scrollRef={mainRef} />
+      </div>
       {notice && <div className="panel-toast" role="status"><Check size={15} />{notice}</div>}
     </div>
   )
@@ -389,7 +476,7 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
 }) {
   const [site, setSite] = useState(apiOrigin)
   return (
-    <main className="login-view">
+    <section className="login-view">
       <div className="login-logo"><OmniLogo size={30} /></div>
       <p className="eyebrow">OMNIMAIL FLOAT</p>
       <h1>连接你的邮箱</h1>
@@ -406,153 +493,24 @@ function LoginView({ apiOrigin, busy, error, onLogin }: {
           {busy ? '等待网站授权…' : '前往 OmniMail 授权'}
         </button>
       </form>
-      <p className="login-security">授权完成后，设备令牌仅保存在本次浏览器会话中。</p>
-    </main>
-  )
-}
-
-function GenerateView({ domains, domain, localPart, generatedAddress, fallbackAddress, messages, canGenerate, busy, mailLoading, refreshing, refreshInterval, randomMailboxPrefix, onDomain, onLocalPart, onGenerate, onCopy, onFill, onRefresh, onSelect }: {
-  domains: ManagedDomain[]
-  domain: string
-  localPart: string
-  generatedAddress: string
-  fallbackAddress: string
-  messages: MessageSummary[]
-  canGenerate: boolean
-  busy: boolean
-  mailLoading: boolean
-  refreshing: boolean
-  refreshInterval: number
-  randomMailboxPrefix: string
-  onDomain: (domain: string) => void
-  onLocalPart: (localPart: string) => void
-  onGenerate: () => void
-  onCopy: (address: string) => void
-  onFill: (address: string) => void
-  onRefresh: () => void
-  onSelect: (message: MessageSummary) => void
-}) {
-  const address = generatedAddress || fallbackAddress
-  const previewLocalPart = localPart.trim().toLowerCase()
-    || `${randomMailboxPrefix}随机字符`
-  return (
-    <section className="panel-page generate-page">
-      <header className="page-heading"><p className="eyebrow">QUICK MAILBOX</p><h1>快速生成邮箱</h1><p>输入邮箱前缀，或者留空让系统随机生成。</p></header>
-      <div className="page-card">
-        <div className="mailbox-fields">
-          <div className="form-field">
-            <label htmlFor="mail-local-part">邮箱前缀 <span>可选</span></label>
-            <input
-              id="mail-local-part"
-              type="text"
-              value={localPart}
-              maxLength={64}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="留空随机生成"
-              disabled={busy || !canGenerate}
-              onChange={(event) => onLocalPart(event.target.value)}
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="mail-domain">邮箱域名</label>
-            <PanelSelect
-              id="mail-domain"
-              ariaLabel="邮箱域名"
-              value={domain}
-              options={domains.map((item) => ({ label: `@${item.name}`, value: item.name }))}
-              disabled={busy || !canGenerate}
-              onChange={onDomain}
-            />
-          </div>
-        </div>
-        <div className="address-preview"><span>即将创建</span><strong>{previewLocalPart}@{domain || 'domain'}</strong></div>
-        <button className="primary-button" type="button" disabled={busy || !domain || !canGenerate} onClick={onGenerate}>
-          {busy ? <LoaderCircle className="spin" size={17} /> : <MailPlus size={17} />}
-          {busy ? '正在生成…' : localPart.trim() ? '创建自定义邮箱' : '随机生成邮箱'}
-        </button>
-        {!canGenerate && <p className="permission-note">当前账户没有创建邮箱的权限。</p>}
-      </div>
-      {address && <div className="page-card address-result"><span>{generatedAddress ? '刚刚生成' : '当前邮箱'}</span><strong>{address}</strong><div><button type="button" onClick={() => onCopy(address)}><Copy size={15} />复制</button><button type="button" onClick={() => onFill(address)}><SendToBack size={15} />填入网页</button></div></div>}
-      {address && (
-        <PanelRecentMail
-          messages={messages}
-          loading={mailLoading}
-          refreshing={refreshing}
-          refreshInterval={refreshInterval}
-          onRefresh={onRefresh}
-          onSelect={onSelect}
-        />
-      )}
+      <p className="login-security">授权完成后会安全保存登录，关闭浏览器后仍可自动恢复。</p>
     </section>
   )
 }
 
-function InboxView({ messages, mailboxes, mailbox, selected, loading, refreshing, onMailbox, onRefresh, onSelect, onBack }: {
-  messages: MessageSummary[]
-  mailboxes: MailboxAddress[]
-  mailbox: string
-  selected: MessageDetail | null
-  loading: boolean
-  refreshing: boolean
-  onMailbox: (address: string) => void
-  onRefresh: () => void
-  onSelect: (message: MessageSummary) => void
-  onBack: () => void
-}) {
-  if (selected) {
-    return (
-      <article className="message-reader">
-        <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={16} />返回收件箱</button>
-        <header><h1>{selected.subject || '（无主题）'}</h1><p>{senderName(selected)} · {formatDate(selected.date)}</p><span>发送至 {selected.mailboxAddress}</span></header>
-        <iframe
-          title="邮件正文"
-          sandbox="allow-popups allow-popups-to-escape-sandbox"
-          srcDoc={safeEmailDocument(selected.html, selected.text)}
-        />
-      </article>
-    )
-  }
-  return (
-    <section className="inbox-page">
-      <header className="inbox-toolbar">
-        <div><p className="eyebrow">INBOX</p><h1>收件箱</h1></div>
-        <button className="icon-button" type="button" title="刷新邮件" aria-label="刷新邮件" disabled={refreshing} onClick={onRefresh}><RefreshCw className={refreshing ? 'spin' : ''} size={17} /></button>
-      </header>
-      <div className="mailbox-filter">
-        <PanelSelect
-          id="inbox-mailbox"
-          ariaLabel="筛选邮箱"
-          value={mailbox}
-          options={[{ label: '全部邮箱', value: '' }, ...mailboxes.map((item) => ({ label: item.address, value: item.address }))]}
-          onChange={onMailbox}
-        />
-      </div>
-      {loading && !messages.length ? <div className="empty-state"><LoaderCircle className="spin" size={20} />正在读取邮件…</div> : (
-        <div className="message-list">
-          {messages.map((message) => (
-            <button className={!message.isRead ? 'is-unread' : ''} type="button" key={message.id} onClick={() => onSelect(message)}>
-              <span className="unread-dot" /><span className="message-copy"><strong>{senderName(message)}</strong><b>{message.subject || '（无主题）'}</b><small>{message.preview || '暂无预览'}</small></span><time>{formatDate(message.date)}</time>
-            </button>
-          ))}
-          {!messages.length && <div className="empty-state"><Inbox size={23} /><strong>还没有邮件</strong><span>新邮件到达后会自动出现在这里。</span></div>}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function SettingsView({ auth, settings, onToggleFloating, onOpenWeb, onLogout }: {
+function SettingsView({ auth, settings, onToggleFloating, onTheme, onOpenWeb, onLogout }: {
   auth: AuthStatus
   settings: ExtensionSettings
   onToggleFloating: (enabled: boolean) => void
+  onTheme: (theme: ThemePreference) => void
   onOpenWeb: () => void
   onLogout: () => void
 }) {
   return (
     <section className="panel-page settings-page">
-      <header className="page-heading"><p className="eyebrow">SETTINGS</p><h1>扩展设置</h1><p>管理悬浮入口和当前 OmniMail 会话。</p></header>
+      <header className="page-heading"><p className="eyebrow">SETTINGS</p><h1>扩展设置</h1><p>管理外观、悬浮入口和当前 OmniMail 会话。</p></header>
       <div className="page-card setting-row"><div><strong>网页悬浮按钮</strong><span>在普通 HTTP/HTTPS 网页显示入口</span></div><input aria-label="网页悬浮按钮" type="checkbox" checked={settings.floatingEnabled} onChange={(event) => onToggleFloating(event.target.checked)} /></div>
+      <PanelThemeSettings value={settings.theme} onChange={onTheme} />
       <div className="page-card account-card"><span>当前账户</span><strong>{auth.user?.displayName}</strong><small>{auth.user?.email}</small><small>{auth.apiOrigin}</small></div>
       <button className="secondary-button" type="button" onClick={onOpenWeb}><ExternalLink size={16} />打开完整网页端</button>
       <button className="danger-button" type="button" onClick={onLogout}><LogOut size={16} />退出扩展登录</button>

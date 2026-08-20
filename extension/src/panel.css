@@ -22,24 +22,22 @@
   text-rendering: optimizeLegibility;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #0b0b0c;
-    --surface: #161617;
-    --surface-muted: #1c1c1e;
-    --surface-hover: #242426;
-    --text: #f5f5f7;
-    --text-secondary: #aaaab0;
-    --text-tertiary: #77777f;
-    --line: rgba(255, 255, 255, 0.1);
-    --line-strong: rgba(255, 255, 255, 0.18);
-    --accent: #f5f5f7;
-    --accent-contrast: #111112;
-    --danger: #ff7771;
-    --danger-soft: rgba(201, 52, 47, 0.18);
-    --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0b0c;
+  --surface: #161617;
+  --surface-muted: #1c1c1e;
+  --surface-hover: #242426;
+  --text: #f5f5f7;
+  --text-secondary: #aaaab0;
+  --text-tertiary: #77777f;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --accent: #f5f5f7;
+  --accent-contrast: #111112;
+  --danger: #ff7771;
+  --danger-soft: rgba(201, 52, 47, 0.18);
+  --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
 }
 
 * {
@@ -230,14 +228,6 @@ html.is-embedded .panel-shell {
   border-color: var(--line);
   background: var(--surface-muted);
   color: var(--text);
-}
-
-.panel-main {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
 }
 
 .panel-view {

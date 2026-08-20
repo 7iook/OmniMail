@@ -358,6 +358,12 @@
     bodyObserver.observe(document.body, { childList: true })
   }
 
+  function applyTheme(value: unknown): void {
+    if (!host) return
+    const theme = value === 'light' || value === 'dark' ? value : 'system'
+    host.setAttribute('data-omnimail-theme', theme)
+  }
+
   function removeUi(): void {
     bodyObserver?.disconnect()
     bodyObserver = null
@@ -405,10 +411,11 @@
   }
 
   function reconcile(): void {
-    void chrome.storage.local.get(['floatingEnabled', 'apiOrigin', 'floatLayout']).then((settings) => {
+    void chrome.storage.local.get(['floatingEnabled', 'apiOrigin', 'floatLayout', 'theme']).then((settings) => {
       const ownSite = settings.apiOrigin && location.origin === settings.apiOrigin
       if (settings.floatingEnabled !== false && !ownSite) createUi(settings.floatLayout || {})
       else removeUi()
+      applyTheme(settings.theme)
     })
   }
 
@@ -459,6 +466,7 @@
 
   const onStorageChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
     if (area === 'local' && (changes.floatingEnabled || changes.apiOrigin)) reconcile()
+    if (area === 'local' && changes.theme) applyTheme(changes.theme.newValue)
   }
   chrome.storage.onChanged.addListener(onStorageChanged)
   cleanup.push(() => chrome.storage.onChanged.removeListener(onStorageChanged))

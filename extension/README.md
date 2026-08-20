@@ -2,7 +2,8 @@
 
 OmniMail Float 是与本仓库一起构建的 Chrome Manifest V3 扩展。它在普通网页中
 注入一个隔离的悬浮入口，通过 OmniMail 网站授权获得可撤销的设备令牌，用于生成
-邮箱、查看收件箱并接收新邮件通知。扩展不会收集或处理用户密码。
+普通邮箱和 iCloud 隐藏地址、查看两类邮箱的来信，并接收 OmniMail 新邮件通知。扩展
+不会收集或处理用户密码或 iCloud 凭据。
 
 隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)。
 
@@ -59,15 +60,20 @@ Chrome Web Store 正式版本无需配置 `APP_ORIGINS`。主管理员登录 Omn
 - 登录使用 Chrome Identity、一次性授权码和 PKCE S256；密码与 MFA 只在 OmniMail
   网站中处理。
 - 授权码两分钟内有效、只能兑换一次，并且在 D1 中只保存哈希。
-- Access Token 和 Refresh Token 仅存放在 `chrome.storage.session`，浏览器重启后需要
-  重新登录。
-- 扩展令牌使用最小权限 Scope，只能读取域名和邮箱、创建邮箱、读取邮件及标记已读；
-  不能调用管理、发信、删除、原文下载或账户设置接口。
+- 短期 Access Token 存放在 `chrome.storage.session`；可撤销的 Refresh Token 存放在
+  扩展自身的 IndexedDB，普通网页中的 Content Script 无法读取。浏览器重启后会自动
+  恢复登录；Refresh Token 每次成功使用后轮换并续期 30 天。
+- 扩展令牌使用最小权限 Scope：除普通邮箱的读取、创建、收件与标记已读外，只能读取
+  已连接 iCloud 账号的公开元数据、已有别名和最近来信，并创建隐藏地址；不能读取或
+  修改 iCloud Cookie、应用专用密码，不能停用或删除已有别名，也不能调用管理、发信、
+  删除、原文下载或账户设置接口。
 - Content Script 只负责悬浮窗口和当前页面邮箱输入框填充，不能读取令牌。
 - Service Worker 只接受预定义的 OmniMail API 操作，不提供任意 URL 请求代理。
 - 邮件 HTML 在 sandbox iframe 中显示，脚本、表单、远程图片和危险属性会被移除。
 - 为了自动显示悬浮入口，扩展需要访问普通 HTTP/HTTPS 网页；可以在扩展设置里关闭
   悬浮按钮。
+- 扩展设置提供跟随系统、亮色和暗色三档主题；选择保存在本机并同步应用到面板与悬浮
+  窗外壳。
 
 开发者模式扩展和 Chrome Web Store 扩展通常具有不同 ID。如果两者都需要访问同一
 个 OmniMail 实例，应开启官方扩展开关，并把开发版的

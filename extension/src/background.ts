@@ -5,18 +5,37 @@ import {
   pkceChallenge,
   randomAuthorizationValue,
 } from './authorization'
+import {
+  clearPersistentAuth,
+  loadPersistentAuth,
+  savePersistentAuth,
+} from './auth-storage'
 import type { ExtensionRequest } from './protocol'
 
 const MAIL_ALARM = 'omnimail-mail-poll'
-const LOCAL_SETTINGS = ['apiOrigin', 'knownMessageIds', 'floatingEnabled'] as const
-const SESSION_AUTH = ['accessToken', 'accessExpiresAt', 'refreshToken', 'user'] as const
+const LOCAL_SETTINGS = ['apiOrigin', 'knownMessageIds', 'floatingEnabled', 'theme'] as const
+const SESSION_AUTH = [
+  'accessToken',
+  'accessExpiresAt',
+  'refreshToken',
+  'refreshExpiresAt',
+  'scopes',
+  'user',
+] as const
 const ACCESS_REFRESH_MARGIN_MS = 30_000
+const ICLOUD_SCOPES = [
+  'icloud:accounts:read',
+  'icloud:aliases:read',
+  'icloud:aliases:create',
+  'icloud:messages:read',
+] as const
 
 interface TokenResponse {
   accessToken: string
   expiresIn: number
   refreshToken: string
   refreshExpiresIn: number
+  scopes: string[]
   user: User
 }
 
@@ -24,6 +43,8 @@ interface SessionAuth {
   accessToken?: string
   accessExpiresAt?: number
   refreshToken?: string
+  refreshExpiresAt?: number
+  scopes?: string[]
   user?: User
 }
 
@@ -78,19 +99,56 @@ async function publicRequest<T>(
 }
 
 async function saveTokens(tokens: TokenResponse): Promise<SessionAuth> {
+  const refreshExpiresAt = Date.now() + tokens.refreshExpiresIn * 1000
   const auth: SessionAuth = {
     accessToken: tokens.accessToken,
     accessExpiresAt: Date.now() + tokens.expiresIn * 1000,
     refreshToken: tokens.refreshToken,
+    refreshExpiresAt,
+    scopes: tokens.scopes,
     user: tokens.user,
   }
+  await savePersistentAuth({
+    refreshToken: tokens.refreshToken,
+    refreshExpiresAt,
+    scopes: tokens.scopes,
+    user: tokens.user,
+  })
   await chrome.storage.session.set(auth)
   return auth
 }
 
 async function clearAuth(): Promise<void> {
-  await chrome.storage.session.remove([...SESSION_AUTH])
+  await Promise.all([
+    chrome.storage.session.remove([...SESSION_AUTH]),
+    clearPersistentAuth(),
+  ])
   await chrome.action.setBadgeText({ text: '' })
+}
+
+async function loadAuth(): Promise<SessionAuth> {
+  const [session, persistent] = await Promise.all([
+    chrome.storage.session.get([...SESSION_AUTH]) as Promise<SessionAuth>,
+    loadPersistentAuth(),
+  ])
+  if (persistent && persistent.refreshExpiresAt <= Date.now()) {
+    await Promise.all([
+      chrome.storage.session.remove([...SESSION_AUTH]),
+      clearPersistentAuth(),
+    ])
+    return {}
+  }
+  return {
+    ...session,
+    refreshToken: persistent?.refreshToken || session.refreshToken,
+    refreshExpiresAt: persistent?.refreshExpiresAt || session.refreshExpiresAt,
+    scopes: persistent?.scopes || session.scopes,
+    user: persistent?.user || session.user,
+  }
+}
+
+function hasICloudScopes(scopes: string[] | undefined): boolean {
+  return ICLOUD_SCOPES.every((scope) => scopes?.includes(scope))
 }
 
 async function refreshAuth(): Promise<SessionAuth> {
@@ -98,7 +156,7 @@ async function refreshAuth(): Promise<SessionAuth> {
   refreshPromise = (async () => {
     const [settings, auth] = await Promise.all([
       chrome.storage.local.get(['apiOrigin']),
-      chrome.storage.session.get([...SESSION_AUTH]) as Promise<SessionAuth>,
+      loadAuth(),
     ])
     const apiOrigin = typeof settings.apiOrigin === 'string' ? settings.apiOrigin : ''
     if (!apiOrigin || !auth.refreshToken) throw new RequestError('请重新登录。', 401)
@@ -122,7 +180,7 @@ async function refreshAuth(): Promise<SessionAuth> {
 async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const settings = await chrome.storage.local.get(['apiOrigin'])
   if (!settings.apiOrigin) throw new RequestError('请先设置 OmniMail 地址。', 401)
-  let auth = await chrome.storage.session.get([...SESSION_AUTH]) as SessionAuth
+  let auth = await loadAuth()
   if (!auth.accessToken || !auth.accessExpiresAt || auth.accessExpiresAt < Date.now() + ACCESS_REFRESH_MARGIN_MS) {
     auth = await refreshAuth()
   }
@@ -169,6 +227,30 @@ function apiCall(message: ExtensionRequest): Promise<unknown> {
       return authenticatedRequest(`/api/messages/${encodeURIComponent(message.id)}`, {
         method: 'PATCH', body: JSON.stringify({ isRead: true }),
       })
+    case 'api:icloud-accounts':
+      return authenticatedRequest('/api/icloud/accounts')
+    case 'api:icloud-aliases':
+      return authenticatedRequest(
+        `/api/icloud/aliases?accountId=${encodeURIComponent(message.accountId)}`,
+      )
+    case 'api:create-icloud-alias':
+      return authenticatedRequest('/api/icloud/aliases', {
+        method: 'POST',
+        body: JSON.stringify({ accountId: message.accountId, label: message.label }),
+      })
+    case 'api:icloud-inbox': {
+      const search = new URLSearchParams({
+        accountId: message.accountId,
+        limit: '30',
+        days: '7',
+      })
+      if (message.alias) search.set('alias', message.alias)
+      return authenticatedRequest(`/api/icloud/inbox?${search}`)
+    }
+    case 'api:icloud-message':
+      return authenticatedRequest(
+        `/api/icloud/inbox/${encodeURIComponent(message.id)}?accountId=${encodeURIComponent(message.accountId)}`,
+      )
     default:
       throw new Error('不支持的 API 操作。')
   }
@@ -177,17 +259,25 @@ function apiCall(message: ExtensionRequest): Promise<unknown> {
 async function authStatus() {
   const [settings, auth] = await Promise.all([
     chrome.storage.local.get(['apiOrigin']),
-    chrome.storage.session.get([...SESSION_AUTH]) as Promise<SessionAuth>,
+    loadAuth(),
   ])
   return {
     apiOrigin: String(settings.apiOrigin || ''),
     authenticated: Boolean(auth.refreshToken && auth.user),
+    iCloudAuthorized: hasICloudScopes(auth.scopes),
     user: auth.user || null,
   }
 }
 
 async function authorize(message: Extract<ExtensionRequest, { type: 'auth:authorize' }>) {
   const apiOrigin = normalizeApiOrigin(message.apiOrigin)
+  const [previousSettings, previousAuth] = await Promise.all([
+    chrome.storage.local.get(['apiOrigin']),
+    loadAuth(),
+  ])
+  const previousOrigin = typeof previousSettings.apiOrigin === 'string'
+    ? previousSettings.apiOrigin
+    : ''
   const clientId = chrome.runtime.id
   const redirectUri = chrome.identity.getRedirectURL('omnimail')
   const state = randomAuthorizationValue()
@@ -215,14 +305,30 @@ async function authorize(message: Extract<ExtensionRequest, { type: 'auth:author
   })
   await chrome.storage.local.remove(['knownMessageIds'])
   await saveTokens(tokens)
+  if (previousOrigin && previousAuth.refreshToken
+    && previousAuth.refreshToken !== tokens.refreshToken) {
+    try {
+      await publicRequest(previousOrigin, '/api/auth/token/revoke', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: previousAuth.refreshToken }),
+      })
+    } catch {
+      // The new authorization remains valid if the old session is already unavailable.
+    }
+  }
   await configureMailAlarm()
-  return { apiOrigin, authenticated: true, user: tokens.user }
+  return {
+    apiOrigin,
+    authenticated: true,
+    iCloudAuthorized: hasICloudScopes(tokens.scopes),
+    user: tokens.user,
+  }
 }
 
 async function logout() {
   const [settings, auth] = await Promise.all([
     chrome.storage.local.get(['apiOrigin']),
-    chrome.storage.session.get(['refreshToken']) as Promise<SessionAuth>,
+    loadAuth(),
   ])
   const apiOrigin = typeof settings.apiOrigin === 'string' ? settings.apiOrigin : ''
   try {
@@ -270,11 +376,22 @@ async function handleMessage(message: ExtensionRequest, sender: chrome.runtime.M
     case 'auth:logout': return logout()
     case 'page:fill-email': return fillCurrentPage(message.email, sender)
     case 'settings:get': {
-      const settings = await chrome.storage.local.get(['floatingEnabled'])
-      return { floatingEnabled: settings.floatingEnabled !== false }
+      const settings = await chrome.storage.local.get(['floatingEnabled', 'theme'])
+      return {
+        floatingEnabled: settings.floatingEnabled !== false,
+        theme: settings.theme === 'light' || settings.theme === 'dark'
+          ? settings.theme
+          : 'system',
+      }
     }
     case 'settings:set-floating':
       await chrome.storage.local.set({ floatingEnabled: message.enabled })
+      return { ok: true as const }
+    case 'settings:set-theme':
+      if (!['system', 'light', 'dark'].includes(message.theme)) {
+        throw new Error('不支持的主题设置。')
+      }
+      await chrome.storage.local.set({ theme: message.theme })
       return { ok: true as const }
     default: throw new Error('不支持的扩展操作。')
   }
@@ -328,7 +445,7 @@ function runPollMail(): Promise<void> {
 }
 
 async function configureMailAlarm(): Promise<void> {
-  const auth = await chrome.storage.session.get(['refreshToken'])
+  const auth = await loadAuth()
   await chrome.alarms.clear(MAIL_ALARM)
   if (!auth.refreshToken) return
   await chrome.alarms.create(MAIL_ALARM, { delayInMinutes: 1, periodInMinutes: 1 })
@@ -344,9 +461,10 @@ chrome.notifications.onClicked.addListener(() => {
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.storage.local.get([...LOCAL_SETTINGS]).then((settings) => {
-    if (settings.floatingEnabled === undefined) {
-      return chrome.storage.local.set({ floatingEnabled: true })
-    }
+    const defaults: Record<string, unknown> = {}
+    if (settings.floatingEnabled === undefined) defaults.floatingEnabled = true
+    if (settings.theme === undefined) defaults.theme = 'system'
+    if (Object.keys(defaults).length) return chrome.storage.local.set(defaults)
   })
   void configureMailAlarm()
 })

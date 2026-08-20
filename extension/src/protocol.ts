@@ -1,5 +1,8 @@
 import type {
   AppConfig,
+  ICloudAccount,
+  ICloudAlias,
+  ICloudMessage,
   ManagedDomain,
   MailboxAddress,
   MailCounts,
@@ -12,6 +15,7 @@ import type {
 export interface AuthStatus {
   apiOrigin: string
   authenticated: boolean
+  iCloudAuthorized: boolean
   user: User | null
 }
 
@@ -34,12 +38,21 @@ export type ExtensionRequest =
   | { type: 'api:message'; id: string }
   | { type: 'api:create-mailbox'; address: string }
   | { type: 'api:mark-read'; id: string }
+  | { type: 'api:icloud-accounts' }
+  | { type: 'api:icloud-aliases'; accountId: string }
+  | { type: 'api:create-icloud-alias'; accountId: string; label: string }
+  | { type: 'api:icloud-inbox'; accountId: string; alias?: string }
+  | { type: 'api:icloud-message'; accountId: string; id: string }
   | { type: 'page:fill-email'; email: string }
   | { type: 'settings:set-floating'; enabled: boolean }
+  | { type: 'settings:set-theme'; theme: ThemePreference }
   | { type: 'settings:get' }
+
+export type ThemePreference = 'system' | 'light' | 'dark'
 
 export interface ExtensionSettings {
   floatingEnabled: boolean
+  theme: ThemePreference
 }
 
 export type ExtensionResponse =
@@ -49,6 +62,11 @@ export type ExtensionResponse =
   | InboxResult
   | { mailboxes: MailboxAddress[] }
   | { domains: ManagedDomain[] }
+  | { accounts: ICloudAccount[] }
+  | { aliases: ICloudAlias[] }
+  | { alias: Pick<ICloudAlias, 'email' | 'label' | 'createdAt'> }
+  | { messages: ICloudMessage[]; method: 'imap' | 'web' }
+  | { message: ICloudMessage }
   | { message: MessageDetail; thread: MessageSummary[] }
   | { mailbox: MailboxAddress }
   | { ok: true }

@@ -57,6 +57,9 @@ export const enSecurity: Record<string, string> = {
   '请求的权限': 'Requested permissions',
   '生成邮箱': 'Create mailboxes',
   '在你有权限的域名下创建随机地址': 'Create random addresses on domains you can use',
+  'iCloud 隐藏邮箱': 'iCloud Hide My Email',
+  '使用已有隐藏地址、创建新地址并读取来信':
+    'Use existing Hide My Email addresses, create new ones, and read incoming mail',
   '读取收件箱': 'Read inbox',
   '查看邮箱列表、邮件摘要和邮件正文': 'View mailbox lists, message summaries, and message bodies',
   '新邮件通知': 'New mail notifications',

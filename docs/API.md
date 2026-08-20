@@ -577,9 +577,11 @@ API Key、初始化令牌或其他 Secret。Email Routing 无法由当前 Worker
 
 ## iCloud 隐藏邮箱
 
-该功能复用当前 Cookie 会话与完整权限设备令牌。OmniMail Float 的受限令牌不能访问
-这些接口。先在 Worker 中配置至少 32 字节的 `ICLOUD_CREDENTIALS_KEY`；公开配置只返回
-`iCloudEnabled` 布尔值，不返回密钥或任何 Apple 凭据。
+该功能复用当前 Cookie 会话与设备令牌。OmniMail Float 的受限令牌只能读取已连接账号
+的公开元数据、已有别名与最近来信，并创建隐藏地址；不能新增或删除账号、读写 Cookie
+与应用专用密码，也不能停用或删除已有别名。先在 Worker 中配置至少 32 字节的
+`ICLOUD_CREDENTIALS_KEY`；公开配置只返回 `iCloudEnabled` 布尔值，不返回密钥或任何
+Apple 凭据。
 
 账号与凭据接口：
 
