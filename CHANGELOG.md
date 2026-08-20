@@ -5,6 +5,43 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.3.3] - 2026-08-20
+
+### 新增
+
+- iCloud 账号列表增加独立设置入口，支持修改备注名称、更新 Cookie 和应用专用密码；
+  新增归属校验、审计日志和对应 API。
+- 创建隐藏邮箱前可预览并更换 Apple 候选地址；支持一次创建最多 5 个、独立标签以及
+  部分失败后保留剩余项目继续处理。
+- 新增按 9 个业务分类生成的完整 Markdown API 参考，以及 `npm run docs:api` 和 Catalog
+  元数据指纹同步测试。
+
+### 改进
+
+- 五地址批量创建在桌面端使用两列紧凑卡片，移动端自动单列；操作按钮补齐触控尺寸、
+  加载状态、悬浮说明和无障碍名称。
+- iCloud 凭据保存成功反馈改为固定 toast；邮件发件人可识别 Hide My Email 中继地址，
+  不再直接显示冗长编码。
+- 侧栏头尾固定、中间菜单独立滚动，滚动条与邮件列表保持一致；iCloud 入口移动到
+  垃圾箱之后，并支持移动端直接访问。
+- 系统更新改为引导管理员同步 GitHub Fork，不再由应用直接触发 Cloudflare 构建。
+
+### 安全与兼容
+
+- 候选地址与不透明 `previewId` 成对验证，保持 Apple `generate` / `reserve` 客户端身份
+  连续性；无效候选不会请求 Apple。
+- Cookie 和应用专用密码继续在 Worker 内加密保存，查询接口不会回传原值。
+- 无需新增 D1 迁移、Worker 变量、Secret 或资源绑定。
+
+### 测试
+
+- 完成 364 项单元测试、8 项 Worker 集成测试和 54 项 Playwright E2E。
+- API 文档逐项覆盖 102 个真实端点，并验证路由、说明、参数、响应和示例元数据。
+
+### 发布
+
+- Web 版本为 `0.3.3`；OmniMail Float 与 Android 保持各自独立版本。
+
 ## [0.3.2] - 2026-08-18
 
 ### 改进
@@ -249,3 +286,4 @@
 [0.3.0]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.0
 [0.3.1]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.1
 [0.3.2]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.2
+[0.3.3]: https://github.com/mibgb65-cloud/OmniMail/releases/tag/v0.3.3

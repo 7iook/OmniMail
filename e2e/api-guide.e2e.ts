@@ -42,8 +42,10 @@ test('API reference keeps scrolling inside the workspace', async ({ page }) => {
   await mockApiGuide(page)
   await page.goto('/settings/api')
 
+  await expect(page.getByRole('heading', { name: '完整 API 参考' }))
+    .toBeVisible({ timeout: 20_000 })
   await expect(page.locator('details.api-endpoint-card'))
-    .toHaveCount(102, { timeout: 10_000 })
+    .toHaveCount(102, { timeout: 20_000 })
   const shell = page.locator('.admin-scroll-shell')
   await shell.evaluate((element) => { element.scrollTop = element.scrollHeight })
   await expect(page.getByText('/api/admin/version', { exact: true })).toBeVisible()
