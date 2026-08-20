@@ -16,6 +16,13 @@ export const iCloudEndpoints: ApiEndpoint[] = [
     notes: [l('Cookie 属于高敏感凭据，只应提交给自己的 OmniMail 实例。', 'Cookies are highly sensitive credentials and should only be sent to your own OmniMail instance.')],
   },
   {
+    method: 'PATCH', path: '/api/icloud/accounts/:id', group: 'icloud', auth: 'authenticated',
+    title: l('修改 iCloud 账户备注', 'Rename an iCloud account'),
+    description: l('修改当前用户连接的 iCloud 账户备注名称。', 'Change the display name of an iCloud account connected by the current user.'),
+    request: 'Path · id; JSON · name', response: '200 · { ok: true, name }',
+    exampleBody: { name: 'Personal iCloud' },
+  },
+  {
     method: 'DELETE', path: '/api/icloud/accounts/:id', group: 'icloud', auth: 'authenticated',
     title: l('删除 iCloud 账户', 'Delete an iCloud account'),
     description: l('删除当前用户的加密 Cookie、应用专用密码和账户记录。', 'Delete the current user’s encrypted cookies, app password, and account record.'),
@@ -43,11 +50,18 @@ export const iCloudEndpoints: ApiEndpoint[] = [
     examplePath: '/api/icloud/aliases?accountId=icloud_account_id',
   },
   {
+    method: 'POST', path: '/api/icloud/aliases/preview', group: 'icloud', auth: 'authenticated',
+    title: l('预览隐藏邮箱地址', 'Preview a Hide My Email address'),
+    description: l('让 Apple 生成一个尚未创建的候选隐藏邮箱地址。', 'Ask Apple for a suggested Hide My Email address without creating it.'),
+    request: 'JSON · accountId', response: '200 · { email, previewId }',
+    exampleBody: { accountId: 'icloud_account_id' },
+  },
+  {
     method: 'POST', path: '/api/icloud/aliases', group: 'icloud', auth: 'authenticated',
     title: l('创建隐藏邮箱地址', 'Create a Hide My Email alias'),
     description: l('在指定 iCloud 账户中创建带标签的隐藏地址。', 'Create a labeled Hide My Email alias in the selected iCloud account.'),
-    request: 'JSON · accountId, label?', response: '201 · { alias }',
-    exampleBody: { accountId: 'icloud_account_id', label: 'Shopping' },
+    request: 'JSON · accountId, label?, email?, previewId?', response: '201 · { alias }',
+    exampleBody: { accountId: 'icloud_account_id', label: 'Shopping', email: 'suggested@icloud.com', previewId: '00000000-0000-4000-8000-000000000001' },
   },
   {
     method: 'PATCH', path: '/api/icloud/aliases/:anonymousId', group: 'icloud', auth: 'authenticated',

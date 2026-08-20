@@ -139,6 +139,7 @@
 .icloud-scope-content button small { color: var(--text-tertiary); font-size: 9px; }
 .icloud-scope-option > svg { color: var(--success); }
 
+.icloud-scope-account,
 .icloud-scope-alias {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
@@ -147,17 +148,23 @@
   transition: background 160ms ease;
 }
 
+.icloud-scope-account:hover,
+.icloud-scope-account:focus-within,
+.icloud-scope-account.is-selected,
 .icloud-scope-alias:hover,
 .icloud-scope-alias:focus-within,
 .icloud-scope-alias.is-selected {
   background: var(--surface-muted);
 }
 
+.icloud-scope-account .icloud-scope-option:hover,
+.icloud-scope-account .icloud-scope-option:focus-visible,
 .icloud-scope-alias .icloud-scope-option:hover,
 .icloud-scope-alias .icloud-scope-option:focus-visible {
   background: transparent;
 }
 
+.icloud-scope-settings,
 .icloud-scope-copy {
   display: grid;
   width: 44px;
@@ -172,6 +179,8 @@
   transition: background 160ms ease, color 160ms ease;
 }
 
+.icloud-scope-settings:hover,
+.icloud-scope-settings:focus-visible,
 .icloud-scope-copy:hover,
 .icloud-scope-copy:focus-visible {
   outline: 0;
@@ -194,6 +203,8 @@
 @media (prefers-reduced-motion: reduce) {
   .icloud-scope-trigger > svg,
   .icloud-scope-panel,
+  .icloud-scope-account,
+  .icloud-scope-settings,
   .icloud-scope-alias,
   .icloud-scope-copy { animation: none; transition: none; }
 }

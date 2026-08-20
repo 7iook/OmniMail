@@ -4,6 +4,7 @@
   }
 
   .mail-sidebar {
+    --sidebar-padding-inline: 10px;
     align-items: center;
     padding-inline: 10px;
   }
@@ -132,8 +133,8 @@
     display: grid;
     width: auto;
     min-width: 0;
-    flex: 5 1 0;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    flex: 6 1 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 2px;
   }
 
@@ -235,6 +236,10 @@
   .account-nav button span {
     display: block;
     font-size: 9px;
+  }
+
+  .sidebar-navigation {
+    display: contents;
   }
 
   .account-nav button.is-active-mobile {

@@ -159,7 +159,7 @@ function stripHtml(value: string): string {
 
 export class ICloudClient {
   readonly cookies: Record<string, string>
-  private readonly clientId = crypto.randomUUID()
+  readonly clientId: string
   private dsid = ''
   private serviceUrl = ''
   private mccGatewayUrl = ''
@@ -167,8 +167,10 @@ export class ICloudClient {
   constructor(
     cookies: Record<string, string>,
     private readonly host: ICloudHost,
+    clientId = crypto.randomUUID(),
   ) {
     this.cookies = { ...cookies }
+    this.clientId = clientId
   }
 
   private origin(): string {
@@ -282,7 +284,7 @@ export class ICloudClient {
     return parseICloudAliases(await this.request<unknown>('GET', `${this.serviceUrl}/v2/hme/list`))
   }
 
-  async createAlias(label: string): Promise<{ email: string; label: string; createdAt: string }> {
+  async generateAlias(): Promise<string> {
     await this.ensureService()
     const generated = await this.request<Record<string, any>>(
       'POST',
@@ -292,18 +294,34 @@ export class ICloudClient {
     if (!generated.success) throw new ICloudRemoteError(502, 'iCloud 无法生成隐藏邮箱。')
     const email = generatedAliasAddress(generated.result)
     if (!email) throw new ICloudRemoteError(502, 'iCloud 响应中没有隐藏邮箱地址。')
+    return email
+  }
+
+  async reserveAlias(
+    email: string,
+    label: string,
+  ): Promise<{ email: string; label: string; createdAt: string }> {
+    const normalizedEmail = generatedAliasAddress(email)
+    if (!/^[^@\s]{1,64}@icloud\.com$/.test(normalizedEmail)) {
+      throw new ICloudRemoteError(400, '隐藏邮箱地址无效。', true)
+    }
+    await this.ensureService()
     const finalLabel = label || `OmniMail ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`
     const reserved = await this.request<Record<string, any>>(
       'POST',
       `${this.serviceUrl}/v1/hme/reserve`,
-      { hme: email, label: finalLabel, note: 'Created by OmniMail' },
+      { hme: normalizedEmail, label: finalLabel, note: 'Created by OmniMail' },
     )
     if (!reserved.success) throw new ICloudRemoteError(502, 'iCloud 无法保留隐藏邮箱。')
     return {
-      email: generatedAliasAddress(reserved.result) || email,
+      email: generatedAliasAddress(reserved.result) || normalizedEmail,
       label: finalLabel,
       createdAt: new Date().toISOString(),
     }
+  }
+
+  async createAlias(label: string): Promise<{ email: string; label: string; createdAt: string }> {
+    return this.reserveAlias(await this.generateAlias(), label)
   }
 
   private async aliasAction(action: string, anonymousId: string): Promise<void> {

@@ -57,6 +57,17 @@ function request(path: string, token = ownerToken): Request {
   })
 }
 
+function patchRequest(path: string, body: unknown, token = ownerToken): Request {
+  return new Request(`https://mail.example.com${path}`, {
+    method: 'PATCH',
+    headers: {
+      Cookie: `omnimail_session=${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+}
+
 describe('iCloud account API', () => {
   it('lists only public metadata for the authenticated owner', async () => {
     const response = await worker.fetch(
@@ -84,5 +95,26 @@ describe('iCloud account API', () => {
       createExecutionContext(),
     )
     await expect(response.json()).resolves.toEqual({ accounts: [] })
+  })
+
+  it('renames only an account owned by the authenticated user', async () => {
+    const denied = await worker.fetch(
+      patchRequest('/api/icloud/accounts/icloud-account-1', { name: 'Other name' }, otherToken),
+      env,
+      createExecutionContext(),
+    )
+    expect(denied.status).toBe(404)
+
+    const response = await worker.fetch(
+      patchRequest('/api/icloud/accounts/icloud-account-1', { name: 'Work iCloud' }),
+      env,
+      createExecutionContext(),
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ ok: true, name: 'Work iCloud' })
+    const account = await env.DB.prepare(
+      'SELECT name FROM icloud_accounts WHERE id = ?',
+    ).bind('icloud-account-1').first<{ name: string }>()
+    expect(account?.name).toBe('Work iCloud')
   })
 })

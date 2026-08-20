@@ -12,6 +12,10 @@ export function createICloudApi(request: Request, jsonBody: (value: unknown) => 
         method: 'POST', body: jsonBody(input),
       })
     ),
+    updateICloudAccountName: (id: string, name: string) => request<{ ok: true; name: string }>(
+      `/api/icloud/accounts/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: jsonBody({ name }) },
+    ),
     deleteICloudAccount: (id: string) => request<{ ok: true }>(
       `/api/icloud/accounts/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
@@ -30,11 +34,20 @@ export function createICloudApi(request: Request, jsonBody: (value: unknown) => 
       `/api/icloud/aliases?accountId=${encodeURIComponent(accountId)}`,
       { signal },
     ),
-    createICloudAlias: (accountId: string, label: string) => request<{
+    previewICloudAlias: (accountId: string) => request<{ email: string; previewId: string }>(
+      '/api/icloud/aliases/preview',
+      { method: 'POST', body: jsonBody({ accountId }) },
+    ),
+    createICloudAlias: (
+      accountId: string,
+      label: string,
+      email?: string,
+      previewId?: string,
+    ) => request<{
       alias: Pick<ICloudAlias, 'email' | 'label' | 'createdAt'>
     }>(
       '/api/icloud/aliases',
-      { method: 'POST', body: jsonBody({ accountId, label }) },
+      { method: 'POST', body: jsonBody({ accountId, label, email, previewId }) },
     ),
     updateICloudAlias: (
       anonymousId: string,

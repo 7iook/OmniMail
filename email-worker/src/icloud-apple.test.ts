@@ -56,6 +56,33 @@ describe('iCloud Hide My Email response parsing', () => {
       .toMatchObject({ hme: 'alias@icloud.com', label: 'Shop' })
   })
 
+  it('generates a preview without reserving the address', async () => {
+    const previewId = '00000000-0000-4000-8000-000000000001'
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(validationResponse())
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        result: { hme: 'preview@icloud.com' },
+      }))
+
+    const client = new ICloudClient({ session: 'value' }, 'icloud.com', previewId)
+    await expect(client.generateAlias())
+      .resolves.toBe('preview@icloud.com')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/v1/hme/generate')
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes(`clientId=${previewId}`)))
+      .toBe(true)
+  })
+
+  it('rejects an invalid preview address before contacting Apple', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+
+    await expect(new ICloudClient({ session: 'value' }, 'icloud.com')
+      .reserveAlias('attacker@example.com', 'Shop'))
+      .rejects.toMatchObject({ status: 400, message: '隐藏邮箱地址无效。' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('retries a read request after a transient Apple failure', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(validationResponse())

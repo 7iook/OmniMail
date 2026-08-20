@@ -1,4 +1,4 @@
-import { AtSign, Check, ChevronDown, Cloud, Copy, Inbox, X } from 'lucide-react'
+import { AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ICloudAccount, ICloudAlias } from '../lib/api'
 import { t } from '../lib/i18n'
@@ -11,6 +11,7 @@ export function ICloudScopeSwitcher({
   onAccountChange,
   onAliasChange,
   onAliasCopy,
+  onAccountSettings,
 }: {
   accounts: ICloudAccount[]
   aliases: ICloudAlias[]
@@ -19,6 +20,7 @@ export function ICloudScopeSwitcher({
   onAccountChange: (id: string) => void
   onAliasChange: (address: string) => void
   onAliasCopy: (address: string) => Promise<void>
+  onAccountSettings: (account: ICloudAccount) => void
 }) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -65,12 +67,21 @@ export function ICloudScopeSwitcher({
             <section>
               <h3>{t('iCloud 账号')}</h3>
               {accounts.map((item) => (
-                <button className={`icloud-scope-option${item.id === selectedAccountId ? ' is-selected' : ''}`}
-                  type="button" key={item.id} onClick={() => { onAccountChange(item.id); close() }}>
-                  <span className="icloud-scope-icon"><Cloud size={16} /></span>
-                  <span><strong>{item.name}</strong><small>{item.realEmail || item.icloudEmail || t('尚未识别 Apple ID')}</small></span>
-                  {item.id === selectedAccountId && <Check size={15} />}
-                </button>
+                <div className={`icloud-scope-account${item.id === selectedAccountId ? ' is-selected' : ''}`}
+                  key={item.id}>
+                  <button className="icloud-scope-option" type="button"
+                    onClick={() => { onAccountChange(item.id); close() }}>
+                    <span className="icloud-scope-icon"><Cloud size={16} /></span>
+                    <span><strong>{item.name}</strong><small>{item.realEmail || item.icloudEmail || t('尚未识别 Apple ID')}</small></span>
+                    {item.id === selectedAccountId && <Check size={15} />}
+                  </button>
+                  <button className="icloud-scope-settings" type="button"
+                    onClick={() => { setOpen(false); onAccountSettings(item) }}
+                    aria-label={t('设置 iCloud 账号：{name}', { name: item.name })}
+                    data-tooltip={t('账号设置')}>
+                    <Settings2 size={15} aria-hidden="true" />
+                  </button>
+                </div>
               ))}
             </section>
             <section>

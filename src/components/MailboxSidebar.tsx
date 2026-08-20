@@ -77,6 +77,8 @@ export function MailboxSidebar({
   const showAdmin = isAdminRole(user.role)
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+  const [scrollbarActive, setScrollbarActive] = useState(false)
+  const scrollbarTimer = useRef<number | null>(null)
 
   useEffect(() => {
     if (window.matchMedia('(max-width: 760px)').matches) return
@@ -86,6 +88,19 @@ export function MailboxSidebar({
     })
   }, [adminView, folder])
 
+  useEffect(() => () => {
+    if (scrollbarTimer.current !== null) window.clearTimeout(scrollbarTimer.current)
+  }, [])
+
+  function showScrollbarWhileScrolling() {
+    setScrollbarActive(true)
+    if (scrollbarTimer.current !== null) window.clearTimeout(scrollbarTimer.current)
+    scrollbarTimer.current = window.setTimeout(() => {
+      setScrollbarActive(false)
+      scrollbarTimer.current = null
+    }, 700)
+  }
+
   return (
     <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`} ref={sidebarRef}>
       <div className="sidebar-brand"><Brand /></div>
@@ -93,6 +108,8 @@ export function MailboxSidebar({
         <ThemeToggle />
         <LanguageQuickToggle />
       </div>
+      <div className={`sidebar-navigation${scrollbarActive ? ' is-scrollbar-active' : ''}`}
+        onScroll={showScrollbarWhileScrolling}>
       <nav className="folder-nav" aria-label={t('邮箱文件夹')}>
         {folders.map((item) => {
           const Icon = item.icon
@@ -118,6 +135,17 @@ export function MailboxSidebar({
             </button>
           )
         })}
+        <button
+          className={adminView === 'icloud' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('icloud')
+          }}
+        >
+          <Cloud size={18} />
+          <span>{t('iCloud 隐藏邮箱')}</span>
+        </button>
       </nav>
 
       {showAdmin && (
@@ -171,17 +199,6 @@ export function MailboxSidebar({
             <BookOpen size={18} />
             <span>{t('API 使用')}</span>
           </button>
-          <button
-            className={adminView === 'icloud' ? 'is-active' : ''}
-            type="button"
-            onClick={() => {
-              setAdminMenuOpen(false)
-              onAdminViewChange('icloud')
-            }}
-          >
-            <Cloud size={18} />
-            <span>{t('iCloud 隐藏邮箱')}</span>
-          </button>
         </span>
         <button
           className={adminView === 'account'
@@ -199,6 +216,7 @@ export function MailboxSidebar({
           <span>{t('账号设置')}</span>
         </button>
       </nav>
+      </div>
 
       <div className="sidebar-account">
         <span className="account-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>

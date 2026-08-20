@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createICloudAccount } from './icloud-api'
+import {
+  createICloudAccount,
+  createICloudAlias,
+  previewICloudAlias,
+  updateICloudAccountName,
+} from './icloud-api'
 import type { Env, SessionUser } from './types'
 
 const user = {
@@ -53,6 +58,48 @@ describe('iCloud account API validation', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'iCloud 功能尚未配置 ICLOUD_CREDENTIALS_KEY。',
     })
+  })
+
+  it('rejects an empty account display name before accessing storage', async () => {
+    const response = await updateICloudAccountName(
+      { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,
+      user,
+      'icloud-1',
+      new Request('https://mail.example.com/api/icloud/accounts/icloud-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '   ' }),
+      }),
+      '192.0.2.1',
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: '账号名称需要在 1–80 个字符之间。',
+    })
+  })
+
+  it('requires an account when previewing a Hide My Email address', async () => {
+    const response = await previewICloudAlias(
+      { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,
+      user,
+      request({ accountId: '' }),
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: '隐藏邮箱参数无效。' })
+  })
+
+  it('requires a matching preview identity when reserving a suggested address', async () => {
+    const response = await createICloudAlias(
+      { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,
+      user,
+      request({ accountId: 'icloud-1', email: 'preview@icloud.com' }),
+      '192.0.2.1',
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: '隐藏邮箱参数无效。' })
   })
 
   it('stores an invalid-but-parseable Apple session as an account needing attention', async () => {

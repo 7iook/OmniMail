@@ -38,9 +38,9 @@ test('regular users can open iCloud from the mobile navigation', async ({ page }
   await mockEmptyICloud(page)
   await page.goto('/mail/inbox')
 
-  await page.getByRole('button', { name: '账号设置' }).click()
   await page.getByRole('button', { name: 'iCloud 隐藏邮箱' }).click()
   await expect(page).toHaveURL(/\/icloud$/)
   await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '账号设置' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '个人账户' })
+    .getByRole('button', { name: '账号设置' })).toBeVisible()
 })

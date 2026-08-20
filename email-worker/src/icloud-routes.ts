@@ -10,7 +10,9 @@ import {
   listICloudAccounts,
   listICloudAliases,
   listICloudInbox,
+  previewICloudAlias,
   updateICloudAlias,
+  updateICloudAccountName,
   updateICloudAppPassword,
   updateICloudCookies,
 } from './icloud-api'
@@ -24,6 +26,15 @@ iCloudRoutes.post('/icloud/accounts', (context) => (
   createICloudAccount(
     context.env,
     context.get('user'),
+    context.req.raw,
+    clientIp(context.req.raw.headers),
+  )
+))
+iCloudRoutes.patch('/icloud/accounts/:id', (context) => (
+  updateICloudAccountName(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
     context.req.raw,
     clientIp(context.req.raw.headers),
   )
@@ -64,6 +75,9 @@ iCloudRoutes.post('/icloud/aliases', (context) => (
     context.req.raw,
     clientIp(context.req.raw.headers),
   )
+))
+iCloudRoutes.post('/icloud/aliases/preview', (context) => (
+  previewICloudAlias(context.env, context.get('user'), context.req.raw)
 ))
 iCloudRoutes.patch('/icloud/aliases/:anonymousId', (context) => (
   updateICloudAlias(

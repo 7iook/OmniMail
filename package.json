@@ -31,6 +31,7 @@
     "predeploy": "npm run db:migrate",
     "deploy": "wrangler deploy",
     "check:lines": "node scripts/check-file-lines.mjs",
+    "docs:api": "node scripts/generate-api-docs.mjs",
     "check": "npm run check:lines && tsc --noEmit --pretty false && tsc -p email-worker/tsconfig.json --noEmit --pretty false && tsc -p email-worker/tsconfig.integration.json --noEmit --pretty false",
     "test": "vitest run",
     "test:worker": "vitest run --config vitest.worker.config.ts",

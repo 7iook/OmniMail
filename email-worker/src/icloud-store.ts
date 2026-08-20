@@ -245,6 +245,14 @@ export class ICloudAccountStore {
     return Boolean(result.meta.changes)
   }
 
+  async saveName(id: string, name: string): Promise<void> {
+    const result = await this.env.DB.prepare(
+      `UPDATE icloud_accounts SET name = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    ).bind(name, new Date().toISOString(), id, this.userId).run()
+    if (!result.meta.changes) throw new ICloudStoreError(404, 'iCloud 账号不存在。')
+  }
+
   async saveCookies(account: ICloudAccount): Promise<void> {
     const cipher = await encryptICloudCredential(
       this.env,

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { message, user } from './omnimail-fixtures'
 
-test('mobile navigation keeps six primary items and expands administrator tools upward', async ({ page }) => {
+test('navigation stays usable on mobile and short desktop viewports', async ({ page }) => {
   let sessionRole: 'super_admin' | 'user' = 'super_admin'
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.addInitScript(() => {
@@ -50,12 +50,14 @@ test('mobile navigation keeps six primary items and expands administrator tools 
   await page.setViewportSize({ width: 393, height: 800 })
   await page.goto('/')
   const sidebar = page.locator('.mail-sidebar')
+  const navigation = sidebar.locator('.sidebar-navigation')
   const primaryMetrics = () => sidebar.evaluate((element) => {
     const buttons = [...element.querySelectorAll<HTMLElement>('.folder-nav > button, .account-nav > button')]
     const rects = buttons.map((button) => button.getBoundingClientRect())
     return {
       count: buttons.length,
       widthDelta: Math.max(...rects.map((rect) => rect.width)) - Math.min(...rects.map((rect) => rect.width)),
+      minWidth: Math.min(...rects.map((rect) => rect.width)),
       topDelta: Math.max(...rects.map((rect) => rect.top)) - Math.min(...rects.map((rect) => rect.top)),
       pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     }
@@ -64,11 +66,13 @@ test('mobile navigation keeps six primary items and expands administrator tools 
   for (const width of [360, 393, 430]) {
     await page.setViewportSize({ width, height: 800 })
     const metrics = await primaryMetrics()
-    expect(metrics.count).toBe(6)
+    expect(metrics.count).toBe(7)
     expect(metrics.widthDelta).toBeLessThanOrEqual(3)
+    expect(metrics.minWidth).toBeGreaterThanOrEqual(44)
     expect(metrics.topDelta).toBeLessThanOrEqual(1)
     expect(metrics.pageOverflow).toBe(false)
   }
+  await expect(navigation).toHaveCSS('display', 'contents')
 
   const toggle = sidebar.locator('.admin-nav-toggle')
   const adminNav = page.locator('.admin-nav')
@@ -93,9 +97,41 @@ test('mobile navigation keeps six primary items and expands administrator tools 
   await expect(toggle).toHaveAttribute('aria-label', '展开管理员功能')
   await expect(adminNav).toHaveCSS('visibility', 'hidden')
 
+  await page.setViewportSize({ width: 1280, height: 520 })
+  expect(await sidebar.locator('.folder-nav > button span').allTextContents())
+    .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 隐藏邮箱'])
+  await expect(sidebar).toHaveCSS('overflow-y', 'hidden')
+  await expect(navigation).toHaveCSS('overflow-y', 'scroll')
+  expect(await navigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  const fixedBefore = await sidebar.evaluate((element) => ({
+    brandTop: element.querySelector('.sidebar-brand')!.getBoundingClientRect().top,
+    accountBottom: element.querySelector('.sidebar-account')!.getBoundingClientRect().bottom,
+    sidebarScrollTop: element.scrollTop,
+  }))
+  const scrollbarStyles = async (locator: typeof navigation) => locator.evaluate((element) => ({
+    gutter: getComputedStyle(element).scrollbarGutter,
+    width: getComputedStyle(element).scrollbarWidth,
+  }))
+  expect(await scrollbarStyles(navigation)).toEqual(
+    await scrollbarStyles(page.locator('.message-list')),
+  )
+  await navigation.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
+  await expect(navigation).toHaveClass(/is-scrollbar-active/)
+  await expect(sidebar.getByRole('button', { name: '账号设置' })).toBeInViewport()
+  const fixedAfter = await sidebar.evaluate((element) => ({
+    brandTop: element.querySelector('.sidebar-brand')!.getBoundingClientRect().top,
+    accountBottom: element.querySelector('.sidebar-account')!.getBoundingClientRect().bottom,
+    sidebarScrollTop: element.scrollTop,
+  }))
+  expect(Math.abs(fixedAfter.brandTop - fixedBefore.brandTop)).toBeLessThanOrEqual(1)
+  expect(Math.abs(fixedAfter.accountBottom - fixedBefore.accountBottom)).toBeLessThanOrEqual(1)
+  expect(fixedAfter.sidebarScrollTop).toBe(0)
+  await expect(navigation).not.toHaveClass(/is-scrollbar-active/, { timeout: 1_500 })
+
+  await page.setViewportSize({ width: 393, height: 800 })
   sessionRole = 'user'
   await page.reload()
   await expect(page.getByRole('button', { name: '展开管理员功能' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: '管理员功能' })).toHaveCount(0)
-  expect((await primaryMetrics()).count).toBe(6)
+  expect((await primaryMetrics()).count).toBe(7)
 })

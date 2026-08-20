@@ -169,6 +169,27 @@ export async function deleteICloudAccount(
   }
 }
 
+export async function updateICloudAccountName(
+  env: Env,
+  user: SessionUser,
+  id: string,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  try {
+    const body = await jsonBody(request)
+    const name = stringField(body.name)
+    if (!name || name.length > 80) {
+      throw new ICloudStoreError(400, '账号名称需要在 1–80 个字符之间。')
+    }
+    await new ICloudAccountStore(env, user.id).saveName(id, name)
+    await writeAudit(env, user.id, 'icloud.account.rename', id, ip)
+    return Response.json({ ok: true, name })
+  } catch (error) {
+    return responseError(error)
+  }
+}
+
 export async function updateICloudCookies(
   env: Env,
   user: SessionUser,
@@ -267,7 +288,12 @@ export async function createICloudAlias(
     const body = await jsonBody(request)
     const accountId = stringField(body.accountId)
     const label = stringField(body.label)
-    if (!accountId || label.length > 80) {
+    const email = stringField(body.email).toLowerCase()
+    const previewId = stringField(body.previewId).toLowerCase()
+    if (!accountId || label.length > 80
+      || Boolean(email) !== Boolean(previewId)
+      || (email && !/^[^@\s]{1,64}@icloud\.com$/.test(email))
+      || (previewId && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(previewId))) {
       throw new ICloudStoreError(400, '隐藏邮箱参数无效。')
     }
     const store = new ICloudAccountStore(env, user.id)
@@ -275,13 +301,39 @@ export async function createICloudAlias(
     if (!Object.keys(account.cookies).length) {
       throw new ICloudStoreError(400, '该账号尚未配置 Cookie。')
     }
-    const client = new ICloudClient(account.cookies, account.host)
-    const alias = await client.createAlias(label)
+    const client = new ICloudClient(account.cookies, account.host, previewId || undefined)
+    const alias = email
+      ? await client.reserveAlias(email, label)
+      : await client.createAlias(label)
     await refreshAliasSummary(store, account, client)
     await writeAudit(env, user.id, 'icloud.alias.create', accountId, ip, {
       alias: alias.email,
     })
     return Response.json({ alias }, { status: 201 })
+  } catch (error) {
+    return responseError(error)
+  }
+}
+
+export async function previewICloudAlias(
+  env: Env,
+  user: SessionUser,
+  request: Request,
+): Promise<Response> {
+  try {
+    const body = await jsonBody(request)
+    const accountId = stringField(body.accountId)
+    if (!accountId) throw new ICloudStoreError(400, '隐藏邮箱参数无效。')
+    const store = new ICloudAccountStore(env, user.id)
+    const account = await store.get(accountId)
+    if (!Object.keys(account.cookies).length) {
+      throw new ICloudStoreError(400, '该账号尚未配置 Cookie。')
+    }
+    const client = new ICloudClient(account.cookies, account.host)
+    const email = await client.generateAlias()
+    account.cookies = client.cookies
+    await store.saveCookies(account)
+    return Response.json({ email, previewId: client.clientId })
   } catch (error) {
     return responseError(error)
   }

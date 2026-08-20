@@ -326,6 +326,26 @@
 .icloud-form > footer { display: flex; justify-content: flex-end; gap: 8px; }
 .icloud-form h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; }
 .icloud-form h3 small { margin-left: auto; color: var(--success); font-size: 10px; }
+.icloud-alias-batch-form { gap: 12px; }
+.icloud-alias-batch-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.icloud-alias-batch-toolbar > span { color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.icloud-alias-batch-toolbar > span strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.icloud-alias-drafts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); align-items: start; gap: 10px; }
+.icloud-alias-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface-muted); }
+.icloud-alias-preview > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.icloud-alias-preview span { color: var(--text-secondary); font-size: 11px; font-weight: 650; }
+.icloud-alias-preview-actions { display: flex; flex: 0 0 auto; gap: 5px; }
+.icloud-alias-draft-action { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--text-secondary); cursor: pointer; transition: border-color 160ms ease, background 160ms ease, color 160ms ease; }
+.icloud-alias-draft-action:hover:not(:disabled),
+.icloud-alias-draft-action:focus-visible { border-color: var(--line-strong); outline: 0; background: var(--surface-hover); color: var(--text); }
+.icloud-alias-draft-action.is-danger { color: var(--danger); }
+.icloud-alias-draft-action:disabled { cursor: not-allowed; opacity: 0.48; }
+.icloud-alias-preview strong { min-height: 22px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.icloud-alias-preview small { color: var(--text-tertiary); font-size: 10px; line-height: 1.5; }
+.icloud-alias-preview .inline-error { display: flex; color: var(--danger); }
+.icloud-account-name-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; }
+.icloud-account-name-form h3 { grid-column: 1 / -1; }
+.icloud-account-name-form .button { min-height: 44px; }
 .icloud-label-presets { display: flex; flex-wrap: wrap; gap: 7px; }
 .icloud-label-presets button { min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 11px; font-weight: 650; transition: border-color 160ms ease, background 160ms ease, color 160ms ease; }
 .icloud-label-presets button:hover { border-color: var(--line-strong); background: var(--surface-muted); color: var(--text); }
@@ -362,6 +382,8 @@
   .icloud-plain-body { padding: 21px 18px; font-size: 16px; }
   .icloud-modal-backdrop { padding: 8px; }
   .icloud-modal { max-height: calc(100dvh - 16px); padding: 17px; border-radius: 18px; }
+  .icloud-account-name-form { grid-template-columns: 1fr; }
+  .icloud-account-name-form h3 { grid-column: auto; }
   .icloud-credential-forms { grid-template-columns: 1fr; }
   .icloud-credential-danger { align-items: flex-start; flex-direction: column; }
 }

@@ -14,6 +14,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   Trash2,
   X,
@@ -34,16 +35,16 @@ import {
   type ICloudMessage,
 } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
+import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
 import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 import { ICloudMessageBody } from './ICloudMessageBody'
+import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
 }
-
-const aliasLabelPresets = ['购物', '社交', '订阅', '工作', '临时使用'] as const
 
 function Empty({ icon, title, description, action }: {
   icon: ReactNode
@@ -154,27 +155,37 @@ function AddAccountModal({ onClose, onCreated }: {
   )
 }
 
-function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
+function AccountSettingsModal({ account, onClose, onChanged, onDeleted, onNotice }: {
   account: ICloudAccount
   onClose: () => void
   onChanged: () => Promise<void>
   onDeleted: () => Promise<void>
+  onNotice: (message: string) => void
 }) {
+  const [name, setName] = useState(account.name)
   const [cookies, setCookies] = useState('')
   const [icloudEmail, setICloudEmail] = useState(account.icloudEmail)
   const [appPassword, setAppPassword] = useState('')
-  const [saving, setSaving] = useState<'cookies' | 'password' | 'delete' | ''>('')
+  const [saving, setSaving] = useState<'name' | 'cookies' | 'password' | 'delete' | ''>('')
   const [error, setError] = useState('')
+  async function saveName(event: FormEvent) {
+    event.preventDefault(); setSaving('name'); setError('')
+    try {
+      const result = await api.updateICloudAccountName(account.id, name)
+      setName(result.name)
+      await onChanged(); onNotice(t('备注名称已保存'))
+    } catch (saveError) { setError(errorMessage(saveError)) } finally { setSaving('') }
+  }
   async function saveCookies(event: FormEvent) {
     event.preventDefault(); setSaving('cookies'); setError('')
-    try { await api.updateICloudCookies(account.id, cookies); setCookies(''); await onChanged() }
+    try { await api.updateICloudCookies(account.id, cookies); setCookies(''); await onChanged(); onNotice(t('Cookie 已更新')) }
     catch (saveError) { setError(errorMessage(saveError)) } finally { setSaving('') }
   }
   async function savePassword(event: FormEvent) {
     event.preventDefault(); setSaving('password'); setError('')
     try {
       await api.updateICloudAppPassword(account.id, icloudEmail, appPassword)
-      setAppPassword(''); await onChanged()
+      setAppPassword(''); await onChanged(); onNotice(t('应用专用密码已更新'))
     } catch (saveError) { setError(errorMessage(saveError)) } finally { setSaving('') }
   }
   async function remove(close: () => void) {
@@ -184,8 +195,14 @@ function CredentialsModal({ account, onClose, onChanged, onDeleted }: {
     catch (deleteError) { setError(errorMessage(deleteError)); setSaving('') }
   }
   return (
-    <Modal title={t('管理 {name}', { name: account.name })} description={t('覆盖更新凭据；原值不会显示。')} onClose={onClose}>
+    <Modal title={t('设置 {name}', { name: account.name })} description={t('修改备注名称或覆盖更新凭据；原值不会显示。')} onClose={onClose}>
       {(close) => <>
+      <form className="icloud-form icloud-account-name-form" onSubmit={saveName}>
+        <h3><Settings2 size={17} />{t('备注名称')}</h3>
+        <label><span>{t('备注名称')}</span><input value={name} maxLength={80} required
+          data-modal-autofocus onChange={(event) => setName(event.target.value)} /></label>
+        <button className="button button--secondary" disabled={Boolean(saving) || name.trim() === account.name}>{saving === 'name' ? <Spinner /> : <Check size={16} />}{t('保存备注')}</button>
+      </form>
       <div className="icloud-credential-forms">
         <form className="icloud-form" onSubmit={saveCookies}>
           <h3><EyeOff size={17} />iCloud Cookie <small>{t(account.hasCookies ? '已配置' : '未配置')}</small></h3>
@@ -220,6 +237,8 @@ function ICloudReader({ message, loading, method, remoteImagesEnabled, onBack }:
   if (!message) {
     return <div className="reader-state reader-state--empty"><span className="reader-empty-symbol"><Mail size={29} /></span><h2>{t('选择一封 iCloud 邮件')}</h2></div>
   }
+  const sender = parseICloudSender(message.from)
+  const senderLabel = sender.name || sender.address || t('未知发件人')
   return (
     <article className="icloud-reader">
       <header className="reader-toolbar">
@@ -231,8 +250,8 @@ function ICloudReader({ message, loading, method, remoteImagesEnabled, onBack }:
         <div className="icloud-reader-heading">
           <h1>{message.subject || t('无主题')}</h1>
           <div className="icloud-reader-sender">
-            <span>{(message.from || '?').slice(0, 1).toUpperCase()}</span>
-            <p><strong>{message.from || t('未知发件人')}</strong>{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
+            <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
+            <p><strong>{senderLabel}</strong>{sender.name && sender.address && <small title={sender.address}>{sender.isHideMyEmailRelay ? t('通过 iCloud 隐藏邮箱转发') : `<${sender.address}>`}</small>}{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
             {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
           </div>
         </div>
@@ -260,8 +279,6 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
   const [addOpen, setAddOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [credentials, setCredentials] = useState<ICloudAccount | null>(null)
-  const [label, setLabel] = useState('')
-  const [creating, setCreating] = useState(false)
   const [opened, setOpened] = useState<ICloudMessage | null>(null)
   const [messageLoading, setMessageLoading] = useState(false)
   const aliasRequestId = useRef(0)
@@ -387,17 +404,6 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     messageController.current?.abort()
   }, [])
 
-  async function createAlias(event: FormEvent, close: () => void) {
-    event.preventDefault(); if (!selected) return
-    setCreating(true); setError('')
-    try {
-      const result = await api.createICloudAlias(selected.id, label)
-      setLabel(''); close(); setSelectedAlias(result.alias.email)
-      setNotice(t('新的隐藏邮箱已创建'))
-      await sync(result.alias.email)
-    }
-    catch (createError) { setError(errorMessage(createError)) } finally { setCreating(false) }
-  }
   async function aliasAction(alias: ICloudAlias, action: 'deactivate' | 'reactivate' | 'delete') {
     if (!selected) return
     if (action === 'delete' && !window.confirm(t('确定永久删除 {address} 吗？', { address: alias.email }))) return
@@ -450,7 +456,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
             {accounts.length ? <ICloudScopeSwitcher accounts={accounts} aliases={aliases}
               selectedAccountId={selectedId} selectedAlias={selectedAlias}
               onAccountChange={setSelectedId} onAliasChange={setSelectedAlias}
-              onAliasCopy={copyAlias} />
+              onAliasCopy={copyAlias} onAccountSettings={setCredentials} />
               : <p className="eyebrow">ICLOUD · HIDE MY EMAIL</p>}
             <h1>iCloud</h1>
           </div>
@@ -462,8 +468,8 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
               onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}
               data-tooltip={t('创建隐藏邮箱')}><AtSign size={17} /></button>
             <button className="icon-button" type="button" disabled={!selected}
-              onClick={() => selected && setCredentials(selected)} aria-label={t('管理凭据')}
-              data-tooltip={t('管理凭据')}><KeyRound size={17} /></button>
+              onClick={() => selected && setCredentials(selected)} aria-label={t('账号设置')}
+              data-tooltip={t('账号设置')}><Settings2 size={17} /></button>
             <button className="icon-button" type="button" disabled={!selected || syncing}
               onClick={() => void sync()} aria-label={t('同步')}
               data-tooltip={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
@@ -489,9 +495,10 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
           : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('iCloud 邮件列表')}>
             {messages.map((message) => {
               const active = opened?.id === message.id && opened.to === message.to
+              const sender = parseICloudSender(message.from)
               return <article className={`message-row${active ? ' is-selected' : ''}`} role="option" aria-selected={active} key={`${message.id}-${message.to}`}>
                 <button className="message-row__main" type="button" onClick={() => void openMessage(message)}>
-                  <span className="message-row__top"><strong>{message.from || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time></span>
+                  <span className="message-row__top"><strong>{sender.name || sender.address || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time></span>
                   <span className="message-row__subject"><span className="message-row__subject-text">{message.subject || t('无主题')}</span></span>
                   <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
                   {message.to && <span className="mailbox-hint"><AtSign size={12} />{message.to}</span>}
@@ -506,8 +513,8 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       </main>
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
-      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('为当前 iCloud 账号创建新的隐藏地址。')} onClose={() => { setCreateOpen(false); setLabel('') }}>{(close) => <form className="icloud-form" onSubmit={(event) => void createAlias(event, close)}><label><span>{t('用途标签（可选）')}</span><input value={label} maxLength={80} autoFocus data-modal-autofocus onChange={(event) => setLabel(event.target.value)} placeholder={t('留空则由系统自动生成')} /></label><div className="icloud-label-presets" role="group" aria-label={t('快捷用途标签')}><button type="button" aria-pressed={!label} onClick={() => setLabel('')}>{t('自动生成')}</button>{aliasLabelPresets.map((preset) => <button type="button" key={preset} aria-pressed={label === t(preset)} onClick={() => setLabel(t(preset))}>{t(preset)}</button>)}</div><p className="icloud-form-note">{t('选择快捷标签后仍可修改；留空时使用 OmniMail 和创建时间。')}</p><footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={creating}>{creating ? <Spinner /> : <Plus size={15} />}{t('创建')}</button></footer></form>}</Modal>}
-      {credentials && <CredentialsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} />}
+      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('预览 Apple 生成的地址，确认后一次创建最多 5 个。')} onClose={() => setCreateOpen(false)}>{(close) => <ICloudAliasBatchForm account={selected} close={close} onCreated={async (createdAliases) => { const latest = createdAliases.at(-1); if (!latest) return; setSelectedAlias(latest.email); setNotice(t(createdAliases.length === 1 ? '新的隐藏邮箱已创建' : '已创建 {count} 个隐藏邮箱', { count: createdAliases.length })); await sync(latest.email) }} />}</Modal>}
+      {credentials && <AccountSettingsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} onNotice={setNotice} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
     </div>
   )

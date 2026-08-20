@@ -7,6 +7,9 @@ OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认�
 下面示例中的 API 地址使用 `https://mail.example.com`。生产环境中前端与 API
 由同一个 Worker 提供，API 路径统一位于 `/api/*`。
 
+> 逐端点参考：[`docs/api/README.md`](api/README.md)。该索引按 9 个业务分类展开当前
+> 全部 102 个接口，并提供认证要求、参数、响应、注意事项和可执行 cURL 示例。
+
 ## 公开配置与注册
 
 未登录客户端可以读取公开运行配置：
@@ -587,6 +590,9 @@ Content-Type: application/json
 
 { "name": "个人 iCloud", "host": "icloud.com", "cookies": "name=value; ..." }
 
+PATCH /api/icloud/accounts/{id}
+{ "name": "工作账号" }
+
 PUT /api/icloud/accounts/{id}/cookies
 { "cookies": "name=value; ..." }
 
@@ -603,8 +609,11 @@ DELETE /api/icloud/accounts/{id}
 
 ```http
 GET /api/icloud/aliases?accountId={id}
+POST /api/icloud/aliases/preview
+{ "accountId": "..." }
+
 POST /api/icloud/aliases
-{ "accountId": "...", "label": "购物网站" }
+{ "accountId": "...", "label": "购物网站", "email": "suggested@icloud.com", "previewId": "..." }
 
 PATCH /api/icloud/aliases/{anonymousId}
 { "accountId": "...", "action": "deactivate" }
@@ -638,13 +647,28 @@ Workers Builds 根据分支变更重新部署。
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 100 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 102 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
-测试 `src/lib/apiCatalog.test.ts` 会直接从 `api.ts`、扩展授权路由及各子路由文件提取
-真实端点，与页面目录逐项比较。新增、删除或更改路由而未同步目录时测试会失败。
+仓库内的 [完整 Markdown API 参考](api/README.md) 使用同一个 Catalog 数据源，按以下
+9 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
+iCloud 隐藏邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
+代码审查或生成外部知识库时应从该索引进入。
 
-以下表格只保留常用资源摘要，完整清单以 Webmail 内目录和路由覆盖测试为准：
+修改 `src/lib/apiCatalog*.ts` 后运行：
+
+```bash
+npm run docs:api
+```
+
+生成器会重建 `docs/api/*.md`，请不要直接编辑生成文件。
+
+测试 `src/lib/apiCatalog.test.ts` 会直接从 `api.ts`、扩展授权路由及各子路由文件提取
+真实端点，与页面目录及 Markdown 中的隐藏端点标记逐项比较。新增、删除或更改路由而
+未同步 Catalog 或未重新生成文档时，测试都会失败。
+
+以下表格只保留常用资源摘要；完整清单以 Webmail 内目录和
+[`docs/api/`](api/README.md) 分类文档为准：
 
 | 方法与路径 | 说明 |
 | --- | --- |
@@ -671,8 +695,10 @@ Workers Builds 根据分支变更重新部署。
 | `GET /api/messages/{id}/raw` | 下载原始 `.eml` |
 | `POST /api/messages/{id}/reply` | 在线程内回复，支持 multipart 附件 |
 | `GET/POST /api/icloud/accounts` | 列出或连接当前用户的 iCloud 账号 |
+| `PATCH /api/icloud/accounts/{id}` | 修改当前用户的 iCloud 账号备注名称 |
 | `PUT /api/icloud/accounts/{id}/{credential}` | 覆盖 Cookie 或应用专用密码 |
 | `DELETE /api/icloud/accounts/{id}` | 删除 iCloud 账号及其加密凭据 |
+| `POST /api/icloud/aliases/preview` | 让 Apple 生成可更换的候选隐藏邮箱地址 |
 | `GET/POST /api/icloud/aliases` | 同步或创建 Hide My Email 地址 |
 | `PATCH/DELETE /api/icloud/aliases/{anonymousId}` | 停用、恢复或删除隐藏地址 |
 | `GET /api/icloud/inbox` | 按需读取 iCloud 最近来信 |
