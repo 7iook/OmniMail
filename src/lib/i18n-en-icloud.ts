@@ -120,8 +120,12 @@ export const enICloud: Record<string, string> = {
   '测试并覆盖': 'Test and replace',
   '删除账号会同时删除两项密文。': 'Deleting the account also deletes both encrypted credentials.',
   '删除这个 iCloud 账号': 'Delete this iCloud account',
-  '确定删除 iCloud 账号“{name}”及其加密凭据吗？':
-    'Delete iCloud account “{name}” and its encrypted credentials?',
+  '删除 iCloud 账号？': 'Delete iCloud account?',
+  '账号“{name}”将从 OmniMail 中移除。': 'The account “{name}” will be removed from OmniMail.',
+  '此操作无法撤销': 'This action cannot be undone',
+  '保存的 Cookie 和应用专用密码会一并删除；Apple 账号和已有隐藏邮箱不会受影响。':
+    'Saved cookies and the app-specific password will be deleted. The Apple account and existing Hide My Email addresses will not be affected.',
+  '删除账号': 'Delete account',
   '确定永久删除 {address} 吗？': 'Permanently delete {address}?',
   '新的隐藏邮箱已创建': 'Hide My Email address created',
   '隐藏邮箱已删除': 'Hide My Email address deleted',

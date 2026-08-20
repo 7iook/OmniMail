@@ -1,5 +1,6 @@
 import { TriangleAlert, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { t } from '../lib/i18n'
 
 export function DangerConfirmDialog({
@@ -11,6 +12,7 @@ export function DangerConfirmDialog({
   impactDescription,
   confirmLabel,
   confirmation,
+  busy = false,
   onCancel,
   onConfirm,
 }: {
@@ -27,6 +29,7 @@ export function DangerConfirmDialog({
     value: string
     onChange: (value: string) => void
   }
+  busy?: boolean
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -34,7 +37,9 @@ export function DangerConfirmDialog({
   const descriptionId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const cancelRef = useRef(onCancel)
+  const busyRef = useRef(busy)
   cancelRef.current = onCancel
+  busyRef.current = busy
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
@@ -44,7 +49,7 @@ export function DangerConfirmDialog({
       dialogRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus()
     })
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelRef.current()
+      if (event.key === 'Escape' && !busyRef.current) cancelRef.current()
       if (event.key !== 'Tab') return
       const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])')
       if (!controls?.length) return
@@ -67,15 +72,16 @@ export function DangerConfirmDialog({
     }
   }, [])
 
-  return (
+  return createPortal(
     <div className="mail-delete-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onCancel()
+      if (!busy && event.target === event.currentTarget) onCancel()
     }}>
       <section
         ref={dialogRef}
         className="mail-delete-dialog admin-danger-dialog is-permanent"
         role="alertdialog"
         aria-modal="true"
+        aria-busy={busy}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
       >
@@ -85,7 +91,7 @@ export function DangerConfirmDialog({
             <p className="eyebrow">{eyebrow}</p>
             <h2 id={titleId}>{title}</h2>
           </div>
-          <button className="icon-button" type="button" onClick={onCancel} aria-label={t('关闭')}>
+          <button className="icon-button" type="button" disabled={busy} onClick={onCancel} aria-label={t('关闭')}>
             <X size={17} />
           </button>
         </header>
@@ -108,13 +114,13 @@ export function DangerConfirmDialog({
           )}
         </div>
         <footer>
-          <button className="button button--secondary" type="button" data-autofocus={confirmation ? undefined : true} onClick={onCancel}>
+          <button className="button button--secondary" type="button" disabled={busy} data-autofocus={confirmation ? undefined : true} onClick={onCancel}>
             {t('取消')}
           </button>
           <button
             className="button mail-delete-confirm is-permanent"
             type="button"
-            disabled={Boolean(confirmation && confirmation.value !== confirmation.expected)}
+            disabled={busy || Boolean(confirmation && confirmation.value !== confirmation.expected)}
             onClick={onConfirm}
           >
             <Icon size={16} />
@@ -122,6 +128,7 @@ export function DangerConfirmDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }

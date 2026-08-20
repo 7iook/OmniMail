@@ -41,6 +41,7 @@ import { ICloudRegionSelect } from './ICloudRegionSelect'
 import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 import { ICloudMessageBody } from './ICloudMessageBody'
 import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
+import { DangerConfirmDialog } from './DangerConfirmDialog'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -59,17 +60,20 @@ function Empty({ icon, title, description, action }: {
   )
 }
 
-function Modal({ title, description, onClose, children }: {
+function Modal({ title, description, suspended = false, onClose, children }: {
   title: string
   description: string
+  suspended?: boolean
   onClose: () => void
   children: ReactNode | ((close: () => void) => ReactNode)
 }) {
   const dialogRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
+  const suspendedRef = useRef(suspended)
   const closeTimer = useRef<number | undefined>(undefined)
   const [visible, setVisible] = useState(false)
   onCloseRef.current = onClose
+  suspendedRef.current = suspended
   function close() {
     if (closeTimer.current !== undefined) return
     setVisible(false)
@@ -86,6 +90,7 @@ function Modal({ title, description, onClose, children }: {
     const first = dialog?.querySelector<HTMLElement>('[data-modal-autofocus]') || focusable()[0]
     first?.focus()
     const keydown = (event: KeyboardEvent) => {
+      if (suspendedRef.current) return
       if (event.key === 'Escape') {
         event.preventDefault()
         close()
@@ -113,11 +118,11 @@ function Modal({ title, description, onClose, children }: {
     }
   }, [])
   return (
-    <div className={`icloud-modal-backdrop${visible ? ' is-visible' : ''}`} onMouseDown={(event) => event.target === event.currentTarget && close()}>
-      <section ref={dialogRef} className="icloud-modal" role="dialog" aria-modal="true" aria-labelledby="icloud-modal-title" aria-describedby="icloud-modal-description">
+    <div className={`icloud-modal-backdrop${visible ? ' is-visible' : ''}`} onMouseDown={(event) => !suspended && event.target === event.currentTarget && close()}>
+      <section ref={dialogRef} className="icloud-modal" role="dialog" aria-modal="true" aria-hidden={suspended || undefined} inert={suspended} aria-labelledby="icloud-modal-title" aria-describedby="icloud-modal-description">
         <header>
           <div><h2 id="icloud-modal-title">{title}</h2><p id="icloud-modal-description">{description}</p></div>
-          <button className="icon-button" type="button" onClick={close} aria-label={t('关闭')}><X size={17} /></button>
+          <button className="icon-button" type="button" disabled={suspended} onClick={close} aria-label={t('关闭')}><X size={17} /></button>
         </header>
         {typeof children === 'function' ? children(close) : children}
       </section>
@@ -170,6 +175,7 @@ function AccountSettingsModal({ account, onClose, onChanged, onDeleted, onNotice
   const [icloudEmail, setICloudEmail] = useState(account.icloudEmail)
   const [appPassword, setAppPassword] = useState('')
   const [saving, setSaving] = useState<'name' | 'cookies' | 'password' | 'delete' | ''>('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState('')
   async function saveName(event: FormEvent) {
     event.preventDefault(); setSaving('name'); setError('')
@@ -191,15 +197,16 @@ function AccountSettingsModal({ account, onClose, onChanged, onDeleted, onNotice
       setAppPassword(''); await onChanged(); onNotice(t('应用专用密码已更新'))
     } catch (saveError) { setError(errorMessage(saveError)) } finally { setSaving('') }
   }
-  async function remove(close: () => void) {
-    if (!window.confirm(t('确定删除 iCloud 账号“{name}”及其加密凭据吗？', { name: account.name }))) return
+  async function remove() {
     setSaving('delete'); setError('')
-    try { await api.deleteICloudAccount(account.id); await onDeleted(); close() }
-    catch (deleteError) { setError(errorMessage(deleteError)); setSaving('') }
+    try { await api.deleteICloudAccount(account.id); await onDeleted() }
+    catch (deleteError) {
+      setConfirmingDelete(false); setError(errorMessage(deleteError)); setSaving('')
+    }
   }
   return (
-    <Modal title={t('设置 {name}', { name: account.name })} description={t('修改备注名称或覆盖更新凭据；原值不会显示。')} onClose={onClose}>
-      {(close) => <>
+    <Modal title={t('设置 {name}', { name: account.name })} description={t('修改备注名称或覆盖更新凭据；原值不会显示。')} suspended={confirmingDelete} onClose={onClose}>
+      {() => <>
       <form className="icloud-form icloud-account-name-form" onSubmit={saveName}>
         <h3><Settings2 size={17} />{t('备注名称')}</h3>
         <label><span>{t('备注名称')}</span><input value={name} maxLength={80} required
@@ -221,7 +228,19 @@ function AccountSettingsModal({ account, onClose, onChanged, onDeleted, onNotice
         </form>
       </div>
       {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button className="button icloud-danger-button" type="button" onClick={() => void remove(close)} disabled={Boolean(saving)}>{saving === 'delete' ? <Spinner /> : <Trash2 size={15} />}{t('删除这个 iCloud 账号')}</button></footer>
+      <footer className="icloud-credential-danger"><span>{t('删除账号会同时删除两项密文。')}</span><button className="button icloud-danger-button" type="button" onClick={() => setConfirmingDelete(true)} disabled={Boolean(saving)}><Trash2 size={15} />{t('删除这个 iCloud 账号')}</button></footer>
+      {confirmingDelete && <DangerConfirmDialog
+        icon={Trash2}
+        eyebrow="ICLOUD ACCOUNT"
+        title={t('删除 iCloud 账号？')}
+        description={t('账号“{name}”将从 OmniMail 中移除。', { name: account.name })}
+        impactTitle={t('此操作无法撤销')}
+        impactDescription={t('保存的 Cookie 和应用专用密码会一并删除；Apple 账号和已有隐藏邮箱不会受影响。')}
+        confirmLabel={t(saving === 'delete' ? '正在删除…' : '删除账号')}
+        busy={saving === 'delete'}
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => void remove()}
+      />}
       </>}
     </Modal>
   )

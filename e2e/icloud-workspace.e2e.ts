@@ -21,6 +21,8 @@ async function mockICloud(page: Page, options: {
   const accountNames: string[] = []
   const cookieUpdates: string[] = []
   const passwordUpdates: Array<{ icloudEmail: string; appPassword: string }> = []
+  const deletedAccountIds: string[] = []
+  let accountDeleted = false
   let createAttempts = 0
   let accountName = 'Personal'
   const previewCandidates = [
@@ -81,7 +83,12 @@ async function mockICloud(page: Page, options: {
       })
       return json(route, { account })
     }
-    if (path === '/api/icloud/accounts') return json(route, { accounts: [account] })
+    if (path === '/api/icloud/accounts') return json(route, { accounts: accountDeleted ? [] : [account] })
+    if (path === '/api/icloud/accounts/icloud-1' && request.method() === 'DELETE') {
+      accountDeleted = true
+      deletedAccountIds.push('icloud-1')
+      return json(route, { ok: true })
+    }
     if (path === '/api/icloud/accounts/icloud-1' && request.method() === 'PATCH') {
       const input = request.postDataJSON() as { name: string }
       accountName = input.name
@@ -142,6 +149,7 @@ async function mockICloud(page: Page, options: {
   })
   return {
     accountNames, cookieUpdates, createdEmails, createdLabels, createdPreviewIds,
+    deletedAccountIds,
     inboxAliases, passwordUpdates, previewedEmails,
   }
 }
@@ -261,6 +269,34 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByRole('button', { name: /Your receipt/ })).toBeVisible()
 })
 
+test('uses the branded danger dialog before deleting an iCloud account', async ({ page }) => {
+  const state = await mockICloud(page)
+  await page.goto('/icloud')
+
+  await page.getByRole('button', { name: /当前 iCloud.*Personal/ }).click()
+  const scopeDialog = page.getByRole('dialog', { name: '选择查看范围' })
+  await scopeDialog.getByRole('button', { name: '设置 iCloud 账号：Personal' }).click()
+  const settingsDialog = page.getByRole('dialog', { name: '设置 Personal' })
+  const deleteButton = settingsDialog.getByRole('button', { name: '删除这个 iCloud 账号' })
+  await deleteButton.click()
+
+  let confirm = page.getByRole('alertdialog', { name: '删除 iCloud 账号？' })
+  await expect(confirm).toContainText('账号“Personal”将从 OmniMail 中移除。')
+  await expect(confirm).toContainText('此操作无法撤销')
+  await expect(confirm).toContainText('Apple 账号和已有隐藏邮箱不会受影响')
+  await expect(confirm.getByRole('button', { name: '取消' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(confirm).toBeHidden()
+  await expect(settingsDialog).toBeVisible()
+  await expect(deleteButton).toBeFocused()
+
+  await deleteButton.click()
+  confirm = page.getByRole('alertdialog', { name: '删除 iCloud 账号？' })
+  await confirm.getByRole('button', { name: '删除账号' }).click()
+  await expect.poll(() => state.deletedAccountIds).toEqual(['icloud-1'])
+  await expect(confirm).toBeHidden()
+  await expect(page.getByText('还没有 iCloud 账号')).toBeVisible()
+})
 test('rejects an iCloud account without membership access without signing out', async ({ page }) => {
   await mockICloud(page, { rejectAccountCreate: true })
   await page.goto('/icloud')
