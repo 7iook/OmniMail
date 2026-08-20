@@ -18,6 +18,12 @@ export const enICloud: Record<string, string> = {
   '移除第 {index} 个隐藏邮箱': 'Remove Hide My Email address {index}',
   '移除': 'Remove',
   '创建项目': 'Creation items',
+  '创建进度': 'Creation progress',
+  '创建进度 {completed}/{total}': 'Creation progress {completed}/{total}',
+  '等待创建': 'Waiting',
+  '正在创建': 'Creating',
+  '创建成功': 'Created',
+  '正在创建 {completed}/{total}': 'Creating {completed}/{total}',
   '添加一个': 'Add another',
   '为隐藏邮箱 {index} 换一个地址': 'Use a different address for item {index}',
   '每个项目可填写独立标签；一次最多创建 5 个隐藏邮箱。':

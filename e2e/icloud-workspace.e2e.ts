@@ -299,6 +299,11 @@ test('creates five labeled Hide My Email addresses in one batch', async ({ page 
     await labelInputs.nth(index).fill(`GITHUB${index + 1}`)
   }
   await dialog.getByRole('button', { name: '创建 5 个' }).click()
+  await expect(dialog.getByRole('progressbar', { name: '创建进度' })).toBeVisible()
+  await expect(dialog.getByText(/创建进度 \d\/5/)).toBeVisible()
+  await expect(dialog.locator('.icloud-alias-preview.is-success')).toHaveCount(1)
+  await expect(dialog.getByText('创建成功')).toBeVisible()
+  await expect(dialog.locator('.icloud-alias-preview')).toHaveCount(4)
 
   await expect(page.locator('.icloud-list-context'))
     .toContainText('github-5@icloud.com')
@@ -335,9 +340,10 @@ test('keeps uncreated aliases available after a partial batch failure', async ({
   await dialog.getByRole('button', { name: '创建 3 个' }).click()
 
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole('alert')).toContainText('已创建 2 个')
+  await expect(dialog.locator('p.inline-error')).toContainText('已创建 2 个')
   await expect(dialog.getByRole('textbox', { name: '用途标签（可选）' })).toHaveValue('THREE')
   await expect(dialog.getByText('github-2@icloud.com', { exact: true })).toBeVisible()
+  await expect(dialog.locator('.icloud-alias-preview')).toHaveClass(/is-error/)
   await expect(dialog.getByRole('button', { name: '创建 1 个' })).toBeEnabled()
   expect(state.createdLabels).toEqual(['ONE', 'TWO'])
 })
