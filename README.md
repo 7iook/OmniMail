@@ -302,10 +302,7 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `SENDFLARE_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 SendFlare API Key 与可选发件邮箱 |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `ICLOUD_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 iCloud Cookie 与应用专用密码；不使用 iCloud 功能时可留空 |
-| `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份或自动更新所需的 Cloudflare Account ID |
-| `CLOUDFLARE_BUILDS_TRIGGER_ID` | Text | 自动更新使用的 production build trigger UUID |
-| `CLOUDFLARE_BUILDS_BRANCH` | Text | 自动更新对应的生产分支，默认 `main` |
-| `CLOUDFLARE_BUILDS_API_TOKEN` | Secret | 仅用于触发并读取 Workers Builds 的专用 Token |
+| `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
 | `UPDATE_REPOSITORY` | Text | Release 来源仓库，默认 `mibgb65-cloud/OmniMail` |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
 | `D1_REST_API_TOKEN` | Secret | 可选备份所需、仅授予 D1 Edit 的专用 API Token |
@@ -401,21 +398,16 @@ Web 前端、开发版或其他扩展 ID 需要跨域调用 API 时才配置 `AP
 英文逗号分隔的精确来源，不能使用 `*`。
 Secret 只能保存在 Cloudflare Variables & Secrets，不要写入 GitHub 仓库。
 
-### Release Tag 自动更新
+### 版本检查与 Fork 更新
 
-连接 Cloudflare Workers Builds 的部署可以在 **系统设置 → 系统版本** 中安装最新正式
-Release。OmniMail 会在服务端重新读取 Release Tag、解析其提交 SHA，并让 production
-trigger 同时使用生产分支和该 SHA 构建，避免误装 Tag 之后的 `main` 分支代码。
+**系统设置 → 系统版本** 会检查最新正式 Release，但不会在应用内自动更新。发现新版本
+后，界面会引导管理员前往 GitHub 查看变更；请按照[后续同步上游更新](#后续同步上游更新)
+中的步骤，在自己的 Fork 页面选择 **Sync fork → Update branch**。Cloudflare Workers
+Builds 检测到分支更新后会自动构建、迁移并重新部署。
 
-自动更新只对主管理员开放，需要配置上表中的 `CLOUDFLARE_ACCOUNT_ID`、
-`CLOUDFLARE_BUILDS_TRIGGER_ID` 和 `CLOUDFLARE_BUILDS_API_TOKEN`。Token 应使用独立的
-user-scoped API Token，只授予 **Workers Builds Configuration: Edit**；不要复用全局
-API Key。连接仓库还必须包含 Release Tag 对应的提交，因此 Fork 或镜像仓库需要先
-同步该 Tag。
-
-本地 Clone 后直接运行 `npm run deploy` 的安装没有远程构建执行器，版本检查仍然
-可用，但界面会自动降级为“查看更新”。修改过源码的 Fork 也建议手动合并、测试并
-部署，避免上游 Release 覆盖自定义改动。
+修改过源码且存在冲突的 Fork 应通过 Pull Request 手动合并、测试并部署，避免覆盖
+自定义改动。一键部署生成的独立快照没有 **Sync fork**，长期使用时建议迁移到 Fork
+部署；继续使用快照则需要自行合并上游更新。
 
 若要启用 Linux DO 登录，请在 [Linux DO Connect](https://connect.linux.do) 申请应用，
 将回调地址设置为 `https://你的域名/api/auth/linux-do/callback`，再配置上表两个变量。

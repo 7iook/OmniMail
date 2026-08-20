@@ -32,7 +32,7 @@ docs/releases/android/android-vX.Y.Z.md
 对应发布会直接失败；验证通过后，该文件会原样用作 GitHub Release 正文。
 
 Float 与 Android Release 会标记为非 Latest，确保 `/releases/latest` 始终代表可供
-Web 自动更新使用的网站版本。
+Web 版本检查使用的网站版本。
 
 [`CHANGELOG.md`](../../CHANGELOG.md) 保留现有的聚合版本历史，不再作为 Release Action
 的发布日志来源。

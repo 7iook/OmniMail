@@ -35,7 +35,7 @@ describe('API catalog', () => {
     expect(new Set(source).size).toBe(source.length)
     expect(new Set(documented).size).toBe(documented.length)
     expect(documented).toEqual(source)
-    expect(documented).toHaveLength(102)
+    expect(documented).toHaveLength(100)
   })
 
   it('provides usage details and a callable example for every endpoint', () => {

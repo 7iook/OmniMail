@@ -630,30 +630,15 @@ Authorization: Bearer om_at_...
 ```
 
 响应包含 `currentVersion`、`latestVersion`、`updateAvailable`、`checkFailed`、
-`checkedAt`、`releaseUrl`、`releaseRepository`、`automaticUpdate` 和
-`automaticUpdateReason`。成功结果最多缓存一小时；GitHub 暂时不可用不会影响
-其他系统功能。
-
-配置 Cloudflare Workers Builds 后，主管理员可以启动并查询精确 Release Tag 更新：
-
-```http
-POST /api/admin/version/update
-Content-Type: application/json
-
-{ "targetVersion": "0.2.0" }
-
-GET /api/admin/version/update/{buildId}
-```
-
-POST 接口会重新确认最新 Release 并解析 Tag 的提交 SHA，再使用 production branch
-和该 SHA 触发构建。GET 返回 `queued`、`running`、`succeeded` 或 `failed`；Token、
-Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置远程构建的 Clone
-部署继续使用手动更新模式。
+`checkedAt`、`releaseUrl` 和 `releaseRepository`。成功结果最多缓存一小时；GitHub
+暂时不可用不会影响其他系统功能。OmniMail 不提供自动更新接口；发现新版本后，管理员
+需要在自己的 GitHub Fork 页面选择 **Sync fork → Update branch**，再由 Cloudflare
+Workers Builds 根据分支变更重新部署。
 
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 102 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 100 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
 测试 `src/lib/apiCatalog.test.ts` 会直接从 `api.ts`、扩展授权路由及各子路由文件提取
@@ -701,8 +686,6 @@ Trigger ID 和 Cloudflare API 原始响应不会返回给浏览器。未配置�
 | `GET /api/admin/audit-logs` | 管理员操作日志、筛选与游标分页 |
 | `GET /api/admin/deployment-check` | 管理员部署资源与服务配置自检 |
 | `GET /api/admin/version` | 当前版本与 GitHub Release 更新状态 |
-| `POST /api/admin/version/update` | 主管理员按最新 Release Tag 启动 Cloudflare 构建 |
-| `GET /api/admin/version/update/{buildId}` | 主管理员查询更新构建状态 |
 | `GET /api/admin/users` | 管理员用户列表 |
 | `GET /api/admin/invites` | 管理员邀请列表 |
 | `GET /api/admin/settings/storage` | 查询备份、保留期、默认配额和分角色草稿上限 |

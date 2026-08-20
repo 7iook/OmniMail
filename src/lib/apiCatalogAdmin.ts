@@ -187,20 +187,7 @@ export const adminSettingsEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/admin/version', group: 'adminSettings', auth: 'admin',
     title: l('检查系统版本', 'Check the system version'),
-    description: l('读取当前版本、最新 Release 和自动更新可用性。', 'Read the current version, latest release, and automatic-update availability.'),
-    request: 'No parameters', response: '200 · { currentVersion, latestVersion, updateAvailable, automaticUpdate }',
-  },
-  {
-    method: 'POST', path: '/api/admin/version/update', group: 'adminSettings', auth: 'superAdmin',
-    title: l('启动系统更新', 'Start a system update'),
-    description: l('主管理员重新确认最新 Release 后触发 Cloudflare 构建。', 'Let the owner revalidate the latest release and trigger a Cloudflare build.'),
-    request: 'JSON · targetVersion', response: '202 · { build }',
-    exampleBody: { targetVersion: '0.4.0' },
-  },
-  {
-    method: 'GET', path: '/api/admin/version/update/:id', group: 'adminSettings', auth: 'superAdmin',
-    title: l('查询系统更新进度', 'Read system update progress'),
-    description: l('主管理员按构建 ID 查询 Cloudflare 更新构建状态。', 'Let the owner read the Cloudflare update build status by build ID.'),
-    request: 'Path · id', response: '200 · { build }',
+    description: l('读取当前版本与最新 GitHub Release，供管理员手动同步 Fork。', 'Read the current version and latest GitHub Release so administrators can sync their forks manually.'),
+    request: 'No parameters', response: '200 · { currentVersion, latestVersion, updateAvailable, releaseUrl }',
   },
 ]

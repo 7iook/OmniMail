@@ -61,9 +61,6 @@ export interface Env {
   LINUX_DO_CLIENT_ID?: string
   LINUX_DO_CLIENT_SECRET?: string
   CLOUDFLARE_ACCOUNT_ID?: string
-  CLOUDFLARE_BUILDS_TRIGGER_ID?: string
-  CLOUDFLARE_BUILDS_API_TOKEN?: string
-  CLOUDFLARE_BUILDS_BRANCH?: string
   UPDATE_REPOSITORY?: string
   D1_DATABASE_ID?: string
   D1_REST_API_TOKEN?: string

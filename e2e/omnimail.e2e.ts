@@ -261,7 +261,7 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/admin/invites/invite-1/revoke' && request.method() === 'PATCH') {
       return json(route, { ok: true })
     }
-    if (path === '/api/admin/version') return json(route, { currentVersion: '0.1.0', latestVersion: '0.2.0', updateAvailable: true, automaticUpdate: false, automaticUpdateReason: 'not_configured', checkFailed: false, checkedAt: Date.now(), releaseUrl: 'https://github.com/mibgb65-cloud/OmniMail/releases/latest', releaseRepository: 'mibgb65-cloud/OmniMail' })
+    if (path === '/api/admin/version') return json(route, { currentVersion: '0.1.0', latestVersion: '0.2.0', updateAvailable: true, checkFailed: false, checkedAt: Date.now(), releaseUrl: 'https://github.com/mibgb65-cloud/OmniMail/releases/latest', releaseRepository: 'mibgb65-cloud/OmniMail' })
     return json(route, { error: `Unhandled test route: ${request.method()} ${path}` }, 500)
   })
   return state
