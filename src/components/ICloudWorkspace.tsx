@@ -139,15 +139,18 @@ function AddAccountModal({ onClose, onCreated }: {
     try {
       const result = await api.createICloudAccount({ name, host, cookies })
       onCreated(result.account); close()
-    } catch (submitError) { setError(errorMessage(submitError)) } finally { setSaving(false) }
+    } catch (submitError) {
+      setError(t('添加失败：{error}', { error: errorMessage(submitError) }))
+    } finally { setSaving(false) }
   }
   return (
-    <Modal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
+    <Modal title={t('添加 iCloud 账号')} description={t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号；仅网页访问账号无法使用。')} onClose={onClose}>
       {(close) => <form className="icloud-form" onSubmit={(event) => void submit(event, close)}>
         <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
         <div className="icloud-form-field"><span>{t('iCloud 区域')}</span><ICloudRegionSelect value={host} onChange={setHost} /></div>
         <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
+        <p className="icloud-form-note">{t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号。')}</p>
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
         <footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={saving}>{saving ? <Spinner /> : <Plus size={16} />}{t('验证并添加')}</button></footer>
       </form>}

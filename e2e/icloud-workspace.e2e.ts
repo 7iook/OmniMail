@@ -7,6 +7,7 @@ function json(route: Route, body: unknown) {
 async function mockICloud(page: Page, options: {
   failCreateAt?: number
   hasAppPassword?: boolean
+  rejectAccountCreate?: boolean
 } = {}) {
   const hasAppPassword = options.hasAppPassword ?? true
   const aliases = [{
@@ -69,6 +70,16 @@ async function mockICloud(page: Page, options: {
       aliasTotal: 1, aliasActive: 1, lastValidated: '2026-08-13T00:00:00.000Z',
       lastError: '', createdAt: '2026-08-13T00:00:00.000Z',
       hasCookies: true, hasAppPassword,
+    }
+    if (path === '/api/icloud/accounts' && request.method() === 'POST') {
+      if (options.rejectAccountCreate) return route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'iCloud Cookie 已失效，或账号未开通 iCloud+、没有 Hide My Email 权限。',
+        }),
+      })
+      return json(route, { account })
     }
     if (path === '/api/icloud/accounts') return json(route, { accounts: [account] })
     if (path === '/api/icloud/accounts/icloud-1' && request.method() === 'PATCH') {
@@ -250,6 +261,24 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByRole('button', { name: /Your receipt/ })).toBeVisible()
 })
 
+test('rejects an iCloud account without membership access without signing out', async ({ page }) => {
+  await mockICloud(page, { rejectAccountCreate: true })
+  await page.goto('/icloud')
+
+  await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
+  const dialog = page.getByRole('dialog', { name: '添加 iCloud 账号' })
+  await expect(dialog).toContainText('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号')
+  await dialog.getByRole('textbox', { name: '账号名称' }).fill('Web only')
+  await dialog.locator('textarea').fill('session=web-only')
+  await dialog.getByRole('button', { name: '验证并添加' }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText('添加失败')
+  await expect(dialog.getByRole('alert')).toContainText('未开通 iCloud+')
+  await expect(dialog).toBeVisible()
+  await expect(page).toHaveURL(/\/icloud$/)
+  await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
+  await expect(page.getByText('Personal')).toBeVisible()
+})
 test('explains Cookie summary mode before an app-specific password is configured', async ({ page }) => {
   await mockICloud(page, { hasAppPassword: false })
   await page.goto('/icloud')

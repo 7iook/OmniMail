@@ -8,6 +8,8 @@ import type {
 const HME_BUILD_NUMBER = '2624Build22'
 const DEFAULT_BUILD_NUMBER = '2624Build13'
 const REQUEST_TIMEOUT_MS = 15_000
+export const ICLOUD_CREDENTIAL_ERROR_STATUS = 422
+export const ICLOUD_CREDENTIAL_ERROR_MESSAGE = 'iCloud Cookie 已失效，或账号未开通 iCloud+、没有 Hide My Email 权限。'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
   + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
 
@@ -221,11 +223,13 @@ export class ICloudClient {
         const text = await response.text()
         if (!response.ok) {
           const error = new ICloudRemoteError(
-            response.status === 401 || response.status === 403 ? 401 : 502,
-            `iCloud 请求失败（HTTP ${response.status}）。`,
+            response.status === 401 || response.status === 403 ? ICLOUD_CREDENTIAL_ERROR_STATUS : 502,
+            response.status === 401 || response.status === 403
+              ? ICLOUD_CREDENTIAL_ERROR_MESSAGE
+              : `iCloud 请求失败（HTTP ${response.status}）。`,
             response.status < 500 && response.status !== 429,
           )
-          if (error.status === 401) throw error
+          if (error.status === ICLOUD_CREDENTIAL_ERROR_STATUS) throw error
           if (!retryable || error.definitive) throw error
           lastError = error
           continue
@@ -236,7 +240,8 @@ export class ICloudClient {
           throw new ICloudRemoteError(502, 'iCloud 返回了无法解析的 JSON。')
         }
       } catch (error) {
-        if (error instanceof ICloudRemoteError && error.status === 401) throw error
+        if (error instanceof ICloudRemoteError
+          && error.status === ICLOUD_CREDENTIAL_ERROR_STATUS) throw error
         if (error instanceof ICloudRemoteError && error.definitive) throw error
         lastError = error instanceof DOMException
           && (error.name === 'TimeoutError' || error.name === 'AbortError')
@@ -259,7 +264,7 @@ export class ICloudClient {
       true,
     )
     const serviceUrl = data.webservices?.premiummailsettings?.url
-    if (!serviceUrl) throw new ICloudRemoteError(401, 'Cookie 已过期，或账号未开通 iCloud+。')
+    if (!serviceUrl) throw new ICloudRemoteError(ICLOUD_CREDENTIAL_ERROR_STATUS, ICLOUD_CREDENTIAL_ERROR_MESSAGE)
     this.serviceUrl = ensureAppleUrl(serviceUrl).toString().replace(/\/$/, '')
     const mccUrl = data.webservices?.mccgateway?.url
     if (mccUrl) {

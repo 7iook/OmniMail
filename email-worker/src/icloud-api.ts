@@ -1,5 +1,9 @@
 import { writeAudit } from './audit'
-import { ICloudClient, ICloudRemoteError } from './icloud-apple'
+import {
+  ICloudClient,
+  ICLOUD_CREDENTIAL_ERROR_STATUS,
+  ICloudRemoteError,
+} from './icloud-apple'
 import {
   ICloudAccountStore,
   ICloudStoreError,
@@ -59,7 +63,7 @@ function boundedInteger(
     : fallback
 }
 
-async function validateAccount(account: ICloudAccount): Promise<void> {
+async function validateAccount(account: ICloudAccount): Promise<unknown> {
   const client = new ICloudClient(account.cookies, account.host)
   try {
     const info = await client.validate()
@@ -72,10 +76,12 @@ async function validateAccount(account: ICloudAccount): Promise<void> {
     account.aliasActive = aliases.filter((alias) => alias.active).length
     account.lastValidated = new Date().toISOString()
     account.lastError = ''
+    return null
   } catch (error) {
     account.cookies = client.cookies
     account.status = 'error'
     account.lastError = error instanceof Error ? error.message.slice(0, 300) : 'iCloud 验证失败。'
+    return error
   }
 }
 
@@ -95,7 +101,7 @@ async function refreshAliasSummary(
     account.lastValidated = new Date().toISOString()
   } catch (error) {
     account.lastError = '隐藏邮箱操作已完成，但账号状态同步失败。'
-    if (error instanceof ICloudRemoteError && error.status === 401) account.status = 'error'
+    if (error instanceof ICloudRemoteError && error.status === ICLOUD_CREDENTIAL_ERROR_STATUS) account.status = 'error'
     console.warn('iCloud alias statistics refresh failed', {
       accountId: account.id,
       message: error instanceof Error ? error.message : String(error),
@@ -142,7 +148,8 @@ export async function createICloudAccount(
       lastError: '',
       createdAt: now,
     }
-    await validateAccount(account)
+    const validationError = await validateAccount(account)
+    if (validationError) throw validationError
     await store.insert(account)
     await writeAudit(env, user.id, 'icloud.account.create', account.id, ip, {
       host: account.host,
@@ -269,7 +276,7 @@ export async function listICloudAliases(
     } catch (error) {
       account.cookies = client.cookies
       account.lastError = error instanceof Error ? error.message.slice(0, 300) : '同步失败。'
-      if (error instanceof ICloudRemoteError && error.status === 401) account.status = 'error'
+      if (error instanceof ICloudRemoteError && error.status === ICLOUD_CREDENTIAL_ERROR_STATUS) account.status = 'error'
       await store.saveCookies(account)
       throw error
     }

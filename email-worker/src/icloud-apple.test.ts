@@ -116,4 +116,10 @@ describe('iCloud Hide My Email response parsing', () => {
     await expect(new ICloudClient({ session: 'value' }, 'icloud.com').validate())
       .rejects.toMatchObject({ status: 504, message: '连接 iCloud 超时。' })
   })
+  it('does not expose Apple credential failures as OmniMail session 401s', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 403 }))
+
+    await expect(new ICloudClient({ session: 'value' }, 'icloud.com').validate())
+      .rejects.toMatchObject({ status: 422 })
+  })
 })

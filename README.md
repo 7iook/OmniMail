@@ -90,6 +90,15 @@ Serverless Webmail：
   与字段，读取接口只返回“已配置”状态
 - iCloud 邮件按需从 Apple 读取，不会复制到 OmniMail 的 D1 / R2，也不进入现有收件箱
 
+#### iCloud 使用注意事项
+
+- 仅支持已开通 iCloud+ 且拥有 **Hide My Email** 权限的 Apple 账号；“仅网页访问”、未开通 iCloud+ 或没有隐藏邮箱权限的账号无法添加。
+- 添加账号时需要从对应的 `icloud.com` / `icloud.com.cn` 会话导入 Cookie。Cookie 过期、复制不完整或 Apple 拒绝权限时，添加会失败并在弹窗显示原因，不会退出 OmniMail 当前登录账号。
+- `ICLOUD_CREDENTIALS_KEY` 必须配置为至少 32 字节的 Secret；更换或恢复部署时请确认该 Secret 没有丢失，否则无法解密已保存凭据。
+- 应用专用密码不是创建隐藏邮箱的必需项；只有需要通过 IMAP 按地址筛选或读取完整邮件正文时才需要配置，并且必须绑定当前 iCloud 邮箱。
+- iCloud 邮件和别名由 Worker 按需访问 Apple，不会同步进 OmniMail 收件箱；Apple 服务、订阅状态、区域限制和请求频率可能影响读取结果。
+- 不要把 Cookie 或应用专用密码提交到 Git、截图、工单或第三方聊天中；OmniMail 只在 Worker 内加密保存，浏览器不会再次读取原值。
+
 ### 多域名与用户
 
 - 多域名集中管理，支持启用、停用和安全删除

@@ -102,14 +102,12 @@ describe('iCloud account API validation', () => {
     await expect(response.json()).resolves.toEqual({ error: '隐藏邮箱参数无效。' })
   })
 
-  it('stores an invalid-but-parseable Apple session as an account needing attention', async () => {
+  it('rejects an account without iCloud+ or Hide My Email access without storing it', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
       JSON.stringify({ webservices: {} }),
       { status: 200 },
     ))
-    const run = vi.fn(async () => ({ meta: { changes: 1 } }))
-    const bind = vi.fn(() => ({ run }))
-    const prepare = vi.fn(() => ({ bind }))
+    const prepare = vi.fn()
     const env = {
       DB: { prepare },
       ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters',
@@ -120,12 +118,11 @@ describe('iCloud account API validation', () => {
       request({ name: 'Personal', cookies: 'session=value' }),
       '192.0.2.1',
     )
-    const result = await response.json() as { account: { status: string; lastError: string } }
 
-    expect(response.status).toBe(201)
-    expect(result.account.status).toBe('error')
-    expect(result.account.lastError).toContain('Cookie 已过期')
-    expect(JSON.stringify(result)).not.toContain('session=value')
-    expect(prepare).toHaveBeenCalledTimes(2)
+    await expect(response.json()).resolves.toEqual({
+      error: 'iCloud Cookie 已失效，或账号未开通 iCloud+、没有 Hide My Email 权限。',
+    })
+    expect(response.status).toBe(422)
+    expect(prepare).not.toHaveBeenCalled()
   })
 })

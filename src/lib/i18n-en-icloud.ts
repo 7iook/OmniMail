@@ -99,6 +99,7 @@ export const enICloud: Record<string, string> = {
   '凭据会在 Worker 内加密，保存后不会回传到浏览器。':
     'Credentials are encrypted in the Worker and are not returned after saving.',
   '验证并添加': 'Verify and add',
+  '添加失败：{error}': 'Add failed: {error}',
   '修改备注名称或覆盖更新凭据；原值不会显示。':
     'Edit the display name or replace credentials; existing values are never displayed.',
   '设置 {name}': 'Settings for {name}',
@@ -131,6 +132,12 @@ export const enICloud: Record<string, string> = {
   'iCloud 无法生成隐藏邮箱。': 'iCloud could not generate a Hide My Email address.',
   '连接 iCloud 超时。': 'The iCloud connection timed out.',
   '连接 iCloud 失败。': 'Could not connect to iCloud.',
+  'iCloud Cookie 已失效，或账号未开通 iCloud+、没有 Hide My Email 权限。':
+    'The iCloud cookie is invalid or expired, or this account lacks iCloud+ or Hide My Email access.',
+  '仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号。':
+    'Only accounts with iCloud+ and Hide My Email access are supported.',
+  '仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号；仅网页访问账号无法使用。':
+    'Only accounts with iCloud+ and Hide My Email access are supported; web-only iCloud accounts cannot be used.',
   'iCloud IMAP 请求超时。': 'The iCloud IMAP request timed out.',
   'iCloud IMAP 服务未就绪。': 'The iCloud IMAP service is not ready.',
   'IMAP 登录失败，请检查 iCloud 邮箱和应用专用密码。':
