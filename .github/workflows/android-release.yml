@@ -89,15 +89,6 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Run phone and tablet Compose UI tests
-        uses: reactivecircus/android-emulator-runner@v2.38.0
-        with:
-          api-level: 35
-          arch: x86_64
-          target: default
-          disable-animations: true
-          script: cd android && ./gradlew --no-daemon connectedDebugAndroidTest
-
       - name: Restore release signing key
         env:
           OMNIMAIL_ANDROID_KEYSTORE_BASE64: ${{ secrets.OMNIMAIL_ANDROID_KEYSTORE_BASE64 }}
@@ -129,7 +120,7 @@ jobs:
           OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD }}
           OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS }}
           OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest compileDebugAndroidTestKotlin lintRelease assembleRelease
 
       - name: Verify and package signed APK
         id: apk

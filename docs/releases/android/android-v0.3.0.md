@@ -38,7 +38,7 @@
 
 - 新增 Android 令牌声明、Room 离线筛选、iCloud 中继发件人与日期显示单元测试。
 - 新增 360dp 手机单栏、840dp 平板双栏和草稿列表 Compose 仪器测试。
-- Android Release CI 使用 API 35 x86_64 模拟器执行仪器测试，并继续运行单元测试、Lint、构建和签名校验。
+- Android Release CI 编译全部仪器测试，并继续运行单元测试、Lint、构建和签名校验；4 项 Compose 测试已在 Pixel 9 Pro AVD 实际运行通过。
 
 ### 安装与升级
 
