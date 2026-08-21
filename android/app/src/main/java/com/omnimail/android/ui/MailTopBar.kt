@@ -149,10 +149,14 @@ private fun DefaultTopBarContent(
     showProfile: Boolean,
     onSearch: () -> Unit,
 ) {
-    val summary = state.folderSummary(
-        loaded = stringResource(R.string.messages_loaded, state.messages.size),
-        unread = stringResource(R.string.messages_unread, state.counts.unread),
-    )
+    val summary = if (state.isOffline) {
+        stringResource(R.string.offline_cached_mail)
+    } else {
+        state.folderSummary(
+            loaded = stringResource(R.string.messages_loaded, state.messages.size),
+            unread = stringResource(R.string.messages_unread, state.counts.unread),
+        )
+    }
     Row(
         Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

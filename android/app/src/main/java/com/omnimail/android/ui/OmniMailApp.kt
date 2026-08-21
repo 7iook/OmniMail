@@ -26,11 +26,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import com.omnimail.android.data.sync.MailSyncScheduler
 import kotlinx.coroutines.delay
 
 @Composable
 fun OmniMailApp(viewModel: AppViewModel) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val animationsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
     val motionEnabled = mailMotionEnabled()
@@ -62,6 +65,9 @@ fun OmniMailApp(viewModel: AppViewModel) {
             viewModel.dismissError()
         }
     }
+    LaunchedEffect(state.readerPreferences.backgroundSync) {
+        MailSyncScheduler.update(context, state.readerPreferences.backgroundSync)
+    }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
@@ -83,6 +89,8 @@ fun OmniMailApp(viewModel: AppViewModel) {
                     when (page) {
                         AppPage.Mail -> MailScreen(state, viewModel, contentPadding)
                         AppPage.Compose -> ComposeScreen(state, viewModel, contentPadding)
+                        AppPage.ICloud -> ICloudScreen(state, viewModel, contentPadding)
+                        AppPage.Drafts -> DraftsScreen(state, viewModel, contentPadding)
                         AppPage.Profile -> ProfileScreen(state, viewModel, contentPadding)
                         AppPage.Settings -> SettingsScreen(state, viewModel, contentPadding)
                     }

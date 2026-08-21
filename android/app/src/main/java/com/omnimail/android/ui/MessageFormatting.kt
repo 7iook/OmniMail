@@ -15,8 +15,6 @@ internal data class EmailChromeStrings(
     val remoteImagesBlocked: String,
     val showImages: String,
     val sentToFormat: String,
-    val attachments: String,
-    val attachmentDownloadFuture: String,
 )
 
 internal fun formatMessageDate(timestamp: Long, locale: Locale): String {
@@ -122,25 +120,6 @@ internal fun messageHeaderHtml(
     """.trimIndent()
 }
 
-internal fun messageAttachmentsHtml(detail: MessageDetail, strings: EmailChromeStrings): String {
-    if (detail.attachments.isEmpty()) return ""
-    val items = detail.attachments.joinToString(separator = "") { attachment ->
-        """
-        <div class="omnimail-attachment">
-          <strong>${htmlEscape(attachment.filename)}</strong>
-          <span>${htmlEscape(formatBytes(attachment.size))}</span>
-        </div>
-        """.trimIndent()
-    }
-    return """
-        <section class="omnimail-attachments">
-          <h2>${htmlEscape(strings.attachments)}</h2>
-          $items
-          <p>${htmlEscape(strings.attachmentDownloadFuture)}</p>
-        </section>
-    """.trimIndent()
-}
-
 internal fun htmlEscape(value: String): String = value
     .replace("&", "&amp;")
     .replace("<", "&lt;")
@@ -174,7 +153,7 @@ internal fun readableMessageText(text: String, linkLabel: String = "link"): Stri
     .replace(Regex("\\n{3,}"), "\n\n")
     .trim()
 
-private fun formatBytes(bytes: Long): String = when {
+internal fun formatBytes(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
     bytes < 1024 * 1024 -> "%.1f KiB".format(bytes / 1024.0)
     else -> "%.1f MiB".format(bytes / (1024.0 * 1024.0))

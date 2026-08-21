@@ -34,11 +34,12 @@ data class TokenRequest(
     val email: String,
     val password: String,
     val deviceName: String,
+    val client: String,
     val mfaCode: String? = null,
 )
 
 @Serializable
-data class RefreshTokenRequest(val refreshToken: String)
+data class RefreshTokenRequest(val refreshToken: String, val client: String)
 
 @Serializable
 data class MailboxAddress(
@@ -108,6 +109,7 @@ data class MessagesResponse(
     val messages: List<MessageSummary> = emptyList(),
     val counts: MailCounts = MailCounts(),
     val page: PageInfo = PageInfo(),
+    val fromCache: Boolean = false,
 )
 
 @Serializable
@@ -152,6 +154,7 @@ data class MessageDetail(
 data class MessageDetailResponse(
     val message: MessageDetail,
     val thread: List<MessageSummary> = emptyList(),
+    val fromCache: Boolean = false,
 )
 
 @Serializable

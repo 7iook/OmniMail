@@ -64,6 +64,7 @@ private fun CompactMailLayout(state: AppUiState, viewModel: AppViewModel) {
                 onToggleStar = viewModel::toggleStar,
                 onReply = viewModel::openReply,
                 onForward = viewModel::openForward,
+                onDownloadAttachment = viewModel::downloadAttachment,
             )
         } else {
             MailDrawerLayout(state, viewModel) { openDrawer ->
@@ -123,6 +124,7 @@ private fun MediumMailLayout(state: AppUiState, viewModel: AppViewModel) {
                     onToggleStar = viewModel::toggleStar,
                     onReply = viewModel::openReply,
                     onForward = viewModel::openForward,
+                    onDownloadAttachment = viewModel::downloadAttachment,
                     modifier = Modifier.weight(.57f),
                 )
             }
@@ -138,6 +140,8 @@ private fun ExpandedMailLayout(state: AppUiState, viewModel: AppViewModel) {
             onFolder = viewModel::selectFolder,
             onMailboxScope = viewModel::selectMailboxScope,
             onCompose = viewModel::openComposer,
+            onICloud = viewModel::openICloud,
+            onDrafts = viewModel::openDrafts,
             onProfile = viewModel::openProfile,
             onSettings = viewModel::openSettings,
             onLogout = viewModel::logout,
@@ -162,6 +166,7 @@ private fun ExpandedMailLayout(state: AppUiState, viewModel: AppViewModel) {
             onToggleStar = viewModel::toggleStar,
             onReply = viewModel::openReply,
             onForward = viewModel::openForward,
+            onDownloadAttachment = viewModel::downloadAttachment,
             modifier = Modifier.weight(.6f),
         )
     }
@@ -199,6 +204,8 @@ private fun MailDrawerLayout(
                         closeDrawer()
                         viewModel.openComposer()
                     },
+                    onICloud = viewModel::openICloud,
+                    onDrafts = viewModel::openDrafts,
                     onProfile = viewModel::openProfile,
                     onSettings = viewModel::openSettings,
                     onLogout = viewModel::logout,

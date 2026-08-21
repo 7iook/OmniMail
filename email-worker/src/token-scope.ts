@@ -1,4 +1,21 @@
 export const FULL_DEVICE_SCOPES = '*'
+export const ANDROID_DEVICE_SCOPES = [
+  'account:write',
+  'mailboxes:read',
+  'messages:read',
+  'messages:write',
+  'messages:send',
+  'messages:attachments:read',
+  'drafts:read',
+  'drafts:write',
+  'icloud:accounts:read',
+  'icloud:accounts:write',
+  'icloud:aliases:read',
+  'icloud:aliases:preview',
+  'icloud:aliases:create',
+  'icloud:aliases:write',
+  'icloud:messages:read',
+].join(' ')
 export const EXTENSION_DEVICE_SCOPES = [
   'domains:read',
   'mailboxes:read',
@@ -14,6 +31,15 @@ export const EXTENSION_DEVICE_SCOPES = [
 function hasScope(scopes: string, required: string): boolean {
   if (scopes === FULL_DEVICE_SCOPES) return true
   return scopes.split(/\s+/).includes(required)
+}
+
+export function deviceScopesForClient(client: unknown): string {
+  return client === 'android' ? ANDROID_DEVICE_SCOPES : FULL_DEVICE_SCOPES
+}
+
+export function refreshedDeviceScopes(existingScopes: string, client: unknown): string {
+  if (existingScopes !== FULL_DEVICE_SCOPES) return existingScopes
+  return deviceScopesForClient(client)
 }
 
 async function markReadRequest(request: Request): Promise<boolean> {
@@ -39,17 +65,73 @@ export async function deviceScopesAllow(scopes: string, request: Request): Promi
   if (requestMethod === 'GET' && /^\/api\/messages(?:\/[^/]+)?$/.test(path)) {
     return hasScope(scopes, 'messages:read')
   }
+  if (requestMethod === 'GET' && /^\/api\/messages\/[^/]+\/attachments\/[^/]+$/.test(path)) {
+    return hasScope(scopes, 'messages:attachments:read')
+  }
   if (requestMethod === 'PATCH' && /^\/api\/messages\/[^/]+$/.test(path)) {
-    return hasScope(scopes, 'messages:mark-read') && await markReadRequest(request)
+    return hasScope(scopes, 'messages:write')
+      || (hasScope(scopes, 'messages:mark-read') && await markReadRequest(request))
+  }
+  if (requestMethod === 'PATCH' && path === '/api/messages/bulk') {
+    return hasScope(scopes, 'messages:write')
+  }
+  if (requestMethod === 'DELETE' && /^\/api\/messages\/[^/]+$/.test(path)) {
+    return hasScope(scopes, 'messages:write')
+  }
+  if (requestMethod === 'POST' && path === '/api/messages') {
+    return hasScope(scopes, 'messages:send')
+  }
+  if (requestMethod === 'POST' && /^\/api\/messages\/[^/]+\/reply$/.test(path)) {
+    return hasScope(scopes, 'messages:send')
+  }
+  if (requestMethod === 'PATCH' && path === '/api/account') {
+    return hasScope(scopes, 'account:write')
+  }
+  if (path === '/api/drafts') {
+    if (requestMethod === 'GET') return hasScope(scopes, 'drafts:read')
+    if (requestMethod === 'POST') return hasScope(scopes, 'drafts:write')
+  }
+  if (/^\/api\/drafts\/[^/]+$/.test(path)) {
+    if (requestMethod === 'GET') return hasScope(scopes, 'drafts:read')
+    if (requestMethod === 'PUT' || requestMethod === 'DELETE') {
+      return hasScope(scopes, 'drafts:write')
+    }
+  }
+  if (requestMethod === 'POST' && /^\/api\/drafts\/[^/]+\/attachments$/.test(path)) {
+    return hasScope(scopes, 'drafts:write')
+  }
+  if (requestMethod === 'DELETE' && /^\/api\/drafts\/[^/]+\/attachments\/[^/]+$/.test(path)) {
+    return hasScope(scopes, 'drafts:write')
+  }
+  if (requestMethod === 'POST' && /^\/api\/drafts\/[^/]+\/send$/.test(path)) {
+    return hasScope(scopes, 'drafts:write') && hasScope(scopes, 'messages:send')
   }
   if (requestMethod === 'GET' && path === '/api/icloud/accounts') {
     return hasScope(scopes, 'icloud:accounts:read')
   }
+  if (requestMethod === 'POST' && path === '/api/icloud/accounts') {
+    return hasScope(scopes, 'icloud:accounts:write')
+  }
+  if (/^\/api\/icloud\/accounts\/[^/]+$/.test(path)
+    && (requestMethod === 'PATCH' || requestMethod === 'DELETE')) {
+    return hasScope(scopes, 'icloud:accounts:write')
+  }
+  if (/^\/api\/icloud\/accounts\/[^/]+\/(?:cookies|app-password)$/.test(path)
+    && requestMethod === 'PUT') {
+    return hasScope(scopes, 'icloud:accounts:write')
+  }
   if (requestMethod === 'GET' && path === '/api/icloud/aliases') {
     return hasScope(scopes, 'icloud:aliases:read')
   }
+  if (requestMethod === 'POST' && path === '/api/icloud/aliases/preview') {
+    return hasScope(scopes, 'icloud:aliases:preview')
+  }
   if (requestMethod === 'POST' && path === '/api/icloud/aliases') {
     return hasScope(scopes, 'icloud:aliases:create')
+  }
+  if (/^\/api\/icloud\/aliases\/[^/]+$/.test(path)
+    && (requestMethod === 'PATCH' || requestMethod === 'DELETE')) {
+    return hasScope(scopes, 'icloud:aliases:write')
   }
   if (requestMethod === 'GET' && /^\/api\/icloud\/inbox(?:\/[^/]+)?$/.test(path)) {
     return hasScope(scopes, 'icloud:messages:read')

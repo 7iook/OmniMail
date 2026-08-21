@@ -43,6 +43,8 @@ internal fun MailNavigationPane(
     onFolder: (MailFolder) -> Unit,
     onMailboxScope: (MailboxScope) -> Unit,
     onCompose: () -> Unit,
+    onICloud: () -> Unit,
+    onDrafts: () -> Unit,
     onProfile: () -> Unit,
     onSettings: () -> Unit,
     onLogout: () -> Unit,
@@ -110,6 +112,20 @@ internal fun MailNavigationPane(
                 onClick = { onFolder(folder) },
             )
             Spacer(Modifier.height(2.dp))
+        }
+        MailNavigationRow(
+            AppIcon.Globe,
+            stringResource(R.string.icloud_hide_my_email),
+            onClick = onICloud,
+        )
+        Spacer(Modifier.height(2.dp))
+        if (state.canSendMail) {
+            MailNavigationRow(
+                AppIcon.Edit,
+                stringResource(R.string.folder_drafts),
+                count = state.counts.drafts,
+                onClick = onDrafts,
+            )
         }
         HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 12.dp))
         MailNavigationRow(AppIcon.Profile, stringResource(R.string.profile), onClick = onProfile)

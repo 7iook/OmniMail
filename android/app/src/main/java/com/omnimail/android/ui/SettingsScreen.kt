@@ -1,6 +1,12 @@
 package com.omnimail.android.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +47,9 @@ import com.omnimail.android.ui.components.openExternalUrl
 fun SettingsScreen(state: AppUiState, viewModel: AppViewModel, contentPadding: PaddingValues) {
     BackHandler(onBack = viewModel::openMail)
     val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> viewModel.setNotificationsEnabled(granted) }
     AccountPage(
         title = stringResource(R.string.settings),
         onBack = viewModel::openMail,
@@ -65,6 +74,44 @@ fun SettingsScreen(state: AppUiState, viewModel: AppViewModel, contentPadding: P
                 detail = stringResource(R.string.confirm_external_links_detail),
                 checked = state.readerPreferences.confirmExternalLinks,
                 onCheckedChange = viewModel::setConfirmExternalLinks,
+            )
+        }
+        Spacer(Modifier.height(22.dp))
+        SettingsSection(stringResource(R.string.sync_and_notifications)) {
+            SettingSwitch(
+                icon = AppIcon.Refresh,
+                title = stringResource(R.string.background_sync),
+                detail = stringResource(R.string.background_sync_detail),
+                checked = state.readerPreferences.backgroundSync,
+                onCheckedChange = { enabled ->
+                    viewModel.setBackgroundSync(enabled)
+                    if (!enabled) viewModel.setNotificationsEnabled(false)
+                },
+            )
+            SettingDivider()
+            SettingSwitch(
+                icon = AppIcon.Inbox,
+                title = stringResource(R.string.new_mail_notifications),
+                detail = stringResource(R.string.new_mail_notifications_detail),
+                checked = state.readerPreferences.notificationsEnabled,
+                onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        viewModel.setNotificationsEnabled(false)
+                    } else {
+                        viewModel.setBackgroundSync(true)
+                        if (
+                            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            viewModel.setNotificationsEnabled(true)
+                        } else {
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                },
             )
         }
         Spacer(Modifier.height(22.dp))

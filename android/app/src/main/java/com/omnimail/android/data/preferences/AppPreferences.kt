@@ -31,6 +31,8 @@ data class ReaderPreferences(
     val confirmExternalLinks: Boolean = true,
     val theme: ThemePreference = ThemePreference.System,
     val language: AppLanguage = AppLanguage.System,
+    val backgroundSync: Boolean = true,
+    val notificationsEnabled: Boolean = false,
 )
 
 interface AppPreferences {
@@ -39,6 +41,8 @@ interface AppPreferences {
     fun setConfirmExternalLinks(enabled: Boolean)
     fun setTheme(theme: ThemePreference)
     fun setLanguage(language: AppLanguage)
+    fun setBackgroundSync(enabled: Boolean)
+    fun setNotificationsEnabled(enabled: Boolean)
 }
 
 class SharedAppPreferences(context: Context) : AppPreferences {
@@ -54,6 +58,8 @@ class SharedAppPreferences(context: Context) : AppPreferences {
                 )
             }.getOrDefault(ThemePreference.System),
             language = currentAppLanguage(context, preferences.getString(KEY_LANGUAGE, null)),
+            backgroundSync = preferences.getBoolean(KEY_BACKGROUND_SYNC, true),
+            notificationsEnabled = preferences.getBoolean(KEY_NOTIFICATIONS, false),
         ),
     )
     override val readerPreferences: StateFlow<ReaderPreferences> = _readerPreferences.asStateFlow()
@@ -74,12 +80,22 @@ class SharedAppPreferences(context: Context) : AppPreferences {
         _readerPreferences.value.copy(language = language),
     )
 
+    override fun setBackgroundSync(enabled: Boolean) = update(
+        _readerPreferences.value.copy(backgroundSync = enabled),
+    )
+
+    override fun setNotificationsEnabled(enabled: Boolean) = update(
+        _readerPreferences.value.copy(notificationsEnabled = enabled),
+    )
+
     private fun update(value: ReaderPreferences) {
         preferences.edit {
             putBoolean(KEY_REMOTE_IMAGES, value.loadRemoteImages)
             putBoolean(KEY_CONFIRM_LINKS, value.confirmExternalLinks)
             putString(KEY_THEME, value.theme.name)
             putString(KEY_LANGUAGE, value.language.name)
+            putBoolean(KEY_BACKGROUND_SYNC, value.backgroundSync)
+            putBoolean(KEY_NOTIFICATIONS, value.notificationsEnabled)
         }
         _readerPreferences.value = value
     }
@@ -90,6 +106,8 @@ class SharedAppPreferences(context: Context) : AppPreferences {
         const val KEY_CONFIRM_LINKS = "confirm_external_links"
         const val KEY_THEME = "theme"
         const val KEY_LANGUAGE = "language"
+        const val KEY_BACKGROUND_SYNC = "background_sync"
+        const val KEY_NOTIFICATIONS = "notifications"
     }
 }
 

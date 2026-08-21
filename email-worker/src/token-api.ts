@@ -9,7 +9,7 @@ import { clientIp } from './api-helpers'
 import { writeAudit } from './audit'
 import { authenticatePassword } from './password-login'
 import { mfaEnabled, verifyMfaForLogin } from './mfa'
-import { FULL_DEVICE_SCOPES } from './token-scope'
+import { deviceScopesForClient, FULL_DEVICE_SCOPES, refreshedDeviceScopes } from './token-scope'
 import type { Env, SessionUser, UserRow } from './types'
 
 const ACCESS_TOKEN_SECONDS = 15 * 60
@@ -182,11 +182,13 @@ export async function issueDeviceToken(env: Env, request: Request): Promise<Resp
     password?: unknown
     deviceName?: unknown
     mfaCode?: unknown
+    client?: unknown
   }>().catch(() => ({} as {
     email?: unknown
     password?: unknown
     deviceName?: unknown
     mfaCode?: unknown
+    client?: unknown
   }))
   const name = deviceName(body.deviceName)
   if (!name) return json({ error: '设备名称需要在 1–80 个字符之间。' }, 400)
@@ -225,7 +227,12 @@ export async function issueDeviceToken(env: Env, request: Request): Promise<Resp
     }
   }
 
-  const response = await createDeviceSession(env, result.user, name)
+  const response = await createDeviceSession(
+    env,
+    result.user,
+    name,
+    deviceScopesForClient(body.client),
+  )
   if (response.ok) {
     await writeAudit(
       env,
@@ -240,8 +247,8 @@ export async function issueDeviceToken(env: Env, request: Request): Promise<Resp
 }
 
 export async function refreshDeviceToken(env: Env, request: Request): Promise<Response> {
-  const body = await request.json<{ refreshToken?: unknown }>()
-    .catch(() => ({} as { refreshToken?: unknown }))
+  const body = await request.json<{ refreshToken?: unknown; client?: unknown }>()
+    .catch(() => ({} as { refreshToken?: unknown; client?: unknown }))
   if (!validToken(body.refreshToken, REFRESH_PREFIX)) {
     return json({ error: '刷新令牌无效，请重新登录。' }, 401)
   }
@@ -265,7 +272,7 @@ export async function refreshDeviceToken(env: Env, request: Request): Promise<Re
     env,
     row,
     row.device_name,
-    row.scopes,
+    refreshedDeviceScopes(row.scopes, body.client),
     row.device_session_id,
     refreshHash,
   )

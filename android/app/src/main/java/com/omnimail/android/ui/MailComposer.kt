@@ -3,7 +3,9 @@ package com.omnimail.android.ui
 import com.omnimail.android.data.model.MailboxScope
 import com.omnimail.android.data.model.MessageDetail
 import com.omnimail.android.data.model.ReplyRequest
-import com.omnimail.android.data.model.SendMessageRequest
+import com.omnimail.android.data.model.DraftDetail
+import com.omnimail.android.data.model.DraftInput
+import com.omnimail.android.data.model.UploadFile
 import com.omnimail.android.data.preferences.AppLanguage
 import com.omnimail.android.data.repository.MailRepository
 import java.util.Locale
@@ -36,23 +38,56 @@ internal class MailComposer(private val repository: MailRepository) {
         text = forwardedMessageText(detail, state.readerPreferences.language).take(50_000),
     )
 
+    fun fromDraft(draft: DraftDetail): ComposerState = ComposerState(
+        mailboxAddress = draft.mailboxAddress,
+        to = draft.to,
+        subject = draft.subject,
+        text = draft.text,
+        idempotencyKey = requestId(),
+        draftId = draft.id,
+        returnPage = AppPage.Drafts,
+        attachments = draft.attachments.map {
+            ComposerAttachment(
+                id = it.id,
+                filename = it.filename,
+                contentType = it.contentType,
+                size = it.size,
+                remote = true,
+            )
+        },
+    )
+
+    fun draftInput(composer: ComposerState) = DraftInput(
+        mailboxAddress = composer.mailboxAddress,
+        to = composer.to.trim(),
+        subject = composer.subject.trim(),
+        text = composer.text.trim(),
+    )
+
     suspend fun send(composer: ComposerState) {
         val replyMessageId = composer.replyMessageId
         if (replyMessageId != null) {
-            repository.reply(
-                replyMessageId,
-                ReplyRequest(composer.text.trim(), composer.idempotencyKey),
-            )
+            val files = composer.attachments.mapNotNull { attachment ->
+                attachment.bytes?.let {
+                    UploadFile(attachment.filename, attachment.contentType, it)
+                }
+            }
+            if (files.isEmpty()) {
+                repository.reply(
+                    replyMessageId,
+                    ReplyRequest(composer.text.trim(), composer.idempotencyKey),
+                )
+            } else {
+                repository.replyWithAttachments(
+                    replyMessageId,
+                    ReplyRequest(composer.text.trim(), composer.idempotencyKey),
+                    files,
+                )
+            }
         } else {
-            repository.sendMessage(
-                SendMessageRequest(
-                    mailboxAddress = composer.mailboxAddress,
-                    to = composer.to.trim(),
-                    subject = composer.subject.trim(),
-                    text = composer.text.trim(),
-                    idempotencyKey = composer.idempotencyKey,
-                ),
-            )
+            val draftId = requireNotNull(composer.draftId)
+            repository.saveDraft(draftId, draftInput(composer))
+            repository.sendDraft(draftId, composer.idempotencyKey)
         }
     }
 

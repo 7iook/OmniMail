@@ -1,6 +1,8 @@
 package com.omnimail.android.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,11 +16,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.omnimail.android.R
 import com.omnimail.android.data.model.MailboxAddress
 import com.omnimail.android.ui.components.AppIcon
@@ -58,16 +65,27 @@ internal fun ComposeScreen(
     contentPadding: PaddingValues,
 ) {
     val composer = state.composer ?: return
+    val context = LocalContext.current
+    val attachmentPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> viewModel.addComposerUris(uris, context.contentResolver) }
     val isReply = composer.replyMessageId != null
     val isForward = composer.isForward
     var confirmDiscard by rememberSaveable(composer.idempotencyKey) { mutableStateOf(false) }
-    val hasEdits = composer.text.isNotBlank() || (!isReply && (
+    val hasEdits = composer.attachments.isNotEmpty() || composer.text.isNotBlank() || (!isReply && (
         composer.to.isNotBlank() || composer.subject.isNotBlank()
     ))
     val requestClose = {
-        if (hasEdits) confirmDiscard = true else viewModel.closeComposer()
+        if ((isReply || composer.draftId == null) && hasEdits) {
+            confirmDiscard = true
+        } else {
+            viewModel.closeComposer()
+        }
     }
-    BackHandler(enabled = !state.isSending, onBack = requestClose)
+    BackHandler(
+        enabled = !state.isSending && !composer.isUploadingAttachment,
+        onBack = requestClose,
+    )
 
     Column(
         Modifier
@@ -95,9 +113,29 @@ internal fun ComposeScreen(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (!isReply) {
+                Text(
+                    stringResource(
+                        if (composer.isDraftSaving) R.string.draft_saving else R.string.draft_saved,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                IconButton(
+                    onClick = { confirmDiscard = true },
+                    enabled = !state.isSending && !composer.isUploadingAttachment,
+                ) {
+                    LineIcon(
+                        AppIcon.Trash,
+                        stringResource(R.string.discard),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             Button(
                 onClick = viewModel::sendComposer,
-                enabled = composer.isReadyToSend() && !state.isSending,
+                enabled = composer.isReadyToSend() && !state.isSending &&
+                    !composer.isDraftSaving && !composer.isUploadingAttachment,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             ) {
                 if (state.isSending) {
@@ -164,6 +202,66 @@ internal fun ComposeScreen(
                     imeAction = ImeAction.Next,
                 ),
             )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = { attachmentPicker.launch(arrayOf("*/*")) },
+                    enabled = !state.isSending && !composer.isUploadingAttachment &&
+                        composer.attachments.size < 5,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    if (composer.isUploadingAttachment) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        LineIcon(AppIcon.Attachment, null, Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(
+                            if (composer.isUploadingAttachment) {
+                                R.string.attachments_uploading
+                            } else {
+                                R.string.add_attachments
+                            },
+                        ),
+                    )
+                }
+            }
+            if (composer.attachments.isNotEmpty()) {
+                LazyRow(
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) {
+                    items(composer.attachments, key = { it.id }) { attachment ->
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(end = 8.dp),
+                        ) {
+                            Row(
+                                Modifier.heightIn(min = 48.dp).padding(start = 12.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    attachment.filename,
+                                    modifier = Modifier.widthIn(max = 180.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                IconButton(
+                                    onClick = { viewModel.removeComposerAttachment(attachment.id) },
+                                    enabled = !composer.isUploadingAttachment && !state.isSending,
+                                ) {
+                                    LineIcon(AppIcon.Close, stringResource(R.string.remove_attachment))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             BasicTextField(
                 value = composer.text,
                 onValueChange = viewModel::updateComposerText,
@@ -217,7 +315,7 @@ internal fun ComposeScreen(
             title = { Text(stringResource(R.string.discard_mail_title)) },
             text = { Text(stringResource(R.string.discard_mail_detail)) },
             confirmButton = {
-                TextButton(onClick = viewModel::closeComposer) {
+                TextButton(onClick = viewModel::discardComposer) {
                     Text(stringResource(R.string.discard))
                 }
             },

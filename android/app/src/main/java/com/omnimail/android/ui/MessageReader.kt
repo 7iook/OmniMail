@@ -1,5 +1,9 @@
 package com.omnimail.android.ui
 
+import android.content.ContentResolver
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -16,6 +20,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnimail.android.R
 import com.omnimail.android.data.model.MessageDetail
+import com.omnimail.android.data.model.Attachment
 import com.omnimail.android.ui.components.AppIcon
 import com.omnimail.android.ui.components.LineIcon
 import com.omnimail.android.ui.components.SafeEmailWebView
@@ -63,6 +71,7 @@ internal fun MessageReader(
     onBack: (() -> Unit)? = null,
     onReply: (() -> Unit)? = null,
     onForward: (() -> Unit)? = null,
+    onDownloadAttachment: ((String, Attachment, Uri, ContentResolver) -> Unit)? = null,
 ) {
     val detail = state.messageDetail
     when {
@@ -87,6 +96,8 @@ internal fun MessageReader(
             onForward = onForward?.takeIf {
                 state.canComposeNew() && detail.status == "ready"
             },
+            onDownloadAttachment = onDownloadAttachment,
+            isDownloadingAttachment = state.isDownloadingAttachment,
             loadRemoteImages = state.readerPreferences.loadRemoteImages,
             confirmExternalLinks = state.readerPreferences.confirmExternalLinks,
             modifier = modifier,
@@ -101,6 +112,8 @@ private fun MessageDetailContent(
     onToggleStar: () -> Unit,
     onReply: (() -> Unit)?,
     onForward: (() -> Unit)?,
+    onDownloadAttachment: ((String, Attachment, Uri, ContentResolver) -> Unit)?,
+    isDownloadingAttachment: Boolean,
     loadRemoteImages: Boolean,
     confirmExternalLinks: Boolean,
     modifier: Modifier,
@@ -108,6 +121,16 @@ private fun MessageDetailContent(
     val motionEnabled = mailMotionEnabled()
     val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val context = LocalContext.current
+    var pendingAttachment by remember { mutableStateOf<Attachment?>(null) }
+    val attachmentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*"),
+    ) { uri ->
+        val attachment = pendingAttachment
+        pendingAttachment = null
+        if (uri != null && attachment != null && onDownloadAttachment != null) {
+            onDownloadAttachment(detail.id, attachment, uri, context.contentResolver)
+        }
+    }
     val locale = LocalConfiguration.current.locales[0]
     val linkLabel = stringResource(R.string.link_placeholder)
     val emptyBody = stringResource(R.string.empty_message_body)
@@ -119,8 +142,6 @@ private fun MessageDetailContent(
         remoteImagesBlocked = stringResource(R.string.remote_images_blocked),
         showImages = stringResource(R.string.show_images),
         sentToFormat = stringResource(R.string.sent_to),
-        attachments = stringResource(R.string.attachments),
-        attachmentDownloadFuture = stringResource(R.string.attachment_download_future),
     )
     var showRemoteImages by remember(detail.id, loadRemoteImages) { mutableStateOf(loadRemoteImages) }
     var pendingExternalLink by remember(detail.id) { mutableStateOf<String?>(null) }
@@ -223,7 +244,7 @@ private fun MessageDetailContent(
                 strings = emailStrings,
                 locale = locale,
             ),
-            trustedFooterHtml = messageAttachmentsHtml(detail, emailStrings),
+            trustedFooterHtml = "",
             darkTheme = darkTheme,
             modifier = Modifier.weight(1f),
             onScrolledChange = { contentScrolled = it },
@@ -232,6 +253,31 @@ private fun MessageDetailContent(
                 if (confirmExternalLinks) pendingExternalLink = url else openExternalUrl(context, url)
             },
         )
+        if (detail.attachments.isNotEmpty()) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            LazyRow(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+            ) {
+                items(detail.attachments, key = { it.id }) { attachment ->
+                    FilledTonalButton(
+                        onClick = {
+                            pendingAttachment = attachment
+                            attachmentLauncher.launch(attachment.filename)
+                        },
+                        enabled = onDownloadAttachment != null && !isDownloadingAttachment,
+                        modifier = Modifier.padding(end = 8.dp).heightIn(min = 48.dp),
+                    ) {
+                        LineIcon(AppIcon.Attachment, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.widthIn(max = 180.dp)) {
+                            Text(attachment.filename, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(formatBytes(attachment.size), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
         if (hasBottomActions) {
             MessageActionBar(onReply = onReply, onForward = onForward)
         }
