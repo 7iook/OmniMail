@@ -137,25 +137,41 @@ function AddAccountModal({ onClose, onCreated }: {
   const [name, setName] = useState('')
   const [host, setHost] = useState<ICloudHost>('icloud.com')
   const [cookies, setCookies] = useState('')
+  const [icloudEmail, setICloudEmail] = useState('')
+  const [appPassword, setAppPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   async function submit(event: FormEvent, close: () => void) {
     event.preventDefault(); setSaving(true); setError('')
     try {
-      const result = await api.createICloudAccount({ name, host, cookies })
+      const result = await api.createICloudAccount({
+        name, host, cookies, icloudEmail, appPassword,
+      })
       onCreated(result.account); close()
     } catch (submitError) {
       setError(t('添加失败：{error}', { error: errorMessage(submitError) }))
     } finally { setSaving(false) }
   }
   return (
-    <Modal title={t('添加 iCloud 账号')} description={t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号；仅网页访问账号无法使用。')} onClose={onClose}>
+    <Modal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
       {(close) => <form className="icloud-form" onSubmit={(event) => void submit(event, close)}>
+        <p className="icloud-account-warning"><AlertCircle size={17} aria-hidden="true" />{t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号；仅网页访问账号无法使用。')}</p>
         <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
         <div className="icloud-form-field"><span>{t('iCloud 区域')}</span><ICloudRegionSelect value={host} onChange={setHost} /></div>
         <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
+        <fieldset className="icloud-optional-credentials">
+          <legend><KeyRound size={16} aria-hidden="true" />{t('应用专用密码')}<small>{t('可选')}</small></legend>
+          <div className="icloud-app-password-fields">
+            <label><span>{t('iCloud 邮箱')}</span><input type="email" value={icloudEmail}
+              maxLength={254} required={Boolean(appPassword)} autoComplete="username"
+              onChange={(event) => setICloudEmail(event.target.value)} placeholder="name@icloud.com" /></label>
+            <label><span>{t('应用专用密码')}</span><input type="password" value={appPassword}
+              maxLength={128} required={Boolean(icloudEmail)} autoComplete="new-password"
+              onChange={(event) => setAppPassword(event.target.value)} /></label>
+          </div>
+          <p className="icloud-form-note"><KeyRound size={15} aria-hidden="true" />{t('可选；填写后会在添加账号时同时验证 IMAP 完整邮件权限。')}</p>
+        </fieldset>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
-        <p className="icloud-form-note">{t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号。')}</p>
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
         <footer><button className="button button--secondary" type="button" onClick={close}>{t('取消')}</button><button className="button button--primary" disabled={saving}>{saving ? <Spinner /> : <Plus size={16} />}{t('验证并添加')}</button></footer>
       </form>}
@@ -483,30 +499,38 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
             <h1>iCloud</h1>
           </div>
           <div className="list-header__actions">
-            <button className="icon-button" type="button" disabled={!enabled}
-              onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}
-              data-tooltip={t('添加 iCloud 账号')}><Plus size={17} /></button>
-            <button className="icon-button" type="button" disabled={!selected?.hasCookies}
-              onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}
-              data-tooltip={t('创建隐藏邮箱')}><AtSign size={17} /></button>
-            <button className="icon-button" type="button" disabled={!selected}
-              onClick={() => selected && setCredentials(selected)} aria-label={t('账号设置')}
-              data-tooltip={t('账号设置')}><Settings2 size={17} /></button>
-            <button className="icon-button" type="button" disabled={!selected || syncing}
-              onClick={() => void sync()} aria-label={t('同步')}
-              data-tooltip={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
+            {selected && <span className={`icloud-mail-status ${selected.hasAppPassword ? 'is-imap' : 'is-cookie'}`}>
+              {selected.hasAppPassword
+                ? <ShieldCheck size={13} aria-hidden="true" />
+                : <KeyRound size={13} aria-hidden="true" />}
+              {t(selected.hasAppPassword ? 'IMAP 完整邮件' : 'Web 摘要')}
+            </span>}
+            <div className="icloud-header-action-buttons">
+              <button className="icon-button" type="button" disabled={!enabled}
+                onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}
+                data-tooltip={t('添加 iCloud 账号')}><Plus size={17} /></button>
+              <button className="icon-button" type="button" disabled={!selected?.hasCookies}
+                onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}
+                data-tooltip={t('创建隐藏邮箱')}><AtSign size={17} /></button>
+              <button className="icon-button" type="button" disabled={!selected}
+                onClick={() => selected && setCredentials(selected)} aria-label={t('账号设置')}
+                data-tooltip={t('账号设置')}><Settings2 size={17} /></button>
+              <button className="icon-button" type="button" disabled={!selected || syncing}
+                onClick={() => void sync()} aria-label={t('同步')}
+                data-tooltip={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
+            </div>
           </div>
         </header>
 
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
-        {selected && <div className={`icloud-list-context ${selected.hasAppPassword ? 'is-imap' : 'is-cookie'}`}>
-          <span>{activeAlias ? <AtSign size={16} /> : selected.hasAppPassword ? <ShieldCheck size={16} /> : <KeyRound size={16} />}</span>
-          <p><strong>{activeAlias?.label || t(selected.hasAppPassword ? 'IMAP 完整邮件' : 'Web 摘要')}</strong><small>{activeAlias?.email || t(selected.hasAppPassword ? '可按隐藏地址筛选并读取完整正文' : '配置应用专用密码后可读取完整正文')}</small></p>
-          {activeAlias ? <div>
+        {activeAlias && <div className="icloud-list-context">
+          <span><AtSign size={16} /></span>
+          <p><strong>{activeAlias.label || t('未命名地址')}</strong><small>{activeAlias.email}</small></p>
+          <div>
             <button type="button" onClick={() => void copyAlias(activeAlias.email)} aria-label={t('复制')} data-tooltip={t('复制')}><Copy size={14} /></button>
             <button type="button" onClick={() => void aliasAction(activeAlias, activeAlias.active ? 'deactivate' : 'reactivate')} aria-label={t(activeAlias.active ? '停用' : '恢复')} data-tooltip={t(activeAlias.active ? '停用' : '恢复')}>{activeAlias.active ? <PowerOff size={14} /> : <Power size={14} />}</button>
             <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')} aria-label={t('删除')} data-tooltip={t('删除')}><Trash2 size={14} /></button>
-          </div> : !selected.hasAppPassword && <button type="button" onClick={() => setCredentials(selected)}>{t('配置')}</button>}
+          </div>
         </div>}
 
         {!enabled ? <Empty icon={<KeyRound size={24} />} title={t('iCloud 功能尚未启用')} description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY，然后重新部署。')} />

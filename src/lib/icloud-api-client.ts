@@ -7,7 +7,13 @@ export function createICloudApi(request: Request, jsonBody: (value: unknown) => 
     iCloudAccounts: (signal?: AbortSignal) => request<{ accounts: ICloudAccount[] }>(
       '/api/icloud/accounts', { signal },
     ),
-    createICloudAccount: (input: { name: string; host: ICloudHost; cookies: string }) => (
+    createICloudAccount: (input: {
+      name: string
+      host: ICloudHost
+      cookies: string
+      icloudEmail?: string
+      appPassword?: string
+    }) => (
       request<{ account: ICloudAccount }>('/api/icloud/accounts', {
         method: 'POST', body: jsonBody(input),
       })

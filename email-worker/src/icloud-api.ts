@@ -51,6 +51,16 @@ async function imapClient(email: string, appPassword: string) {
   return new ICloudImapClient(email, appPassword)
 }
 
+async function validateAppPassword(email: string, password: string): Promise<void> {
+  const client = await imapClient(email, password)
+  try {
+    await client.open()
+    await client.test()
+  } finally {
+    await client.close()
+  }
+}
+
 function boundedInteger(
   value: string | null,
   fallback: number,
@@ -130,6 +140,12 @@ export async function createICloudAccount(
     if (!name || name.length > 80) {
       throw new ICloudStoreError(400, '账号名称需要在 1–80 个字符之间。')
     }
+    const icloudEmail = stringField(body.icloudEmail).toLowerCase()
+    const appPassword = stringField(body.appPassword)
+    const hasAppPassword = Boolean(icloudEmail || appPassword)
+    if (hasAppPassword && (!validICloudEmail(icloudEmail) || !appPassword || appPassword.length > 128)) {
+      throw new ICloudStoreError(400, '请填写有效的 iCloud 邮箱和应用专用密码。')
+    }
     const store = new ICloudAccountStore(env, user.id)
     const now = new Date().toISOString()
     const account: ICloudAccount = {
@@ -137,10 +153,10 @@ export async function createICloudAccount(
       userId: user.id,
       name,
       realEmail: '',
-      icloudEmail: '',
+      icloudEmail,
       cookies: parseICloudCookies(body.cookies),
       host: body.host === 'icloud.com.cn' ? 'icloud.com.cn' : 'icloud.com',
-      appPassword: '',
+      appPassword,
       status: 'pending',
       aliasTotal: 0,
       aliasActive: 0,
@@ -150,6 +166,7 @@ export async function createICloudAccount(
     }
     const validationError = await validateAccount(account)
     if (validationError) throw validationError
+    if (hasAppPassword) await validateAppPassword(icloudEmail, appPassword)
     await store.insert(account)
     await writeAudit(env, user.id, 'icloud.account.create', account.id, ip, {
       host: account.host,
@@ -234,13 +251,7 @@ export async function updateICloudAppPassword(
     }
     const store = new ICloudAccountStore(env, user.id)
     await store.get(id)
-    const client = await imapClient(email, password)
-    try {
-      await client.open()
-      await client.test()
-    } finally {
-      await client.close()
-    }
+    await validateAppPassword(email, password)
     await store.saveAppPassword(id, email, password)
     await writeAudit(env, user.id, 'icloud.credentials.app_password', id, ip)
     return Response.json({ ok: true, icloudEmail: email })

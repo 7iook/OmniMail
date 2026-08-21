@@ -19,6 +19,13 @@ async function mockICloud(page: Page, options: {
   const createdPreviewIds: string[] = []
   const previewedEmails: string[] = []
   const accountNames: string[] = []
+  const accountCreates: Array<{
+    name: string
+    host: string
+    cookies: string
+    icloudEmail?: string
+    appPassword?: string
+  }> = []
   const cookieUpdates: string[] = []
   const passwordUpdates: Array<{ icloudEmail: string; appPassword: string }> = []
   const deletedAccountIds: string[] = []
@@ -74,6 +81,7 @@ async function mockICloud(page: Page, options: {
       hasCookies: true, hasAppPassword,
     }
     if (path === '/api/icloud/accounts' && request.method() === 'POST') {
+      accountCreates.push(request.postDataJSON())
       if (options.rejectAccountCreate) return route.fulfill({
         status: 422,
         contentType: 'application/json',
@@ -148,7 +156,7 @@ async function mockICloud(page: Page, options: {
     return route.abort()
   })
   return {
-    accountNames, cookieUpdates, createdEmails, createdLabels, createdPreviewIds,
+    accountCreates, accountNames, cookieUpdates, createdEmails, createdLabels, createdPreviewIds,
     deletedAccountIds,
     inboxAliases, passwordUpdates, previewedEmails,
   }
@@ -315,13 +323,50 @@ test('rejects an iCloud account without membership access without signing out', 
   await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
   await expect(page.getByText('Personal')).toBeVisible()
 })
+
+test('adds optional IMAP credentials together with an iCloud account', async ({ page }) => {
+  const state = await mockICloud(page)
+  await page.goto('/icloud')
+
+  await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
+  const dialog = page.getByRole('dialog', { name: '添加 iCloud 账号' })
+  const warning = dialog.locator('.icloud-account-warning')
+  await expect(warning).toContainText('仅网页访问账号无法使用')
+  expect(Number.parseFloat(await warning.evaluate((element) => getComputedStyle(element).fontSize)))
+    .toBeGreaterThanOrEqual(13)
+  await page.setViewportSize({ width: 375, height: 812 })
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect((await dialog.locator('.icloud-app-password-fields').evaluate((element) => (
+    getComputedStyle(element).gridTemplateColumns.split(' ').length
+  )))).toBe(1)
+  await dialog.getByRole('textbox', { name: '账号名称' }).fill('Work')
+  await dialog.locator('textarea').fill('session=valid-cookie')
+  await dialog.getByRole('textbox', { name: 'iCloud 邮箱' }).fill('work@icloud.com')
+  await dialog.getByLabel('应用专用密码', { exact: true }).fill('abcd-efgh-ijkl-mnop')
+  await dialog.getByRole('button', { name: '验证并添加' }).click()
+
+  await expect.poll(() => state.accountCreates).toEqual([{
+    name: 'Work',
+    host: 'icloud.com',
+    cookies: 'session=valid-cookie',
+    icloudEmail: 'work@icloud.com',
+    appPassword: 'abcd-efgh-ijkl-mnop',
+  }])
+  await expect(dialog).toBeHidden()
+})
+
 test('explains Cookie summary mode before an app-specific password is configured', async ({ page }) => {
   await mockICloud(page, { hasAppPassword: false })
   await page.goto('/icloud')
 
-  await expect(page.getByText('Web 摘要', { exact: true })).toBeVisible()
-  await expect(page.getByText('配置应用专用密码后可读取完整正文')).toBeVisible()
-  await expect(page.getByRole('button', { name: '配置', exact: true })).toBeVisible()
+  const status = page.locator('.icloud-mail-status')
+  await expect(status).toHaveText(/Web 摘要/)
+  await expect(page.locator('.icloud-list-context')).toHaveCount(0)
+  const statusBox = await status.boundingBox()
+  const actionsBox = await page.locator('.icloud-header-action-buttons').boundingBox()
+  expect((statusBox?.x || 0) + (statusBox?.width || 0))
+    .toBeCloseTo((actionsBox?.x || 0) + (actionsBox?.width || 0), 1)
+  expect((statusBox?.y || 0) + (statusBox?.height || 0)).toBeLessThanOrEqual(actionsBox?.y || 0)
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('当前显示 iCloud Web 摘要')).toBeVisible()
 })
@@ -335,12 +380,18 @@ test('creates five labeled Hide My Email addresses in one batch', async ({ page 
   await expect(dialog.getByText('preview-one@icloud.com', { exact: true })).toBeVisible()
   await dialog.getByRole('button', { name: /换一个地址/ }).click()
   await expect(dialog.getByText('github-1@icloud.com', { exact: true })).toBeVisible()
+  const firstDraftWidth = await dialog.locator('.icloud-alias-preview').first()
+    .evaluate((element) => element.getBoundingClientRect().width)
   for (let index = 2; index <= 5; index += 1) {
-    await dialog.getByRole('button', { name: /添加一个/ }).click()
+    await dialog.getByRole('button', { name: /增加邮箱/ }).click()
     await expect(dialog.getByText(`github-${index}@icloud.com`, { exact: true })).toBeVisible()
+    if (index === 2) {
+      expect(await dialog.locator('.icloud-alias-preview').first()
+        .evaluate((element) => element.getBoundingClientRect().width)).toBeCloseTo(firstDraftWidth, 1)
+    }
   }
   await expect(dialog.getByText('5/5', { exact: true })).toBeVisible()
-  await expect(dialog.getByRole('button', { name: '添加一个' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: '增加邮箱' })).toBeDisabled()
   expect(state.previewedEmails).toEqual([
     'preview-one@icloud.com', 'github-1@icloud.com', 'github-2@icloud.com',
     'github-3@icloud.com', 'github-4@icloud.com', 'github-5@icloud.com',
@@ -394,9 +445,9 @@ test('keeps uncreated aliases available after a partial batch failure', async ({
   await page.getByRole('button', { name: '创建隐藏邮箱' }).click()
   const dialog = page.getByRole('dialog', { name: '创建隐藏邮箱' })
   await expect(dialog.getByText('preview-one@icloud.com', { exact: true })).toBeVisible()
-  await dialog.getByRole('button', { name: /添加一个/ }).click()
+  await dialog.getByRole('button', { name: /增加邮箱/ }).click()
   await expect(dialog.getByText('github-1@icloud.com', { exact: true })).toBeVisible()
-  await dialog.getByRole('button', { name: /添加一个/ }).click()
+  await dialog.getByRole('button', { name: /增加邮箱/ }).click()
   await expect(dialog.getByText('github-2@icloud.com', { exact: true })).toBeVisible()
   const labels = dialog.getByRole('textbox', { name: '用途标签（可选）' })
   await labels.nth(0).fill('ONE')

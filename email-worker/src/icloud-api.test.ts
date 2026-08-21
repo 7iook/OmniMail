@@ -60,6 +60,27 @@ describe('iCloud account API validation', () => {
     })
   })
 
+  it('rejects incomplete optional IMAP credentials before making an Apple request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const response = await createICloudAccount(
+      { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,
+      user,
+      request({
+        name: 'Personal',
+        cookies: 'session=value',
+        icloudEmail: 'name@icloud.com',
+        appPassword: '',
+      }),
+      '192.0.2.1',
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: '请填写有效的 iCloud 邮箱和应用专用密码。',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects an empty account display name before accessing storage', async () => {
     const response = await updateICloudAccountName(
       { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,

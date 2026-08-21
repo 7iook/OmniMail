@@ -247,17 +247,21 @@ export function MessageList({
   onSelect: (message: MessageSummary) => void
   onToggleSelection: (message: MessageSummary) => void
   onSetSelection: (message: MessageSummary, selected: boolean) => void
-  onSelectAll: () => void
+  onSelectAll: (messages: MessageSummary[]) => void
   onBulkAction: (action: BulkMessageAction, ids?: string[]) => void
   onStar: (message: MessageSummary) => void
   onLoadMore: () => void
 }) {
   const [bulkMode, setBulkMode] = useState(false)
+  const [unreadOnly, setUnreadOnly] = useState(false)
   const [dragSelecting, setDragSelecting] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null)
   const suppressClick = useRef(false)
   const scrollbarTimer = useRef<number | null>(null)
+  const visibleMessages = folder === 'inbox' && unreadOnly
+    ? messages.filter((message) => !message.isRead)
+    : messages
   const drag = useRef<{
     pointerId: number
     startX: number
@@ -284,20 +288,20 @@ export function MessageList({
 
   function applyDragSelection(index: number) {
     const current = drag.current
-    if (!current || index < 0 || index >= messages.length) return
+    if (!current || index < 0 || index >= visibleMessages.length) return
     const previousStart = Math.min(current.anchorIndex, current.lastIndex)
     const previousEnd = Math.max(current.anchorIndex, current.lastIndex)
     const nextStart = Math.min(current.anchorIndex, index)
     const nextEnd = Math.max(current.anchorIndex, index)
     for (let cursor = previousStart; cursor <= previousEnd; cursor += 1) {
       if (cursor < nextStart || cursor > nextEnd) {
-        const message = messages[cursor]
+        const message = visibleMessages[cursor]
         onSetSelection(message, current.initialSelectedIds.has(message.id))
       }
     }
     for (let cursor = nextStart; cursor <= nextEnd; cursor += 1) {
       if (cursor < previousStart || cursor > previousEnd) {
-        onSetSelection(messages[cursor], current.select)
+        onSetSelection(visibleMessages[cursor], current.select)
       }
     }
     current.lastIndex = index
@@ -320,7 +324,7 @@ export function MessageList({
       anchorIndex: index,
       lastIndex: index,
       active: false,
-      select: !selectedIds.has(messages[index].id),
+      select: !selectedIds.has(visibleMessages[index].id),
       initialSelectedIds: new Set(selectedIds),
     }
   }
@@ -339,7 +343,7 @@ export function MessageList({
       suppressClick.current = true
       setBulkMode(true)
       setDragSelecting(true)
-      onSetSelection(messages[current.anchorIndex], current.select)
+      onSetSelection(visibleMessages[current.anchorIndex], current.select)
     }
     event.preventDefault()
     const target = document.elementFromPoint(event.clientX, event.clientY)
@@ -426,13 +430,21 @@ export function MessageList({
       aria-label={t('批量邮件操作')}
     >
       {bulkMode ? (
-        <BulkToolbar folder={folder} messages={messages} selectedIds={selectedIds}
-          loading={bulkLoading} onSelectAll={onSelectAll} onAction={onBulkAction}
+        <BulkToolbar folder={folder} messages={visibleMessages} selectedIds={selectedIds}
+          loading={bulkLoading} onSelectAll={() => onSelectAll(visibleMessages)} onAction={onBulkAction}
           onCancel={closeBulkMode} />
       ) : (
-        <button className="bulk-mode-trigger" type="button" onClick={() => setBulkMode(true)}>
-          <ListChecks size={15} />{t('批量操作')}
-        </button>
+        <>
+          {folder === 'inbox' && <button
+            className={`unread-filter-trigger${unreadOnly ? ' is-active' : ''}`}
+            type="button" aria-pressed={unreadOnly}
+            onClick={() => setUnreadOnly((current) => !current)}>
+            <Mail size={15} />{t('仅看未读')}
+          </button>}
+          <button className="bulk-mode-trigger" type="button" onClick={() => setBulkMode(true)}>
+            <ListChecks size={15} />{t('批量操作')}
+          </button>
+        </>
       )}
     </div>
     <div
@@ -440,7 +452,11 @@ export function MessageList({
       role="listbox" aria-label={t('邮件列表')} onScroll={showScrollbarWhileScrolling}
       onPointerDown={startDragSelection} onPointerMove={continueDragSelection}
       onPointerUp={finishDragSelection} onPointerCancel={cancelDragSelection}>
-    {messages.map((message, index) => (
+    {!visibleMessages.length && <div className="list-state list-state--empty">
+      <span className="empty-symbol"><MailOpen size={24} /></span>
+      <strong>{t('没有未读邮件')}</strong><span>{t('当前收件箱中的邮件都已读。')}</span>
+    </div>}
+    {visibleMessages.map((message, index) => (
       <article
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
         key={message.id} role="option" aria-selected={selectedId === message.id}
@@ -461,6 +477,10 @@ export function MessageList({
           <span className="message-row__top">
             <strong>{senderLabel(message)}</strong>
             <time dateTime={new Date(message.date).toISOString()}>{formatMessageDate(message.date)}</time>
+            {!message.isRead && <>
+              <span className="message-row__unread-dot" aria-hidden="true" />
+              <span className="sr-only">{t('未读邮件')}</span>
+            </>}
           </span>
           <span className="message-row__subject">
             {message.status === 'processing' && <LoaderCircle className="spin" size={13} />}

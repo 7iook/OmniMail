@@ -24,7 +24,7 @@ export const enICloud: Record<string, string> = {
   '正在创建': 'Creating',
   '创建成功': 'Created',
   '正在创建 {completed}/{total}': 'Creating {completed}/{total}',
-  '添加一个': 'Add another',
+  '增加邮箱': 'Add address',
   '为隐藏邮箱 {index} 换一个地址': 'Use a different address for item {index}',
   '每个项目可填写独立标签；一次最多创建 5 个隐藏邮箱。':
     'Each item can have its own label. You can create up to five addresses at once.',
@@ -98,6 +98,8 @@ export const enICloud: Record<string, string> = {
   '中国大陆': 'Mainland China',
   '凭据会在 Worker 内加密，保存后不会回传到浏览器。':
     'Credentials are encrypted in the Worker and are not returned after saving.',
+  '可选；填写后会在添加账号时同时验证 IMAP 完整邮件权限。':
+    'Optional. When provided, IMAP full-message access is verified while adding the account.',
   '验证并添加': 'Verify and add',
   '添加失败：{error}': 'Add failed: {error}',
   '修改备注名称或覆盖更新凭据；原值不会显示。':
@@ -146,6 +148,8 @@ export const enICloud: Record<string, string> = {
   'iCloud IMAP 服务未就绪。': 'The iCloud IMAP service is not ready.',
   'IMAP 登录失败，请检查 iCloud 邮箱和应用专用密码。':
     'IMAP sign-in failed. Check the iCloud email and app-specific password.',
+  '请填写有效的 iCloud 邮箱和应用专用密码。':
+    'Enter a valid iCloud email and app-specific password.',
   '连接 iCloud IMAP 失败。': 'Could not connect to iCloud IMAP.',
   'iCloud IMAP 命令失败。': 'The iCloud IMAP command failed.',
   'iCloud IMAP 连接失败。': 'The iCloud IMAP connection failed.',

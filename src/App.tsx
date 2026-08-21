@@ -237,8 +237,8 @@ function Mailbox({
       return next
     })
   }
-  function selectAllLoadedMessages() {
-    const selectable = messages.slice(0, 50)
+  function selectAllLoadedMessages(candidateMessages: MessageSummary[] = messages) {
+    const selectable = candidateMessages.slice(0, 50)
     const allSelected = selectable.every((message) => selectedMessageIds.has(message.id))
     setSelectedMessageIds(allSelected
       ? new Set()

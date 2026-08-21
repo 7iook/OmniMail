@@ -85,8 +85,31 @@ export function ICloudAliasBatchForm({ account, close, onCreated }: {
   function addDraft() {
     if (drafts.length >= MAX_ALIASES || previewBusy || creating) return
     const draft = newDraft()
-    setDrafts((items) => [...items, draft])
-    setActiveDraftId(draft.id)
+    const root = draftsRoot.current
+    const modal = root?.closest<HTMLElement>('.icloud-modal')
+    const modalBefore = modal?.getBoundingClientRect()
+    flushSync(() => {
+      setDrafts((items) => [...items, draft])
+      setActiveDraftId(draft.id)
+    })
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.requestAnimationFrame(() => {
+        const card = root?.querySelector<HTMLElement>(`[data-alias-draft-id="${draft.id}"]`)
+        card?.animate([
+          { opacity: 0, transform: 'translateY(12px) scale(0.98)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' },
+        ], { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+
+        if (!modalBefore || !modal) return
+        const deltaY = modalBefore.top - modal.getBoundingClientRect().top
+        if (deltaY) {
+          modal.animate([
+            { transform: `translateY(${deltaY}px)` },
+            { transform: 'translateY(0)' },
+          ], { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+        }
+      })
+    }
     void previewDraft(draft.id)
   }
 
@@ -209,7 +232,7 @@ export function ICloudAliasBatchForm({ account, close, onCreated }: {
         </div>
         <button className="button button--secondary" type="button"
           disabled={drafts.length >= MAX_ALIASES || previewBusy || creating}
-          onClick={addDraft}><Plus size={15} />{t('添加一个')}</button>
+          onClick={addDraft}><Plus size={15} />{t('增加邮箱')}</button>
       </div>
       <div className="icloud-alias-drafts" ref={draftsRoot}>
         {drafts.map((draft, index) => (
