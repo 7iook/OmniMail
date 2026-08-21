@@ -36,12 +36,12 @@ describe('system version', () => {
   })
 
   it('checks the configured release repository', async () => {
-    const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.3.5' }))
+    const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.3.6' }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     const body = await response.json()
     expect(body).toMatchObject({
-      currentVersion: '0.3.4',
-      latestVersion: '0.3.5',
+      currentVersion: '0.3.5',
+      latestVersion: '0.3.6',
       updateAvailable: true,
       checkFailed: false,
       releaseRepository: 'mibgb65-cloud/OmniMail',
@@ -60,7 +60,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.3.4',
+      currentVersion: '0.3.5',
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,
