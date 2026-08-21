@@ -423,7 +423,7 @@
   white-space: nowrap;
 }
 
-.message-row__unread-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--text); }
+.message-row__unread-dot { position: absolute; z-index: 2; top: 22px; right: 22.5px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); pointer-events: none; }
 
 .message-row__subject {
   display: flex;

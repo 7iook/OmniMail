@@ -477,10 +477,7 @@ export function MessageList({
           <span className="message-row__top">
             <strong>{senderLabel(message)}</strong>
             <time dateTime={new Date(message.date).toISOString()}>{formatMessageDate(message.date)}</time>
-            {!message.isRead && <>
-              <span className="message-row__unread-dot" aria-hidden="true" />
-              <span className="sr-only">{t('未读邮件')}</span>
-            </>}
+            {!message.isRead && <span className="sr-only">{t('未读邮件')}</span>}
           </span>
           <span className="message-row__subject">
             {message.status === 'processing' && <LoaderCircle className="spin" size={13} />}
@@ -493,6 +490,7 @@ export function MessageList({
             <Paperclip size={12} /> {message.attachmentCount}
           </span>}
         </button>
+        {!message.isRead && <span className="message-row__unread-dot" aria-hidden="true" />}
         <button className={`row-star ${message.isStarred ? 'is-active' : ''}`}
           type="button" onClick={() => onStar(message)}
           aria-label={t(message.isStarred ? '取消星标' : '添加星标')}
