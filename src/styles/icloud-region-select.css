@@ -1,33 +1,61 @@
 .icloud-region-select {
   position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
 }
 
-.icloud-region-select__trigger {
+.icloud-region-select__indicator {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.icloud-region-select.is-china .icloud-region-select__indicator {
+  transform: translateX(100%);
+}
+
+.icloud-region-select > button {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: 100%;
-  height: 44px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 52px;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 0 12px 0 9px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface-muted);
-  color: var(--text);
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   text-align: left;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  transition: color 160ms ease;
 }
 
-.icloud-region-select__trigger:hover,
-.icloud-region-select__trigger:focus-visible,
-.icloud-region-select.is-open .icloud-region-select__trigger {
-  border-color: var(--line-strong);
-  background: var(--surface);
+.icloud-region-select > button:hover,
+.icloud-region-select > button.is-selected {
+  color: var(--text);
 }
 
-.icloud-region-select__trigger:focus-visible {
+.icloud-region-select > button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 2px;
 }
@@ -44,8 +72,7 @@
   color: var(--accent);
 }
 
-.icloud-region-select__trigger > span:nth-child(2),
-.icloud-region-select__menu > button > span:nth-child(2) {
+.icloud-region-select > button > span:nth-child(2) {
   display: grid;
   min-width: 0;
   gap: 1px;
@@ -68,76 +95,13 @@
   white-space: nowrap;
 }
 
-.icloud-region-select__trigger > svg {
-  color: var(--text-tertiary);
-  transition: transform 160ms ease, color 160ms ease;
-}
-
-.icloud-region-select.is-open .icloud-region-select__trigger > svg {
-  color: var(--text);
-  transform: rotate(180deg);
-}
-
-.icloud-region-select__menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 6px);
-  right: 0;
-  left: 0;
-  display: grid;
-  gap: 3px;
-  padding: 6px;
-  border: 1px solid var(--line-strong);
-  border-radius: 13px;
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  animation: icloud-region-menu-in 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.icloud-region-select__menu > button {
-  display: grid;
-  width: 100%;
-  min-height: 50px;
-  grid-template-columns: auto minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 9px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: background 150ms ease, box-shadow 150ms ease;
-}
-
-.icloud-region-select__menu > button:hover,
-.icloud-region-select__menu > button:focus-visible {
-  outline: 0;
-  background: var(--surface-muted);
-}
-
-.icloud-region-select__menu > button:focus-visible {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
-}
-
-.icloud-region-select__menu > button.is-selected {
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
-}
-
-.icloud-region-select__menu > button > svg {
-  color: var(--accent);
-}
-
-@keyframes icloud-region-menu-in {
-  from { opacity: 0; transform: translateY(-5px); }
+.icloud-region-select > button.is-selected .icloud-region-select__icon {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .icloud-region-select__trigger,
-  .icloud-region-select__trigger > svg,
-  .icloud-region-select__menu {
-    animation: none;
+  .icloud-region-select__indicator,
+  .icloud-region-select > button {
     transition: none;
   }
 }

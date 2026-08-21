@@ -5,8 +5,7 @@ import type {
   ICloudMessage,
 } from './icloud-types'
 
-const HME_BUILD_NUMBER = '2624Build22'
-const DEFAULT_BUILD_NUMBER = '2624Build13'
+const ICLOUD_BUILD_NUMBER = '2630Build35'
 const REQUEST_TIMEOUT_MS = 15_000
 export const ICLOUD_CREDENTIAL_ERROR_STATUS = 422
 export const ICLOUD_CREDENTIAL_ERROR_MESSAGE = 'iCloud Cookie 已失效，或账号未开通 iCloud+、没有 Hide My Email 权限。'
@@ -181,11 +180,8 @@ export class ICloudClient {
 
   private buildUrl(rawUrl: string): string {
     const url = ensureAppleUrl(rawUrl)
-    const build = url.hostname.includes('maildomainws')
-      ? HME_BUILD_NUMBER
-      : DEFAULT_BUILD_NUMBER
-    url.searchParams.set('clientBuildNumber', build)
-    url.searchParams.set('clientMasteringNumber', build)
+    url.searchParams.set('clientBuildNumber', ICLOUD_BUILD_NUMBER)
+    url.searchParams.set('clientMasteringNumber', ICLOUD_BUILD_NUMBER)
     url.searchParams.set('clientId', this.clientId)
     if (this.dsid) url.searchParams.set('dsid', this.dsid)
     return url.toString()

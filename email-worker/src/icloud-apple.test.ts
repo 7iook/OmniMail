@@ -15,6 +15,13 @@ function validationResponse(): Response {
   })
 }
 
+function chinaValidationResponse(): Response {
+  return Response.json({
+    webservices: { premiummailsettings: { url: 'https://p71-maildomainws.icloud.com.cn' } },
+    dsInfo: { dsid: '456', appleId: 'person@icloud.com' },
+  })
+}
+
 describe('iCloud Hide My Email response parsing', () => {
   it('normalizes aliases and sorts active entries first', () => {
     expect(parseICloudAliases({ result: { hmeEmails: [
@@ -72,6 +79,37 @@ describe('iCloud Hide My Email response parsing', () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/v1/hme/generate')
     expect(fetchMock.mock.calls.every(([url]) => String(url).includes(`clientId=${previewId}`)))
       .toBe(true)
+  })
+
+  it('uses current China region endpoints for the complete alias creation flow', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(chinaValidationResponse())
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        result: { hme: 'china-preview@icloud.com' },
+      }))
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        result: { hme: { hme: 'china-preview@icloud.com' } },
+      }))
+
+    await expect(new ICloudClient({ session: 'value' }, 'icloud.com.cn').createAlias('China'))
+      .resolves.toMatchObject({ email: 'china-preview@icloud.com', label: 'China' })
+    const requests = fetchMock.mock.calls.map(([input, init]) => ({
+      url: new URL(String(input)),
+      headers: new Headers(init?.headers),
+    }))
+    expect(requests[0].url.origin).toBe('https://setup.icloud.com.cn')
+    expect(requests.slice(1).every(({ url }) => url.hostname.endsWith('.icloud.com.cn')))
+      .toBe(true)
+    expect(requests.every(({ url }) => (
+      url.searchParams.get('clientBuildNumber') === '2630Build35'
+      && url.searchParams.get('clientMasteringNumber') === '2630Build35'
+    ))).toBe(true)
+    expect(requests.every(({ headers }) => (
+      headers.get('Origin') === 'https://www.icloud.com.cn'
+      && headers.get('Referer') === 'https://www.icloud.com.cn/'
+    ))).toBe(true)
   })
 
   it('rejects an invalid preview address before contacting Apple', async () => {
