@@ -24,10 +24,6 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('android-v{0}', inputs.version) || github.ref_name }}
       RELEASE_NOTES_PATH: docs/releases/android/${{ github.event_name == 'workflow_dispatch' && format('android-v{0}', inputs.version) || github.ref_name }}.md
-      OMNIMAIL_ANDROID_KEYSTORE_BASE64: ${{ secrets.OMNIMAIL_ANDROID_KEYSTORE_BASE64 }}
-      OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD }}
-      OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS }}
-      OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD }}
     steps:
       - name: Checkout Android tag
         uses: actions/checkout@v6
@@ -103,6 +99,11 @@ jobs:
           script: cd android && ./gradlew --no-daemon connectedDebugAndroidTest
 
       - name: Restore release signing key
+        env:
+          OMNIMAIL_ANDROID_KEYSTORE_BASE64: ${{ secrets.OMNIMAIL_ANDROID_KEYSTORE_BASE64 }}
+          OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD }}
+          OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS }}
+          OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD }}
         shell: bash
         run: |
           for NAME in \
@@ -124,6 +125,10 @@ jobs:
 
       - name: Test, lint, and build signed APK
         working-directory: android
+        env:
+          OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_STORE_PASSWORD }}
+          OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_ALIAS }}
+          OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.OMNIMAIL_ANDROID_SIGNING_KEY_PASSWORD }}
         run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease
 
       - name: Verify and package signed APK
