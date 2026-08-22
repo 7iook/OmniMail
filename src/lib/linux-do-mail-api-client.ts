@@ -38,5 +38,14 @@ export function createLinuxDoMailApi(request: Request, jsonBody: (value: unknown
       signal,
       timeoutMs: 30_000,
     }),
+    sendLinuxDoMail: (input: {
+      to: string
+      subject: string
+      text: string
+      idempotencyKey: string
+    }) => request<{ message: { id: string; status: string; providerId?: string } }>(
+      '/api/linux-do-mail/messages',
+      { method: 'POST', body: jsonBody(input) },
+    ),
   }
 }

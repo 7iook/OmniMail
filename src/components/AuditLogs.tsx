@@ -103,6 +103,7 @@ const actionLabels: Record<string, string> = {
   'linuxdo_mail.account.disconnect': '已断开 Linux DO 邮箱',
   'linuxdo_mail.account.verify': '已验证 Linux DO 邮箱',
   'linuxdo_mail.account.credential_update': '已更新 Linux DO 邮箱认证令牌',
+  'linuxdo_mail.message.send': '已发送 Linux DO 邮件',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',

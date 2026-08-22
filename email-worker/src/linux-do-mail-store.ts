@@ -95,8 +95,14 @@ export class LinuxDoMailAccountStore {
       account.password,
       this.context(account.id),
     )
+    const mailbox = await this.env.DB.prepare(
+      'SELECT user_id, is_hidden FROM mailboxes WHERE address = ? LIMIT 1',
+    ).bind(account.username).first<{ user_id: string; is_hidden: number }>()
+    if (mailbox && (mailbox.user_id !== this.userId || !mailbox.is_hidden)) {
+      throw new LinuxDoMailStoreError(409, '这个 Linux DO Mail 账号已被其他账户使用。')
+    }
     try {
-      await this.env.DB.prepare(
+      const accountStatement = this.env.DB.prepare(
         `INSERT INTO linux_do_mail_accounts (
           id, user_id, username, password_cipher, status, last_validated,
           last_error, created_at, updated_at
@@ -111,7 +117,18 @@ export class LinuxDoMailAccountStore {
         account.lastError,
         account.createdAt,
         account.createdAt,
-      ).run()
+      )
+      const mailboxStatement = mailbox
+        ? this.env.DB.prepare(
+          `UPDATE mailboxes SET is_active = 1
+           WHERE address = ? AND user_id = ? AND is_hidden = 1`,
+        ).bind(account.username, this.userId)
+        : this.env.DB.prepare(
+          `INSERT INTO mailboxes (
+            address, user_id, is_primary, is_active, created_at, is_hidden
+          ) VALUES (?, ?, 0, 1, unixepoch(), 1)`,
+        ).bind(account.username, this.userId)
+      await this.env.DB.batch([accountStatement, mailboxStatement])
     } catch (error) {
       if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
         throw new LinuxDoMailStoreError(409, '每个用户只能连接一个 Linux DO Mail 账号。')

@@ -1,6 +1,7 @@
 const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
 const CONSISTENCY_MIGRATION = '0022_consistency_guards.sql'
-const REQUIRED_MIGRATION = '0023_linux_do_mail_accounts.sql'
+const LINUX_DO_MAIL_MIGRATION = '0023_linux_do_mail_accounts.sql'
+const REQUIRED_MIGRATION = '0024_linux_do_mail_outbound.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -26,6 +27,7 @@ const WRANGLER_MIGRATION_NAMES = [
   '0020_device_token_scopes.sql',
   ICLOUD_MIGRATION,
   CONSISTENCY_MIGRATION,
+  LINUX_DO_MAIL_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -267,7 +269,7 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: LINUX_DO_MAIL_MIGRATION,
     statements: [
       `CREATE TABLE IF NOT EXISTS linux_do_mail_accounts (
         id TEXT PRIMARY KEY,
@@ -283,6 +285,19 @@ const RECOVERABLE_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_linux_do_mail_accounts_user
        ON linux_do_mail_accounts(user_id, created_at)`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `INSERT INTO mailboxes (
+        address, user_id, is_primary, is_active, created_at, is_hidden
+      )
+      SELECT username, user_id, 0, 1, unixepoch(), 1
+      FROM linux_do_mail_accounts
+      WHERE NOT EXISTS (
+        SELECT 1 FROM mailboxes WHERE address = linux_do_mail_accounts.username
+      )`,
     ],
   },
 ] as const

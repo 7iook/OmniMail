@@ -4,11 +4,11 @@
 
 **Linux DO Mail**
 
-加密连接 Linux DO Mail，并按需只读访问 INBOX。
+加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。
 
-> Connect Linux DO Mail with encrypted credentials and read INBOX on demand.
+> Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.
 
-本分类共 **7** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **8** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/linux-do-mail/account catalog:f9b5fa6d7c1e -->
 ## `GET /api/linux-do-mail/account`
@@ -139,6 +139,44 @@ curl --request PUT \
   --header "Content-Type: application/json" \
   --data '{
   "password": "new-authentication-token"
+}'
+```
+
+<!-- endpoint:POST /api/linux-do-mail/messages catalog:1a23b3da1588 -->
+## `POST /api/linux-do-mail/messages`
+
+**发送 Linux DO Mail 邮件 / Send a Linux DO Mail message**
+
+使用已连接账号通过 SMTP 465 异步发送邮件，并复用 OmniMail 的幂等、限速、队列和失败保护。
+
+> Send asynchronously through SMTP 465 with the connected account while reusing OmniMail idempotency, rate limits, queueing, and failure protection.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | JSON · to, subject, text, idempotencyKey |
+| 成功响应 | 200/202 · { message } |
+
+> 注意：From 固定为当前已验证的 Linux DO Mail 地址，不能由请求覆盖。
+>
+> Note: From is fixed to the currently verified Linux DO Mail address and cannot be overridden by the request.
+
+> 注意：当前额外执行每日 50 封硬上限；相同 idempotencyKey 不会重复入队。
+>
+> Note: A hard cap of 50 messages per day is currently enforced; the same idempotencyKey is not queued twice.
+
+### cURL 示例
+
+```bash
+curl --request POST \
+  --url "https://mail.example.com/api/linux-do-mail/messages" \
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "to": "recipient@example.net",
+  "subject": "Hello",
+  "text": "Message body",
+  "idempotencyKey": "request_12345678"
 }'
 ```
 

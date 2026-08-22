@@ -8,7 +8,7 @@ export interface OutboundJob {
   messageId: string
   userId: string
   ip: string
-  auditAction: 'message.reply' | 'message.send'
+  auditAction: 'message.reply' | 'message.send' | 'linuxdo_mail.message.send'
   auditDetail: Record<string, unknown>
 }
 

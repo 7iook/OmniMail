@@ -89,6 +89,7 @@ describe('device token scopes', () => {
       ['/api/linux-do-mail/account', 'POST'],
       ['/api/linux-do-mail/account/credential', 'PUT'],
       ['/api/linux-do-mail/inbox', 'GET'],
+      ['/api/linux-do-mail/messages', 'POST'],
     ]
     for (const [path, method] of denied) {
       await expect(deviceScopesAllow(

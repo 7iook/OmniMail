@@ -10,6 +10,7 @@ import {
   Mail,
   RefreshCw,
   ShieldCheck,
+  SquarePen,
   Unplug,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -20,6 +21,10 @@ import { t } from '../lib/i18n'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 import { ICloudMessageBody } from './ICloudMessageBody'
 import { LinuxDoMailCredentialDialog } from './LinuxDoMailCredentialDialog'
+import {
+  LinuxDoMailComposeDialog,
+  type LinuxDoMailComposeInput,
+} from './LinuxDoMailComposeDialog'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -52,7 +57,7 @@ function ConnectForm({ saving, error, onConnect }: {
         <div className="linuxdo-connect-heading">
           <p className="eyebrow">LINUX DO · IMAP</p>
           <h2>{t('连接 Linux DO 邮箱')}</h2>
-          <p>{t('使用完整邮箱地址登录，只读取 INBOX 中最近的邮件。')}</p>
+          <p>{t('使用完整邮箱地址登录，读取 INBOX 并通过官方 SMTP 发件。')}</p>
         </div>
         <label htmlFor="linuxdo-mail-username">
           <span>{t('邮箱用户名')}</span>
@@ -134,8 +139,9 @@ function MessageReader({ message, loading, remoteImagesEnabled, onBack }: {
   )
 }
 
-export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
+export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   remoteImagesEnabled: boolean
+  canSend: boolean
 }) {
   const [enabled, setEnabled] = useState(true)
   const [account, setAccount] = useState<LinuxDoMailAccount | null>(null)
@@ -145,12 +151,14 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
   const [syncing, setSyncing] = useState(false)
   const [messageLoading, setMessageLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [action, setAction] = useState<'verify' | 'update' | 'disconnect' | ''>('')
+  const [action, setAction] = useState<'verify' | 'update' | 'send' | 'disconnect' | ''>('')
+  const [composeOpen, setComposeOpen] = useState(false)
   const [credentialOpen, setCredentialOpen] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
   const [credentialError, setCredentialError] = useState('')
+  const [composeError, setComposeError] = useState('')
   const [notice, setNotice] = useState('')
   const inboxController = useRef<AbortController | null>(null)
   const messageController = useRef<AbortController | null>(null)
@@ -237,6 +245,17 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
     } finally { setAction('') }
   }
 
+  async function sendMessage(input: LinuxDoMailComposeInput) {
+    setAction('send'); setComposeError('')
+    try {
+      await api.sendLinuxDoMail(input)
+      setComposeOpen(false)
+      setNotice(t('邮件已加入发送队列'))
+    } catch (sendError) {
+      setComposeError(errorMessage(sendError))
+    } finally { setAction('') }
+  }
+
   async function openMessage(message: LinuxDoMailMessage) {
     messageController.current?.abort()
     const controller = new AbortController()
@@ -267,6 +286,13 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
               {t(account.status === 'active' ? '已连接' : '需要验证')}
             </span>
             <div className="icloud-header-action-buttons">
+              <button className="icon-button" type="button"
+                disabled={Boolean(action) || !canSend}
+                onClick={() => { setComposeError(''); setComposeOpen(true) }}
+                aria-label={t('新建 Linux DO 邮件')}
+                data-tooltip={t(canSend ? '新建 Linux DO 邮件' : '当前账户没有发信权限。')}>
+                <SquarePen size={17} />
+              </button>
               <button className="icon-button" type="button" disabled={Boolean(action)}
                 onClick={() => { setCredentialError(''); setCredentialOpen(true) }}
                 aria-label={t('更新认证令牌')} data-tooltip={t('更新认证令牌')}>
@@ -321,6 +347,9 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
       {credentialOpen && account && <LinuxDoMailCredentialDialog
         username={account.username} busy={action === 'update'} error={credentialError}
         onCancel={() => setCredentialOpen(false)} onSubmit={updateCredential} />}
+      {composeOpen && account && <LinuxDoMailComposeDialog
+        username={account.username} busy={action === 'send'} error={composeError}
+        onCancel={() => setComposeOpen(false)} onSubmit={sendMessage} />}
       {disconnectOpen && account && <DangerConfirmDialog icon={Unplug}
         eyebrow="LINUX DO MAIL" title={t('断开 Linux DO 邮箱？')}
         description={t('账号 {username} 将从 OmniMail 中移除。', { username: account.username })}

@@ -2,6 +2,8 @@ import { writeAudit } from './audit'
 import { ImapConnectionError } from './imap-errors'
 import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
 import type { LinuxDoMailImapClient } from './linux-do-mail-imap'
+import { sendOutboundMessage } from './outbound-message'
+import { validateNewMessage } from './send-message'
 import {
   LinuxDoMailAccountStore,
   LinuxDoMailStoreError,
@@ -240,5 +242,50 @@ export async function getLinuxDoMailMessage(
     return responseError(error)
   } finally {
     await client?.close()
+  }
+}
+
+export async function sendLinuxDoMailMessage(
+  env: Env,
+  user: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  try {
+    if (user.role !== 'super_admin' && !user.canReply) {
+      throw new LinuxDoMailStoreError(403, '当前账户没有发信权限。')
+    }
+    const body = await jsonBody(request)
+    const store = new LinuxDoMailAccountStore(env, user.id)
+    const account = await store.get()
+    const validated = validateNewMessage({
+      mailboxAddress: account.username,
+      to: typeof body.to === 'string' ? body.to : '',
+      subject: typeof body.subject === 'string' ? body.subject : '',
+      text: typeof body.text === 'string' ? body.text : '',
+      idempotencyKey: typeof body.idempotencyKey === 'string' ? body.idempotencyKey : '',
+    })
+    if ('error' in validated) {
+      throw new LinuxDoMailStoreError(400, validated.error || '邮件内容无效。')
+    }
+    const mailbox = await env.DB.prepare(
+      `SELECT 1 AS found FROM mailboxes
+        WHERE address = ? AND user_id = ? AND is_active = 1 AND is_hidden = 1`,
+    ).bind(account.username, user.id).first<{ found: number }>()
+    if (!mailbox) {
+      throw new LinuxDoMailStoreError(409, 'Linux DO Mail 发件通道尚未完成初始化。')
+    }
+    return sendOutboundMessage(env, user, {
+      mailboxAddress: account.username,
+      recipients: [validated.value.to],
+      subject: validated.value.subject,
+      text: validated.value.text,
+      idempotencyKey: validated.value.idempotencyKey,
+      auditAction: 'linuxdo_mail.message.send',
+      auditDetail: { recipient: validated.value.to },
+      rateLimitMaximums: { dayLimit: 50 },
+    }, ip)
+  } catch (error) {
+    return responseError(error)
   }
 }

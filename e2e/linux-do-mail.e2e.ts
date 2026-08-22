@@ -8,6 +8,9 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
   let account: null | Record<string, unknown> = null
   const connections: Array<{ username: string; password: string }> = []
   const credentialUpdates: Array<{ password: string }> = []
+  const sentMessages: Array<{
+    to: string; subject: string; text: string; idempotencyKey: string
+  }> = []
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -28,7 +31,7 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
     if (path === '/api/session') return json(route, { user: {
       id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
       mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
-      canCreateMailboxes: false, canReply: false, canTranslate: false,
+      canCreateMailboxes: false, canReply: true, canTranslate: false,
       temporaryExpiresAt: null,
     } })
     if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
@@ -49,6 +52,7 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
     if (path === '/api/linux-do-mail/account') return json(route, { enabled: true, account })
     if (path === '/api/linux-do-mail/account/credential') {
       credentialUpdates.push(request.postDataJSON())
+      await new Promise((resolve) => setTimeout(resolve, 100))
       if (options.rejectCredentialUpdate) return route.fulfill({
         status: 400,
         contentType: 'application/json',
@@ -58,6 +62,11 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
     }
     if (path === '/api/linux-do-mail/account/verify') {
       return json(route, { ok: true, validatedAt: '2026-08-22T00:00:00.000Z' })
+    }
+    if (path === '/api/linux-do-mail/messages') {
+      sentMessages.push(request.postDataJSON())
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return json(route, { message: { id: 'outbound-1', status: 'processing' } })
     }
     if (path === '/api/linux-do-mail/inbox/42') return json(route, { message: {
       id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
@@ -71,7 +80,7 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
     }] })
     return route.abort()
   })
-  return { connections, credentialUpdates }
+  return { connections, credentialUpdates, sentMessages }
 }
 
 test('connects a Linux DO mailbox with username and password and reads mail', async ({ page }) => {
@@ -104,11 +113,34 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   await credentialDialog.getByRole('button', { name: '显示密码' }).click()
   await expect(newPassword).toHaveAttribute('type', 'text')
   await credentialDialog.getByRole('button', { name: '验证并更新' }).click()
+  await expect(credentialDialog.locator('.lucide-loader-circle.spin')).toBeVisible()
+  await expect(credentialDialog.locator('.lucide-key-round')).toHaveCount(0)
   await expect.poll(() => state.credentialUpdates).toEqual([{ password: 'rotated-test-token' }])
   await expect(credentialDialog).toBeHidden()
   await expect(updateTrigger).toBeFocused()
   await expect(page.getByRole('status')).toContainText('认证令牌已更新')
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('rotated-test-token')
+
+  await page.getByRole('button', { name: '新建 Linux DO 邮件' }).click()
+  const composeDialog = page.getByRole('dialog', { name: '新建 Linux DO 邮件' })
+  await expect(composeDialog.getByLabel('收件人')).toBeFocused()
+  expect(await composeDialog.evaluate((element) => element.scrollWidth <= element.clientWidth))
+    .toBe(true)
+  await composeDialog.getByLabel('收件人').fill('recipient@example.com')
+  await composeDialog.getByLabel('主题').fill('来自 Linux DO 的问候')
+  await composeDialog.getByLabel('正文').fill('这是一封队列发送测试邮件。')
+  await composeDialog.getByRole('button', { name: '发送邮件' }).click()
+  await expect(composeDialog.locator('.lucide-loader-circle.spin')).toBeVisible()
+  await expect(composeDialog.locator('.lucide-send')).toHaveCount(0)
+  await expect.poll(() => state.sentMessages).toHaveLength(1)
+  expect(state.sentMessages[0]).toMatchObject({
+    to: 'recipient@example.com',
+    subject: '来自 Linux DO 的问候',
+    text: '这是一封队列发送测试邮件。',
+  })
+  expect(state.sentMessages[0].idempotencyKey).toMatch(/^[a-f0-9]{32}$/)
+  await expect(composeDialog).toBeHidden()
+  await expect(page.getByRole('status')).toContainText('邮件已加入发送队列')
 
   await page.getByRole('button', { name: /欢迎回来/ }).click()
   await expect(page.getByText('完整邮件内容', { exact: true })).toBeVisible()

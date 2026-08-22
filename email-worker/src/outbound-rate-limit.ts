@@ -175,8 +175,15 @@ export async function claimOutboundSend(
   db: D1Database,
   userId: string,
   now = Math.floor(Date.now() / 1000),
+  maximums?: { minuteLimit?: number; dayLimit?: number },
 ): Promise<OutboundRateLimitResult> {
-  const policy = await outboundRateLimitPolicy(db, userId)
+  const configured = await outboundRateLimitPolicy(db, userId)
+  const policy = maximums ? {
+    ...configured,
+    enabled: true,
+    minuteLimit: Math.min(configured.minuteLimit, maximums.minuteLimit ?? Infinity),
+    dayLimit: Math.min(configured.dayLimit, maximums.dayLimit ?? Infinity),
+  } : configured
   if (!policy.enabled) return { allowed: true }
   const minuteStartedAt = Math.floor(now / 60) * 60
   const dayStartedAt = Math.floor(now / 86_400) * 86_400

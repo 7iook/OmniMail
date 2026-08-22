@@ -112,6 +112,10 @@
 .linuxdo-credential-dialog .linuxdo-connect-note { font-size: 12px; }
 .linuxdo-credential-dialog .inline-error { margin: 0; }
 .linuxdo-credential-dialog .button { min-height: 44px; }
+.linuxdo-compose-dialog { width: min(560px, 100%); }
+.linuxdo-compose-dialog textarea { min-height: 180px; line-height: 1.6; }
+.linuxdo-compose-dialog .inline-error { margin: 0; }
+.linuxdo-compose-dialog .button { min-height: 44px; }
 
 @media (max-width: 760px) {
   .linuxdo-connect-shell { align-items: start; padding: 22px 16px 36px; }
@@ -120,4 +124,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .linuxdo-connect-card input { transition: none; }
+  .linuxdo-compose-dialog textarea { min-height: 150px; }
 }

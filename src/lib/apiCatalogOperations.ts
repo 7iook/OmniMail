@@ -129,6 +129,17 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
     notes: [l('响应不会包含新旧凭据。', 'The response never contains the old or new credential.')],
   },
   {
+    method: 'POST', path: '/api/linux-do-mail/messages', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('发送 Linux DO Mail 邮件', 'Send a Linux DO Mail message'),
+    description: l('使用已连接账号通过 SMTP 465 异步发送邮件，并复用 OmniMail 的幂等、限速、队列和失败保护。', 'Send asynchronously through SMTP 465 with the connected account while reusing OmniMail idempotency, rate limits, queueing, and failure protection.'),
+    request: 'JSON · to, subject, text, idempotencyKey', response: '200/202 · { message }',
+    exampleBody: { to: 'recipient@example.net', subject: 'Hello', text: 'Message body', idempotencyKey: 'request_12345678' },
+    notes: [
+      l('From 固定为当前已验证的 Linux DO Mail 地址，不能由请求覆盖。', 'From is fixed to the currently verified Linux DO Mail address and cannot be overridden by the request.'),
+      l('当前额外执行每日 50 封硬上限；相同 idempotencyKey 不会重复入队。', 'A hard cap of 50 messages per day is currently enforced; the same idempotencyKey is not queued twice.'),
+    ],
+  },
+  {
     method: 'GET', path: '/api/linux-do-mail/inbox', group: 'linuxdoMail', auth: 'authenticated',
     title: l('读取 Linux DO Mail 最近来信', 'List recent Linux DO Mail messages'),
     description: l('按用户操作通过 IMAP 读取 INBOX 中最近 20 封邮件摘要，不做后台同步。', 'Read summaries for the 20 most recent INBOX messages over IMAP on demand without background sync.'),

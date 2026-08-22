@@ -2,6 +2,12 @@ import { archiveSentAttachments, archiveSentMessage } from './mail-archive'
 import { textPreview, textToHtml } from './mail'
 import { messageSearchStatement } from './message-search'
 import { claimOutboundSend } from './outbound-rate-limit'
+import {
+  DELIVERY_UNCERTAIN_PREFIX,
+  OutboundDeliveryError,
+  OutboundProviderAcceptedError,
+} from './outbound-errors'
+import { deliverWithResend, deliverWithSendflare } from './outbound-http-provider'
 import { releaseStorage, reserveStorage } from './message-storage'
 import {
   outboundProviderConfigError,
@@ -23,8 +29,9 @@ export type OutboundMessage = {
   attachments?: OutboundAttachment[]
   attachmentUploads?: OutboundAttachmentUpload[]
   draftId?: string
-  auditAction: 'message.reply' | 'message.send'
+  auditAction: 'message.reply' | 'message.send' | 'linuxdo_mail.message.send'
   auditDetail: Record<string, unknown>
+  rateLimitMaximums?: { minuteLimit?: number; dayLimit?: number }
 }
 
 export type OutboundAttachment = {
@@ -74,29 +81,11 @@ function messageResult(row: {
   }
 }
 
-export class OutboundDeliveryError extends Error {
-  retryable: boolean
-  deliveryUncertain: boolean
-
-  constructor(message: string, retryable = true, deliveryUncertain = false) {
-    super(message)
-    this.name = 'OutboundDeliveryError'
-    this.retryable = retryable
-    this.deliveryUncertain = deliveryUncertain
-  }
-}
-
-export class OutboundProviderAcceptedError extends Error {
-  providerId: string
-
-  constructor(providerId: string, cause: unknown) {
-    super(cause instanceof Error ? cause.message : 'Unable to record accepted outbound message')
-    this.name = 'OutboundProviderAcceptedError'
-    this.providerId = providerId
-  }
-}
-
-export const DELIVERY_UNCERTAIN_PREFIX = '投递结果不确定，已停止自动重试：'
+export {
+  DELIVERY_UNCERTAIN_PREFIX,
+  OutboundDeliveryError,
+  OutboundProviderAcceptedError,
+} from './outbound-errors'
 
 export function scopedIdempotencyKey(userId: string, key: string): string {
   return `${userId}:${key}`
@@ -109,114 +98,6 @@ export function arrayBufferToBase64(value: ArrayBuffer): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
   }
   return btoa(binary)
-}
-
-type DeliveryPayload = {
-  from: string
-  to: string[]
-  replyTo: string
-  subject: string
-  text: string
-  html: string
-  idempotencyKey: string
-  headers: Record<string, string>
-  attachments: Array<{ filename: string; content: string }>
-}
-
-function retryableProviderStatus(status: number): boolean {
-  return status === 408 || status === 409 || status === 429 || status >= 500
-}
-
-async function deliverWithResend(
-  config: OutboundProviderConfig,
-  payload: DeliveryPayload,
-): Promise<string> {
-  let response: Response
-  try {
-    response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': `omnimail-${payload.idempotencyKey}`,
-        'User-Agent': 'OmniMail/0.1',
-      },
-      body: JSON.stringify({
-        from: payload.from,
-        to: payload.to,
-        reply_to: payload.replyTo,
-        subject: payload.subject,
-        text: payload.text,
-        html: payload.html,
-        attachments: payload.attachments.length ? payload.attachments : undefined,
-        headers: payload.headers,
-      }),
-      signal: AbortSignal.timeout(payload.attachments.length ? 60_000 : 15_000),
-    })
-  } catch (error) {
-    throw new OutboundDeliveryError(
-      error instanceof Error ? error.message : 'Resend request failed',
-    )
-  }
-  const result = await response.json<{ id?: string; message?: string }>()
-    .catch(() => ({} as { id?: string; message?: string }))
-  if (!response.ok || !result.id) {
-    throw new OutboundDeliveryError(
-      result.message || `Resend returned ${response.status}`,
-      retryableProviderStatus(response.status),
-    )
-  }
-  return result.id
-}
-
-async function deliverWithSendflare(
-  config: OutboundProviderConfig,
-  payload: DeliveryPayload,
-): Promise<string> {
-  if (payload.to.length !== 1) {
-    throw new OutboundDeliveryError('SendFlare requires exactly one recipient', false)
-  }
-  let response: Response
-  try {
-    response = await fetch('https://api.sendflare.com/v1/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json; charset=utf-8',
-        'User-Agent': 'OmniMail/0.1',
-      },
-      body: JSON.stringify({
-        from: config.from || payload.replyTo,
-        to: payload.to[0],
-        subject: payload.subject,
-        body: payload.html,
-        replyTo: [payload.replyTo],
-      }),
-      signal: AbortSignal.timeout(15_000),
-    })
-  } catch (error) {
-    throw new OutboundDeliveryError(
-      `${DELIVERY_UNCERTAIN_PREFIX}${error instanceof Error ? error.message : 'SendFlare request failed'}`,
-      false,
-      true,
-    )
-  }
-  type SendflareResult = {
-    success?: boolean
-    message?: string
-    requestId?: string
-    data?: { emailId?: string; emilId?: string }
-  }
-  const result = await response.json<SendflareResult>()
-    .catch(() => ({} as SendflareResult))
-  const providerReference = result.data?.emailId || result.data?.emilId || result.requestId
-  if (!response.ok || !result.success || !providerReference) {
-    throw new OutboundDeliveryError(
-      result.message || `SendFlare returned ${response.status}`,
-      retryableProviderStatus(response.status),
-    )
-  }
-  return `sendflare:${providerReference}`
 }
 
 async function queueOutbound(
@@ -306,7 +187,12 @@ export async function sendOutboundMessage(
     )
   }
 
-  const rateLimit = await claimOutboundSend(env.DB, user.id)
+  const rateLimit = await claimOutboundSend(
+    env.DB,
+    user.id,
+    undefined,
+    input.rateLimitMaximums,
+  )
   if (!rateLimit.allowed) {
     return Response.json(
       { error: '发信过于频繁，请稍后再试。' },
@@ -472,28 +358,38 @@ type OutboundRecord = {
   references_header: string | null
   client_request_id: string | null
   domain_is_active: number
+  mailbox_is_hidden: number
 }
 
 export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promise<void> {
   const record = await env.DB.prepare(
     `SELECT id, status, mailbox_address, sender_name, recipients_json, subject,
             body_key, in_reply_to, references_header, client_request_id,
+            mb.is_hidden AS mailbox_is_hidden,
             EXISTS (
               SELECT 1 FROM domains d
                WHERE d.name = LOWER(SUBSTR(messages.mailbox_address,
                  INSTR(messages.mailbox_address, '@') + 1))
                  AND d.is_active = 1
             ) AS domain_is_active
-       FROM messages WHERE id = ? AND direction = 'outgoing'`,
+       FROM messages
+       JOIN mailboxes mb ON mb.address = messages.mailbox_address
+       WHERE id = ? AND direction = 'outgoing'`,
   ).bind(job.messageId).first<OutboundRecord>()
   if (!record || record.status === 'sent') return
-  if (!record.domain_is_active) {
+  const isLinuxDoMail = Boolean(record.mailbox_is_hidden)
+  if (!isLinuxDoMail && !record.domain_is_active) {
     throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
   }
-  const configError = outboundProviderConfigError(env)
-  if (configError) throw new OutboundDeliveryError(configError, false)
-  let provider = outboundProviderForAddress(env, record.mailbox_address)
-  if (!provider) throw new OutboundDeliveryError('No outbound provider is configured for the domain', false)
+  let provider: OutboundProviderConfig | undefined
+  if (!isLinuxDoMail) {
+    const configError = outboundProviderConfigError(env)
+    if (configError) throw new OutboundDeliveryError(configError, false)
+    provider = outboundProviderForAddress(env, record.mailbox_address) || undefined
+    if (!provider) {
+      throw new OutboundDeliveryError('No outbound provider is configured for the domain', false)
+    }
+  }
   if (!record.body_key || !record.client_request_id) {
     throw new OutboundDeliveryError('Outbound message body is missing', false)
   }
@@ -511,10 +407,10 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     throw new OutboundDeliveryError('Outbound recipients are invalid', false)
   }
   const { results: attachmentRows } = await env.DB.prepare(
-    `SELECT filename, r2_key FROM attachments
+    `SELECT filename, content_type, r2_key FROM attachments
       WHERE message_id = ? ORDER BY id`,
-  ).bind(record.id).all<{ filename: string; r2_key: string }>()
-  if (provider.provider === 'sendflare' && attachmentRows.length) {
+  ).bind(record.id).all<{ filename: string; content_type: string; r2_key: string }>()
+  if (provider?.provider === 'sendflare' && attachmentRows.length) {
     const resendFallback = resendConfigForAddress(env, record.mailbox_address)
     if (!resendFallback) {
       throw new OutboundDeliveryError(
@@ -534,10 +430,11 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     }
     return {
       filename: attachment.filename,
+      contentType: attachment.content_type,
       content: arrayBufferToBase64(await object.arrayBuffer()),
     }
   }))
-  const from = provider.from
+  const from = provider?.from
     || `${(record.sender_name || record.mailbox_address).replace(/[\r\n<>"]/g, '')} <${record.mailbox_address}>`
   const headers: Record<string, string> = {}
   if (record.in_reply_to) headers['In-Reply-To'] = record.in_reply_to
@@ -547,9 +444,41 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     subject: record.subject, text: body.text, html: body.html,
     idempotencyKey: record.client_request_id, headers, attachments,
   }
-  const providerId = provider.provider === 'sendflare'
-    ? await deliverWithSendflare(provider, payload)
-    : await deliverWithResend(provider, payload)
+  let providerId = ''
+  if (isLinuxDoMail) {
+    if (recipients.length !== 1) {
+      throw new OutboundDeliveryError('Linux DO Mail requires exactly one recipient', false)
+    }
+    const { deliverWithLinuxDoMail, LinuxDoMailOutboundError } = await import(
+      './linux-do-mail-outbound-provider'
+    )
+    try {
+      providerId = await deliverWithLinuxDoMail(env, {
+        userId: job.userId,
+        mailboxAddress: record.mailbox_address,
+        recipient: recipients[0],
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        attachments,
+      })
+    } catch (error) {
+      if (error instanceof LinuxDoMailOutboundError) {
+        throw new OutboundDeliveryError(
+          error.deliveryUncertain
+            ? `${DELIVERY_UNCERTAIN_PREFIX}${error.message}`
+            : error.message,
+          error.retryable,
+          error.deliveryUncertain,
+        )
+      }
+      throw error
+    }
+  } else if (provider?.provider === 'sendflare') {
+    providerId = await deliverWithSendflare(provider, payload)
+  } else if (provider) {
+    providerId = await deliverWithResend(provider, payload)
+  }
   try {
     await env.DB.prepare(
       `UPDATE messages
@@ -558,7 +487,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       WHERE id = ?`,
     ).bind(providerId, record.id).run()
   } catch (error) {
-    if (provider.provider === 'sendflare') {
+    if (isLinuxDoMail || provider?.provider === 'sendflare') {
       throw new OutboundProviderAcceptedError(providerId, error)
     }
     throw error
@@ -578,7 +507,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   } catch (error) {
     console.error('Unable to write outbound delivery audit', error)
   }
-  if (provider.provider === 'resend') {
+  if (provider?.provider === 'resend') {
     try {
       await reconcileResendEvents(env, providerId, record.id)
     } catch (error) {

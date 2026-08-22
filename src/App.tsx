@@ -362,7 +362,7 @@ function Mailbox({
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}
       />
-      {adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
+      {adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
         : adminView === 'icloud' ? (
         <Suspense fallback={(
           <div className="icloud-mail-view"><section className="list-pane"><div className="statistics-loading" role="status">
