@@ -108,32 +108,37 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
   return { connections, credentialUpdates, searches, sentMessages }
 }
 
+async function openConnectDialog(page: Page) {
+  await page.getByRole('button', { name: '连接 Linux DO 邮箱' }).click()
+  const dialog = page.getByRole('dialog', { name: '连接 Linux DO 邮箱' })
+  await expect(dialog).toHaveClass(/icloud-modal/)
+  await expect(dialog.getByLabel('邮箱用户名')).toBeFocused()
+  return dialog
+}
+
 test('connects a Linux DO mailbox with username and password and reads mail', async ({ page }) => {
   const state = await mockLinuxDoMail(page)
   await page.goto('/linux-do-mail')
 
-  const workspace = page.locator('.linuxdo-mail-view')
-  const connectPanel = page.locator('.linuxdo-connect-panel')
-  await expect(workspace).toHaveClass(/is-onboarding/)
-  await expect(page.getByRole('heading', { name: '专注处理每一封 Linux DO 邮件' })).toBeVisible()
-  await expect(page.locator('.reader-pane')).toHaveCount(0)
-  expect(await connectPanel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await expect(page.getByRole('heading', { name: '还没有连接 Linux DO 邮箱' })).toBeVisible()
+  await expect(page.locator('.reader-pane')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '添加 Linux DO 邮箱账号' })).toBeVisible()
+  const connectDialog = await openConnectDialog(page)
+  expect(await connectDialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await page.setViewportSize({ width: 375, height: 812 })
-  expect(await connectPanel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect(await connectDialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await page.setViewportSize({ width: 1280, height: 720 })
-  await expect(page.getByRole('heading', { name: '连接 Linux DO 邮箱' })).toBeVisible()
-  await page.getByLabel('邮箱用户名').fill('member@linux.do')
-  const password = page.getByLabel('密码或认证令牌')
+  await connectDialog.getByLabel('邮箱用户名').fill('member@linux.do')
+  const password = connectDialog.getByLabel('密码或认证令牌')
   await password.fill('revocable-test-token')
-  await page.getByRole('button', { name: '显示密码' }).click()
+  await connectDialog.getByRole('button', { name: '显示密码' }).click()
   await expect(password).toHaveAttribute('type', 'text')
-  await page.getByRole('button', { name: '验证并连接' }).click()
+  await connectDialog.getByRole('button', { name: '验证并连接' }).click()
 
   await expect.poll(() => state.connections).toEqual([{
     username: 'member@linux.do', password: 'revocable-test-token',
   }])
-  await expect(workspace).not.toHaveClass(/is-onboarding/)
-  await expect(page.locator('.reader-pane')).toHaveCount(1)
+  await expect(connectDialog).toBeHidden()
   await expect(page.getByText('欢迎回来')).toBeVisible()
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('revocable-test-token')
 
@@ -227,9 +232,10 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
 test('keeps the credential dialog recoverable after validation fails', async ({ page }) => {
   await mockLinuxDoMail(page, { rejectCredentialUpdate: true })
   await page.goto('/linux-do-mail')
-  await page.getByLabel('邮箱用户名').fill('member@linux.do')
-  await page.getByLabel('密码或认证令牌').fill('revocable-test-token')
-  await page.getByRole('button', { name: '验证并连接' }).click()
+  const connectDialog = await openConnectDialog(page)
+  await connectDialog.getByLabel('邮箱用户名').fill('member@linux.do')
+  await connectDialog.getByLabel('密码或认证令牌').fill('revocable-test-token')
+  await connectDialog.getByRole('button', { name: '验证并连接' }).click()
 
   const trigger = page.getByRole('button', { name: '管理 Linux DO 账号' })
   await trigger.click()
@@ -249,9 +255,10 @@ test('keeps the credential dialog recoverable after validation fails', async ({ 
 test('disconnects through the destructive confirmation dialog', async ({ page }) => {
   await mockLinuxDoMail(page)
   await page.goto('/linux-do-mail')
-  await page.getByLabel('邮箱用户名').fill('member@linux.do')
-  await page.getByLabel('密码或认证令牌').fill('revocable-test-token')
-  await page.getByRole('button', { name: '验证并连接' }).click()
+  const connectDialog = await openConnectDialog(page)
+  await connectDialog.getByLabel('邮箱用户名').fill('member@linux.do')
+  await connectDialog.getByLabel('密码或认证令牌').fill('revocable-test-token')
+  await connectDialog.getByRole('button', { name: '验证并连接' }).click()
   await page.getByRole('button', { name: '管理 Linux DO 账号' }).click()
   await page.getByRole('dialog', { name: 'Linux DO 账号管理' })
     .getByRole('button', { name: '断开账号' }).click()
@@ -259,5 +266,5 @@ test('disconnects through the destructive confirmation dialog', async ({ page })
   const dialog = page.getByRole('alertdialog', { name: '断开 Linux DO 邮箱？' })
   await expect(dialog).toContainText('已保存的密文会被删除')
   await dialog.getByRole('button', { name: '断开账号' }).click()
-  await expect(page.getByRole('heading', { name: '连接 Linux DO 邮箱' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '还没有连接 Linux DO 邮箱' })).toBeVisible()
 })
