@@ -1,37 +1,132 @@
+.linuxdo-mail-view.is-onboarding { grid-template-columns: minmax(0, 1fr); }
+.linuxdo-mail-view.is-onboarding .icloud-list-pane { border-right: 0; }
+.linuxdo-mail-view.is-onboarding .icloud-list-header {
+  width: min(100%, 984px);
+  margin-inline: auto;
+  padding-inline: 32px;
+}
+
 .linuxdo-connect-shell {
   display: grid;
   min-height: 0;
   flex: 1;
   place-items: center;
-  padding: 20px 18px 32px;
+  padding: 24px 32px 48px;
   overflow-y: auto;
 }
 
-.linuxdo-connect-card {
+.linuxdo-connect-panel {
   display: grid;
-  width: min(100%, 340px);
-  gap: 15px;
-  padding: 24px;
+  width: min(100%, 920px);
+  min-height: 500px;
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 400px);
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-lg);
 }
 
-.linuxdo-connect-symbol {
+.linuxdo-connect-intro {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 42px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.linuxdo-connect-brand {
   display: grid;
   width: 48px;
   height: 48px;
   place-items: center;
   border-radius: 15px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.linuxdo-connect-intro .eyebrow {
+  margin: 30px 0 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.linuxdo-connect-intro h2 {
+  max-width: 440px;
+  margin: 0;
+  font-size: clamp(27px, 3vw, 36px);
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+}
+
+.linuxdo-connect-intro > p:last-of-type {
+  max-width: 430px;
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.linuxdo-connect-features {
+  display: grid;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 32px;
+}
+
+.linuxdo-connect-features > span {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.linuxdo-connect-features > span > svg {
+  justify-self: center;
+  color: var(--text-secondary);
+}
+
+.linuxdo-connect-features > span > span { display: grid; min-width: 0; gap: 2px; }
+.linuxdo-connect-features strong { color: var(--text); font-size: 11px; }
+.linuxdo-connect-features small { color: var(--text-tertiary); font-size: 9px; line-height: 1.45; }
+
+.linuxdo-connect-card {
+  display: grid;
+  align-content: center;
+  gap: 15px;
+  padding: 40px 36px;
+}
+
+.linuxdo-connect-symbol {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 13px;
   background: var(--surface-muted);
   color: var(--text-secondary);
 }
 
-.linuxdo-connect-heading { display: grid; gap: 5px; }
+.linuxdo-connect-heading { display: flex; align-items: center; gap: 12px; }
+.linuxdo-connect-heading > span:last-child { display: grid; min-width: 0; gap: 3px; }
 .linuxdo-connect-heading .eyebrow { margin: 0; color: var(--text-tertiary); font-size: 10px; letter-spacing: 0.13em; }
 .linuxdo-connect-heading h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
-.linuxdo-connect-heading > p:last-child { margin: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.6; }
+
+.linuxdo-connect-description {
+  margin: -2px 0 2px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+}
 
 .linuxdo-connect-card > label {
   display: grid;
@@ -287,8 +382,25 @@
 }
 
 @media (max-width: 760px) {
-  .linuxdo-connect-shell { align-items: start; padding: 22px 16px 36px; }
-  .linuxdo-connect-card { width: min(100%, 420px); padding: 22px 18px; }
+  .linuxdo-mail-view.is-onboarding .icloud-list-header { padding-inline: 20px; }
+  .linuxdo-connect-shell { align-items: start; padding: 10px 16px 36px; }
+  .linuxdo-connect-panel {
+    width: min(100%, 520px);
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    border-radius: 20px;
+  }
+  .linuxdo-connect-intro {
+    padding: 23px 22px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .linuxdo-connect-brand { width: 42px; height: 42px; border-radius: 13px; }
+  .linuxdo-connect-intro .eyebrow { margin-top: 19px; }
+  .linuxdo-connect-intro h2 { font-size: 24px; }
+  .linuxdo-connect-intro > p:last-of-type { margin-top: 9px; font-size: 12px; }
+  .linuxdo-connect-features { display: none; }
+  .linuxdo-connect-card { padding: 24px 22px 26px; }
   .linuxdo-account-dialog { width: 100%; }
   .linuxdo-account-action,
   .linuxdo-account-danger { align-items: stretch; flex-direction: column; gap: 10px; }

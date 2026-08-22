@@ -68,42 +68,67 @@ function ConnectForm({ saving, error, onConnect }: {
   }
   return (
     <div className="linuxdo-connect-shell">
-      <form className="linuxdo-connect-card" onSubmit={(event) => void submit(event)}>
-        <span className="linuxdo-connect-symbol"><Mail size={24} aria-hidden="true" /></span>
-        <div className="linuxdo-connect-heading">
-          <p className="eyebrow">LINUX DO · IMAP</p>
-          <h2>{t('连接 Linux DO 邮箱')}</h2>
-          <p>{t('使用完整邮箱地址登录，读取 INBOX 并通过官方 SMTP 发件。')}</p>
-        </div>
-        <label htmlFor="linuxdo-mail-username">
-          <span>{t('邮箱用户名')}</span>
-          <input id="linuxdo-mail-username" type="email" required maxLength={254}
-            autoComplete="section-linuxdo username" placeholder="name@linux.do"
-            value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <label htmlFor="linuxdo-mail-password">
-          <span>{t('密码或认证令牌')}</span>
-          <span className="linuxdo-password-field">
-            <input id="linuxdo-mail-password" type={showPassword ? 'text' : 'password'} required
-              maxLength={512} autoComplete="section-linuxdo current-password"
-              aria-describedby="linuxdo-mail-password-help" value={password}
-              onChange={(event) => setPassword(event.target.value)} />
-            <button type="button" onClick={() => setShowPassword((shown) => !shown)}
-              aria-label={t(showPassword ? '隐藏密码' : '显示密码')}>
-              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </span>
-        </label>
-        <p id="linuxdo-mail-password-help" className="linuxdo-connect-note">
-          <ShieldCheck size={15} aria-hidden="true" />
-          {t('官方建议在认证令牌页面生成专用令牌；凭据会在 Worker 内加密，保存后不会回传。')}
-        </p>
-        {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
-        <button className="button button--primary" disabled={saving}>
-          {saving ? <Spinner /> : <KeyRound size={16} />}
-          {t(saving ? '正在验证…' : '验证并连接')}
-        </button>
-      </form>
+      <div className="linuxdo-connect-panel">
+        <section className="linuxdo-connect-intro" aria-labelledby="linuxdo-connect-intro-title">
+          <span className="linuxdo-connect-brand"><Mail size={22} aria-hidden="true" /></span>
+          <p className="eyebrow">LINUX DO · MAIL</p>
+          <h2 id="linuxdo-connect-intro-title">{t('专注处理每一封 Linux DO 邮件')}</h2>
+          <p>{t('连接后即可在 OmniMail 中收件、搜索，并通过官方 SMTP 安全发信。')}</p>
+          <div className="linuxdo-connect-features">
+            <span><Inbox size={17} aria-hidden="true" /><span>
+              <strong>{t('服务器端收件')}</strong>
+              <small>{t('直接读取 INBOX，不搬移服务器邮件。')}</small>
+            </span></span>
+            <span><Search size={17} aria-hidden="true" /><span>
+              <strong>{t('完整邮件搜索')}</strong>
+              <small>{t('搜索主题、联系人和正文。')}</small>
+            </span></span>
+            <span><Send size={17} aria-hidden="true" /><span>
+              <strong>{t('官方 SMTP 发信')}</strong>
+              <small>{t('始终使用已验证的 Linux DO 地址发送。')}</small>
+            </span></span>
+          </div>
+        </section>
+
+        <form className="linuxdo-connect-card" onSubmit={(event) => void submit(event)}>
+          <div className="linuxdo-connect-heading">
+            <span className="linuxdo-connect-symbol"><KeyRound size={20} aria-hidden="true" /></span>
+            <span><p className="eyebrow">LINUX DO · IMAP</p>
+              <h2>{t('连接 Linux DO 邮箱')}</h2></span>
+          </div>
+          <p className="linuxdo-connect-description">
+            {t('使用完整的 @linux.do 地址和密码或认证令牌。')}
+          </p>
+          <label htmlFor="linuxdo-mail-username">
+            <span>{t('邮箱用户名')}</span>
+            <input id="linuxdo-mail-username" type="email" required maxLength={254}
+              autoComplete="section-linuxdo username" placeholder="name@linux.do"
+              value={username} onChange={(event) => setUsername(event.target.value)} />
+          </label>
+          <label htmlFor="linuxdo-mail-password">
+            <span>{t('密码或认证令牌')}</span>
+            <span className="linuxdo-password-field">
+              <input id="linuxdo-mail-password" type={showPassword ? 'text' : 'password'} required
+                maxLength={512} autoComplete="section-linuxdo current-password"
+                aria-describedby="linuxdo-mail-password-help" value={password}
+                onChange={(event) => setPassword(event.target.value)} />
+              <button type="button" onClick={() => setShowPassword((shown) => !shown)}
+                aria-label={t(showPassword ? '隐藏密码' : '显示密码')}>
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </span>
+          </label>
+          <p id="linuxdo-mail-password-help" className="linuxdo-connect-note">
+            <ShieldCheck size={15} aria-hidden="true" />
+            {t('建议使用可撤销的专用认证令牌；凭据只会加密保存在 Worker 中。')}
+          </p>
+          {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
+          <button className="button button--primary" disabled={saving}>
+            {saving ? <Spinner /> : <KeyRound size={16} />}
+            {t(saving ? '正在验证…' : '验证并连接')}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
@@ -344,7 +369,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   }
 
   return (
-    <div className={`icloud-mail-view linuxdo-mail-view${opened ? ' has-selection' : ''}`}>
+    <div className={`icloud-mail-view linuxdo-mail-view${!account ? ' is-onboarding' : ''}${opened ? ' has-selection' : ''}`}>
       <section className="list-pane icloud-list-pane page-content-enter">
         <header className="list-header icloud-list-header">
           <div><p className="eyebrow">LINUX DO · MAIL</p><h1>Linux DO</h1></div>
@@ -430,10 +455,10 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
               description={t('INBOX 中暂时没有邮件，或账号凭据需要重新验证。')} />}
       </section>
 
-      <main className="reader-pane icloud-reader-pane">
+      {account && <main className="reader-pane icloud-reader-pane">
         <MessageReader message={opened} folder={folder} loading={messageLoading}
           remoteImagesEnabled={remoteImagesEnabled} onBack={closeMessage} />
-      </main>
+      </main>}
 
       {accountOpen && account && <LinuxDoMailAccountDialog
         account={account} action={action === 'verify' || action === 'update' ? action : ''}

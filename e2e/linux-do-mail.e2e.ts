@@ -112,6 +112,15 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   const state = await mockLinuxDoMail(page)
   await page.goto('/linux-do-mail')
 
+  const workspace = page.locator('.linuxdo-mail-view')
+  const connectPanel = page.locator('.linuxdo-connect-panel')
+  await expect(workspace).toHaveClass(/is-onboarding/)
+  await expect(page.getByRole('heading', { name: '专注处理每一封 Linux DO 邮件' })).toBeVisible()
+  await expect(page.locator('.reader-pane')).toHaveCount(0)
+  expect(await connectPanel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.setViewportSize({ width: 375, height: 812 })
+  expect(await connectPanel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 720 })
   await expect(page.getByRole('heading', { name: '连接 Linux DO 邮箱' })).toBeVisible()
   await page.getByLabel('邮箱用户名').fill('member@linux.do')
   const password = page.getByLabel('密码或认证令牌')
@@ -123,6 +132,8 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   await expect.poll(() => state.connections).toEqual([{
     username: 'member@linux.do', password: 'revocable-test-token',
   }])
+  await expect(workspace).not.toHaveClass(/is-onboarding/)
+  await expect(page.locator('.reader-pane')).toHaveCount(1)
   await expect(page.getByText('欢迎回来')).toBeVisible()
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('revocable-test-token')
 
