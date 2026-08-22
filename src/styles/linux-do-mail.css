@@ -107,6 +107,12 @@
 .linuxdo-status.is-error { background: var(--danger-soft); color: var(--danger); }
 .linuxdo-disconnect { color: var(--danger); }
 
+.linuxdo-credential-dialog { width: min(460px, 100%); }
+.linuxdo-credential-dialog .linuxdo-password-field { display: block; }
+.linuxdo-credential-dialog .linuxdo-connect-note { font-size: 12px; }
+.linuxdo-credential-dialog .inline-error { margin: 0; }
+.linuxdo-credential-dialog .button { min-height: 44px; }
+
 @media (max-width: 760px) {
   .linuxdo-connect-shell { align-items: start; padding: 22px 16px 36px; }
   .linuxdo-connect-card { width: min(100%, 420px); padding: 22px 18px; }

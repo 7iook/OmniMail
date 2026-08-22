@@ -22,6 +22,13 @@ export function createLinuxDoMailApi(request: Request, jsonBody: (value: unknown
       '/api/linux-do-mail/account/verify',
       { method: 'POST', timeoutMs: 30_000 },
     ),
+    updateLinuxDoMailCredential: (password: string) => request<{
+      account: LinuxDoMailAccount
+    }>('/api/linux-do-mail/account/credential', {
+      method: 'PUT',
+      body: jsonBody({ password }),
+      timeoutMs: 30_000,
+    }),
     linuxDoMailInbox: (signal?: AbortSignal) => request<{
       messages: LinuxDoMailMessage[]
     }>('/api/linux-do-mail/inbox', { signal, timeoutMs: 30_000 }),

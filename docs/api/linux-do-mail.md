@@ -8,7 +8,7 @@
 
 > Connect Linux DO Mail with encrypted credentials and read INBOX on demand.
 
-本分类共 **6** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **7** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/linux-do-mail/account catalog:f9b5fa6d7c1e -->
 ## `GET /api/linux-do-mail/account`
@@ -109,6 +109,37 @@ curl --request DELETE \
 curl --request POST \
   --url "https://mail.example.com/api/linux-do-mail/account/verify" \
   --header "Authorization: Bearer om_at_..."
+```
+
+<!-- endpoint:PUT /api/linux-do-mail/account/credential catalog:2e731940d2c8 -->
+## `PUT /api/linux-do-mail/account/credential`
+
+**更新 Linux DO Mail 凭据 / Update the Linux DO Mail credential**
+
+先验证新密码或认证令牌，再替换已保存的密文；验证失败时保留原凭据。
+
+> Validate the new password or authentication token before replacing the saved ciphertext; keep the existing credential when validation fails.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | JSON · password |
+| 成功响应 | 200 · { account } |
+
+> 注意：响应不会包含新旧凭据。
+>
+> Note: The response never contains the old or new credential.
+
+### cURL 示例
+
+```bash
+curl --request PUT \
+  --url "https://mail.example.com/api/linux-do-mail/account/credential" \
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "password": "new-authentication-token"
+}'
 ```
 
 <!-- endpoint:GET /api/linux-do-mail/inbox catalog:217cd01fb08d -->

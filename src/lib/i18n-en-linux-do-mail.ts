@@ -36,4 +36,13 @@ export const enLinuxDoMail: Record<string, string> = {
   '已连接 Linux DO 邮箱': 'Connected Linux DO Mail',
   '已断开 Linux DO 邮箱': 'Disconnected Linux DO Mail',
   '已验证 Linux DO 邮箱': 'Verified Linux DO Mail',
+  '已更新 Linux DO 邮箱认证令牌': 'Updated Linux DO Mail credential',
+  '更新密码或认证令牌': 'Update password or authentication token',
+  '更新认证令牌': 'Update authentication token',
+  '为账号 {username} 输入新凭据；验证成功后才会替换已保存的密文。': 'Enter a new credential for {username}. The saved ciphertext is replaced only after validation succeeds.',
+  '新密码或认证令牌': 'New password or authentication token',
+  '新凭据不会显示或保存到浏览器；建议使用可撤销的专用认证令牌。': 'The new credential is neither displayed nor stored in the browser. A revocable dedicated authentication token is recommended.',
+  '正在验证并更新…': 'Validating and updating…',
+  '验证并更新': 'Validate and update',
+  '认证令牌已更新': 'Authentication token updated',
 }

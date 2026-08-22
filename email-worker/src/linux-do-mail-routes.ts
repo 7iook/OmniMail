@@ -7,6 +7,7 @@ import {
   getLinuxDoMailAccount,
   getLinuxDoMailMessage,
   listLinuxDoMailInbox,
+  updateLinuxDoMailCredential,
   verifyLinuxDoMailAccount,
 } from './linux-do-mail-api'
 
@@ -34,6 +35,14 @@ linuxDoMailRoutes.post('/linux-do-mail/account/verify', (context) => (
   verifyLinuxDoMailAccount(
     context.env,
     context.get('user'),
+    clientIp(context.req.raw.headers),
+  )
+))
+linuxDoMailRoutes.put('/linux-do-mail/account/credential', (context) => (
+  updateLinuxDoMailCredential(
+    context.env,
+    context.get('user'),
+    context.req.raw,
     clientIp(context.req.raw.headers),
   )
 ))

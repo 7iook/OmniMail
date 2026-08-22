@@ -121,6 +121,14 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
     request: 'No parameters', response: '200 · { ok: true, validatedAt }',
   },
   {
+    method: 'PUT', path: '/api/linux-do-mail/account/credential', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('更新 Linux DO Mail 凭据', 'Update the Linux DO Mail credential'),
+    description: l('先验证新密码或认证令牌，再替换已保存的密文；验证失败时保留原凭据。', 'Validate the new password or authentication token before replacing the saved ciphertext; keep the existing credential when validation fails.'),
+    request: 'JSON · password', response: '200 · { account }',
+    exampleBody: { password: 'new-authentication-token' },
+    notes: [l('响应不会包含新旧凭据。', 'The response never contains the old or new credential.')],
+  },
+  {
     method: 'GET', path: '/api/linux-do-mail/inbox', group: 'linuxdoMail', auth: 'authenticated',
     title: l('读取 Linux DO Mail 最近来信', 'List recent Linux DO Mail messages'),
     description: l('按用户操作通过 IMAP 读取 INBOX 中最近 20 封邮件摘要，不做后台同步。', 'Read summaries for the 20 most recent INBOX messages over IMAP on demand without background sync.'),

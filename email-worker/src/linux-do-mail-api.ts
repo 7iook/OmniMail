@@ -164,6 +164,36 @@ export async function verifyLinuxDoMailAccount(
   }
 }
 
+export async function updateLinuxDoMailCredential(
+  env: Env,
+  user: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  try {
+    const password = passwordField((await jsonBody(request)).password)
+    const store = new LinuxDoMailAccountStore(env, user.id)
+    const account = await store.publicAccount()
+    if (!account) throw new LinuxDoMailStoreError(404, '尚未连接 Linux DO Mail 账号。')
+    await validateCredentials(account.username, password)
+    const validatedAt = new Date().toISOString()
+    await store.replacePassword(account.id, password, validatedAt)
+    await writeAudit(env, user.id, 'linuxdo_mail.account.credential_update', account.id, ip, {
+      username: account.username,
+    })
+    return privateJson({
+      account: {
+        ...account,
+        status: 'active',
+        lastValidated: validatedAt,
+        lastError: '',
+      },
+    })
+  } catch (error) {
+    return responseError(error)
+  }
+}
+
 export async function listLinuxDoMailInbox(env: Env, user: SessionUser): Promise<Response> {
   let client: LinuxDoMailImapClient | undefined
   try {

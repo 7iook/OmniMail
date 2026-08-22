@@ -145,6 +145,9 @@ export async function deviceScopesAllow(scopes: string, request: Request): Promi
   if (requestMethod === 'POST' && path === '/api/linux-do-mail/account/verify') {
     return hasScope(scopes, 'linuxdo-mail:account:write')
   }
+  if (requestMethod === 'PUT' && path === '/api/linux-do-mail/account/credential') {
+    return hasScope(scopes, 'linuxdo-mail:account:write')
+  }
   if (requestMethod === 'GET' && /^\/api\/linux-do-mail\/inbox(?:\/[^/]+)?$/.test(path)) {
     return hasScope(scopes, 'linuxdo-mail:messages:read')
   }

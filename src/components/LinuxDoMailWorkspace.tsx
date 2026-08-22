@@ -19,6 +19,7 @@ import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 import { ICloudMessageBody } from './ICloudMessageBody'
+import { LinuxDoMailCredentialDialog } from './LinuxDoMailCredentialDialog'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -144,10 +145,12 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
   const [syncing, setSyncing] = useState(false)
   const [messageLoading, setMessageLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [action, setAction] = useState<'verify' | 'disconnect' | ''>('')
+  const [action, setAction] = useState<'verify' | 'update' | 'disconnect' | ''>('')
+  const [credentialOpen, setCredentialOpen] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
+  const [credentialError, setCredentialError] = useState('')
   const [notice, setNotice] = useState('')
   const inboxController = useRef<AbortController | null>(null)
   const messageController = useRef<AbortController | null>(null)
@@ -223,6 +226,17 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
     } finally { setAction('') }
   }
 
+  async function updateCredential(password: string) {
+    setAction('update'); setCredentialError('')
+    try {
+      const result = await api.updateLinuxDoMailCredential(password)
+      setAccount(result.account); setCredentialOpen(false)
+      setNotice(t('认证令牌已更新'))
+    } catch (updateError) {
+      setCredentialError(errorMessage(updateError))
+    } finally { setAction('') }
+  }
+
   async function openMessage(message: LinuxDoMailMessage) {
     messageController.current?.abort()
     const controller = new AbortController()
@@ -253,6 +267,11 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
               {t(account.status === 'active' ? '已连接' : '需要验证')}
             </span>
             <div className="icloud-header-action-buttons">
+              <button className="icon-button" type="button" disabled={Boolean(action)}
+                onClick={() => { setCredentialError(''); setCredentialOpen(true) }}
+                aria-label={t('更新认证令牌')} data-tooltip={t('更新认证令牌')}>
+                <KeyRound size={17} />
+              </button>
               <button className="icon-button" type="button" disabled={Boolean(action)}
                 onClick={() => void verify()} aria-label={t('验证账号')} data-tooltip={t('验证账号')}>
                 {action === 'verify' ? <Spinner /> : <ShieldCheck size={17} />}
@@ -299,6 +318,9 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled }: {
           remoteImagesEnabled={remoteImagesEnabled} onBack={closeMessage} />
       </main>
 
+      {credentialOpen && account && <LinuxDoMailCredentialDialog
+        username={account.username} busy={action === 'update'} error={credentialError}
+        onCancel={() => setCredentialOpen(false)} onSubmit={updateCredential} />}
       {disconnectOpen && account && <DangerConfirmDialog icon={Unplug}
         eyebrow="LINUX DO MAIL" title={t('断开 Linux DO 邮箱？')}
         description={t('账号 {username} 将从 OmniMail 中移除。', { username: account.username })}

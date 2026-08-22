@@ -120,6 +120,26 @@ export class LinuxDoMailAccountStore {
     }
   }
 
+  async replacePassword(
+    accountId: string,
+    password: string,
+    validatedAt: string,
+  ): Promise<void> {
+    const passwordCipher = await encryptLinuxDoMailCredential(
+      this.env,
+      password,
+      this.context(accountId),
+    )
+    const result = await this.env.DB.prepare(
+      `UPDATE linux_do_mail_accounts SET password_cipher = ?, status = 'active',
+       last_validated = ?, last_error = '', updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    ).bind(passwordCipher, validatedAt, validatedAt, accountId, this.userId).run()
+    if (!result.meta.changes) {
+      throw new LinuxDoMailStoreError(404, '尚未连接 Linux DO Mail 账号。')
+    }
+  }
+
   async remove(): Promise<PublicLinuxDoMailAccount> {
     const account = await this.publicAccount()
     if (!account) throw new LinuxDoMailStoreError(404, '尚未连接 Linux DO Mail 账号。')

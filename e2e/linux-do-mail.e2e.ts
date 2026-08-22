@@ -4,9 +4,10 @@ function json(route: Route, body: unknown) {
   return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function mockLinuxDoMail(page: Page) {
+async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: boolean } = {}) {
   let account: null | Record<string, unknown> = null
   const connections: Array<{ username: string; password: string }> = []
+  const credentialUpdates: Array<{ password: string }> = []
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -46,6 +47,15 @@ async function mockLinuxDoMail(page: Page) {
       return json(route, { ok: true })
     }
     if (path === '/api/linux-do-mail/account') return json(route, { enabled: true, account })
+    if (path === '/api/linux-do-mail/account/credential') {
+      credentialUpdates.push(request.postDataJSON())
+      if (options.rejectCredentialUpdate) return route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'IMAP 登录失败，请检查新密码或认证令牌。' }),
+      })
+      return json(route, { account })
+    }
     if (path === '/api/linux-do-mail/account/verify') {
       return json(route, { ok: true, validatedAt: '2026-08-22T00:00:00.000Z' })
     }
@@ -61,7 +71,7 @@ async function mockLinuxDoMail(page: Page) {
     }] })
     return route.abort()
   })
-  return { connections }
+  return { connections, credentialUpdates }
 }
 
 test('connects a Linux DO mailbox with username and password and reads mail', async ({ page }) => {
@@ -81,14 +91,54 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   }])
   await expect(page.getByText('欢迎回来')).toBeVisible()
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('revocable-test-token')
+
+  const updateTrigger = page.getByRole('button', { name: '更新认证令牌' })
+  await updateTrigger.click()
+  const credentialDialog = page.getByRole('dialog', { name: '更新密码或认证令牌' })
+  const newPassword = credentialDialog.getByLabel('新密码或认证令牌')
+  await expect(newPassword).toBeFocused()
+  await page.setViewportSize({ width: 375, height: 812 })
+  expect(await credentialDialog.evaluate((element) => element.scrollWidth <= element.clientWidth))
+    .toBe(true)
+  await newPassword.fill('rotated-test-token')
+  await credentialDialog.getByRole('button', { name: '显示密码' }).click()
+  await expect(newPassword).toHaveAttribute('type', 'text')
+  await credentialDialog.getByRole('button', { name: '验证并更新' }).click()
+  await expect.poll(() => state.credentialUpdates).toEqual([{ password: 'rotated-test-token' }])
+  await expect(credentialDialog).toBeHidden()
+  await expect(updateTrigger).toBeFocused()
+  await expect(page.getByRole('status')).toContainText('认证令牌已更新')
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('rotated-test-token')
+
   await page.getByRole('button', { name: /欢迎回来/ }).click()
   await expect(page.getByText('完整邮件内容', { exact: true })).toBeVisible()
 
-  await page.setViewportSize({ width: 375, height: 812 })
   await expect(page.getByRole('button', { name: '返回邮件列表' })).toBeVisible()
   expect(await page.evaluate(() => (
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true)
+})
+
+test('keeps the credential dialog recoverable after validation fails', async ({ page }) => {
+  await mockLinuxDoMail(page, { rejectCredentialUpdate: true })
+  await page.goto('/linux-do-mail')
+  await page.getByLabel('邮箱用户名').fill('member@linux.do')
+  await page.getByLabel('密码或认证令牌').fill('revocable-test-token')
+  await page.getByRole('button', { name: '验证并连接' }).click()
+
+  const trigger = page.getByRole('button', { name: '更新认证令牌' })
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: '更新密码或认证令牌' })
+  const password = dialog.getByLabel('新密码或认证令牌')
+  await password.fill('invalid-new-token')
+  await dialog.getByRole('button', { name: '验证并更新' }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText('IMAP 登录失败')
+  await expect(password).toHaveValue('invalid-new-token')
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(trigger).toBeFocused()
 })
 
 test('disconnects through the destructive confirmation dialog', async ({ page }) => {

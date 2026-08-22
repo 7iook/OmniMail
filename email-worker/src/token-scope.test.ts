@@ -87,6 +87,7 @@ describe('device token scopes', () => {
       ['/api/messages/message-1/raw', 'GET'],
       ['/api/linux-do-mail/account', 'GET'],
       ['/api/linux-do-mail/account', 'POST'],
+      ['/api/linux-do-mail/account/credential', 'PUT'],
       ['/api/linux-do-mail/inbox', 'GET'],
     ]
     for (const [path, method] of denied) {
