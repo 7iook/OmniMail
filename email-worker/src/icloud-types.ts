@@ -60,6 +60,7 @@ export interface ICloudMessage {
   preview: string
   body: string
   html: string
+  isRead?: boolean
 }
 
 export interface ICloudAccountInfo {

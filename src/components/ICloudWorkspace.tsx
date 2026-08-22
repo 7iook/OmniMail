@@ -464,7 +464,14 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     setMessageLoading(true)
     try {
       const result = await api.iCloudMessage(selected.id, message.id, controller.signal)
-      if (current === messageRequestId.current) setOpened(result.message)
+      if (current === messageRequestId.current) {
+        setOpened(result.message)
+        if (result.message.isRead) {
+          setMessages((items) => items.map((item) => (
+            item.id === result.message.id ? { ...item, isRead: true } : item
+          )))
+        }
+      }
     } catch (openError) {
       if (current === messageRequestId.current) setError(errorMessage(openError))
     } finally {
@@ -542,13 +549,15 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
             {messages.map((message) => {
               const active = opened?.id === message.id && opened.to === message.to
               const sender = parseICloudSender(message.from)
-              return <article className={`message-row${active ? ' is-selected' : ''}`} role="option" aria-selected={active} key={`${message.id}-${message.to}`}>
+              const unread = message.isRead === false
+              return <article className={`message-row${unread ? ' is-unread' : ''}${active ? ' is-selected' : ''}`} role="option" aria-selected={active} key={`${message.id}-${message.to}`}>
                 <button className="message-row__main" type="button" onClick={() => void openMessage(message)}>
-                  <span className="message-row__top"><strong>{sender.name || sender.address || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time></span>
+                  <span className="message-row__top"><strong>{sender.name || sender.address || t('未知发件人')}</strong><time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time>{unread && <span className="sr-only">{t('未读邮件')}</span>}</span>
                   <span className="message-row__subject"><span className="message-row__subject-text">{message.subject || t('无主题')}</span></span>
                   <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
                   {message.to && <span className="mailbox-hint"><AtSign size={12} />{message.to}</span>}
                 </button>
+                {unread && <span className="message-row__unread-dot" aria-hidden="true" />}
               </article>
             })}
           </div></div> : <Empty icon={<Inbox size={24} />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { iCloudImapMessageIsRead, iCloudImapReadUpdate } from './icloud-imap-flags'
 import { parseICloudMessage } from './icloud-message-parser'
 
 const encoder = new TextEncoder()
@@ -36,5 +37,23 @@ describe('iCloud IMAP message parsing', () => {
 
     expect(message.preview).toContain('Enter code 20076446')
     expect(message.html).toBe('')
+  })
+
+  it('reads the Seen flag without matching similarly named flags', () => {
+    expect(iCloudImapMessageIsRead('* 1 FETCH (UID 42 FLAGS (\\Seen \\Answered))')).toBe(true)
+    expect(iCloudImapMessageIsRead('* 1 FETCH (UID 42 FLAGS (\\Unseen))')).toBe(false)
+    expect(iCloudImapMessageIsRead('* 1 FETCH (UID 42 FLAGS ())')).toBe(false)
+  })
+
+  it('builds a silent Seen update only for an unread message', () => {
+    expect(iCloudImapReadUpdate('* 1 FETCH (UID 42 FLAGS ())', '42')).toEqual({
+      isRead: false,
+      markSeenCommand: 'UID STORE 42 +FLAGS.SILENT (\\Seen)',
+    })
+  })
+
+  it('does not build a Seen update for an already-read message', () => {
+    expect(iCloudImapReadUpdate('* 1 FETCH (UID 42 FLAGS (\\Seen))', '42'))
+      .toEqual({ isRead: true })
   })
 })

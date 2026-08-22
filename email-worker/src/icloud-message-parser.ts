@@ -29,6 +29,7 @@ export async function parseICloudMessage(
   data: Uint8Array,
   uid: string,
   includeHtml = false,
+  isRead?: boolean,
 ): Promise<ICloudMessage> {
   const parsed = await PostalMime.parse(data)
   const body = cleanBody(parsed.text?.trim() || parsed.html || '')
@@ -43,5 +44,6 @@ export async function parseICloudMessage(
     preview: preview.length > 400 ? `${preview.slice(0, 400)}…` : preview,
     body: body.length > 12_000 ? `${body.slice(0, 12_000)}…` : body,
     html: includeHtml && parsed.html ? parsed.html : '',
+    ...(typeof isRead === 'boolean' ? { isRead } : {}),
   }
 }

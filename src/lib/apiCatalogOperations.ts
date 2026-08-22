@@ -87,8 +87,8 @@ export const iCloudEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/icloud/inbox/:uid', group: 'icloud', auth: 'authenticated',
     title: l('读取 iCloud 邮件正文', 'Read an iCloud message'),
-    description: l('通过 IMAP UID 读取完整正文和附件元数据。', 'Read full content and attachment metadata by IMAP UID.'),
-    request: 'Path · uid; Query · accountId', response: '200 · { message }',
+    description: l('通过 IMAP UID 读取完整正文，并将未读邮件同步标记为 Seen。', 'Read full content by IMAP UID and synchronize unread mail to Seen.'),
+    request: 'Path · uid; Query · accountId', response: '200 · { message: { …, isRead=true } }',
     examplePath: '/api/icloud/inbox/:uid?accountId=icloud_account_id',
   },
 ]

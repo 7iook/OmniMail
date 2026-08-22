@@ -10,6 +10,7 @@ const CATEGORIES = [
   'domain',
   'invitation',
   'message',
+  'icloud',
   'system',
 ] as const
 
@@ -98,9 +99,12 @@ export async function listAuditLogs(
       COALESCE(u.email, '') LIKE ? ESCAPE '\\' OR
       COALESCE(u.display_name, '') LIKE ? ESCAPE '\\' OR
       COALESCE(tu.email, '') LIKE ? ESCAPE '\\' OR
-      COALESCE(tu.display_name, '') LIKE ? ESCAPE '\\'
+      COALESCE(tu.display_name, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(ia.name, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(ia.icloud_email, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(a.detail_json, '') LIKE ? ESCAPE '\\'
     )`)
-    bindings.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+    bindings.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern)
   }
   const summaryConditions = [...conditions]
   const summaryBindings = [...bindings]
@@ -122,11 +126,13 @@ export async function listAuditLogs(
   const { results } = await env.DB.prepare(
     `SELECT a.id, a.user_id, u.email AS actor_email,
             u.display_name AS actor_name, u.role AS actor_role,
-            tu.email AS target_email, tu.display_name AS target_name,
+            COALESCE(tu.email, NULLIF(ia.icloud_email, ''), NULLIF(ia.real_email, '')) AS target_email,
+            COALESCE(tu.display_name, ia.name) AS target_name,
             a.action, a.target_id, a.ip, a.detail_json, a.created_at
        FROM audit_logs a
        LEFT JOIN users u ON u.id = a.user_id
        LEFT JOIN users tu ON tu.id = a.target_id
+       LEFT JOIN icloud_accounts ia ON ia.id = a.target_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY a.created_at DESC, a.id DESC
       LIMIT ?`,
@@ -146,6 +152,7 @@ export async function listAuditLogs(
        FROM audit_logs a
        LEFT JOIN users u ON u.id = a.user_id
        LEFT JOIN users tu ON tu.id = a.target_id
+       LEFT JOIN icloud_accounts ia ON ia.id = a.target_id
       WHERE ${summaryConditions.join(' AND ')}`,
   ).bind(...summaryBindings).first<{
     total: number

@@ -333,20 +333,20 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/icloud/inbox/:uid catalog:0b92178762f1 -->
+<!-- endpoint:GET /api/icloud/inbox/:uid catalog:03d3ee97229b -->
 ## `GET /api/icloud/inbox/{uid}`
 
 **读取 iCloud 邮件正文 / Read an iCloud message**
 
-通过 IMAP UID 读取完整正文和附件元数据。
+通过 IMAP UID 读取完整正文，并将未读邮件同步标记为 Seen。
 
-> Read full content and attachment metadata by IMAP UID.
+> Read full content by IMAP UID and synchronize unread mail to Seen.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
 | 请求 | Path · uid; Query · accountId |
-| 成功响应 | 200 · { message } |
+| 成功响应 | 200 · { message: { …, isRead=true } } |
 
 ### cURL 示例
 

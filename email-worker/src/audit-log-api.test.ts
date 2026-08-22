@@ -12,6 +12,7 @@ describe('audit log filters', () => {
   it('accepts known categories and rejects arbitrary SQL fragments', () => {
     expect(auditCategory('auth')).toBe('auth')
     expect(auditCategory('invitation')).toBe('invitation')
+    expect(auditCategory('icloud')).toBe('icloud')
     expect(auditCategory("auth' OR 1=1")).toBe('all')
   })
 })

@@ -10,7 +10,7 @@ import {
   parseICloudCookies,
   publicICloudAccount,
 } from './icloud-store'
-import type { ICloudAccount } from './icloud-types'
+import type { ICloudAccount, ICloudAlias } from './icloud-types'
 import type { Env, SessionUser } from './types'
 
 function responseError(error: unknown): Response {
@@ -71,6 +71,29 @@ function boundedInteger(
   return Number.isSafeInteger(parsed)
     ? Math.max(minimum, Math.min(maximum, parsed))
     : fallback
+}
+
+function iCloudAuditDetail(
+  account: ICloudAccount,
+  detail: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return { accountName: account.name, ...detail }
+}
+
+async function aliasForAudit(
+  client: ICloudClient,
+  accountId: string,
+  anonymousId: string,
+): Promise<ICloudAlias | undefined> {
+  try {
+    return (await client.listAliases()).find((alias) => alias.anonymousId === anonymousId)
+  } catch (error) {
+    console.warn('iCloud alias audit lookup failed', {
+      accountId,
+      message: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
 }
 
 async function validateAccount(account: ICloudAccount): Promise<unknown> {
@@ -168,9 +191,10 @@ export async function createICloudAccount(
     if (validationError) throw validationError
     if (hasAppPassword) await validateAppPassword(icloudEmail, appPassword)
     await store.insert(account)
-    await writeAudit(env, user.id, 'icloud.account.create', account.id, ip, {
+    await writeAudit(env, user.id, 'icloud.account.create', account.id, ip, iCloudAuditDetail(account, {
       host: account.host,
-    })
+      iCloudEmail: account.icloudEmail,
+    }))
     return Response.json({ account: publicICloudAccount(account) }, { status: 201 })
   } catch (error) {
     return responseError(error)
@@ -185,8 +209,9 @@ export async function deleteICloudAccount(
 ): Promise<Response> {
   try {
     const store = new ICloudAccountStore(env, user.id)
+    const account = await store.get(id)
     if (!await store.remove(id)) throw new ICloudStoreError(404, 'iCloud 账号不存在。')
-    await writeAudit(env, user.id, 'icloud.account.delete', id, ip)
+    await writeAudit(env, user.id, 'icloud.account.delete', id, ip, iCloudAuditDetail(account))
     return Response.json({ ok: true })
   } catch (error) {
     return responseError(error)
@@ -206,8 +231,13 @@ export async function updateICloudAccountName(
     if (!name || name.length > 80) {
       throw new ICloudStoreError(400, '账号名称需要在 1–80 个字符之间。')
     }
-    await new ICloudAccountStore(env, user.id).saveName(id, name)
-    await writeAudit(env, user.id, 'icloud.account.rename', id, ip)
+    const store = new ICloudAccountStore(env, user.id)
+    const account = await store.get(id)
+    await store.saveName(id, name)
+    await writeAudit(env, user.id, 'icloud.account.rename', id, ip, iCloudAuditDetail(account, {
+      accountName: name,
+      previousName: account.name,
+    }))
     return Response.json({ ok: true, name })
   } catch (error) {
     return responseError(error)
@@ -228,7 +258,7 @@ export async function updateICloudCookies(
     account.cookies = parseICloudCookies(body.cookies)
     await validateAccount(account)
     await store.saveCookies(account)
-    await writeAudit(env, user.id, 'icloud.credentials.cookies', id, ip)
+    await writeAudit(env, user.id, 'icloud.credentials.cookies', id, ip, iCloudAuditDetail(account))
     return Response.json({ account: publicICloudAccount(account) })
   } catch (error) {
     return responseError(error)
@@ -250,10 +280,12 @@ export async function updateICloudAppPassword(
       throw new ICloudStoreError(400, '请填写有效的 iCloud 邮箱和应用专用密码。')
     }
     const store = new ICloudAccountStore(env, user.id)
-    await store.get(id)
+    const account = await store.get(id)
     await validateAppPassword(email, password)
     await store.saveAppPassword(id, email, password)
-    await writeAudit(env, user.id, 'icloud.credentials.app_password', id, ip)
+    await writeAudit(env, user.id, 'icloud.credentials.app_password', id, ip, iCloudAuditDetail(account, {
+      iCloudEmail: email,
+    }))
     return Response.json({ ok: true, icloudEmail: email })
   } catch (error) {
     return responseError(error)
@@ -324,9 +356,10 @@ export async function createICloudAlias(
       ? await client.reserveAlias(email, label)
       : await client.createAlias(label)
     await refreshAliasSummary(store, account, client)
-    await writeAudit(env, user.id, 'icloud.alias.create', accountId, ip, {
+    await writeAudit(env, user.id, 'icloud.alias.create', accountId, ip, iCloudAuditDetail(account, {
       alias: alias.email,
-    })
+      label: alias.label,
+    }))
     return Response.json({ alias }, { status: 201 })
   } catch (error) {
     return responseError(error)
@@ -379,10 +412,15 @@ export async function updateICloudAlias(
       throw new ICloudStoreError(400, '该账号尚未配置 Cookie。')
     }
     const client = new ICloudClient(account.cookies, account.host)
+    const auditAlias = await aliasForAudit(client, accountId, anonymousId)
     if (action === 'deactivate') await client.deactivate(anonymousId)
     else await client.reactivate(anonymousId)
     await refreshAliasSummary(store, account, client)
-    await writeAudit(env, user.id, `icloud.alias.${action}`, accountId, ip, { anonymousId })
+    await writeAudit(env, user.id, `icloud.alias.${action}`, accountId, ip, iCloudAuditDetail(account, {
+      anonymousId,
+      alias: auditAlias?.email,
+      label: auditAlias?.label,
+    }))
     return Response.json({ ok: true, action })
   } catch (error) {
     return responseError(error)
@@ -406,9 +444,14 @@ export async function deleteICloudAlias(
       throw new ICloudStoreError(400, '该账号尚未配置 Cookie。')
     }
     const client = new ICloudClient(account.cookies, account.host)
+    const auditAlias = await aliasForAudit(client, accountId, anonymousId)
     await client.delete(anonymousId)
     await refreshAliasSummary(store, account, client)
-    await writeAudit(env, user.id, 'icloud.alias.delete', accountId, ip, { anonymousId })
+    await writeAudit(env, user.id, 'icloud.alias.delete', accountId, ip, iCloudAuditDetail(account, {
+      anonymousId,
+      alias: auditAlias?.email,
+      label: auditAlias?.label,
+    }))
     return Response.json({ ok: true })
   } catch (error) {
     return responseError(error)

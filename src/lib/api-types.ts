@@ -120,6 +120,7 @@ export interface ICloudMessage {
   preview: string
   body: string
   html: string
+  isRead?: boolean
 }
 
 export interface MfaStatus {
@@ -253,6 +254,7 @@ export type AuditCategory =
   | 'domain'
   | 'invitation'
   | 'message'
+  | 'icloud'
   | 'system'
 
 export interface AuditLog {

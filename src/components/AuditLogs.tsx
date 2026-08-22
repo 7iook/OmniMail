@@ -34,6 +34,7 @@ const categories: Array<{ id: AuditCategory; label: string }> = [
   { id: 'domain', label: '域名' },
   { id: 'invitation', label: '邀请' },
   { id: 'message', label: '邮件' },
+  { id: 'icloud', label: 'iCloud' },
   { id: 'system', label: '系统' },
 ]
 
@@ -88,6 +89,15 @@ const actionLabels: Record<string, string> = {
   'message.admin_trash': '管理员移入垃圾箱',
   'message.admin_restore': '管理员恢复邮件',
   'message.admin_delete': '管理员永久删除邮件',
+  'icloud.account.create': '已添加 iCloud 账号',
+  'icloud.account.delete': '已删除 iCloud 账号',
+  'icloud.account.rename': '已重命名 iCloud 账号',
+  'icloud.credentials.cookies': '已更新 iCloud Cookie',
+  'icloud.credentials.app_password': '已更新 iCloud 应用专用密码',
+  'icloud.alias.create': '已创建 iCloud 隐藏邮箱',
+  'icloud.alias.deactivate': '已停用 iCloud 隐藏邮箱',
+  'icloud.alias.reactivate': '已恢复 iCloud 隐藏邮箱',
+  'icloud.alias.delete': '已删除 iCloud 隐藏邮箱',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
@@ -110,10 +120,15 @@ const categoryLabels: Record<string, string> = {
   domain: '域名',
   temporary_invite: '邀请',
   message: '邮件',
+  icloud: 'iCloud',
   system: '系统',
 }
 
-function actionCategory(action: string): string {
+export function auditActionLabel(action: string): string {
+  return actionLabels[action] || action
+}
+
+export function actionCategory(action: string): string {
   return t(categoryLabels[action.split('.')[0]] || '其他')
 }
 
@@ -129,7 +144,7 @@ function formatTime(timestamp: number): string {
   }).format(new Date(timestamp * 1000))
 }
 
-function detailText(log: AuditLog): string {
+export function detailText(log: AuditLog): string {
   const detail = log.detail
   const parts: string[] = []
   if (detail.channel === 'browser') parts.push(t('网页端'))
@@ -147,6 +162,15 @@ function detailText(log: AuditLog): string {
     parts.push(t('删除 {count} 封', { count: detail.deletedCount }))
   }
   if (detail.address) parts.push(String(detail.address))
+  if (detail.alias) parts.push(String(detail.alias))
+  if (detail.label) parts.push(t('用途：{label}', { label: String(detail.label) }))
+  if (detail.iCloudEmail && detail.iCloudEmail !== log.target?.email) {
+    parts.push(t('iCloud 邮箱：{address}', { address: String(detail.iCloudEmail) }))
+  }
+  if (detail.previousName) {
+    parts.push(t('原名称：{name}', { name: String(detail.previousName) }))
+  }
+  if (detail.host) parts.push(t('区域：{host}', { host: String(detail.host) }))
   if (log.action === 'system.remote_images.update' && typeof detail.enabled === 'boolean') {
     parts.push(t(detail.enabled ? '默认加载' : '默认阻止'))
   }
@@ -180,7 +204,8 @@ function actorName(log: AuditLog): string {
   return log.targetId || t('未登录访问者')
 }
 
-function targetName(log: AuditLog): string {
+export function targetName(log: AuditLog): string {
+  if (log.detail.accountName) return String(log.detail.accountName)
   if (log.target) return log.target.displayName || log.target.email || log.target.id || '—'
   return log.targetId || '—'
 }
@@ -363,7 +388,7 @@ export function AuditLogs() {
                     <Clock3 size={14} />{formatTime(log.createdAt)}
                   </time>
                   <span className="audit-action">
-                    <strong>{t(actionLabels[log.action] || log.action)}</strong>
+                    <strong>{t(auditActionLabel(log.action))}</strong>
                     <small>{actionCategory(log.action)}</small>
                   </span>
                   <span className="audit-actor">

@@ -113,6 +113,7 @@
 .icloud-list-context button.is-danger { color: var(--danger); }
 
 .icloud-list-pane .message-row__main { padding-right: 18px; }
+.icloud-list-pane .message-row.is-unread .message-row__main { padding-right: 34px; }
 .icloud-list-pane .message-list { overscroll-behavior: contain; }
 
 .icloud-loading {

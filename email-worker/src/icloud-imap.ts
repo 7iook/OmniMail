@@ -1,5 +1,6 @@
 import { connect } from 'cloudflare:sockets'
 import { ICloudRemoteError } from './icloud-apple'
+import { iCloudImapMessageIsRead, iCloudImapReadUpdate } from './icloud-imap-flags'
 import { parseICloudMessage } from './icloud-message-parser'
 import type { ICloudMessage } from './icloud-types'
 
@@ -208,10 +209,15 @@ export class ICloudImapClient {
     const selected = uids.slice(-limit)
     if (!selected.length) return []
     const result = await this.command(
-      `UID FETCH ${selected.join(',')} (UID BODY.PEEK[]<0.${LIST_MESSAGE_BYTES}>)`,
+      `UID FETCH ${selected.join(',')} (UID FLAGS BODY.PEEK[]<0.${LIST_MESSAGE_BYTES}>)`,
     )
     const messages = await Promise.all(result.literals.map(({ line, data }) => (
-      parseICloudMessage(data, line.match(/\bUID (\d+)\b/i)?.[1] || '')
+      parseICloudMessage(
+        data,
+        line.match(/\bUID (\d+)\b/i)?.[1] || '',
+        false,
+        iCloudImapMessageIsRead(line),
+      )
     )))
     return messages.sort((left, right) => Number(right.id) - Number(left.id))
   }
@@ -231,12 +237,18 @@ export class ICloudImapClient {
 
   async getMessage(uid: string): Promise<ICloudMessage> {
     if (!/^\d+$/.test(uid) || Number(uid) < 1) throw new ICloudRemoteError(400, '邮件 UID 无效。')
-    await this.command('EXAMINE INBOX')
+    await this.command('SELECT INBOX')
     const result = await this.command(
-      `UID FETCH ${uid} (UID BODY.PEEK[]<0.${DETAIL_MESSAGE_BYTES}>)`,
+      `UID FETCH ${uid} (UID FLAGS BODY.PEEK[]<0.${DETAIL_MESSAGE_BYTES}>)`,
     )
     const literal = result.literals.find(({ line }) => new RegExp(`\\bUID ${uid}\\b`, 'i').test(line))
     if (!literal) throw new ICloudRemoteError(404, '邮件不存在或已被移动。')
-    return parseICloudMessage(literal.data, uid, true)
+    const readUpdate = iCloudImapReadUpdate(literal.line, uid)
+    const message = await parseICloudMessage(literal.data, uid, true, readUpdate.isRead)
+    if (readUpdate.markSeenCommand) {
+      await this.command(readUpdate.markSeenCommand)
+      message.isRead = true
+    }
+    return message
   }
 }
