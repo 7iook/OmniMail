@@ -13,6 +13,7 @@ async function mockEmptyICloud(page: Page) {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false, iCloudEnabled: true,
+      iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true,
       registrationEnabled: false, registrationAvailable: false, registrationMethod: 'password',
       linuxDoLoginEnabled: false, registrationDomainPolicy: { mode: 'blocklist', domains: [] },
       registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: 0,

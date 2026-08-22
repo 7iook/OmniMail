@@ -77,6 +77,19 @@ describe('public registration configuration', () => {
     expect(enabled.officialExtensionEnabled).toBe(true)
   })
 
+  it('keeps mailbox workspace entries visible by default and allows hiding them', async () => {
+    const defaults = await publicConfig(environment({}))
+    const disabled = await publicConfig(environment({
+      icloud_workspace_enabled: '0',
+      linuxdo_mail_workspace_enabled: '0',
+    }))
+
+    expect(defaults.iCloudWorkspaceEnabled).toBe(true)
+    expect(defaults.linuxDoMailWorkspaceEnabled).toBe(true)
+    expect(disabled.iCloudWorkspaceEnabled).toBe(false)
+    expect(disabled.linuxDoMailWorkspaceEnabled).toBe(false)
+  })
+
   it('exposes an empty random mailbox prefix by default', async () => {
     const defaultConfig = await publicConfig(environment({}))
     const configured = await publicConfig(environment({ random_mailbox_prefix: 'alias-' }))

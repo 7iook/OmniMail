@@ -70,12 +70,14 @@ export function AccountSettings({
   onLogout,
   onOpenApiGuide,
   onOpenICloud,
+  iCloudWorkspaceEnabled,
 }: {
   user: User
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
   onOpenApiGuide: () => void
   onOpenICloud: () => void
+  iCloudWorkspaceEnabled: boolean
 }) {
   const [displayName, setDisplayName] = useState(user.displayName)
   const [profileBusy, setProfileBusy] = useState(false)
@@ -174,9 +176,9 @@ export function AccountSettings({
           <button className="button button--secondary" type="button" onClick={onOpenApiGuide}>
             <BookOpen size={16} />{t('API 使用')}
           </button>
-          <button className="button button--secondary" type="button" onClick={onOpenICloud}>
+          {iCloudWorkspaceEnabled && <button className="button button--secondary" type="button" onClick={onOpenICloud}>
             <Cloud size={16} />{t('iCloud 隐藏邮箱')}
-          </button>
+          </button>}
         </div>}
       />
 

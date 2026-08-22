@@ -4,6 +4,7 @@ import { enAdmin } from './i18n-en-admin'
 import { enAdminMail } from './i18n-en-admin-mail'
 import { enInvites } from './i18n-en-invites'
 import { enMailFeatures } from './i18n-en-mail-features'
+import { enMailWorkspaces } from './i18n-en-mail-workspaces'
 import { enMailboxSettings } from './i18n-en-mailbox-settings'
 import { enRateLimit } from './i18n-en-rate-limit'
 import { enVersion } from './i18n-en-version'
@@ -53,6 +54,7 @@ const english = {
   ...enOauth,
   ...enSecurity,
   ...enMailFeatures,
+  ...enMailWorkspaces,
   ...enMailboxSettings,
   ...enRateLimit,
   ...enVersion,

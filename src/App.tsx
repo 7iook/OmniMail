@@ -50,7 +50,8 @@ function Mailbox({
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
-  const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role)
+  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled }
+  const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role, workspaceFeatures)
   const [query, setQuery] = useState('')
   const [searchQuery, nextMessageSignal] = useMessageSearch(query)
   const [messages, setMessages] = useState<MessageSummary[]>([])
@@ -353,11 +354,10 @@ function Mailbox({
   const draftEditorInline = !adminView && folder === 'drafts' && draftEditor.draftId !== undefined
   return (
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
-      <MailboxSidebar
-        user={user}
-        folder={folder}
-        counts={counts}
-        adminView={adminView}
+      <MailboxSidebar user={user} folder={folder}
+        counts={counts} adminView={adminView}
+        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
+        linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
         onFolderChange={changeFolder}
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}

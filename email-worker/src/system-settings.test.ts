@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   officialExtensionEnabled,
   parseMailRefreshInterval,
+  parseMailWorkspaceEnabled,
   parseOfficialExtensionEnabled,
   parseRandomMailboxPrefix,
   parseRemoteImagesEnabled,
   parseUnassignedMailEnabled,
   updateOfficialExtensionSetting,
+  updateMailWorkspaceSettings,
   updateRandomMailboxPrefix,
 } from './system-settings'
 import type { Env, SessionUser } from './types'
@@ -46,6 +48,72 @@ describe('unassigned mail settings', () => {
     expect(parseUnassignedMailEnabled(false)).toBe(false)
     expect(parseUnassignedMailEnabled('true')).toBeNull()
     expect(parseUnassignedMailEnabled(undefined)).toBeNull()
+  })
+})
+
+describe('mail workspace entry settings', () => {
+  it('accepts only boolean switch values', () => {
+    expect(parseMailWorkspaceEnabled(true)).toBe(true)
+    expect(parseMailWorkspaceEnabled(false)).toBe(false)
+    expect(parseMailWorkspaceEnabled('false')).toBeNull()
+    expect(parseMailWorkspaceEnabled(undefined)).toBeNull()
+  })
+
+  it('rejects non-administrators before touching D1', async () => {
+    const batch = vi.fn()
+    const response = await updateMailWorkspaceSettings(
+      { DB: { batch } as unknown as D1Database } as Env,
+      { id: 'user-1', role: 'user' } as SessionUser,
+      new Request('https://mail.example.com/api/admin/settings/mail-workspaces', {
+        method: 'PATCH', body: JSON.stringify({
+          iCloudWorkspaceEnabled: false,
+          linuxDoMailWorkspaceEnabled: false,
+        }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(403)
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('persists both entry switches atomically for administrators', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const db = {
+      prepare: vi.fn((sql: string) => ({
+        bind: vi.fn((...bindings: unknown[]) => {
+          statements.push({ sql, bindings })
+          return { run: vi.fn(async () => ({ meta: { changes: 1 } })) }
+        }),
+      })),
+      batch: vi.fn(async () => []),
+    } as unknown as D1Database
+    const response = await updateMailWorkspaceSettings(
+      { DB: db } as Env,
+      { id: 'admin-1', role: 'admin' } as SessionUser,
+      new Request('https://mail.example.com/api/admin/settings/mail-workspaces', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          iCloudWorkspaceEnabled: false,
+          linuxDoMailWorkspaceEnabled: true,
+        }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      iCloudWorkspaceEnabled: false,
+      linuxDoMailWorkspaceEnabled: true,
+    })
+    expect(db.batch).toHaveBeenCalledOnce()
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'icloud_workspace_enabled' && bindings[1] === '0'
+    ))).toBe(true)
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'linuxdo_mail_workspace_enabled' && bindings[1] === '1'
+    ))).toBe(true)
   })
 })
 

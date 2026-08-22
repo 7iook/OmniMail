@@ -7,6 +7,8 @@ export interface AppConfig {
   setupComplete: boolean
   replyEnabled: boolean
   iCloudEnabled: boolean
+  iCloudWorkspaceEnabled: boolean
+  linuxDoMailWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod

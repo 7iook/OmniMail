@@ -160,6 +160,16 @@ export const api = {
       body: jsonBody({ interval }),
     })
   ),
+  updateMailWorkspaceSettings: (settings: {
+    iCloudWorkspaceEnabled: boolean
+    linuxDoMailWorkspaceEnabled: boolean
+  }) => request<{
+    iCloudWorkspaceEnabled: boolean
+    linuxDoMailWorkspaceEnabled: boolean
+  }>('/api/admin/settings/mail-workspaces', {
+    method: 'PATCH',
+    body: jsonBody(settings),
+  }),
   updateRemoteImagesSetting: (enabled: boolean) => (
     request<{ remoteImagesEnabled: boolean }>('/api/admin/settings/remote-images', {
       method: 'PATCH',

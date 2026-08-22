@@ -103,6 +103,13 @@ export const adminSettingsEndpoints: ApiEndpoint[] = [
     exampleBody: { interval: 30 },
   },
   {
+    method: 'PATCH', path: '/api/admin/settings/mail-workspaces', group: 'adminSettings', auth: 'admin',
+    title: l('设置邮箱功能入口', 'Configure mailbox workspace entries'),
+    description: l('控制 iCloud 隐藏邮箱和 Linux DO 邮箱是否显示在 OmniMail 导航中。', 'Control whether iCloud Hide My Email and Linux DO Mail appear in OmniMail navigation.'),
+    request: 'JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled', response: '200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled }',
+    exampleBody: { iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true },
+  },
+  {
     method: 'PATCH', path: '/api/admin/settings/remote-images', group: 'adminSettings', auth: 'admin',
     title: l('设置远程图片策略', 'Configure remote-image policy'),
     description: l('控制 HTML 邮件是否默认通过安全代理加载外部图片。', 'Control whether HTML mail loads external images through the safe proxy by default.'),

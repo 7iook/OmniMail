@@ -39,6 +39,7 @@ import { syncSuperAdminIdentity } from './super-admin-sync'
 import {
   officialExtensionEnabled,
   updateMailRefreshInterval,
+  updateMailWorkspaceSettings,
   updateOfficialExtensionSetting,
   updateRandomMailboxPrefix,
   updateRemoteImagesSetting,
@@ -453,6 +454,7 @@ app.post('/api/admin/users', (context) => createManagedUser(
 app.patch('/api/admin/settings/registration', (context) => updateExternalRegistration(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/mail-workspaces', (context) => updateMailWorkspaceSettings(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/unassigned-mail', (context) => updateUnassignedMailSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/official-extension', (context) => updateOfficialExtensionSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))

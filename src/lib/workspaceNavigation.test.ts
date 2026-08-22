@@ -54,4 +54,17 @@ describe('workspace routes', () => {
       path: '/mail/inbox',
     })
   })
+
+  it('falls back to the inbox when an optional mailbox entry is disabled', () => {
+    const disabled = {
+      iCloudWorkspaceEnabled: false,
+      linuxDoMailWorkspaceEnabled: false,
+    }
+    expect(workspaceRoute('/icloud', 'user', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
+    })
+    expect(workspaceRoute('/linux-do-mail', 'admin', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
+    })
+  })
 })
