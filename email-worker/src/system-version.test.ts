@@ -40,9 +40,9 @@ describe('system version', () => {
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     const body = await response.json()
     expect(body).toMatchObject({
-      currentVersion: '0.3.5',
+      currentVersion: '0.3.6',
       latestVersion: '0.3.6',
-      updateAvailable: true,
+      updateAvailable: false,
       checkFailed: false,
       releaseRepository: 'mibgb65-cloud/OmniMail',
     })
@@ -60,7 +60,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.3.5',
+      currentVersion: '0.3.6',
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,

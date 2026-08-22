@@ -74,7 +74,7 @@ function boundedInteger(
 }
 
 function iCloudAuditDetail(
-  account: ICloudAccount,
+  account: Pick<ICloudAccount, 'name'>,
   detail: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return { accountName: account.name, ...detail }
@@ -209,7 +209,7 @@ export async function deleteICloudAccount(
 ): Promise<Response> {
   try {
     const store = new ICloudAccountStore(env, user.id)
-    const account = await store.get(id)
+    const account = { name: await store.getName(id) }
     if (!await store.remove(id)) throw new ICloudStoreError(404, 'iCloud 账号不存在。')
     await writeAudit(env, user.id, 'icloud.account.delete', id, ip, iCloudAuditDetail(account))
     return Response.json({ ok: true })
@@ -232,7 +232,7 @@ export async function updateICloudAccountName(
       throw new ICloudStoreError(400, '账号名称需要在 1–80 个字符之间。')
     }
     const store = new ICloudAccountStore(env, user.id)
-    const account = await store.get(id)
+    const account = { name: await store.getName(id) }
     await store.saveName(id, name)
     await writeAudit(env, user.id, 'icloud.account.rename', id, ip, iCloudAuditDetail(account, {
       accountName: name,
@@ -280,7 +280,7 @@ export async function updateICloudAppPassword(
       throw new ICloudStoreError(400, '请填写有效的 iCloud 邮箱和应用专用密码。')
     }
     const store = new ICloudAccountStore(env, user.id)
-    const account = await store.get(id)
+    const account = { name: await store.getName(id) }
     await validateAppPassword(email, password)
     await store.saveAppPassword(id, email, password)
     await writeAudit(env, user.id, 'icloud.credentials.app_password', id, ip, iCloudAuditDetail(account, {

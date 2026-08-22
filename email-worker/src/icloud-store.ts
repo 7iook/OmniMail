@@ -199,6 +199,14 @@ export class ICloudAccountStore {
     return this.fromRow(row)
   }
 
+  async getName(id: string): Promise<string> {
+    const row = await this.env.DB.prepare(
+      'SELECT name FROM icloud_accounts WHERE id = ? AND user_id = ?',
+    ).bind(id, this.userId).first<{ name: string }>()
+    if (!row) throw new ICloudStoreError(404, 'iCloud 账号不存在。')
+    return row.name
+  }
+
   async insert(account: ICloudAccount): Promise<void> {
     const now = new Date().toISOString()
     const [cookiesCipher, passwordCipher] = await Promise.all([
