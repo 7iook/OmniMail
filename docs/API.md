@@ -649,12 +649,12 @@ Workers Builds 根据分支变更重新部署。
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 102 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 108 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
 仓库内的 [完整 Markdown API 参考](api/README.md) 使用同一个 Catalog 数据源，按以下
-9 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
-iCloud 隐藏邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
+10 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
+iCloud 隐藏邮箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
 代码审查或生成外部知识库时应从该索引进入。
 
 修改 `src/lib/apiCatalog*.ts` 后运行：
@@ -705,6 +705,10 @@ npm run docs:api
 | `PATCH/DELETE /api/icloud/aliases/{anonymousId}` | 停用、恢复或删除隐藏地址 |
 | `GET /api/icloud/inbox` | 按需读取 iCloud 最近来信 |
 | `GET /api/icloud/inbox/{uid}` | 通过 IMAP 读取完整正文 |
+| `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |
+| `POST /api/linux-do-mail/account/verify` | 重新验证已保存的 Linux DO Mail 凭据 |
+| `GET /api/linux-do-mail/inbox` | 按需只读获取 Linux DO Mail 最近来信 |
+| `GET /api/linux-do-mail/inbox/{uid}` | 通过 IMAP UID 只读获取邮件正文 |
 | `GET /api/admin/statistics` | 管理员邮件统计 |
 | `GET /api/admin/messages` | 主管理员查询和筛选全站邮件 |
 | `GET /api/admin/messages/{id}` | 主管理员读取任意用户邮件正文 |

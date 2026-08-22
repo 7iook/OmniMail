@@ -1,0 +1,117 @@
+.linuxdo-connect-shell {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  place-items: center;
+  padding: 20px 18px 32px;
+  overflow-y: auto;
+}
+
+.linuxdo-connect-card {
+  display: grid;
+  width: min(100%, 340px);
+  gap: 15px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.linuxdo-connect-symbol {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.linuxdo-connect-heading { display: grid; gap: 5px; }
+.linuxdo-connect-heading .eyebrow { margin: 0; color: var(--text-tertiary); font-size: 10px; letter-spacing: 0.13em; }
+.linuxdo-connect-heading h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+.linuxdo-connect-heading > p:last-child { margin: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.6; }
+
+.linuxdo-connect-card > label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.linuxdo-connect-card input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  outline: 0;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.linuxdo-connect-card input:focus {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.linuxdo-password-field { position: relative; display: block; }
+.linuxdo-password-field input { padding-right: 48px; }
+.linuxdo-password-field button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.linuxdo-password-field button:hover { color: var(--text); }
+.linuxdo-password-field button:focus-visible { border-radius: 9px; outline: 2px solid var(--accent); outline-offset: -3px; }
+
+.linuxdo-connect-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.linuxdo-connect-note svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
+.linuxdo-connect-card .inline-error { margin: 0; }
+.linuxdo-connect-card > .button { width: 100%; min-height: 44px; }
+
+.linuxdo-status {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 9px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+.linuxdo-status.is-error { background: var(--danger-soft); color: var(--danger); }
+.linuxdo-disconnect { color: var(--danger); }
+
+@media (max-width: 760px) {
+  .linuxdo-connect-shell { align-items: start; padding: 22px 16px 36px; }
+  .linuxdo-connect-card { width: min(100%, 420px); padding: 22px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linuxdo-connect-card input { transition: none; }
+}

@@ -3,6 +3,7 @@ import { hasOutboundProviderConfig } from './outbound-provider-config'
 import { resendWebhookSecrets } from './resend-webhook'
 import { validSetupTokenSecret } from './setup-security'
 import { iCloudCredentialsReady } from './icloud-credentials'
+import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -174,6 +175,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       ready: iCloudCredentialsReady(env), required: false, missingState: 'warning',
       detail: 'ICLOUD_CREDENTIALS_KEY 用于加密保存 iCloud Cookie 和应用专用密码。',
       action: '需要 iCloud 隐藏邮箱时，配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY Secret。',
+    }),
+    check({
+      id: 'linux-do-mail-key', group: 'security', label: 'Linux DO Mail 凭据加密密钥',
+      ready: linuxDoMailCredentialsReady(env), required: false, missingState: 'warning',
+      detail: 'LINUX_DO_MAIL_CREDENTIALS_KEY 用于加密保存邮箱密码或认证令牌。',
+      action: '需要 Linux DO Mail 时，配置至少 32 字节的 LINUX_DO_MAIL_CREDENTIALS_KEY Secret。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,

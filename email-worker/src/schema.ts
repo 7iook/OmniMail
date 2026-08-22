@@ -1,5 +1,6 @@
 const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
-const REQUIRED_MIGRATION = '0022_consistency_guards.sql'
+const CONSISTENCY_MIGRATION = '0022_consistency_guards.sql'
+const REQUIRED_MIGRATION = '0023_linux_do_mail_accounts.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -24,6 +25,7 @@ const WRANGLER_MIGRATION_NAMES = [
   '0019_extension_authorization.sql',
   '0020_device_token_scopes.sql',
   ICLOUD_MIGRATION,
+  CONSISTENCY_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -238,7 +240,7 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: CONSISTENCY_MIGRATION,
     statements: [
       `CREATE TABLE IF NOT EXISTS pending_object_deletions (
         object_key TEXT PRIMARY KEY,
@@ -262,6 +264,25 @@ const RECOVERABLE_MIGRATIONS = [
            version = mail_state_versions.version + 1,
            updated_at = excluded.updated_at;
        END`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS linux_do_mail_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        username TEXT NOT NULL COLLATE NOCASE,
+        password_cipher TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'error')),
+        last_validated TEXT NOT NULL DEFAULT '',
+        last_error TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_linux_do_mail_accounts_user
+       ON linux_do_mail_accounts(user_id, created_at)`,
     ],
   },
 ] as const

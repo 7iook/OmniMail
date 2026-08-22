@@ -123,6 +123,18 @@ export interface ICloudMessage {
   isRead?: boolean
 }
 
+export interface LinuxDoMailAccount {
+  id: string
+  username: string
+  status: 'active' | 'error'
+  lastValidated: string
+  lastError: string
+  createdAt: string
+  hasPassword: boolean
+}
+
+export type LinuxDoMailMessage = ICloudMessage
+
 export interface MfaStatus {
   ready: boolean
   enabled: boolean
@@ -255,6 +267,7 @@ export type AuditCategory =
   | 'invitation'
   | 'message'
   | 'icloud'
+  | 'linuxdo-mail'
   | 'system'
 
 export interface AuditLog {

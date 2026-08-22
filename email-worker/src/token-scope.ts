@@ -136,5 +136,17 @@ export async function deviceScopesAllow(scopes: string, request: Request): Promi
   if (requestMethod === 'GET' && /^\/api\/icloud\/inbox(?:\/[^/]+)?$/.test(path)) {
     return hasScope(scopes, 'icloud:messages:read')
   }
+  if (path === '/api/linux-do-mail/account') {
+    if (requestMethod === 'GET') return hasScope(scopes, 'linuxdo-mail:account:read')
+    if (requestMethod === 'POST' || requestMethod === 'DELETE') {
+      return hasScope(scopes, 'linuxdo-mail:account:write')
+    }
+  }
+  if (requestMethod === 'POST' && path === '/api/linux-do-mail/account/verify') {
+    return hasScope(scopes, 'linuxdo-mail:account:write')
+  }
+  if (requestMethod === 'GET' && /^\/api\/linux-do-mail\/inbox(?:\/[^/]+)?$/.test(path)) {
+    return hasScope(scopes, 'linuxdo-mail:messages:read')
+  }
   return false
 }

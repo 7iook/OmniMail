@@ -85,6 +85,9 @@ describe('device token scopes', () => {
       ['/api/account', 'DELETE'],
       ['/api/mailboxes', 'POST'],
       ['/api/messages/message-1/raw', 'GET'],
+      ['/api/linux-do-mail/account', 'GET'],
+      ['/api/linux-do-mail/account', 'POST'],
+      ['/api/linux-do-mail/inbox', 'GET'],
     ]
     for (const [path, method] of denied) {
       await expect(deviceScopesAllow(
@@ -132,6 +135,8 @@ describe('device token scopes', () => {
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1/raw'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/auth/devices'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/account'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/inbox'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'PATCH'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/preview', 'POST'))).resolves.toBe(false)

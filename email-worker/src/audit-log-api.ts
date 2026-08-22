@@ -11,6 +11,7 @@ const CATEGORIES = [
   'invitation',
   'message',
   'icloud',
+  'linuxdo-mail',
   'system',
 ] as const
 
@@ -53,6 +54,7 @@ function categoryCondition(category: AuditCategory): string {
   if (category === 'all') return ''
   if (category === 'invitation') return "a.action LIKE 'temporary_invite.%'"
   if (category === 'system') return "a.action LIKE 'setup.%'"
+  if (category === 'linuxdo-mail') return "a.action LIKE 'linuxdo_mail.%'"
   return `a.action LIKE '${category}.%'`
 }
 

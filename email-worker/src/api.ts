@@ -19,6 +19,7 @@ import { confirmMfaSetup, disableMfa, mfaStatus, startMfaSetup } from './mfa-api
 import { completeMfaChallenge, createMfaChallenge, mfaEnabled } from './mfa'
 import { clearMfaChallengeCookie, mfaChallengeCookie, setMfaChallengeCookie } from './mfa-cookie'
 import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
+import { linuxDoMailRoutes } from './linux-do-mail-routes'
 import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
 import { iCloudRoutes } from './icloud-routes'
 import { authenticatePassword } from './password-login'
@@ -517,6 +518,7 @@ app.delete('/api/mailboxes/:address', (context) => (
 
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
 app.route('/api', iCloudRoutes)
+app.route('/api', linuxDoMailRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)
 app.post('/api/messages', async (context) => {

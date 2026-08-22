@@ -6,6 +6,7 @@ import {
   Inbox,
   Cloud,
   Link2,
+  Mail,
   LogOut,
   ScrollText,
   SearchCheck,
@@ -145,6 +146,17 @@ export function MailboxSidebar({
         >
           <Cloud size={18} />
           <span>{t('iCloud 隐藏邮箱')}</span>
+        </button>
+        <button
+          className={adminView === 'linuxdo-mail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('linuxdo-mail')
+          }}
+        >
+          <Mail size={18} />
+          <span>{t('Linux DO 邮箱')}</span>
         </button>
       </nav>
 

@@ -1,0 +1,106 @@
+import { expect, type Page, type Route, test } from '@playwright/test'
+
+function json(route: Route, body: unknown) {
+  return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
+}
+
+async function mockLinuxDoMail(page: Page) {
+  let account: null | Record<string, unknown> = null
+  const connections: Array<{ username: string; password: string }> = []
+  await page.addInitScript(() => {
+    localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
+    localStorage.setItem('omnimail-locale', 'zh-CN')
+  })
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/config') return json(route, {
+      appName: 'OmniMail', setupComplete: true, replyEnabled: false,
+      iCloudEnabled: false, registrationEnabled: false, registrationAvailable: false,
+      registrationMethod: 'password', linuxDoLoginEnabled: false,
+      registrationDomainPolicy: { mode: 'blocklist', domains: [] },
+      registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: 0,
+      remoteImagesEnabled: false, unassignedMailEnabled: false, superAdminEmail: '',
+      setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
+        superAdminReady: true, setupTokenReady: false },
+    })
+    if (path === '/api/session') return json(route, { user: {
+      id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
+      mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
+      canCreateMailboxes: false, canReply: false, canTranslate: false,
+      temporaryExpiresAt: null,
+    } })
+    if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
+    if (path === '/api/domains') return json(route, { domains: [] })
+    if (path === '/api/linux-do-mail/account' && request.method() === 'POST') {
+      connections.push(request.postDataJSON())
+      account = {
+        id: 'linuxdo-mail-1', username: 'member@linux.do', status: 'active',
+        lastValidated: '2026-08-22T00:00:00.000Z', lastError: '',
+        createdAt: '2026-08-22T00:00:00.000Z', hasPassword: true,
+      }
+      return json(route, { account })
+    }
+    if (path === '/api/linux-do-mail/account' && request.method() === 'DELETE') {
+      account = null
+      return json(route, { ok: true })
+    }
+    if (path === '/api/linux-do-mail/account') return json(route, { enabled: true, account })
+    if (path === '/api/linux-do-mail/account/verify') {
+      return json(route, { ok: true, validatedAt: '2026-08-22T00:00:00.000Z' })
+    }
+    if (path === '/api/linux-do-mail/inbox/42') return json(route, { message: {
+      id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
+      subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
+      preview: '完整邮件内容', body: '完整邮件内容', html: '', isRead: true,
+    } })
+    if (path === '/api/linux-do-mail/inbox') return json(route, { messages: [{
+      id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
+      subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
+      preview: '这是一封测试邮件', body: '', html: '', isRead: false,
+    }] })
+    return route.abort()
+  })
+  return { connections }
+}
+
+test('connects a Linux DO mailbox with username and password and reads mail', async ({ page }) => {
+  const state = await mockLinuxDoMail(page)
+  await page.goto('/linux-do-mail')
+
+  await expect(page.getByRole('heading', { name: '连接 Linux DO 邮箱' })).toBeVisible()
+  await page.getByLabel('邮箱用户名').fill('member@linux.do')
+  const password = page.getByLabel('密码或认证令牌')
+  await password.fill('revocable-test-token')
+  await page.getByRole('button', { name: '显示密码' }).click()
+  await expect(password).toHaveAttribute('type', 'text')
+  await page.getByRole('button', { name: '验证并连接' }).click()
+
+  await expect.poll(() => state.connections).toEqual([{
+    username: 'member@linux.do', password: 'revocable-test-token',
+  }])
+  await expect(page.getByText('欢迎回来')).toBeVisible()
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('revocable-test-token')
+  await page.getByRole('button', { name: /欢迎回来/ }).click()
+  await expect(page.getByText('完整邮件内容', { exact: true })).toBeVisible()
+
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(page.getByRole('button', { name: '返回邮件列表' })).toBeVisible()
+  expect(await page.evaluate(() => (
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  ))).toBe(true)
+})
+
+test('disconnects through the destructive confirmation dialog', async ({ page }) => {
+  await mockLinuxDoMail(page)
+  await page.goto('/linux-do-mail')
+  await page.getByLabel('邮箱用户名').fill('member@linux.do')
+  await page.getByLabel('密码或认证令牌').fill('revocable-test-token')
+  await page.getByRole('button', { name: '验证并连接' }).click()
+  await page.getByRole('button', { name: '断开账号' }).click()
+
+  const dialog = page.getByRole('alertdialog', { name: '断开 Linux DO 邮箱？' })
+  await expect(dialog).toContainText('已保存的密文会被删除')
+  await dialog.getByRole('button', { name: '断开账号' }).click()
+  await expect(page.getByRole('heading', { name: '连接 Linux DO 邮箱' })).toBeVisible()
+})
