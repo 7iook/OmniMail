@@ -369,7 +369,7 @@ function Mailbox({
             <LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}
           </div></section><main className="reader-pane" /></div>
         )}>
-          <ICloudWorkspace enabled={config.iCloudEnabled} remoteImagesEnabled={config.remoteImagesEnabled} />
+          <ICloudWorkspace userId={user.id} enabled={config.iCloudEnabled} remoteImagesEnabled={config.remoteImagesEnabled} />
         </Suspense>
       ) : adminView ? (
         <DelayedScrollbar className="admin-scroll-shell" resetKey={adminView}>

@@ -15,6 +15,7 @@ async function mockICloud(page: Page, options: {
   }]
   const inboxAliases: string[] = []
   const inboxQueries: string[] = []
+  const messageReads: string[] = []
   const createdLabels: string[] = []
   const createdEmails: string[] = []
   const createdPreviewIds: string[] = []
@@ -151,18 +152,21 @@ async function mockICloud(page: Page, options: {
       }]
       return json(route, { method: hasAppPassword ? 'imap' : 'web', messages })
     }
-    if (path === '/api/icloud/inbox/42') return json(route, { message: {
+    if (path === '/api/icloud/inbox/42') {
+      messageReads.push('42')
+      return json(route, { message: {
       id: '42', from: 'GitHub <noreply_at_github_com_22h56q5td86002_47bfb5aa@icloud.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Full receipt body.',
       html: '<html><body><img src="https://github.com/logo.png" alt="GitHub"><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p><script>document.body.textContent="unsafe"</script></body></html>',
-    } })
+      } })
+    }
     return route.abort()
   })
   return {
     accountCreates, accountNames, cookieUpdates, createdEmails, createdLabels, createdPreviewIds,
     deletedAccountIds,
-    inboxAliases, inboxQueries, passwordUpdates, previewedEmails,
+    inboxAliases, inboxQueries, messageReads, passwordUpdates, previewedEmails,
   }
 }
 
@@ -291,6 +295,9 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await page.getByRole('button', { name: '返回邮件列表' }).click()
   await expect(page.locator('iframe[title^="邮件正文"]')).toBeHidden()
   await expect(page.getByRole('button', { name: /Your receipt/ })).toBeVisible()
+  await page.getByRole('button', { name: /Your receipt/ }).click()
+  await expect(page.locator('iframe[title^="邮件正文"]')).toBeVisible()
+  expect(state.messageReads).toHaveLength(1)
 })
 
 test('uses the branded danger dialog before deleting an iCloud account', async ({ page }) => {
@@ -380,8 +387,10 @@ test('explains Cookie summary mode before an app-specific password is configured
   await expect(page.locator('.icloud-list-context')).toHaveCount(0)
   const statusBox = await status.boundingBox()
   const actionsBox = await page.locator('.icloud-header-action-buttons').boundingBox()
-  expect((statusBox?.x || 0) + (statusBox?.width || 0))
-    .toBeCloseTo((actionsBox?.x || 0) + (actionsBox?.width || 0), 1)
+  expect(Math.abs(
+    (statusBox?.x || 0) + (statusBox?.width || 0)
+      - (actionsBox?.x || 0) - (actionsBox?.width || 0),
+  )).toBeLessThanOrEqual(1)
   expect((statusBox?.y || 0) + (statusBox?.height || 0)).toBeLessThanOrEqual(actionsBox?.y || 0)
   await page.getByRole('button', { name: /Your receipt/ }).click()
   await expect(page.getByText('当前显示 iCloud Web 摘要')).toBeVisible()

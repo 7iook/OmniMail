@@ -51,6 +51,10 @@ async function imapClient(email: string, appPassword: string) {
   return new ICloudImapClient(email, appPassword)
 }
 
+function privateJson(body: unknown): Response {
+  return Response.json(body, { headers: { 'Cache-Control': 'private, no-store' } })
+}
+
 async function validateAppPassword(email: string, password: string): Promise<void> {
   const client = await imapClient(email, password)
   try {
@@ -484,7 +488,7 @@ export async function listICloudInbox(
           : alias
             ? await client.findByRecipient(alias, limit, days)
             : await client.listInbox(limit, days)
-        return Response.json({ messages, method: 'imap' })
+        return privateJson({ messages, method: 'imap' })
       } catch (error) {
         imapFailure = error instanceof Error ? error.message : String(error)
         console.warn('iCloud IMAP failed; using Web fallback', { accountId, message: imapFailure })
@@ -513,7 +517,7 @@ export async function listICloudInbox(
       : summaries
     account.cookies = client.cookies
     await store.saveCookies(account)
-    return Response.json({ messages, method: 'web' })
+    return privateJson({ messages, method: 'web' })
   } catch (error) {
     return responseError(error)
   }
@@ -536,7 +540,7 @@ export async function getICloudMessage(
     try {
       client = await imapClient(account.icloudEmail, account.appPassword)
       await client.open()
-      return Response.json({ message: await client.getMessage(uid) })
+      return privateJson({ message: await client.getMessage(uid) })
     } finally {
       await client?.close()
     }

@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  ArrowLeft,
   AtSign,
   Check,
   Cloud,
@@ -9,7 +8,6 @@ import {
   Inbox,
   KeyRound,
   LoaderCircle,
-  Mail,
   Plus,
   Power,
   PowerOff,
@@ -35,11 +33,20 @@ import {
   type ICloudMessage,
 } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
+import {
+  activateICloudMailCacheUser,
+  clearICloudAccountCache,
+  readICloudInboxCache,
+  readICloudMessageCache,
+  writeICloudInboxCache,
+  writeICloudMessageCache,
+  type ICloudInboxScope,
+} from '../lib/icloudMailCache'
 import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
 import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
-import { ICloudMessageBody } from './ICloudMessageBody'
+import { ICloudReader } from './ICloudReader'
 import { ICloudSearchField } from './ICloudSearchField'
 import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
@@ -263,45 +270,8 @@ function AccountSettingsModal({ account, onClose, onChanged, onDeleted, onNotice
   )
 }
 
-function ICloudReader({ message, loading, method, remoteImagesEnabled, onBack }: {
-  message: ICloudMessage | null
-  loading: boolean
-  method: 'imap' | 'web' | ''
-  remoteImagesEnabled: boolean
-  onBack: () => void
-}) {
-  if (loading) {
-    return <div className="reader-state reader-state--loading" role="status"><Spinner size={23} />{t('正在读取完整正文…')}</div>
-  }
-  if (!message) {
-    return <div className="reader-state reader-state--empty"><span className="reader-empty-symbol"><Mail size={29} /></span><h2>{t('选择一封 iCloud 邮件')}</h2></div>
-  }
-  const sender = parseICloudSender(message.from)
-  const senderLabel = sender.name || sender.address || t('未知发件人')
-  return (
-    <article className="icloud-reader">
-      <header className="reader-toolbar">
-        <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
-        <h2 className="reader-toolbar__title">{t('iCloud 邮件')}</h2>
-        {method && <span className={`icloud-source-badge is-${method}`}>{t(method === 'imap' ? 'IMAP 完整邮件' : 'Web 摘要')}</span>}
-      </header>
-      <div className="reader-content icloud-reader-content">
-        <div className="icloud-reader-heading">
-          <h1>{message.subject || t('无主题')}</h1>
-          <div className="icloud-reader-sender">
-            <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
-            <p><strong>{senderLabel}</strong>{sender.name && sender.address && <small title={sender.address}>{sender.isHideMyEmailRelay ? t('通过 iCloud 隐藏邮箱转发') : `<${sender.address}>`}</small>}{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
-            {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
-          </div>
-        </div>
-        {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
-        <div className="icloud-reader-body"><ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} /></div>
-      </div>
-    </article>
-  )
-}
-
-export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
+export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
+  userId: string
   enabled: boolean
   remoteImagesEnabled: boolean
 }) {
@@ -352,9 +322,15 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     }
   }, [enabled])
 
-  const sync = useCallback(async (alias = selectedAlias) => {
+  const sync = useCallback(async (alias = selectedAlias, forceInbox = false) => {
     const id = selectedId
     if (!id) return
+    const scope: ICloudInboxScope = { userId, accountId: id, alias, query: searchQuery }
+    const cached = readICloudInboxCache(scope)
+    if (cached) {
+      setMessages(cached.value.messages)
+      setInboxMethod(cached.value.method)
+    }
     aliasController.current?.abort()
     inboxController.current?.abort()
     const aliasAbort = new AbortController()
@@ -368,52 +344,71 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       setAliases(aliasResult.aliases)
       await loadAccounts()
       if (aliasCurrent !== aliasRequestId.current || inboxCurrent !== inboxRequestId.current) return
+      if (!forceInbox && cached?.fresh) return
       try {
         inboxController.current?.abort()
         const inboxAbort = new AbortController()
         inboxController.current = inboxAbort
-        const inboxResult = await api.iCloudInbox(id, alias, searchQuery, inboxAbort.signal)
+        const inboxResult = writeICloudInboxCache(
+          scope,
+          await api.iCloudInbox(id, alias, searchQuery, inboxAbort.signal),
+        )
         if (inboxCurrent === inboxRequestId.current) {
           setMessages(inboxResult.messages)
           setInboxMethod(inboxResult.method)
         }
       } catch (inboxError) {
         if (inboxCurrent === inboxRequestId.current) {
-          setMessages([])
-          setInboxMethod('')
+          if (!cached) { setMessages([]); setInboxMethod('') }
           setError(errorMessage(inboxError))
         }
       }
     } catch (syncError) {
       if (aliasCurrent === aliasRequestId.current) {
-        setAliases([]); setMessages([]); setInboxMethod(''); setError(errorMessage(syncError))
+        setAliases([])
+        if (!cached) { setMessages([]); setInboxMethod('') }
+        setError(errorMessage(syncError))
       }
     } finally {
       if (aliasCurrent === aliasRequestId.current && inboxCurrent === inboxRequestId.current) setSyncing(false)
     }
-  }, [loadAccounts, searchQuery, selectedAlias, selectedId])
+  }, [loadAccounts, searchQuery, selectedAlias, selectedId, userId])
 
-  const loadInbox = useCallback(async () => {
+  const loadInbox = useCallback(async (force = false) => {
     const id = selectedId
     if (!id) return
+    const scope: ICloudInboxScope = {
+      userId, accountId: id, alias: selectedAlias, query: searchQuery,
+    }
     inboxController.current?.abort()
+    const current = ++inboxRequestId.current
+    const cached = readICloudInboxCache(scope)
+    if (cached) {
+      setMessages(cached.value.messages)
+      setInboxMethod(cached.value.method)
+      if (cached.fresh && !force) { setSyncing(false); setError(''); return }
+    }
     const inboxAbort = new AbortController()
     inboxController.current = inboxAbort
-    const current = ++inboxRequestId.current
     setSyncing(true); setError('')
     try {
-      const result = await api.iCloudInbox(id, selectedAlias, searchQuery, inboxAbort.signal)
+      const result = writeICloudInboxCache(
+        scope,
+        await api.iCloudInbox(id, selectedAlias, searchQuery, inboxAbort.signal),
+      )
       if (current === inboxRequestId.current) {
         setMessages(result.messages)
         setInboxMethod(result.method)
       }
     } catch (inboxError) {
       if (current === inboxRequestId.current) {
-        setMessages([]); setInboxMethod(''); setError(errorMessage(inboxError))
+        if (!cached) { setMessages([]); setInboxMethod('') }
+        setError(errorMessage(inboxError))
       }
     } finally { if (current === inboxRequestId.current) setSyncing(false) }
-  }, [searchQuery, selectedAlias, selectedId])
+  }, [searchQuery, selectedAlias, selectedId, userId])
 
+  useEffect(() => activateICloudMailCacheUser(userId), [userId])
   useEffect(() => { void loadAccounts() }, [loadAccounts])
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchQuery(query.trim()), 300)
@@ -457,7 +452,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       else await api.updateICloudAlias(alias.anonymousId, selected.id, action)
       if (action === 'delete' && selectedAlias === alias.email) setSelectedAlias('')
       setNotice(t(action === 'delete' ? '隐藏邮箱已删除' : action === 'deactivate' ? '隐藏邮箱已停用' : '隐藏邮箱已恢复'))
-      await sync()
+      await sync(selectedAlias, true)
     } catch (actionError) { setError(errorMessage(actionError)) }
   }
   async function openMessage(message: ICloudMessage) {
@@ -466,16 +461,27 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     setOpened(message)
     setMessageLoading(false)
     if (!selected?.hasAppPassword || !/^\d+$/.test(message.id)) return
+    const cached = readICloudMessageCache(userId, selected.id, message.id)
+    if (cached) {
+      setOpened(cached.value)
+      if (cached.value.isRead) {
+        setMessages((items) => items.map((item) => (
+          item.id === cached.value.id ? { ...item, isRead: true } : item
+        )))
+      }
+      if (cached.fresh) return
+    }
     const controller = new AbortController()
     messageController.current = controller
-    setMessageLoading(true)
+    setMessageLoading(!cached)
     try {
       const result = await api.iCloudMessage(selected.id, message.id, controller.signal)
       if (current === messageRequestId.current) {
-        setOpened(result.message)
-        if (result.message.isRead) {
+        const detail = writeICloudMessageCache(userId, selected.id, result.message)
+        setOpened(detail)
+        if (detail.isRead) {
           setMessages((items) => items.map((item) => (
-            item.id === result.message.id ? { ...item, isRead: true } : item
+            item.id === detail.id ? { ...item, isRead: true } : item
           )))
         }
       }
@@ -530,7 +536,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
                 onClick={() => selected && setCredentials(selected)} aria-label={t('账号设置')}
                 data-tooltip={t('账号设置')}><Settings2 size={17} /></button>
               <button className="icon-button" type="button" disabled={!selected || syncing}
-                onClick={() => void sync()} aria-label={t('同步')}
+                onClick={() => void sync(selectedAlias, true)} aria-label={t('同步')}
                 data-tooltip={t('同步')}>{syncing ? <Spinner /> : <RefreshCw size={17} />}</button>
             </div>
           </div>
@@ -582,8 +588,8 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
       </main>
 
       {addOpen && <AddAccountModal onClose={() => setAddOpen(false)} onCreated={(account) => { setAccounts((items) => [...items, account]); setSelectedId(account.id); setNotice(t('iCloud 账号已添加')) }} />}
-      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('预览 Apple 生成的地址，确认后一次创建最多 5 个。')} onClose={() => setCreateOpen(false)}>{(close) => <ICloudAliasBatchForm account={selected} close={close} onCreated={async (createdAliases) => { const latest = createdAliases.at(-1); if (!latest) return; setSelectedAlias(latest.email); setNotice(t(createdAliases.length === 1 ? '新的隐藏邮箱已创建' : '已创建 {count} 个隐藏邮箱', { count: createdAliases.length })); await sync(latest.email) }} />}</Modal>}
-      {credentials && <AccountSettingsModal account={credentials} onClose={() => setCredentials(null)} onChanged={loadAccounts} onDeleted={async () => { await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} onNotice={setNotice} />}
+      {createOpen && selected && <Modal title={t('创建隐藏邮箱')} description={t('预览 Apple 生成的地址，确认后一次创建最多 5 个。')} onClose={() => setCreateOpen(false)}>{(close) => <ICloudAliasBatchForm account={selected} close={close} onCreated={async (createdAliases) => { const latest = createdAliases.at(-1); if (!latest) return; setSelectedAlias(latest.email); setNotice(t(createdAliases.length === 1 ? '新的隐藏邮箱已创建' : '已创建 {count} 个隐藏邮箱', { count: createdAliases.length })); await sync(latest.email, true) }} />}</Modal>}
+      {credentials && <AccountSettingsModal account={credentials} onClose={() => setCredentials(null)} onChanged={async () => { clearICloudAccountCache(userId, credentials.id); await loadAccounts() }} onDeleted={async () => { clearICloudAccountCache(userId, credentials.id); await loadAccounts(); setAliases([]); setMessages([]); setInboxMethod('') }} onNotice={setNotice} />}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
     </div>
   )

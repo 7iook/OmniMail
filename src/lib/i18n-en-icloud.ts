@@ -108,7 +108,7 @@ export const enICloud: Record<string, string> = {
   '通过 iCloud 隐藏邮箱转发': 'Forwarded through iCloud Hide My Email',
   '无主题': 'No subject',
   '收件：{address}': 'To: {address}',
-  '正在读取完整正文…': 'Loading full message…',
+  '正在从APPLE服务器获取邮件信息...': 'Fetching message information from Apple servers...',
   '这封邮件没有可显示的文本内容。': 'This message has no displayable text.',
   '导入 iCloud.com Cookie，用于管理隐藏邮箱。':
     'Import iCloud.com cookies to manage Hide My Email.',
