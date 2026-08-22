@@ -8,6 +8,7 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
   let account: null | Record<string, unknown> = null
   const connections: Array<{ username: string; password: string }> = []
   const credentialUpdates: Array<{ password: string }> = []
+  const searches: Array<{ folder: 'inbox' | 'sent'; query: string }> = []
   const sentMessages: Array<{
     to: string; subject: string; text: string; idempotencyKey: string
   }> = []
@@ -17,7 +18,8 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
   })
   await page.route('**/api/**', async (route) => {
     const request = route.request()
-    const path = new URL(request.url()).pathname
+    const url = new URL(request.url())
+    const path = url.pathname
     if (path === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,
       iCloudEnabled: false, registrationEnabled: false, registrationAvailable: false,
@@ -75,25 +77,35 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
       html: '<p>这是一封队列发送测试邮件。</p>', isRead: true,
       direction: 'outgoing', status: 'sent', deliveryStatus: 'sent', processingError: '',
     } })
-    if (path === '/api/linux-do-mail/sent') return json(route, { messages: sentMessages.map(() => ({
+    if (path === '/api/linux-do-mail/sent') {
+      const query = url.searchParams.get('q') || ''
+      searches.push({ folder: 'sent', query })
+      const messages = sentMessages.map(() => ({
       id: 'outbound-1', from: 'member@linux.do', to: 'recipient@example.com',
       subject: '来自 Linux DO 的问候', date: '2026-08-22T00:00:00.000Z',
       preview: '这是一封队列发送测试邮件。', body: '', html: '', isRead: true,
       direction: 'outgoing', status: 'sent', deliveryStatus: 'sent', processingError: '',
-    })) })
+      })).filter((message) => !query || JSON.stringify(message).includes(query))
+      return json(route, { messages })
+    }
     if (path === '/api/linux-do-mail/inbox/42') return json(route, { message: {
       id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
       subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
       preview: '完整邮件内容', body: '完整邮件内容', html: '', isRead: true,
     } })
-    if (path === '/api/linux-do-mail/inbox') return json(route, { messages: [{
-      id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
-      subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
-      preview: '这是一封测试邮件', body: '', html: '', isRead: false,
-    }] })
+    if (path === '/api/linux-do-mail/inbox') {
+      const query = url.searchParams.get('q') || ''
+      searches.push({ folder: 'inbox', query })
+      const messages = [{
+        id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
+        subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
+        preview: '这是一封测试邮件', body: '', html: '', isRead: false,
+      }].filter((message) => !query || JSON.stringify(message).includes(query))
+      return json(route, { messages })
+    }
     return route.abort()
   })
-  return { connections, credentialUpdates, sentMessages }
+  return { connections, credentialUpdates, searches, sentMessages }
 }
 
 test('connects a Linux DO mailbox with username and password and reads mail', async ({ page }) => {
@@ -113,6 +125,17 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   }])
   await expect(page.getByText('欢迎回来')).toBeVisible()
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('revocable-test-token')
+
+  const inboxSearch = page.getByRole('search', { name: '搜索收件箱邮件' })
+  await inboxSearch.getByRole('searchbox').fill('欢迎')
+  await inboxSearch.getByRole('searchbox').press('Enter')
+  await expect.poll(() => state.searches).toContainEqual({ folder: 'inbox', query: '欢迎' })
+  await expect(page.getByText('欢迎回来')).toBeVisible()
+  await inboxSearch.getByRole('searchbox').fill('不存在')
+  await inboxSearch.getByRole('searchbox').press('Enter')
+  await expect(page.getByRole('heading', { name: '未找到相关邮件' })).toBeVisible()
+  await inboxSearch.getByRole('button', { name: '清除搜索' }).click()
+  await expect(page.getByText('欢迎回来')).toBeVisible()
 
   const accountTrigger = page.getByRole('button', { name: '管理 Linux DO 账号' })
   await expect(page.locator('.icloud-header-action-buttons > button')).toHaveCount(3)
@@ -166,6 +189,10 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   const folders = page.locator('.linuxdo-folder-switch')
   await folders.getByRole('button', { name: '已发送' }).click()
   await expect(folders.getByRole('button', { name: '已发送' })).toHaveAttribute('aria-pressed', 'true')
+  const sentSearch = page.getByRole('search', { name: '搜索已发送邮件' })
+  await sentSearch.getByRole('searchbox').fill('队列')
+  await sentSearch.getByRole('searchbox').press('Enter')
+  await expect.poll(() => state.searches).toContainEqual({ folder: 'sent', query: '队列' })
   const sentRow = page.locator('.message-row').filter({ hasText: 'recipient@example.com' })
   await expect(sentRow.getByText('已发送', { exact: true })).toBeVisible()
   await sentRow.getByRole('button').click()
@@ -174,6 +201,7 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
     .getByText('这是一封队列发送测试邮件。', { exact: true })).toBeVisible()
   await expect(sentReader.getByRole('heading', { name: '已发送邮件' })).toBeVisible()
   await page.getByRole('button', { name: '返回邮件列表' }).click()
+  await sentSearch.getByRole('button', { name: '清除搜索' }).click()
   await folders.getByRole('button', { name: '收件箱' }).click()
 
   await page.getByRole('button', { name: /欢迎回来/ }).click()

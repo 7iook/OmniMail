@@ -180,26 +180,26 @@ curl --request POST \
 }'
 ```
 
-<!-- endpoint:GET /api/linux-do-mail/inbox catalog:217cd01fb08d -->
+<!-- endpoint:GET /api/linux-do-mail/inbox catalog:1578e8e77de5 -->
 ## `GET /api/linux-do-mail/inbox`
 
 **读取 Linux DO Mail 最近来信 / List recent Linux DO Mail messages**
 
-按用户操作通过 IMAP 读取 INBOX 中最近 20 封邮件摘要，不做后台同步。
+通过 IMAP 读取 INBOX 最近 20 封邮件，或在服务器上搜索主题、联系人与正文。
 
-> Read summaries for the 20 most recent INBOX messages over IMAP on demand without background sync.
+> Read the 20 most recent INBOX messages over IMAP, or search subjects, contacts, and body text on the server.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | No parameters |
+| 请求 | Query · q? |
 | 成功响应 | 200 · { messages } |
 
 ### cURL 示例
 
 ```bash
 curl --request GET \
-  --url "https://mail.example.com/api/linux-do-mail/inbox" \
+  --url "https://mail.example.com/api/linux-do-mail/inbox?q=release" \
   --header "Authorization: Bearer om_at_..."
 ```
 
@@ -226,26 +226,26 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/linux-do-mail/sent catalog:f8d6cd9446fb -->
+<!-- endpoint:GET /api/linux-do-mail/sent catalog:7ad827f02e1c -->
 ## `GET /api/linux-do-mail/sent`
 
 **读取 Linux DO Mail 发件记录 / List sent Linux DO Mail messages**
 
-读取当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。
+读取或搜索当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。
 
-> List the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.
+> List or search the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | No parameters |
+| 请求 | Query · q? |
 | 成功响应 | 200 · { messages } |
 
 ### cURL 示例
 
 ```bash
 curl --request GET \
-  --url "https://mail.example.com/api/linux-do-mail/sent" \
+  --url "https://mail.example.com/api/linux-do-mail/sent?q=invoice" \
   --header "Authorization: Bearer om_at_..."
 ```
 

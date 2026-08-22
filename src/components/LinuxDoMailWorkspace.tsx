@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   Mail,
   RefreshCw,
+  Search,
   Send,
   Settings2,
   ShieldCheck,
@@ -30,6 +31,7 @@ import {
   LinuxDoMailComposeDialog,
   type LinuxDoMailComposeInput,
 } from './LinuxDoMailComposeDialog'
+import { LinuxDoMailSearchField } from './LinuxDoMailSearchField'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -173,6 +175,8 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   const [enabled, setEnabled] = useState(true)
   const [account, setAccount] = useState<LinuxDoMailAccount | null>(null)
   const [folder, setFolder] = useState<'inbox' | 'sent'>('inbox')
+  const [searchInput, setSearchInput] = useState('')
+  const [query, setQuery] = useState('')
   const [messages, setMessages] = useState<LinuxDoMailMessage[]>([])
   const [opened, setOpened] = useState<LinuxDoMailMessage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -211,18 +215,18 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     setSyncing(true); setError('')
     try {
       const result = folder === 'sent'
-        ? await api.linuxDoMailSent(controller.signal)
-        : await api.linuxDoMailInbox(controller.signal)
+        ? await api.linuxDoMailSent(query, controller.signal)
+        : await api.linuxDoMailInbox(query, controller.signal)
       setMessages(result.messages)
     } catch (loadError) {
       if (!controller.signal.aborted) setError(errorMessage(loadError))
     } finally {
       if (!controller.signal.aborted) setSyncing(false)
     }
-  }, [account, folder])
+  }, [account, folder, query])
 
   useEffect(() => { void loadAccount() }, [loadAccount])
-  useEffect(() => { if (account) void loadMessages() }, [account?.id, folder]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (account) void loadMessages() }, [account?.id, folder, query]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { inboxController.current?.abort(); messageController.current?.abort() }, [])
   useEffect(() => {
     if (!notice) return
@@ -257,7 +261,8 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     setAction('disconnect'); setError('')
     try {
       await api.disconnectLinuxDoMail()
-      setAccount(null); setFolder('inbox'); setMessages([]); setOpened(null); setDisconnectOpen(false)
+      setAccount(null); setFolder('inbox'); setSearchInput(''); setQuery('')
+      setMessages([]); setOpened(null); setDisconnectOpen(false)
       setNotice(t('Linux DO 邮箱已断开'))
     } catch (disconnectError) {
       setError(errorMessage(disconnectError))
@@ -317,6 +322,27 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     setFolder(nextFolder)
   }
 
+  function submitSearch() {
+    const nextQuery = searchInput.trim()
+    if (!nextQuery) return
+    closeMessage()
+    inboxController.current?.abort()
+    setMessages([])
+    setError('')
+    if (nextQuery === query) void loadMessages()
+    else setQuery(nextQuery)
+  }
+
+  function clearSearch() {
+    closeMessage()
+    inboxController.current?.abort()
+    setSearchInput('')
+    setMessages([])
+    setError('')
+    if (query) setQuery('')
+    else void loadMessages()
+  }
+
   return (
     <div className={`icloud-mail-view linuxdo-mail-view${opened ? ' has-selection' : ''}`}>
       <section className="list-pane icloud-list-pane page-content-enter">
@@ -361,13 +387,17 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
           </button>
         </div>}
 
+        {account && <LinuxDoMailSearchField value={searchInput} folder={folder} loading={syncing}
+          onChange={setSearchInput} onSubmit={submitSearch} onClear={clearSearch} />}
+
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
         {loading ? <div className="icloud-loading"><Spinner size={22} />{t('正在读取 Linux DO Mail 配置…')}</div>
           : !enabled ? <Empty icon={<KeyRound size={24} />} title={t('Linux DO Mail 功能尚未启用')}
             description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 LINUX_DO_MAIL_CREDENTIALS_KEY，然后重新部署。')} />
           : !account ? <ConnectForm saving={connecting} error={formError} onConnect={connect} />
           : syncing && !messages.length ? <div className="icloud-loading"><Spinner />
-            {t(folder === 'sent' ? '正在读取已发送邮件…' : '正在读取收件箱…')}</div>
+            {t(query ? '正在搜索邮件…'
+              : folder === 'sent' ? '正在读取已发送邮件…' : '正在读取收件箱…')}</div>
           : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox"
             aria-label={t(folder === 'sent' ? 'Linux DO 已发送邮件列表' : 'Linux DO 邮件列表')}>
             {messages.map((message) => {
@@ -390,7 +420,10 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
                 {message.isRead === false && <span className="message-row__unread-dot" aria-hidden="true" />}
               </article>
             })}
-          </div></div> : folder === 'sent'
+          </div></div> : query
+            ? <Empty icon={<Search size={24} />} title={t('未找到相关邮件')}
+              description={t('请尝试更换关键词，或清除搜索查看最近邮件。')} />
+            : folder === 'sent'
             ? <Empty icon={<Send size={24} />} title={t('暂无已发送邮件')}
               description={t('通过 Linux DO 写信后，排队和投递状态会显示在这里。')} />
             : <Empty icon={<Inbox size={24} />} title={t('暂无 Linux DO 邮件')}

@@ -2,6 +2,11 @@ import type { LinuxDoMailAccount, LinuxDoMailMessage } from './api-types'
 
 type Request = <T>(path: string, init?: RequestInit & { timeoutMs?: number }) => Promise<T>
 
+function searchPath(path: string, query: string): string {
+  const value = query.trim()
+  return value ? `${path}?q=${encodeURIComponent(value)}` : path
+}
+
 export function createLinuxDoMailApi(request: Request, jsonBody: (value: unknown) => string) {
   return {
     linuxDoMailAccount: (signal?: AbortSignal) => request<{
@@ -29,18 +34,18 @@ export function createLinuxDoMailApi(request: Request, jsonBody: (value: unknown
       body: jsonBody({ password }),
       timeoutMs: 30_000,
     }),
-    linuxDoMailInbox: (signal?: AbortSignal) => request<{
+    linuxDoMailInbox: (query = '', signal?: AbortSignal) => request<{
       messages: LinuxDoMailMessage[]
-    }>('/api/linux-do-mail/inbox', { signal, timeoutMs: 30_000 }),
+    }>(searchPath('/api/linux-do-mail/inbox', query), { signal, timeoutMs: 30_000 }),
     linuxDoMailMessage: (uid: string, signal?: AbortSignal) => request<{
       message: LinuxDoMailMessage
     }>(`/api/linux-do-mail/inbox/${encodeURIComponent(uid)}`, {
       signal,
       timeoutMs: 30_000,
     }),
-    linuxDoMailSent: (signal?: AbortSignal) => request<{
+    linuxDoMailSent: (query = '', signal?: AbortSignal) => request<{
       messages: LinuxDoMailMessage[]
-    }>('/api/linux-do-mail/sent', { signal }),
+    }>(searchPath('/api/linux-do-mail/sent', query), { signal }),
     linuxDoMailSentMessage: (id: string, signal?: AbortSignal) => request<{
       message: LinuxDoMailMessage
     }>(`/api/linux-do-mail/sent/${encodeURIComponent(id)}`, { signal }),

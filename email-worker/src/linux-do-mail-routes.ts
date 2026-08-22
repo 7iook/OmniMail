@@ -50,13 +50,13 @@ linuxDoMailRoutes.put('/linux-do-mail/account/credential', (context) => (
   )
 ))
 linuxDoMailRoutes.get('/linux-do-mail/inbox', (context) => (
-  listLinuxDoMailInbox(context.env, context.get('user'))
+  listLinuxDoMailInbox(context.env, context.get('user'), context.req.raw)
 ))
 linuxDoMailRoutes.get('/linux-do-mail/inbox/:uid', (context) => (
   getLinuxDoMailMessage(context.env, context.get('user'), context.req.param('uid'))
 ))
 linuxDoMailRoutes.get('/linux-do-mail/sent', (context) => (
-  listLinuxDoMailSent(context.env, context.get('user'))
+  listLinuxDoMailSent(context.env, context.get('user'), context.req.raw)
 ))
 linuxDoMailRoutes.get('/linux-do-mail/sent/:id', (context) => (
   getLinuxDoMailSentMessage(context.env, context.get('user'), context.req.param('id'))

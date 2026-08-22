@@ -142,8 +142,9 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/linux-do-mail/inbox', group: 'linuxdoMail', auth: 'authenticated',
     title: l('读取 Linux DO Mail 最近来信', 'List recent Linux DO Mail messages'),
-    description: l('按用户操作通过 IMAP 读取 INBOX 中最近 20 封邮件摘要，不做后台同步。', 'Read summaries for the 20 most recent INBOX messages over IMAP on demand without background sync.'),
-    request: 'No parameters', response: '200 · { messages }',
+    description: l('通过 IMAP 读取 INBOX 最近 20 封邮件，或在服务器上搜索主题、联系人与正文。', 'Read the 20 most recent INBOX messages over IMAP, or search subjects, contacts, and body text on the server.'),
+    request: 'Query · q?', response: '200 · { messages }',
+    examplePath: '/api/linux-do-mail/inbox?q=release',
   },
   {
     method: 'GET', path: '/api/linux-do-mail/inbox/:uid', group: 'linuxdoMail', auth: 'authenticated',
@@ -154,8 +155,9 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/linux-do-mail/sent', group: 'linuxdoMail', auth: 'authenticated',
     title: l('读取 Linux DO Mail 发件记录', 'List sent Linux DO Mail messages'),
-    description: l('读取当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。', 'List the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.'),
-    request: 'No parameters', response: '200 · { messages }',
+    description: l('读取或搜索当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。', 'List or search the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.'),
+    request: 'Query · q?', response: '200 · { messages }',
+    examplePath: '/api/linux-do-mail/sent?q=invoice',
   },
   {
     method: 'GET', path: '/api/linux-do-mail/sent/:id', group: 'linuxdoMail', auth: 'authenticated',

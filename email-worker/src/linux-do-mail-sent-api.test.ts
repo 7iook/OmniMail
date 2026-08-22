@@ -69,4 +69,18 @@ describe('Linux DO Mail sent API', () => {
     expect(body.message).toMatchObject({ body: 'Full body', html: '<p>Full body</p>' })
     expect(bindings).toContainEqual(['message-1', 'member@linux.do', 'user-1'])
   })
+
+  it('binds sent search terms to the existing message index query', async () => {
+    const { env, bindings } = testEnv()
+    const response = await listLinuxDoMailSent(
+      env,
+      user,
+      new Request('https://mail.example.com/api/linux-do-mail/sent?q=Greeting'),
+    )
+
+    expect(response.status).toBe(200)
+    expect(bindings).toContainEqual([
+      'member@linux.do', 'user-1', '%greeting%', '%greeting%', '%greeting%',
+    ])
+  })
 })

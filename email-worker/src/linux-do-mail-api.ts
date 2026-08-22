@@ -3,6 +3,7 @@ import { safeJsonArray } from './api-helpers'
 import { ImapConnectionError } from './imap-errors'
 import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
 import type { LinuxDoMailImapClient } from './linux-do-mail-imap'
+import { searchLikePattern } from './message-search'
 import { sendOutboundMessage } from './outbound-message'
 import { validateNewMessage } from './send-message'
 import {
@@ -54,6 +55,15 @@ function passwordField(value: unknown): string {
     throw new LinuxDoMailStoreError(400, '请填写有效的密码或认证令牌。')
   }
   return password
+}
+
+function searchQuery(request?: Request): string {
+  if (!request) return ''
+  const query = (new URL(request.url).searchParams.get('q') || '').trim()
+  if (query.length > 120 || /[\r\n\0]/.test(query)) {
+    throw new LinuxDoMailStoreError(400, '搜索关键词无效或超过 120 个字符。')
+  }
+  return query
 }
 
 async function validateCredentials(username: string, password: string): Promise<void> {
@@ -197,15 +207,20 @@ export async function updateLinuxDoMailCredential(
   }
 }
 
-export async function listLinuxDoMailInbox(env: Env, user: SessionUser): Promise<Response> {
+export async function listLinuxDoMailInbox(
+  env: Env,
+  user: SessionUser,
+  request?: Request,
+): Promise<Response> {
   let client: LinuxDoMailImapClient | undefined
   try {
     const store = new LinuxDoMailAccountStore(env, user.id)
     const account = await store.get()
+    const query = searchQuery(request)
     client = await imapClient(account.username, account.password)
     try {
       await client.open()
-      const messages = await client.listInbox(20)
+      const messages = await client.listInbox(20, query)
       await store.recordValidation(account.id)
       return privateJson({ messages })
     } catch (error) {
@@ -285,9 +300,25 @@ async function linuxDoMailboxAddress(env: Env, userId: string): Promise<string> 
   return account.username
 }
 
-export async function listLinuxDoMailSent(env: Env, user: SessionUser): Promise<Response> {
+export async function listLinuxDoMailSent(
+  env: Env,
+  user: SessionUser,
+  request?: Request,
+): Promise<Response> {
   try {
     const mailboxAddress = await linuxDoMailboxAddress(env, user.id)
+    const query = searchQuery(request)
+    const pattern = query ? searchLikePattern(query) : ''
+    const searchCondition = query ? `AND (
+      EXISTS (
+        SELECT 1 FROM message_search ms
+         WHERE ms.message_id = m.id AND ms.content LIKE ? ESCAPE '\\'
+      ) OR m.subject LIKE ? ESCAPE '\\'
+        OR m.recipients_json LIKE ? ESCAPE '\\'
+    )` : ''
+    const bindings = query
+      ? [mailboxAddress, user.id, pattern, pattern, pattern]
+      : [mailboxAddress, user.id]
     const { results } = await env.DB.prepare(
       `SELECT m.id, m.status, m.sender_address, m.recipients_json, m.subject,
               m.preview, m.sent_at, m.created_at, m.body_key,
@@ -296,9 +327,10 @@ export async function listLinuxDoMailSent(env: Env, user: SessionUser): Promise<
          JOIN mailboxes mb ON mb.address = m.mailbox_address
         WHERE m.mailbox_address = ? AND mb.user_id = ? AND mb.is_hidden = 1
           AND m.direction = 'outgoing' AND m.folder = 'sent'
+          ${searchCondition}
         ORDER BY m.sent_at DESC, m.id DESC
         LIMIT 20`,
-    ).bind(mailboxAddress, user.id).all<LinuxDoSentRow>()
+    ).bind(...bindings).all<LinuxDoSentRow>()
     return privateJson({ messages: results.map((row) => sentMessage(row)) })
   } catch (error) {
     return responseError(error)

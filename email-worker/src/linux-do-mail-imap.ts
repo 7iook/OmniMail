@@ -1,4 +1,4 @@
-import { ImapConnection } from './imap-connection'
+import { ImapConnection, quoteImapValue } from './imap-connection'
 import { ImapConnectionError } from './imap-errors'
 import { iCloudImapMessageIsRead } from './icloud-imap-flags'
 import { parseICloudMessage } from './icloud-message-parser'
@@ -10,6 +10,17 @@ const LIST_MESSAGE_BYTES = 65_536
 const DETAIL_MESSAGE_BYTES = 524_288
 
 export { ImapConnectionError as LinuxDoMailRemoteError }
+
+function linuxDoMailSearchCriteria(query: string): string {
+  const value = query.trim()
+  return value ? `TEXT ${quoteImapValue(value)}` : 'ALL'
+}
+
+export function linuxDoMailSearchCommand(query: string): string {
+  return `UID SEARCH${/[^\x00-\x7f]/.test(query) ? ' CHARSET UTF-8' : ''} ${
+    linuxDoMailSearchCriteria(query)
+  }`
+}
 
 export class LinuxDoMailImapClient {
   private readonly connection = new ImapConnection(
@@ -37,9 +48,9 @@ export class LinuxDoMailImapClient {
     await this.connection.command('EXAMINE INBOX')
   }
 
-  async listInbox(limit = 20): Promise<LinuxDoMailMessage[]> {
+  async listInbox(limit = 20, query = ''): Promise<LinuxDoMailMessage[]> {
     await this.connection.command('EXAMINE INBOX')
-    const search = await this.connection.command('UID SEARCH ALL')
+    const search = await this.connection.command(linuxDoMailSearchCommand(query))
     const line = search.lines.find((item) => item.startsWith('* SEARCH'))
     const uids = line
       ? line.slice(8).trim().split(/\s+/).filter(Boolean).map(Number)
