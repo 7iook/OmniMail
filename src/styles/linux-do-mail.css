@@ -105,24 +105,113 @@
   white-space: nowrap;
 }
 .linuxdo-status.is-error { background: var(--danger-soft); color: var(--danger); }
-.linuxdo-disconnect { color: var(--danger); }
 
-.linuxdo-credential-dialog { width: min(460px, 100%); }
-.linuxdo-credential-dialog .linuxdo-password-field { display: block; }
-.linuxdo-credential-dialog .linuxdo-connect-note { font-size: 12px; }
-.linuxdo-credential-dialog .inline-error { margin: 0; }
-.linuxdo-credential-dialog .button { min-height: 44px; }
-.linuxdo-compose-dialog { width: min(560px, 100%); }
-.linuxdo-compose-dialog textarea { min-height: 180px; line-height: 1.6; }
-.linuxdo-compose-dialog .inline-error { margin: 0; }
-.linuxdo-compose-dialog .button { min-height: 44px; }
+.linuxdo-account-dialog { width: min(560px, 100%); }
+.linuxdo-account-dialog > header { margin-bottom: 16px; }
+.linuxdo-account-dialog > header .eyebrow {
+  margin: 0 0 5px;
+  color: var(--text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.13em;
+}
+.linuxdo-account-dialog .inline-error { margin: 0 0 12px; }
+
+.linuxdo-account-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+.linuxdo-account-summary__icon,
+.linuxdo-account-section-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+.linuxdo-account-summary__icon { width: 38px; height: 38px; border-radius: 11px; }
+.linuxdo-account-summary > span:nth-child(2),
+.linuxdo-account-section-heading > span:last-child,
+.linuxdo-account-action > span,
+.linuxdo-account-danger > span { display: grid; min-width: 0; gap: 3px; }
+.linuxdo-account-summary strong,
+.linuxdo-account-section-heading strong,
+.linuxdo-account-action strong,
+.linuxdo-account-danger strong { overflow-wrap: anywhere; color: var(--text); font-size: 13px; }
+.linuxdo-account-summary small,
+.linuxdo-account-section-heading small,
+.linuxdo-account-action small,
+.linuxdo-account-danger small { color: var(--text-tertiary); font-size: 10px; line-height: 1.5; }
+
+.linuxdo-account-action,
+.linuxdo-account-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.linuxdo-account-action .button,
+.linuxdo-account-danger .button { min-width: 112px; min-height: 44px; flex: 0 0 auto; }
+
+.linuxdo-account-credential {
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface));
+}
+.linuxdo-account-section-heading { display: flex; align-items: center; gap: 9px; }
+.linuxdo-account-section-icon { width: 32px; height: 32px; border-radius: 9px; }
+.linuxdo-account-credential .linuxdo-password-field { display: block; }
+.linuxdo-account-credential .linuxdo-connect-note { font-size: 11px; }
+.linuxdo-account-credential > footer { justify-content: flex-start; }
+.linuxdo-account-credential > footer .button { min-height: 44px; }
+.linuxdo-account-danger { margin-top: 14px; }
+
+.linuxdo-compose-sender {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.linuxdo-compose-sender > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+.linuxdo-compose-sender strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 @media (max-width: 760px) {
   .linuxdo-connect-shell { align-items: start; padding: 22px 16px 36px; }
   .linuxdo-connect-card { width: min(100%, 420px); padding: 22px 18px; }
+  .linuxdo-account-dialog { width: 100%; }
+  .linuxdo-account-action,
+  .linuxdo-account-danger { align-items: stretch; flex-direction: column; gap: 10px; }
+  .linuxdo-account-action .button,
+  .linuxdo-account-danger .button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .linuxdo-connect-card input { transition: none; }
-  .linuxdo-compose-dialog textarea { min-height: 150px; }
 }

@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   Mail,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   SquarePen,
   Unplug,
@@ -20,7 +21,7 @@ import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 import { ICloudMessageBody } from './ICloudMessageBody'
-import { LinuxDoMailCredentialDialog } from './LinuxDoMailCredentialDialog'
+import { LinuxDoMailAccountDialog } from './LinuxDoMailAccountDialog'
 import {
   LinuxDoMailComposeDialog,
   type LinuxDoMailComposeInput,
@@ -153,11 +154,11 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   const [connecting, setConnecting] = useState(false)
   const [action, setAction] = useState<'verify' | 'update' | 'send' | 'disconnect' | ''>('')
   const [composeOpen, setComposeOpen] = useState(false)
-  const [credentialOpen, setCredentialOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
-  const [credentialError, setCredentialError] = useState('')
+  const [accountError, setAccountError] = useState('')
   const [composeError, setComposeError] = useState('')
   const [notice, setNotice] = useState('')
   const inboxController = useRef<AbortController | null>(null)
@@ -212,13 +213,13 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   }
 
   async function verify() {
-    setAction('verify'); setError('')
+    setAction('verify'); setAccountError('')
     try {
       await api.verifyLinuxDoMail()
       await loadAccount()
       setNotice(t('账号验证成功'))
     } catch (verifyError) {
-      setError(errorMessage(verifyError))
+      setAccountError(errorMessage(verifyError))
       await loadAccount()
     } finally { setAction('') }
   }
@@ -235,13 +236,13 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   }
 
   async function updateCredential(password: string) {
-    setAction('update'); setCredentialError('')
+    setAction('update'); setAccountError('')
     try {
       const result = await api.updateLinuxDoMailCredential(password)
-      setAccount(result.account); setCredentialOpen(false)
+      setAccount(result.account); setAccountOpen(false)
       setNotice(t('认证令牌已更新'))
     } catch (updateError) {
-      setCredentialError(errorMessage(updateError))
+      setAccountError(errorMessage(updateError))
     } finally { setAction('') }
   }
 
@@ -286,7 +287,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
               {t(account.status === 'active' ? '已连接' : '需要验证')}
             </span>
             <div className="icloud-header-action-buttons">
-              <button className="icon-button" type="button"
+              <button className="button button--primary compose-trigger" type="button"
                 disabled={Boolean(action) || !canSend}
                 onClick={() => { setComposeError(''); setComposeOpen(true) }}
                 aria-label={t('新建 Linux DO 邮件')}
@@ -294,21 +295,13 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
                 <SquarePen size={17} />
               </button>
               <button className="icon-button" type="button" disabled={Boolean(action)}
-                onClick={() => { setCredentialError(''); setCredentialOpen(true) }}
-                aria-label={t('更新认证令牌')} data-tooltip={t('更新认证令牌')}>
-                <KeyRound size={17} />
-              </button>
-              <button className="icon-button" type="button" disabled={Boolean(action)}
-                onClick={() => void verify()} aria-label={t('验证账号')} data-tooltip={t('验证账号')}>
-                {action === 'verify' ? <Spinner /> : <ShieldCheck size={17} />}
+                onClick={() => { setAccountError(''); setAccountOpen(true) }}
+                aria-label={t('管理 Linux DO 账号')} data-tooltip={t('管理 Linux DO 账号')}>
+                <Settings2 size={17} />
               </button>
               <button className="icon-button" type="button" disabled={syncing}
                 onClick={() => void loadInbox()} aria-label={t('刷新收件箱')} data-tooltip={t('刷新收件箱')}>
                 {syncing ? <Spinner /> : <RefreshCw size={17} />}
-              </button>
-              <button className="icon-button linuxdo-disconnect" type="button"
-                onClick={() => setDisconnectOpen(true)} aria-label={t('断开账号')} data-tooltip={t('断开账号')}>
-                <Unplug size={17} />
               </button>
             </div>
           </div>}
@@ -344,9 +337,11 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
           remoteImagesEnabled={remoteImagesEnabled} onBack={closeMessage} />
       </main>
 
-      {credentialOpen && account && <LinuxDoMailCredentialDialog
-        username={account.username} busy={action === 'update'} error={credentialError}
-        onCancel={() => setCredentialOpen(false)} onSubmit={updateCredential} />}
+      {accountOpen && account && <LinuxDoMailAccountDialog
+        account={account} action={action === 'verify' || action === 'update' ? action : ''}
+        error={accountError} onCancel={() => setAccountOpen(false)} onVerify={verify}
+        onUpdateCredential={updateCredential}
+        onRequestDisconnect={() => { setAccountOpen(false); setDisconnectOpen(true) }} />}
       {composeOpen && account && <LinuxDoMailComposeDialog
         username={account.username} busy={action === 'send'} error={composeError}
         onCancel={() => setComposeOpen(false)} onSubmit={sendMessage} />}
