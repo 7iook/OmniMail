@@ -97,17 +97,16 @@ const FINAL_MIGRATIONS = [
 ]
 
 describe('D1 migration check', () => {
-  it('checks the required Wrangler migrations once per binding', async () => {
+  it('uses the latest migration as the fast path once per binding', async () => {
     const fixture = database({ applied: FINAL_MIGRATIONS })
     await ensureSchema(fixture.db)
     await ensureSchema(fixture.db)
 
     expect(fixture.batch).not.toHaveBeenCalled()
-    for (const name of FINAL_MIGRATIONS) {
-      expect(fixture.prepare.mock.results.some(({ value }) => (
-        (value as MockStatement).bindings[0] === name
-      ))).toBe(true)
-    }
+    const checkedMigrations = fixture.prepare.mock.results
+      .map(({ value }) => (value as MockStatement).bindings[0])
+      .filter(Boolean)
+    expect(checkedMigrations).toEqual(['0022_consistency_guards.sql'])
   })
 
   it.each([

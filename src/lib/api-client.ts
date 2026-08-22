@@ -101,8 +101,8 @@ function jsonBody(value: unknown): string {
 }
 
 export const api = {
-  config: () => request<AppConfig>('/api/config'),
-  session: () => request<{ user: User | null }>('/api/session'),
+  config: () => request<AppConfig>('/api/config', { timeoutMs: 30_000 }),
+  session: () => request<{ user: User | null }>('/api/session', { timeoutMs: 30_000 }),
   setup: (input: { displayName: string; password: string; setupToken: string }) => (
     request<{ user: User }>('/api/setup', { method: 'POST', body: jsonBody(input) })
   ),

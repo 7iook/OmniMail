@@ -162,6 +162,10 @@ app.use('*', async (context, next) => {
 })
 
 app.use('/api/*', async (context, next) => {
+  if (context.req.path === '/api/health') {
+    await next()
+    return
+  }
   await ensureSchema(context.env.DB)
   await syncSuperAdminIdentity(context.env, configuredSuperAdminEmail(context.env))
   if (PUBLIC_PATHS.has(context.req.path) || context.req.path.startsWith('/api/invitations/')) {

@@ -362,6 +362,11 @@ function recordMigration(db: D1Database, migration: string): D1PreparedStatement
 }
 
 async function ensureRequiredMigrations(db: D1Database): Promise<void> {
+  try {
+    if (await appliedMigration(db, REQUIRED_MIGRATION)) return
+  } catch {
+    // A fresh database has no migration table yet; continue into recovery.
+  }
   await bootstrapLegacyMigrations(db)
   for (const migration of RECOVERABLE_MIGRATIONS) {
     try {

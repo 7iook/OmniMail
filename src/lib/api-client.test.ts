@@ -7,6 +7,17 @@ afterEach(() => {
 })
 
 describe('API request timeouts', () => {
+  it('allows startup requests to survive a slow D1 cold path', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ user: null })))
+
+    await api.config()
+    await api.session()
+
+    expect(timeout).toHaveBeenNthCalledWith(1, 30_000)
+    expect(timeout).toHaveBeenNthCalledWith(2, 30_000)
+  })
+
   it('uses the extended timeout for slow attachment and translation operations', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
