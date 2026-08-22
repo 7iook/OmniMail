@@ -74,7 +74,7 @@
   left: -7px;
   display: flex;
   width: min(380px, calc(100vw - 28px));
-  max-height: min(650px, calc(100dvh - 110px));
+  height: min(650px, calc(100dvh - 110px));
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -83,6 +83,11 @@
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   animation: icloud-scope-in 170ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.icloud-scope-panel.is-closing {
+  pointer-events: none;
+  animation: icloud-scope-out 120ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 .icloud-scope-panel > header {
@@ -100,9 +105,42 @@
 
 .icloud-scope-content {
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   padding: 7px;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .icloud-scope-content {
+    scrollbar-color: transparent transparent;
+  }
+
+  .icloud-scope-content:hover,
+  .icloud-scope-content:focus-within {
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  .icloud-scope-content::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  .icloud-scope-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .icloud-scope-content::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    background-clip: padding-box;
+  }
+
+  .icloud-scope-content:hover::-webkit-scrollbar-thumb,
+  .icloud-scope-content:focus-within::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    background-clip: padding-box;
+  }
 }
 
 .icloud-scope-content section + section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -304,6 +342,7 @@
 }
 
 @keyframes icloud-scope-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
+@keyframes icloud-scope-out { to { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 @keyframes icloud-sort-menu-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 
 @media (prefers-reduced-motion: reduce) {

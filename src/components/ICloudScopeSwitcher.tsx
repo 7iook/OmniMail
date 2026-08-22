@@ -6,6 +6,7 @@ import { t } from '../lib/i18n'
 export type ICloudAliasSort = 'label' | 'newest' | 'email'
 
 const aliasCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+const SCOPE_EXIT_MS = 120
 const aliasSortOptions: Array<{ value: ICloudAliasSort; label: string }> = [
   { value: 'label', label: '名称' },
   { value: 'newest', label: '最新创建' },
@@ -53,6 +54,7 @@ export function ICloudScopeSwitcher({
   onAccountSettings: (account: ICloudAccount) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [aliasSort, setAliasSort] = useState<ICloudAliasSort>('label')
   const [sortOpen, setSortOpen] = useState(false)
   const sortMenuId = useId()
@@ -60,9 +62,46 @@ export function ICloudScopeSwitcher({
   const panel = useRef<HTMLDivElement>(null)
   const sortRoot = useRef<HTMLDivElement>(null)
   const sortTrigger = useRef<HTMLButtonElement>(null)
+  const closeTimer = useRef<number | null>(null)
   const account = accounts.find((item) => item.id === selectedAccountId)
   const selectedSort = aliasSortOptions.find((option) => option.value === aliasSort)!
   const sortedAliases = useMemo(() => sortICloudAliases(aliases, aliasSort), [aliases, aliasSort])
+
+  function finishClose(afterClose?: () => void, restoreFocus = true) {
+    closeTimer.current = null
+    setOpen(false)
+    setClosing(false)
+    afterClose?.()
+    if (restoreFocus) requestAnimationFrame(() => trigger.current?.focus())
+  }
+
+  function close(afterClose?: () => void, restoreFocus = true) {
+    if (closing || closeTimer.current !== null) return
+    setSortOpen(false)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      finishClose(afterClose, restoreFocus)
+      return
+    }
+    setClosing(true)
+    closeTimer.current = window.setTimeout(
+      () => finishClose(afterClose, restoreFocus),
+      SCOPE_EXIT_MS,
+    )
+  }
+
+  function toggleOpen() {
+    if (!open) {
+      setOpen(true)
+      return
+    }
+    if (closing || closeTimer.current !== null) {
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+      setClosing(false)
+      return
+    }
+    close()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -70,8 +109,7 @@ export function ICloudScopeSwitcher({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      setOpen(false)
-      requestAnimationFrame(() => trigger.current?.focus())
+      close()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -97,11 +135,9 @@ export function ICloudScopeSwitcher({
     }
   }, [sortOpen])
 
-  function close() {
-    setSortOpen(false)
-    setOpen(false)
-    requestAnimationFrame(() => trigger.current?.focus())
-  }
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+  }, [])
 
   function selectSort(sort: ICloudAliasSort) {
     setAliasSort(sort)
@@ -112,19 +148,20 @@ export function ICloudScopeSwitcher({
   return (
     <div className="icloud-scope-switcher">
       <button ref={trigger} className="icloud-scope-trigger" type="button"
-        aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        aria-haspopup="dialog" aria-expanded={open && !closing} onClick={toggleOpen}>
         <span>{t('当前 iCloud')}</span>
         <strong>{account?.name || t('选择账号')}</strong>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && <>
         <button className="icloud-scope-backdrop" type="button" tabIndex={-1}
-          aria-hidden="true" onClick={close} />
-        <div ref={panel} className="icloud-scope-panel" role="dialog" aria-modal="true"
+          aria-hidden="true" onClick={() => close()} />
+        <div ref={panel} className={`icloud-scope-panel${closing ? ' is-closing' : ''}`}
+          role="dialog" aria-modal="true" aria-hidden={closing || undefined} inert={closing || undefined}
           aria-labelledby="icloud-scope-title" tabIndex={-1}>
           <header>
             <div><small>ICLOUD SCOPE</small><h2 id="icloud-scope-title">{t('选择查看范围')}</h2></div>
-            <button className="icon-button icon-button--small" type="button" onClick={close}
+            <button className="icon-button icon-button--small" type="button" onClick={() => close()}
               aria-label={t('关闭')}><X size={16} /></button>
           </header>
           <div className="icloud-scope-content">
@@ -134,13 +171,13 @@ export function ICloudScopeSwitcher({
                 <div className={`icloud-scope-account${item.id === selectedAccountId ? ' is-selected' : ''}`}
                   key={item.id}>
                   <button className="icloud-scope-option" type="button"
-                    onClick={() => { onAccountChange(item.id); close() }}>
+                    onClick={() => close(() => onAccountChange(item.id))}>
                     <span className="icloud-scope-icon"><Cloud size={16} /></span>
                     <span><strong>{item.name}</strong><small>{item.realEmail || item.icloudEmail || t('尚未识别 Apple ID')}</small></span>
                     {item.id === selectedAccountId && <Check size={15} />}
                   </button>
                   <button className="icloud-scope-settings" type="button"
-                    onClick={() => { setOpen(false); onAccountSettings(item) }}
+                    onClick={() => close(() => onAccountSettings(item), false)}
                     aria-label={t('设置 iCloud 账号：{name}', { name: item.name })}
                     data-tooltip={t('账号设置')}>
                     <Settings2 size={15} aria-hidden="true" />
@@ -176,7 +213,7 @@ export function ICloudScopeSwitcher({
                 </div>
               </div>
               <button className={`icloud-scope-option${!selectedAlias ? ' is-selected' : ''}`} type="button"
-                onClick={() => { onAliasChange(''); close() }}>
+                onClick={() => close(() => onAliasChange(''))}>
                 <span className="icloud-scope-icon"><Inbox size={16} /></span>
                 <span><strong>{t('全部邮件')}</strong><small>{t('所有收件地址')}</small></span>
                 {!selectedAlias && <Check size={15} />}
@@ -185,7 +222,7 @@ export function ICloudScopeSwitcher({
                 <div className={`icloud-scope-alias${alias.email === selectedAlias ? ' is-selected' : ''}`}
                   key={alias.anonymousId || alias.email}>
                   <button className="icloud-scope-option" type="button"
-                    onClick={() => { onAliasChange(alias.email); close() }}>
+                    onClick={() => close(() => onAliasChange(alias.email))}>
                     <span className="icloud-scope-icon"><AtSign size={16} /></span>
                     <span><strong>{alias.label || t('未命名地址')}</strong><small>{alias.email}</small></span>
                     {alias.email === selectedAlias && <Check size={15} />}
