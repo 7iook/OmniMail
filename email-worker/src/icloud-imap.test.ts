@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { iCloudImapMessageIsRead, iCloudImapReadUpdate } from './icloud-imap-flags'
+import {
+  iCloudImapMessageIsRead,
+  iCloudImapReadUpdate,
+  iCloudImapSearchCriteria,
+} from './icloud-imap-flags'
 import { parseICloudMessage } from './icloud-message-parser'
 
 const encoder = new TextEncoder()
@@ -55,5 +59,12 @@ describe('iCloud IMAP message parsing', () => {
   it('does not build a Seen update for an already-read message', () => {
     expect(iCloudImapReadUpdate('* 1 FETCH (UID 42 FLAGS (\\Seen))', '42'))
       .toEqual({ isRead: true })
+  })
+
+  it('builds an IMAP text search with an optional recipient scope', () => {
+    expect(iCloudImapSearchCriteria('release 0.3.6')).toBe('TEXT "release 0.3.6"')
+    expect(iCloudImapSearchCriteria('receipt', 'alias@icloud.com')).toBe(
+      'HEADER To "alias@icloud.com" TEXT "receipt"',
+    )
   })
 })

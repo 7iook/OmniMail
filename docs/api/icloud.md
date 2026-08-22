@@ -310,19 +310,19 @@ curl --request DELETE \
 }'
 ```
 
-<!-- endpoint:GET /api/icloud/inbox catalog:90a6175fa229 -->
+<!-- endpoint:GET /api/icloud/inbox catalog:5b5583941f1f -->
 ## `GET /api/icloud/inbox`
 
 **读取 iCloud 最近来信 / List recent iCloud mail**
 
-使用应用专用密码通过 IMAP 按需读取最近邮件摘要。
+通过 IMAP 读取或搜索最近邮件摘要；Web 回退仅过滤当前摘要。
 
-> Use the app-specific password to read recent IMAP message summaries on demand.
+> Read or search recent IMAP message summaries; Web fallback filters current summaries only.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Query · accountId, alias?, limit=1..50?, days=0..365? |
+| 请求 | Query · accountId, alias?, q?, limit=1..50?, days=0..365? |
 | 成功响应 | 200 · { messages, method=imap\|web } |
 
 ### cURL 示例

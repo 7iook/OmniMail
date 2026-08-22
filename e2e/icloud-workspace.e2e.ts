@@ -14,6 +14,7 @@ async function mockICloud(page: Page, options: {
     email: 'shop@icloud.com', anonymousId: 'alias-1', label: 'Shopping', active: true,
   }]
   const inboxAliases: string[] = []
+  const inboxQueries: string[] = []
   const createdLabels: string[] = []
   const createdEmails: string[] = []
   const createdPreviewIds: string[] = []
@@ -140,12 +141,15 @@ async function mockICloud(page: Page, options: {
     if (path === '/api/icloud/aliases') return json(route, { aliases })
     if (path === '/api/icloud/inbox') {
       const alias = url.searchParams.get('alias') || ''
+      const query = url.searchParams.get('q') || ''
       inboxAliases.push(alias)
-      return json(route, { method: hasAppPassword ? 'imap' : 'web', messages: [{
+      inboxQueries.push(query)
+      const messages = query === 'missing' ? [] : [{
       id: '42', from: 'GitHub <noreply_at_github_com_22h56q5td86002_47bfb5aa@icloud.com>', to: alias || 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Thanks for your order.', html: '',
-    }] })
+      }]
+      return json(route, { method: hasAppPassword ? 'imap' : 'web', messages })
     }
     if (path === '/api/icloud/inbox/42') return json(route, { message: {
       id: '42', from: 'GitHub <noreply_at_github_com_22h56q5td86002_47bfb5aa@icloud.com>', to: 'shop@icloud.com',
@@ -158,7 +162,7 @@ async function mockICloud(page: Page, options: {
   return {
     accountCreates, accountNames, cookieUpdates, createdEmails, createdLabels, createdPreviewIds,
     deletedAccountIds,
-    inboxAliases, passwordUpdates, previewedEmails,
+    inboxAliases, inboxQueries, passwordUpdates, previewedEmails,
   }
 }
 
@@ -171,6 +175,14 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(page.getByText('Personal')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
   await expect(page.getByText('IMAP 完整邮件')).toBeVisible()
+  const mailSearch = page.getByRole('searchbox', { name: '搜索邮件' })
+  await mailSearch.fill('receipt')
+  await expect.poll(() => state.inboxQueries.at(-1)).toBe('receipt')
+  await expect(page.getByText('Your receipt')).toBeVisible()
+  await mailSearch.fill('missing')
+  await expect(page.getByRole('heading', { name: '没有匹配的 iCloud 邮件' })).toBeVisible()
+  await mailSearch.fill('')
+  await expect(page.getByText('Your receipt')).toBeVisible()
   const addAccount = page.getByRole('button', { name: '添加 iCloud 账号' })
   await addAccount.hover()
   await expect(page.getByRole('tooltip')).toHaveText('添加 iCloud 账号')
@@ -258,6 +270,9 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   const sender = page.locator('.icloud-reader-sender')
   await expect(sender.locator('strong')).toHaveText('GitHub')
   const relay = sender.getByText('通过 iCloud 隐藏邮箱转发')
+  await expect(sender.locator('strong')).toHaveCSS('font-size', '14px')
+  await expect(relay).toHaveCSS('font-size', '12px')
+  await expect(sender.locator('time')).toHaveCSS('font-size', '12px')
   await expect(relay).toHaveAttribute(
     'title',
     'noreply_at_github_com_22h56q5td86002_47bfb5aa@icloud.com',

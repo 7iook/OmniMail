@@ -467,6 +467,7 @@ export async function listICloudInbox(
     const url = new URL(request.url)
     const accountId = url.searchParams.get('accountId') || ''
     const alias = (url.searchParams.get('alias') || '').trim().toLowerCase()
+    const query = (url.searchParams.get('q') || '').trim().slice(0, 120)
     const limit = boundedInteger(url.searchParams.get('limit'), 20, 1, 50)
     const days = boundedInteger(url.searchParams.get('days'), 7, 0, 365)
     if (!accountId) throw new ICloudStoreError(400, '缺少 accountId。')
@@ -478,9 +479,11 @@ export async function listICloudInbox(
       try {
         client = await imapClient(account.icloudEmail, account.appPassword)
         await client.open()
-        const messages = alias
-          ? await client.findByRecipient(alias, limit, days)
-          : await client.listInbox(limit, days)
+        const messages = query
+          ? await client.searchInbox(query, alias, limit, days)
+          : alias
+            ? await client.findByRecipient(alias, limit, days)
+            : await client.listInbox(limit, days)
         return Response.json({ messages, method: 'imap' })
       } catch (error) {
         imapFailure = error instanceof Error ? error.message : String(error)
@@ -499,7 +502,15 @@ export async function listICloudInbox(
       throw new ICloudStoreError(400, imapFailure || '需要先配置 Cookie 或应用专用密码。')
     }
     const client = new ICloudClient(account.cookies, account.host)
-    const messages = await client.listWebInbox(limit)
+    const summaries = await client.listWebInbox(limit)
+    const needle = query.toLocaleLowerCase()
+    const messages = needle
+      ? summaries.filter((message) => (
+          `${message.from}\n${message.to}\n${message.subject}\n${message.preview}`
+            .toLocaleLowerCase()
+            .includes(needle)
+        ))
+      : summaries
     account.cookies = client.cookies
     await store.saveCookies(account)
     return Response.json({ messages, method: 'web' })

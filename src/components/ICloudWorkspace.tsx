@@ -40,6 +40,7 @@ import { t } from '../lib/i18n'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
 import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 import { ICloudMessageBody } from './ICloudMessageBody'
+import { ICloudSearchField } from './ICloudSearchField'
 import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 
@@ -310,6 +311,8 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
   const [selectedAlias, setSelectedAlias] = useState('')
   const [messages, setMessages] = useState<ICloudMessage[]>([])
   const [inboxMethod, setInboxMethod] = useState<'imap' | 'web' | ''>('')
+  const [query, setQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
@@ -369,7 +372,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
         inboxController.current?.abort()
         const inboxAbort = new AbortController()
         inboxController.current = inboxAbort
-        const inboxResult = await api.iCloudInbox(id, alias, inboxAbort.signal)
+        const inboxResult = await api.iCloudInbox(id, alias, searchQuery, inboxAbort.signal)
         if (inboxCurrent === inboxRequestId.current) {
           setMessages(inboxResult.messages)
           setInboxMethod(inboxResult.method)
@@ -388,7 +391,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     } finally {
       if (aliasCurrent === aliasRequestId.current && inboxCurrent === inboxRequestId.current) setSyncing(false)
     }
-  }, [loadAccounts, selectedAlias, selectedId])
+  }, [loadAccounts, searchQuery, selectedAlias, selectedId])
 
   const loadInbox = useCallback(async () => {
     const id = selectedId
@@ -399,7 +402,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     const current = ++inboxRequestId.current
     setSyncing(true); setError('')
     try {
-      const result = await api.iCloudInbox(id, selectedAlias, inboxAbort.signal)
+      const result = await api.iCloudInbox(id, selectedAlias, searchQuery, inboxAbort.signal)
       if (current === inboxRequestId.current) {
         setMessages(result.messages)
         setInboxMethod(result.method)
@@ -409,9 +412,13 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
         setMessages([]); setInboxMethod(''); setError(errorMessage(inboxError))
       }
     } finally { if (current === inboxRequestId.current) setSyncing(false) }
-  }, [selectedAlias, selectedId])
+  }, [searchQuery, selectedAlias, selectedId])
 
   useEffect(() => { void loadAccounts() }, [loadAccounts])
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(query.trim()), 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
   useEffect(() => {
     aliasController.current?.abort(); inboxController.current?.abort()
     messageController.current?.abort(); messageRequestId.current += 1
@@ -425,7 +432,7 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
     setOpened(null)
     setMessageLoading(false)
     if (selectedId) void loadInbox()
-  }, [selectedAlias]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchQuery, selectedAlias]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(''), 3000)
@@ -529,6 +536,9 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
           </div>
         </header>
 
+        {selected && (!selectedAlias || selected.hasAppPassword) && <ICloudSearchField
+          value={query} loading={syncing} summaryOnly={inboxMethod === 'web'} onChange={setQuery} />}
+
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
         {activeAlias && <div className="icloud-list-context">
           <span><AtSign size={16} /></span>
@@ -560,7 +570,11 @@ export function ICloudWorkspace({ enabled, remoteImagesEnabled }: {
                 {unread && <span className="message-row__unread-dot" aria-hidden="true" />}
               </article>
             })}
-          </div></div> : <Empty icon={<Inbox size={24} />} title={t('暂无 iCloud 邮件')} description={t('最近 7 天没有找到邮件，或需要更新账号凭据。')} />}
+          </div></div> : <Empty icon={<Inbox size={24} />}
+            title={t(searchQuery ? '没有匹配的 iCloud 邮件' : '暂无 iCloud 邮件')}
+            description={t(searchQuery
+              ? '请尝试其他发件人、主题或正文关键词。'
+              : '最近 7 天没有找到邮件，或需要更新账号凭据。')} />}
       </section>
 
       <main className="reader-pane icloud-reader-pane">

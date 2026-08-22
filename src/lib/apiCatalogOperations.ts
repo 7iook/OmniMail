@@ -80,8 +80,8 @@ export const iCloudEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/icloud/inbox', group: 'icloud', auth: 'authenticated',
     title: l('读取 iCloud 最近来信', 'List recent iCloud mail'),
-    description: l('使用应用专用密码通过 IMAP 按需读取最近邮件摘要。', 'Use the app-specific password to read recent IMAP message summaries on demand.'),
-    request: 'Query · accountId, alias?, limit=1..50?, days=0..365?', response: '200 · { messages, method=imap|web }',
+    description: l('通过 IMAP 读取或搜索最近邮件摘要；Web 回退仅过滤当前摘要。', 'Read or search recent IMAP message summaries; Web fallback filters current summaries only.'),
+    request: 'Query · accountId, alias?, q?, limit=1..50?, days=0..365?', response: '200 · { messages, method=imap|web }',
     examplePath: '/api/icloud/inbox?accountId=icloud_account_id&limit=20&days=7',
   },
   {

@@ -97,6 +97,10 @@ export const enICloud: Record<string, string> = {
   '配置后才能准确筛选这个隐藏邮箱收到的邮件。':
     'Configure it to accurately filter messages received by this address.',
   '正在读取收件箱…': 'Loading inbox…',
+  'Web 摘要仅搜索当前已加载邮件': 'Web summaries search only the currently loaded messages',
+  '没有匹配的 iCloud 邮件': 'No matching iCloud messages',
+  '请尝试其他发件人、主题或正文关键词。':
+    'Try a different sender, subject, or message-body keyword.',
   '暂无 iCloud 邮件': 'No iCloud messages',
   '最近 7 天没有找到邮件，或需要更新账号凭据。':
     'No messages were found in the last 7 days, or the account credentials need updating.',

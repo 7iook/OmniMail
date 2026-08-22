@@ -1,8 +1,15 @@
 import { connect } from 'cloudflare:sockets'
 import { ICloudRemoteError } from './icloud-apple'
-import { iCloudImapMessageIsRead, iCloudImapReadUpdate } from './icloud-imap-flags'
+import {
+  iCloudImapMessageIsRead,
+  iCloudImapReadUpdate,
+  iCloudImapSearchCriteria,
+  quoteICloudImapValue,
+} from './icloud-imap-flags'
 import { parseICloudMessage } from './icloud-message-parser'
 import type { ICloudMessage } from './icloud-types'
+
+export { quoteICloudImapValue } from './icloud-imap-flags'
 
 const IMAP_HOST = 'imap.mail.me.com'
 const IMAP_PORT = 993
@@ -70,11 +77,6 @@ class SocketReader {
       await this.fill()
     }
   }
-}
-
-export function quoteICloudImapValue(value: string): string {
-  if (/[\r\n]/.test(value)) throw new ICloudRemoteError(400, 'IMAP 登录信息包含非法换行。')
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
 function sinceDate(days: number): string {
@@ -195,9 +197,9 @@ export class ICloudImapClient {
     await this.command('EXAMINE INBOX')
   }
 
-  private async search(criteria: string): Promise<number[]> {
+  private async search(criteria: string, utf8 = false): Promise<number[]> {
     await this.command('EXAMINE INBOX')
-    const result = await this.command(`UID SEARCH ${criteria}`)
+    const result = await this.command(`UID SEARCH${utf8 ? ' CHARSET UTF-8' : ''} ${criteria}`)
     const line = result.lines.find((item) => item.startsWith('* SEARCH'))
     return line
       ? line.slice(8).trim().split(/\s+/).filter(Boolean).map(Number)
@@ -233,6 +235,25 @@ export class ICloudImapClient {
     const recent = await this.listInbox(Math.min(50, limit * 3), days)
     const needle = recipient.toLowerCase()
     return recent.filter((message) => message.to.toLowerCase().includes(needle)).slice(0, limit)
+  }
+
+  async searchInbox(
+    query: string,
+    recipient: string,
+    limit: number,
+    days: number,
+  ): Promise<ICloudMessage[]> {
+    const date = days ? `SINCE ${sinceDate(days)} ` : ''
+    const criteria = iCloudImapSearchCriteria(query, recipient)
+    const utf8 = /[^\x00-\x7f]/.test(query)
+    const uids = await this.search(`${date}${criteria}`, utf8)
+    if (uids.length || !recipient) return this.fetch(uids, limit)
+    const fallback = await this.fetch(
+      await this.search(`${date}${iCloudImapSearchCriteria(query)}`, utf8),
+      Math.min(50, limit * 3),
+    )
+    const needle = recipient.toLowerCase()
+    return fallback.filter((message) => message.to.toLowerCase().includes(needle)).slice(0, limit)
   }
 
   async getMessage(uid: string): Promise<ICloudMessage> {

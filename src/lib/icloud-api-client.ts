@@ -66,9 +66,10 @@ export function createICloudApi(request: Request, jsonBody: (value: unknown) => 
       `/api/icloud/aliases/${encodeURIComponent(anonymousId)}`,
       { method: 'DELETE', body: jsonBody({ accountId }) },
     ),
-    iCloudInbox: (accountId: string, alias = '', signal?: AbortSignal) => {
+    iCloudInbox: (accountId: string, alias = '', query = '', signal?: AbortSignal) => {
       const search = new URLSearchParams({ accountId, limit: '20', days: '7' })
       if (alias) search.set('alias', alias)
+      if (query) search.set('q', query)
       return request<{ messages: ICloudMessage[]; method: 'imap' | 'web' }>(
         `/api/icloud/inbox?${search}`,
         { signal },

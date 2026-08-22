@@ -115,6 +115,13 @@
 .icloud-list-pane .message-row__main { padding-right: 18px; }
 .icloud-list-pane .message-row.is-unread .message-row__main { padding-right: 34px; }
 .icloud-list-pane .message-list { overscroll-behavior: contain; }
+.icloud-search-note {
+  display: block;
+  margin: -8px 16px 12px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
 
 .icloud-loading {
   display: flex;
@@ -222,13 +229,12 @@
   font-weight: 700;
 }
 
-.icloud-reader-sender p { display: grid; min-width: 0; gap: 2px; margin: 0; }
+.icloud-reader-sender p { display: grid; min-width: 0; gap: 3px; margin: 0; }
 .icloud-reader-sender strong,
 .icloud-reader-sender small { overflow-wrap: anywhere; }
-.icloud-reader-sender strong { font-size: 13px; }
-.icloud-reader-sender small,
-.icloud-reader-sender time { color: var(--text-tertiary); font-size: 10px; }
-.icloud-reader-sender time { white-space: nowrap; }
+.icloud-reader-sender strong { font-size: 14px; line-height: 1.4; }
+.icloud-reader-sender small { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.icloud-reader-sender time { color: var(--text-tertiary); font-size: 12px; line-height: 1.45; white-space: nowrap; }
 
 .icloud-reader-web-note {
   display: flex;
@@ -450,7 +456,8 @@
   .icloud-reader-content { padding: 22px 14px 36px; }
   .icloud-reader-heading h1 { margin-bottom: 22px; font-size: clamp(24px, 7.5vw, 29px); }
   .icloud-reader-sender { grid-template-columns: auto minmax(0, 1fr); }
-  .icloud-reader-sender time { grid-column: 2; }
+  .icloud-reader-sender time { grid-column: 2; margin-top: 2px; }
+  .icloud-search-note { margin-inline: 12px; }
   .icloud-plain-body { padding: 21px 18px; font-size: 16px; }
   .icloud-modal-backdrop { padding: 8px; }
   .icloud-modal { max-height: calc(100dvh - 16px); padding: 17px; border-radius: 18px; }
