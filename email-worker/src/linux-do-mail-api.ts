@@ -1,4 +1,5 @@
 import { writeAudit } from './audit'
+import { safeJsonArray } from './api-helpers'
 import { ImapConnectionError } from './imap-errors'
 import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
 import type { LinuxDoMailImapClient } from './linux-do-mail-imap'
@@ -10,7 +11,7 @@ import {
   publicLinuxDoMailAccount,
 } from './linux-do-mail-store'
 import type { LinuxDoMailAccount } from './linux-do-mail-types'
-import type { Env, SessionUser } from './types'
+import type { Env, MessageRow, SessionUser, StoredBody } from './types'
 
 function responseError(error: unknown): Response {
   if (error instanceof LinuxDoMailStoreError || error instanceof ImapConnectionError) {
@@ -242,6 +243,96 @@ export async function getLinuxDoMailMessage(
     return responseError(error)
   } finally {
     await client?.close()
+  }
+}
+
+type LinuxDoSentRow = Pick<
+  MessageRow,
+  | 'id'
+  | 'status'
+  | 'sender_address'
+  | 'recipients_json'
+  | 'subject'
+  | 'preview'
+  | 'sent_at'
+  | 'created_at'
+  | 'body_key'
+  | 'delivery_status'
+  | 'processing_error'
+>
+
+function sentMessage(row: LinuxDoSentRow, body?: StoredBody) {
+  return {
+    id: row.id,
+    from: row.sender_address,
+    to: safeJsonArray(row.recipients_json).join(', '),
+    subject: row.subject,
+    date: new Date((row.sent_at ?? row.created_at) * 1000).toISOString(),
+    preview: row.preview,
+    body: body?.text || '',
+    html: body?.html || '',
+    isRead: true,
+    direction: 'outgoing' as const,
+    status: row.status,
+    deliveryStatus: row.delivery_status,
+    processingError: row.processing_error || '',
+  }
+}
+
+async function linuxDoMailboxAddress(env: Env, userId: string): Promise<string> {
+  const account = await new LinuxDoMailAccountStore(env, userId).publicAccount()
+  if (!account) throw new LinuxDoMailStoreError(404, '尚未连接 Linux DO Mail 账号。')
+  return account.username
+}
+
+export async function listLinuxDoMailSent(env: Env, user: SessionUser): Promise<Response> {
+  try {
+    const mailboxAddress = await linuxDoMailboxAddress(env, user.id)
+    const { results } = await env.DB.prepare(
+      `SELECT m.id, m.status, m.sender_address, m.recipients_json, m.subject,
+              m.preview, m.sent_at, m.created_at, m.body_key,
+              m.delivery_status, m.processing_error
+         FROM messages m
+         JOIN mailboxes mb ON mb.address = m.mailbox_address
+        WHERE m.mailbox_address = ? AND mb.user_id = ? AND mb.is_hidden = 1
+          AND m.direction = 'outgoing' AND m.folder = 'sent'
+        ORDER BY m.sent_at DESC, m.id DESC
+        LIMIT 20`,
+    ).bind(mailboxAddress, user.id).all<LinuxDoSentRow>()
+    return privateJson({ messages: results.map((row) => sentMessage(row)) })
+  } catch (error) {
+    return responseError(error)
+  }
+}
+
+export async function getLinuxDoMailSentMessage(
+  env: Env,
+  user: SessionUser,
+  messageId: string,
+): Promise<Response> {
+  try {
+    if (!messageId || messageId.length > 100) {
+      throw new LinuxDoMailStoreError(400, '邮件 ID 无效。')
+    }
+    const mailboxAddress = await linuxDoMailboxAddress(env, user.id)
+    const row = await env.DB.prepare(
+      `SELECT m.id, m.status, m.sender_address, m.recipients_json, m.subject,
+              m.preview, m.sent_at, m.created_at, m.body_key,
+              m.delivery_status, m.processing_error
+         FROM messages m
+         JOIN mailboxes mb ON mb.address = m.mailbox_address
+        WHERE m.id = ? AND m.mailbox_address = ? AND mb.user_id = ?
+          AND mb.is_hidden = 1 AND m.direction = 'outgoing' AND m.folder = 'sent'`,
+    ).bind(messageId, mailboxAddress, user.id).first<LinuxDoSentRow>()
+    if (!row) throw new LinuxDoMailStoreError(404, '已发送邮件不存在。')
+    let body: StoredBody = { text: '', html: '' }
+    if (row.body_key) {
+      const object = await env.MAIL_BUCKET.get(row.body_key)
+      if (object) body = await object.json<StoredBody>()
+    }
+    return privateJson({ message: sentMessage(row, body) })
+  } catch (error) {
+    return responseError(error)
   }
 }
 

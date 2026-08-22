@@ -106,6 +106,80 @@
 }
 .linuxdo-status.is-error { background: var(--danger-soft); color: var(--danger); }
 
+.linuxdo-folder-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  margin: 0 16px 12px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+.linuxdo-folder-switch button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 40px;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+.linuxdo-folder-switch button:hover { color: var(--text); }
+.linuxdo-folder-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.linuxdo-folder-switch button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.linuxdo-delivery-status {
+  display: inline-flex;
+  min-height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 9px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+.linuxdo-delivery-status.is-sent { background: var(--success-soft); color: var(--success); }
+.linuxdo-delivery-status.is-failed { background: var(--danger-soft); color: var(--danger); }
+.linuxdo-mail-view .message-row__subject { align-items: center; }
+
+.linuxdo-sent-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 18px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+  border-radius: 11px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.linuxdo-sent-error > svg { flex: 0 0 auto; margin-top: 1px; }
+.linuxdo-sent-error > span { display: grid; min-width: 0; gap: 3px; }
+.linuxdo-sent-error strong { font-size: 12px; }
+.linuxdo-sent-error small { overflow-wrap: anywhere; font-size: 10px; line-height: 1.55; }
+
 .linuxdo-account-dialog { width: min(560px, 100%); }
 .linuxdo-account-dialog > header { margin-bottom: 16px; }
 .linuxdo-account-dialog > header .eyebrow {
@@ -213,5 +287,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .linuxdo-connect-card input { transition: none; }
+  .linuxdo-connect-card input,
+  .linuxdo-folder-switch button { transition: none; }
 }

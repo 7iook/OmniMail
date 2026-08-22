@@ -38,6 +38,12 @@ export function createLinuxDoMailApi(request: Request, jsonBody: (value: unknown
       signal,
       timeoutMs: 30_000,
     }),
+    linuxDoMailSent: (signal?: AbortSignal) => request<{
+      messages: LinuxDoMailMessage[]
+    }>('/api/linux-do-mail/sent', { signal }),
+    linuxDoMailSentMessage: (id: string, signal?: AbortSignal) => request<{
+      message: LinuxDoMailMessage
+    }>(`/api/linux-do-mail/sent/${encodeURIComponent(id)}`, { signal }),
     sendLinuxDoMail: (input: {
       to: string
       subject: string

@@ -151,6 +151,18 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
     description: l('通过数字 IMAP UID 只读获取受大小限制的邮件正文。', 'Read a size-limited message by numeric IMAP UID without changing mailbox state.'),
     request: 'Path · uid', response: '200 · { message }',
   },
+  {
+    method: 'GET', path: '/api/linux-do-mail/sent', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 发件记录', 'List sent Linux DO Mail messages'),
+    description: l('读取当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。', 'List the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.'),
+    request: 'No parameters', response: '200 · { messages }',
+  },
+  {
+    method: 'GET', path: '/api/linux-do-mail/sent/:id', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 发件正文', 'Read a sent Linux DO Mail message'),
+    description: l('从受当前用户约束的 D1 和 R2 记录读取发件正文与投递状态。', 'Read outbound content and delivery state from user-scoped D1 and R2 records.'),
+    request: 'Path · id', response: '200 · { message }',
+  },
 ]
 
 export const adminOperationEndpoints: ApiEndpoint[] = [

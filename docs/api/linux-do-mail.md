@@ -8,7 +8,7 @@
 
 > Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.
 
-本分类共 **8** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **10** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/linux-do-mail/account catalog:f9b5fa6d7c1e -->
 ## `GET /api/linux-do-mail/account`
@@ -223,5 +223,51 @@ curl --request GET \
 ```bash
 curl --request GET \
   --url "https://mail.example.com/api/linux-do-mail/inbox/123" \
+  --header "Authorization: Bearer om_at_..."
+```
+
+<!-- endpoint:GET /api/linux-do-mail/sent catalog:f8d6cd9446fb -->
+## `GET /api/linux-do-mail/sent`
+
+**读取 Linux DO Mail 发件记录 / List sent Linux DO Mail messages**
+
+读取当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。
+
+> List the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | No parameters |
+| 成功响应 | 200 · { messages } |
+
+### cURL 示例
+
+```bash
+curl --request GET \
+  --url "https://mail.example.com/api/linux-do-mail/sent" \
+  --header "Authorization: Bearer om_at_..."
+```
+
+<!-- endpoint:GET /api/linux-do-mail/sent/:id catalog:c97e00585cb5 -->
+## `GET /api/linux-do-mail/sent/{id}`
+
+**读取 Linux DO Mail 发件正文 / Read a sent Linux DO Mail message**
+
+从受当前用户约束的 D1 和 R2 记录读取发件正文与投递状态。
+
+> Read outbound content and delivery state from user-scoped D1 and R2 records.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | Path · id |
+| 成功响应 | 200 · { message } |
+
+### cURL 示例
+
+```bash
+curl --request GET \
+  --url "https://mail.example.com/api/linux-do-mail/sent/resource_id" \
   --header "Authorization: Bearer om_at_..."
 ```

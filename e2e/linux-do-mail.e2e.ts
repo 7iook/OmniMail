@@ -68,6 +68,19 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
       await new Promise((resolve) => setTimeout(resolve, 100))
       return json(route, { message: { id: 'outbound-1', status: 'processing' } })
     }
+    if (path === '/api/linux-do-mail/sent/outbound-1') return json(route, { message: {
+      id: 'outbound-1', from: 'member@linux.do', to: 'recipient@example.com',
+      subject: '来自 Linux DO 的问候', date: '2026-08-22T00:00:00.000Z',
+      preview: '这是一封队列发送测试邮件。', body: '这是一封队列发送测试邮件。',
+      html: '<p>这是一封队列发送测试邮件。</p>', isRead: true,
+      direction: 'outgoing', status: 'sent', deliveryStatus: 'sent', processingError: '',
+    } })
+    if (path === '/api/linux-do-mail/sent') return json(route, { messages: sentMessages.map(() => ({
+      id: 'outbound-1', from: 'member@linux.do', to: 'recipient@example.com',
+      subject: '来自 Linux DO 的问候', date: '2026-08-22T00:00:00.000Z',
+      preview: '这是一封队列发送测试邮件。', body: '', html: '', isRead: true,
+      direction: 'outgoing', status: 'sent', deliveryStatus: 'sent', processingError: '',
+    })) })
     if (path === '/api/linux-do-mail/inbox/42') return json(route, { message: {
       id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
       subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
@@ -149,6 +162,19 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   expect(state.sentMessages[0].idempotencyKey).toMatch(/^[a-f0-9]{32}$/)
   await expect(composeDialog).toBeHidden()
   await expect(page.getByRole('status')).toContainText('邮件已加入发送队列')
+
+  const folders = page.locator('.linuxdo-folder-switch')
+  await folders.getByRole('button', { name: '已发送' }).click()
+  await expect(folders.getByRole('button', { name: '已发送' })).toHaveAttribute('aria-pressed', 'true')
+  const sentRow = page.locator('.message-row').filter({ hasText: 'recipient@example.com' })
+  await expect(sentRow.getByText('已发送', { exact: true })).toBeVisible()
+  await sentRow.getByRole('button').click()
+  const sentReader = page.locator('.reader-pane')
+  await expect(sentReader.frameLocator('iframe')
+    .getByText('这是一封队列发送测试邮件。', { exact: true })).toBeVisible()
+  await expect(sentReader.getByRole('heading', { name: '已发送邮件' })).toBeVisible()
+  await page.getByRole('button', { name: '返回邮件列表' }).click()
+  await folders.getByRole('button', { name: '收件箱' }).click()
 
   await page.getByRole('button', { name: /欢迎回来/ }).click()
   await expect(page.getByText('完整邮件内容', { exact: true })).toBeVisible()

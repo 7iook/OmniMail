@@ -27,6 +27,18 @@ describe('device token scopes', () => {
     )).resolves.toBe(true)
   })
 
+  it('uses one Linux DO message read scope for inbox and sent mail', async () => {
+    const scopes = 'linuxdo-mail:messages:read'
+    await expect(deviceScopesAllow(scopes, request('/api/linux-do-mail/inbox')))
+      .resolves.toBe(true)
+    await expect(deviceScopesAllow(scopes, request('/api/linux-do-mail/inbox/42')))
+      .resolves.toBe(true)
+    await expect(deviceScopesAllow(scopes, request('/api/linux-do-mail/sent')))
+      .resolves.toBe(true)
+    await expect(deviceScopesAllow(scopes, request('/api/linux-do-mail/sent/message-1')))
+      .resolves.toBe(true)
+  })
+
   it('selects least-privilege scopes only for explicit Android clients', () => {
     expect(deviceScopesForClient('android')).toBe(ANDROID_DEVICE_SCOPES)
     expect(deviceScopesForClient('Android')).toBe(FULL_DEVICE_SCOPES)
@@ -89,6 +101,7 @@ describe('device token scopes', () => {
       ['/api/linux-do-mail/account', 'POST'],
       ['/api/linux-do-mail/account/credential', 'PUT'],
       ['/api/linux-do-mail/inbox', 'GET'],
+      ['/api/linux-do-mail/sent', 'GET'],
       ['/api/linux-do-mail/messages', 'POST'],
     ]
     for (const [path, method] of denied) {
@@ -139,6 +152,7 @@ describe('device token scopes', () => {
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/auth/devices'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/account'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/inbox'))).resolves.toBe(false)
+    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/sent'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'PATCH'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/preview', 'POST'))).resolves.toBe(false)

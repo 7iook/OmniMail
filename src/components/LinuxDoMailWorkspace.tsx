@@ -2,6 +2,9 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  CircleAlert,
+  CircleCheck,
+  Clock3,
   Eye,
   EyeOff,
   Inbox,
@@ -9,6 +12,7 @@ import {
   LoaderCircle,
   Mail,
   RefreshCw,
+  Send,
   Settings2,
   ShieldCheck,
   SquarePen,
@@ -29,6 +33,15 @@ import {
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
+}
+
+function DeliveryStatus({ message }: { message: LinuxDoMailMessage }) {
+  const status = message.status || 'processing'
+  const Icon = status === 'sent' ? CircleCheck : status === 'failed' ? CircleAlert : Clock3
+  const label = status === 'sent' ? '已发送' : status === 'failed' ? '发送失败' : '排队中'
+  return <span className={`linuxdo-delivery-status is-${status}`}>
+    <Icon size={12} aria-hidden="true" />{t(label)}
+  </span>
 }
 
 function Empty({ icon, title, description }: {
@@ -93,32 +106,37 @@ function ConnectForm({ saving, error, onConnect }: {
   )
 }
 
-function MessageReader({ message, loading, remoteImagesEnabled, onBack }: {
+function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }: {
   message: LinuxDoMailMessage | null
+  folder: 'inbox' | 'sent'
   loading: boolean
   remoteImagesEnabled: boolean
   onBack: () => void
 }) {
+  const outgoing = folder === 'sent' || message?.direction === 'outgoing'
   if (loading) {
     return <div className="reader-state reader-state--loading" role="status">
-      <Spinner size={23} />{t('正在从 Linux DO Mail 获取邮件…')}
+      <Spinner size={23} />{t(outgoing ? '正在读取已发送邮件…' : '正在从 Linux DO Mail 获取邮件…')}
     </div>
   }
   if (!message) {
     return <div className="reader-state reader-state--empty">
-      <span className="reader-empty-symbol"><Mail size={29} /></span>
-      <h2>{t('选择一封 Linux DO 邮件')}</h2>
+      <span className="reader-empty-symbol">{outgoing ? <Send size={29} /> : <Mail size={29} />}</span>
+      <h2>{t(outgoing ? '选择一封已发送邮件' : '选择一封 Linux DO 邮件')}</h2>
     </div>
   }
   const sender = parseICloudSender(message.from)
-  const senderLabel = sender.name || sender.address || t('未知发件人')
+  const senderLabel = outgoing
+    ? message.to || t('未知收件人')
+    : sender.name || sender.address || t('未知发件人')
   return (
     <article className="icloud-reader">
       <header className="reader-toolbar">
         <button className="icon-button mobile-back" type="button" onClick={onBack}
           aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
-        <h2 className="reader-toolbar__title">{t('Linux DO 邮件')}</h2>
-        <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>
+        <h2 className="reader-toolbar__title">{t(outgoing ? '已发送邮件' : 'Linux DO 邮件')}</h2>
+        {outgoing ? <DeliveryStatus message={message} />
+          : <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>}
       </header>
       <div className="reader-content icloud-reader-content">
         <div className="icloud-reader-heading">
@@ -126,12 +144,20 @@ function MessageReader({ message, loading, remoteImagesEnabled, onBack }: {
           <div className="icloud-reader-sender">
             <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
             <p><strong>{senderLabel}</strong>
-              {sender.name && sender.address && <small title={sender.address}>{`<${sender.address}>`}</small>}
-              {message.to && <small>{t('收件：{address}', { address: message.to })}</small>}
+              {!outgoing && sender.name && sender.address
+                && <small title={sender.address}>{`<${sender.address}>`}</small>}
+              {outgoing
+                ? <small>{t('发件：{address}', { address: message.from })}</small>
+                : message.to && <small>{t('收件：{address}', { address: message.to })}</small>}
             </p>
             {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
           </div>
         </div>
+        {outgoing && message.status === 'failed' && message.processingError
+          && <p className="linuxdo-sent-error" role="status">
+            <CircleAlert size={16} aria-hidden="true" />
+            <span><strong>{t('发送失败')}</strong><small>{message.processingError}</small></span>
+          </p>}
         <div className="icloud-reader-body">
           <ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} />
         </div>
@@ -146,6 +172,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
 }) {
   const [enabled, setEnabled] = useState(true)
   const [account, setAccount] = useState<LinuxDoMailAccount | null>(null)
+  const [folder, setFolder] = useState<'inbox' | 'sent'>('inbox')
   const [messages, setMessages] = useState<LinuxDoMailMessage[]>([])
   const [opened, setOpened] = useState<LinuxDoMailMessage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -176,24 +203,26 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     }
   }, [])
 
-  const loadInbox = useCallback(async () => {
+  const loadMessages = useCallback(async () => {
     if (!account) return
     inboxController.current?.abort()
     const controller = new AbortController()
     inboxController.current = controller
     setSyncing(true); setError('')
     try {
-      const result = await api.linuxDoMailInbox(controller.signal)
+      const result = folder === 'sent'
+        ? await api.linuxDoMailSent(controller.signal)
+        : await api.linuxDoMailInbox(controller.signal)
       setMessages(result.messages)
     } catch (loadError) {
       if (!controller.signal.aborted) setError(errorMessage(loadError))
     } finally {
       if (!controller.signal.aborted) setSyncing(false)
     }
-  }, [account])
+  }, [account, folder])
 
   useEffect(() => { void loadAccount() }, [loadAccount])
-  useEffect(() => { if (account) void loadInbox() }, [account?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (account) void loadMessages() }, [account?.id, folder]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { inboxController.current?.abort(); messageController.current?.abort() }, [])
   useEffect(() => {
     if (!notice) return
@@ -228,7 +257,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     setAction('disconnect'); setError('')
     try {
       await api.disconnectLinuxDoMail()
-      setAccount(null); setMessages([]); setOpened(null); setDisconnectOpen(false)
+      setAccount(null); setFolder('inbox'); setMessages([]); setOpened(null); setDisconnectOpen(false)
       setNotice(t('Linux DO 邮箱已断开'))
     } catch (disconnectError) {
       setError(errorMessage(disconnectError))
@@ -252,6 +281,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
       await api.sendLinuxDoMail(input)
       setComposeOpen(false)
       setNotice(t('邮件已加入发送队列'))
+      if (folder === 'sent') await loadMessages()
     } catch (sendError) {
       setComposeError(errorMessage(sendError))
     } finally { setAction('') }
@@ -263,7 +293,9 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     messageController.current = controller
     setOpened(message); setMessageLoading(true); setError('')
     try {
-      const result = await api.linuxDoMailMessage(message.id, controller.signal)
+      const result = message.direction === 'outgoing'
+        ? await api.linuxDoMailSentMessage(message.id, controller.signal)
+        : await api.linuxDoMailMessage(message.id, controller.signal)
       if (!controller.signal.aborted) setOpened(result.message)
     } catch (openError) {
       if (!controller.signal.aborted) setError(errorMessage(openError))
@@ -274,6 +306,15 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
 
   const closeMessage = () => {
     messageController.current?.abort(); setOpened(null); setMessageLoading(false)
+  }
+
+  function selectFolder(nextFolder: 'inbox' | 'sent') {
+    if (nextFolder === folder) return
+    closeMessage()
+    inboxController.current?.abort()
+    setMessages([])
+    setError('')
+    setFolder(nextFolder)
   }
 
   return (
@@ -300,40 +341,64 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
                 <Settings2 size={17} />
               </button>
               <button className="icon-button" type="button" disabled={syncing}
-                onClick={() => void loadInbox()} aria-label={t('刷新收件箱')} data-tooltip={t('刷新收件箱')}>
+                onClick={() => void loadMessages()}
+                aria-label={t(folder === 'sent' ? '刷新已发送' : '刷新收件箱')}
+                data-tooltip={t(folder === 'sent' ? '刷新已发送' : '刷新收件箱')}>
                 {syncing ? <Spinner /> : <RefreshCw size={17} />}
               </button>
             </div>
           </div>}
         </header>
 
+        {account && <div className="linuxdo-folder-switch" role="group" aria-label={t('邮箱文件夹')}>
+          <button type="button" className={folder === 'inbox' ? 'is-active' : ''}
+            aria-pressed={folder === 'inbox'} onClick={() => selectFolder('inbox')}>
+            <Inbox size={15} aria-hidden="true" /><span>{t('收件箱')}</span>
+          </button>
+          <button type="button" className={folder === 'sent' ? 'is-active' : ''}
+            aria-pressed={folder === 'sent'} onClick={() => selectFolder('sent')}>
+            <Send size={15} aria-hidden="true" /><span>{t('已发送')}</span>
+          </button>
+        </div>}
+
         {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
         {loading ? <div className="icloud-loading"><Spinner size={22} />{t('正在读取 Linux DO Mail 配置…')}</div>
           : !enabled ? <Empty icon={<KeyRound size={24} />} title={t('Linux DO Mail 功能尚未启用')}
             description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 LINUX_DO_MAIL_CREDENTIALS_KEY，然后重新部署。')} />
           : !account ? <ConnectForm saving={connecting} error={formError} onConnect={connect} />
-          : syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div>
-          : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('Linux DO 邮件列表')}>
+          : syncing && !messages.length ? <div className="icloud-loading"><Spinner />
+            {t(folder === 'sent' ? '正在读取已发送邮件…' : '正在读取收件箱…')}</div>
+          : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox"
+            aria-label={t(folder === 'sent' ? 'Linux DO 已发送邮件列表' : 'Linux DO 邮件列表')}>
             {messages.map((message) => {
               const active = opened?.id === message.id
               const sender = parseICloudSender(message.from)
+              const outgoing = message.direction === 'outgoing'
               return <article className={`message-row${message.isRead === false ? ' is-unread' : ''}${active ? ' is-selected' : ''}`}
                 role="option" aria-selected={active} key={message.id}>
                 <button className="message-row__main" type="button" onClick={() => void openMessage(message)}>
-                  <span className="message-row__top"><strong>{sender.name || sender.address || t('未知发件人')}</strong>
+                  <span className="message-row__top"><strong>{outgoing
+                    ? message.to || t('未知收件人')
+                    : sender.name || sender.address || t('未知发件人')}</strong>
                     <time>{message.date ? new Date(message.date).toLocaleDateString() : ''}</time></span>
-                  <span className="message-row__subject"><span className="message-row__subject-text">{message.subject || t('无主题')}</span></span>
+                  <span className="message-row__subject">
+                    <span className="message-row__subject-text">{message.subject || t('无主题')}</span>
+                    {outgoing && <DeliveryStatus message={message} />}
+                  </span>
                   <span className="message-row__preview">{message.preview || t('暂无正文预览')}</span>
                 </button>
                 {message.isRead === false && <span className="message-row__unread-dot" aria-hidden="true" />}
               </article>
             })}
-          </div></div> : <Empty icon={<Inbox size={24} />} title={t('暂无 Linux DO 邮件')}
-            description={t('INBOX 中暂时没有邮件，或账号凭据需要重新验证。')} />}
+          </div></div> : folder === 'sent'
+            ? <Empty icon={<Send size={24} />} title={t('暂无已发送邮件')}
+              description={t('通过 Linux DO 写信后，排队和投递状态会显示在这里。')} />
+            : <Empty icon={<Inbox size={24} />} title={t('暂无 Linux DO 邮件')}
+              description={t('INBOX 中暂时没有邮件，或账号凭据需要重新验证。')} />}
       </section>
 
       <main className="reader-pane icloud-reader-pane">
-        <MessageReader message={opened} loading={messageLoading}
+        <MessageReader message={opened} folder={folder} loading={messageLoading}
           remoteImagesEnabled={remoteImagesEnabled} onBack={closeMessage} />
       </main>
 

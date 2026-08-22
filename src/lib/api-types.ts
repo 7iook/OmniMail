@@ -133,7 +133,12 @@ export interface LinuxDoMailAccount {
   hasPassword: boolean
 }
 
-export type LinuxDoMailMessage = ICloudMessage
+export interface LinuxDoMailMessage extends ICloudMessage {
+  direction?: 'incoming' | 'outgoing'
+  status?: 'processing' | 'ready' | 'failed' | 'sent'
+  deliveryStatus?: string | null
+  processingError?: string
+}
 
 export interface MfaStatus {
   ready: boolean
