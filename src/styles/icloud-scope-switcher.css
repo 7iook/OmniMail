@@ -106,7 +106,7 @@
 }
 
 .icloud-scope-content section + section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
-.icloud-scope-content h3 { margin: 4px 8px 6px; color: var(--text-tertiary); font-size: 9px; letter-spacing: 0.1em; }
+.icloud-scope-content h3 { margin: 4px 8px 6px; color: var(--text-secondary); font-size: 12px; letter-spacing: 0.04em; }
 
 .icloud-scope-section-header {
   display: flex;
@@ -120,37 +120,97 @@
 .icloud-scope-section-header h3 { margin: 0; }
 
 .icloud-scope-sort {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.icloud-scope-sort-trigger {
   display: flex;
-  min-width: 0;
   min-height: 44px;
   align-items: center;
-  border-radius: 10px;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   cursor: pointer;
 }
 
-.icloud-scope-sort:focus-within {
+.icloud-scope-sort-chip {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.icloud-scope-sort-trigger:hover .icloud-scope-sort-chip,
+.icloud-scope-sort-trigger[aria-expanded="true"] .icloud-scope-sort-chip {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.icloud-scope-sort-trigger:focus-visible .icloud-scope-sort-chip {
   outline: 3px solid color-mix(in srgb, var(--text) 25%, transparent);
   outline-offset: 2px;
 }
 
-.icloud-scope-sort > svg:first-child { flex: 0 0 auto; margin-left: 10px; }
-.icloud-scope-sort > svg:last-child { flex: 0 0 auto; margin-right: 9px; pointer-events: none; }
+.icloud-scope-sort-chip > svg:last-child {
+  transition: transform 150ms ease;
+}
 
-.icloud-scope-sort select {
-  min-width: 0;
-  height: 44px;
-  appearance: none;
-  padding: 0 6px;
+.icloud-scope-sort-trigger[aria-expanded="true"] .icloud-scope-sort-chip > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.icloud-scope-sort-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% - 3px);
+  right: 0;
+  width: 136px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: icloud-sort-menu-in 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.icloud-scope-sort-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
   border: 0;
-  outline: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  text-align: left;
+}
+
+.icloud-scope-sort-menu button:hover,
+.icloud-scope-sort-menu button:focus-visible,
+.icloud-scope-sort-menu button[aria-pressed="true"] {
+  outline: 0;
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.icloud-scope-sort-menu button > svg {
+  flex: 0 0 auto;
+  color: var(--success);
 }
 
 .icloud-scope-option {
@@ -244,6 +304,7 @@
 }
 
 @keyframes icloud-scope-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
+@keyframes icloud-sort-menu-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 
 @media (prefers-reduced-motion: reduce) {
   .icloud-scope-trigger > svg,
@@ -252,5 +313,7 @@
   .icloud-scope-settings,
   .icloud-scope-alias,
   .icloud-scope-copy,
-  .icloud-scope-sort { animation: none; transition: none; }
+  .icloud-scope-sort-chip,
+  .icloud-scope-sort-chip > svg,
+  .icloud-scope-sort-menu { animation: none; transition: none; }
 }

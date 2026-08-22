@@ -1,11 +1,16 @@
 import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ICloudAccount, ICloudAlias } from '../lib/api'
 import { t } from '../lib/i18n'
 
 export type ICloudAliasSort = 'label' | 'newest' | 'email'
 
 const aliasCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+const aliasSortOptions: Array<{ value: ICloudAliasSort; label: string }> = [
+  { value: 'label', label: '名称' },
+  { value: 'newest', label: '最新创建' },
+  { value: 'email', label: '邮箱地址' },
+]
 
 function aliasCreatedAt(value?: string): number {
   const timestamp = value ? Date.parse(value) : Number.NaN
@@ -49,9 +54,14 @@ export function ICloudScopeSwitcher({
 }) {
   const [open, setOpen] = useState(false)
   const [aliasSort, setAliasSort] = useState<ICloudAliasSort>('label')
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortMenuId = useId()
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
+  const sortRoot = useRef<HTMLDivElement>(null)
+  const sortTrigger = useRef<HTMLButtonElement>(null)
   const account = accounts.find((item) => item.id === selectedAccountId)
+  const selectedSort = aliasSortOptions.find((option) => option.value === aliasSort)!
   const sortedAliases = useMemo(() => sortICloudAliases(aliases, aliasSort), [aliases, aliasSort])
 
   useEffect(() => {
@@ -67,9 +77,36 @@ export function ICloudScopeSwitcher({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [open])
 
+  useEffect(() => {
+    if (!sortOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!sortRoot.current?.contains(event.target as Node)) setSortOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setSortOpen(false)
+      requestAnimationFrame(() => sortTrigger.current?.focus())
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [sortOpen])
+
   function close() {
+    setSortOpen(false)
     setOpen(false)
     requestAnimationFrame(() => trigger.current?.focus())
+  }
+
+  function selectSort(sort: ICloudAliasSort) {
+    setAliasSort(sort)
+    setSortOpen(false)
+    requestAnimationFrame(() => sortTrigger.current?.focus())
   }
 
   return (
@@ -114,17 +151,29 @@ export function ICloudScopeSwitcher({
             <section>
               <div className="icloud-scope-section-header">
                 <h3>{t('收件地址')}</h3>
-                <label className="icloud-scope-sort">
-                  <ArrowUpDown size={13} aria-hidden="true" />
-                  <span className="sr-only">{t('收件地址排序')}</span>
-                  <select value={aliasSort}
-                    onChange={(event) => setAliasSort(event.target.value as ICloudAliasSort)}>
-                    <option value="label">{t('名称')}</option>
-                    <option value="newest">{t('最新创建')}</option>
-                    <option value="email">{t('邮箱地址')}</option>
-                  </select>
-                  <ChevronDown size={12} aria-hidden="true" />
-                </label>
+                <div ref={sortRoot} className="icloud-scope-sort">
+                  <button ref={sortTrigger} className="icloud-scope-sort-trigger" type="button"
+                    aria-expanded={sortOpen} aria-controls={sortMenuId}
+                    onClick={() => setSortOpen((value) => !value)}>
+                    <span className="icloud-scope-sort-chip">
+                      <ArrowUpDown size={13} aria-hidden="true" />
+                      <span className="sr-only">{t('收件地址排序')}：</span>
+                      <span>{t(selectedSort.label)}</span>
+                      <ChevronDown size={12} aria-hidden="true" />
+                    </span>
+                  </button>
+                  {sortOpen && <div id={sortMenuId} className="icloud-scope-sort-menu"
+                    role="group" aria-label={t('收件地址排序')}>
+                    {aliasSortOptions.map((option) => (
+                      <button type="button" key={option.value}
+                        aria-pressed={option.value === aliasSort}
+                        onClick={() => selectSort(option.value)}>
+                        <span>{t(option.label)}</span>
+                        {option.value === aliasSort && <Check size={14} aria-hidden="true" />}
+                      </button>
+                    ))}
+                  </div>}
+                </div>
               </div>
               <button className={`icloud-scope-option${!selectedAlias ? ' is-selected' : ''}`} type="button"
                 onClick={() => { onAliasChange(''); close() }}>
