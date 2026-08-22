@@ -209,23 +209,37 @@ export function AdminMailManagement() {
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [confirmation, setConfirmation] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const listRequestId = useRef(0)
+  const listController = useRef<AbortController | null>(null)
+  const detailRequestId = useRef(0)
+  const detailController = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    listController.current?.abort()
+    detailRequestId.current += 1
+    detailController.current?.abort()
     const controller = new AbortController()
+    listController.current = controller
+    const requestId = ++listRequestId.current
     setLoading(true)
+    setLoadingMore(false)
     setError('')
     setSelectedIds(new Set())
+    setDrawerOpen(false)
+    setDetail(null)
     void api.adminMessages({ ...filters, query: deferredQuery }, controller.signal)
       .then((result) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || requestId !== listRequestId.current) return
         setMessages(result.messages)
         setPage(result.page)
       })
       .catch((loadError) => {
-        if (!controller.signal.aborted) setError(errorMessage(loadError))
+        if (!controller.signal.aborted && requestId === listRequestId.current) {
+          setError(errorMessage(loadError))
+        }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted && requestId === listRequestId.current) setLoading(false)
       })
     return () => controller.abort()
   }, [
@@ -238,12 +252,20 @@ export function AdminMailManagement() {
     filters.user,
     refreshKey,
   ])
+  useEffect(() => () => {
+    listRequestId.current += 1
+    detailRequestId.current += 1
+    listController.current?.abort()
+    detailController.current?.abort()
+  }, [])
 
   const selectedMessages = useMemo(
     () => messages.filter((message) => selectedIds.has(message.id)),
     [messages, selectedIds],
   )
-  const allSelected = messages.length > 0 && messages.every((message) => selectedIds.has(message.id))
+  const selectableMessages = messages.slice(0, 50)
+  const allSelected = selectableMessages.length > 0
+    && selectableMessages.every((message) => selectedIds.has(message.id))
   const canDeleteSelection = selectedMessages.length > 0
     && selectedMessages.every((message) => message.folder === 'trash')
   const hasTrashSelection = selectedMessages.some((message) => message.folder === 'trash')
@@ -264,6 +286,10 @@ export function AdminMailManagement() {
 
   async function loadMore() {
     if (!page.nextCursor || loadingMore) return
+    listController.current?.abort()
+    const controller = new AbortController()
+    listController.current = controller
+    const requestId = ++listRequestId.current
     setLoadingMore(true)
     setError('')
     try {
@@ -271,29 +297,38 @@ export function AdminMailManagement() {
         ...filters,
         query: deferredQuery,
         cursor: page.nextCursor,
-      })
+      }, controller.signal)
+      if (controller.signal.aborted || requestId !== listRequestId.current) return
       setMessages((current) => [...current, ...result.messages])
       setPage(result.page)
     } catch (loadError) {
-      setError(errorMessage(loadError))
+      if (!controller.signal.aborted && requestId === listRequestId.current) {
+        setError(errorMessage(loadError))
+      }
     } finally {
-      setLoadingMore(false)
+      if (requestId === listRequestId.current) setLoadingMore(false)
     }
   }
 
   async function openMessage(message: AdminMessageSummary) {
+    detailController.current?.abort()
+    const controller = new AbortController()
+    detailController.current = controller
+    const requestId = ++detailRequestId.current
     setDrawerOpen(true)
     setDetail(null)
     setDetailLoading(true)
     setError('')
     try {
-      const result = await api.adminMessage(message.id)
+      const result = await api.adminMessage(message.id, controller.signal)
+      if (controller.signal.aborted || requestId !== detailRequestId.current) return
       setDetail(result.message)
     } catch (loadError) {
+      if (controller.signal.aborted || requestId !== detailRequestId.current) return
       setDrawerOpen(false)
       setError(errorMessage(loadError))
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestId.current) setDetailLoading(false)
     }
   }
 
@@ -305,6 +340,8 @@ export function AdminMailManagement() {
       const result = await api.manageAdminMessages(ids, action)
       setNotice(t('已管理 {count} 封邮件', { count: result.updatedCount }))
       setSelectedIds(new Set())
+      detailRequestId.current += 1
+      detailController.current?.abort()
       setDrawerOpen(false)
       setDetail(null)
       setRefreshKey((value) => value + 1)
@@ -375,7 +412,7 @@ export function AdminMailManagement() {
         <div className="admin-mail-table-wrap">
           <table className="admin-mail-table">
             <thead><tr>
-              <th><SelectionBox checked={allSelected} indeterminate={selectedIds.size > 0 && !allSelected} label={t('选择当前已加载邮件')} onChange={() => setSelectedIds(allSelected ? new Set() : new Set(messages.slice(0, 50).map((message) => message.id)))} /></th>
+              <th><SelectionBox checked={allSelected} indeterminate={selectedIds.size > 0 && !allSelected} label={t('选择当前已加载邮件')} onChange={() => setSelectedIds(allSelected ? new Set() : new Set(selectableMessages.map((message) => message.id)))} /></th>
               <th>{t('时间')}</th><th>{t('所属用户')}</th><th>{t('邮箱')}</th><th>{t('通信方')}</th><th>{t('主题')}</th><th>{t('状态')}</th><th>{t('大小')}</th>
             </tr></thead>
             <tbody>
@@ -399,7 +436,7 @@ export function AdminMailManagement() {
         {page.hasMore && <button className="button button--secondary admin-mail-load-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore && <LoaderCircle className="spin" size={15} />}{t(loadingMore ? '正在加载…' : '加载更多邮件')}</button>}
       </section>
 
-      {drawerOpen && <AdminMessageDrawer message={detail} loading={detailLoading} interactionBlocked={Boolean(pending)} onClose={() => setDrawerOpen(false)} onTrash={() => detail && requestAction(detail.folder === 'trash' ? 'delete' : 'trash', [detail.id])} onRestore={() => detail && requestAction('restore', [detail.id])} />}
+      {drawerOpen && <AdminMessageDrawer message={detail} loading={detailLoading} interactionBlocked={Boolean(pending)} onClose={() => { detailRequestId.current += 1; detailController.current?.abort(); setDrawerOpen(false) }} onTrash={() => detail && requestAction(detail.folder === 'trash' ? 'delete' : 'trash', [detail.id])} onRestore={() => detail && requestAction('restore', [detail.id])} />}
 
       {pending && <DangerConfirmDialog
         icon={Trash2}

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { validateAccountDeletion, validateAccountUpdate } from './account-api'
+import { hashPassword, sha256 } from './auth'
+import { updateAccount, validateAccountDeletion, validateAccountUpdate } from './account-api'
+import type { Env, SessionUser } from './types'
 
 describe('account update validation', () => {
   it('normalizes a display name update', () => {
@@ -24,6 +26,51 @@ describe('account update validation', () => {
     })).toEqual({
       error: '密码至少需要 10 个字符。',
     })
+  })
+
+  it('revokes every browser session and rotates the current one when the password changes', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const oldHash = await hashPassword('old-password-123')
+    const db = {
+      prepare(sql: string) {
+        const entry = { sql, bindings: [] as unknown[] }
+        statements.push(entry)
+        return {
+          bind(...bindings: unknown[]) { entry.bindings = bindings; return this },
+          first: async () => ({ password_hash: oldHash }),
+          run: async () => ({ meta: { changes: 1 } }),
+        }
+      },
+      batch: async (batch: Array<{ run?: () => Promise<unknown> }>) => (
+        Promise.all(batch.map(() => ({ meta: { changes: 1 } })))
+      ),
+    }
+    const user = {
+      id: 'user-1', displayName: 'User', email: 'user@example.com', role: 'user',
+    } as SessionUser
+    const currentToken = 'current-browser-session'
+    const response = await updateAccount(
+      { DB: db } as unknown as Env,
+      user,
+      new Request('https://mail.example/api/account', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          currentPassword: 'old-password-123',
+          newPassword: 'new-password-456',
+        }),
+      }),
+      '127.0.0.1',
+      currentToken,
+    )
+
+    expect(response.status).toBe(200)
+    const deletion = statements.find(({ sql }) => sql.includes('DELETE FROM sessions'))
+    const replacement = statements.find(({ sql }) => sql.includes('INSERT INTO sessions'))
+    expect(deletion?.bindings).toEqual(['user-1'])
+    expect(replacement?.bindings[0]).toBe(await sha256(
+      response.headers.get('X-OmniMail-Replacement-Session') || '',
+    ))
+    expect(replacement?.bindings[1]).toBe('user-1')
   })
 })
 

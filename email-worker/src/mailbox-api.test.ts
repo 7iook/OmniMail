@@ -79,6 +79,33 @@ describe('mailboxDomain', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
+  it('enforces the mailbox limit inside the insert statement', async () => {
+    const statements: string[] = []
+    const database = {
+      prepare(sql: string) {
+        statements.push(sql)
+        return {
+          bind() { return this },
+          first: async () => sql.includes('FROM domains') ? { is_active: 1 } : null,
+          run: async () => ({ meta: { changes: sql.includes('mailboxes (address') ? 0 : 1 } }),
+        }
+      },
+    }
+    const response = await addMailbox(
+      { DB: database } as unknown as Env,
+      user('user', true),
+      new Request('https://mail.example/api/mailboxes', {
+        method: 'POST', body: JSON.stringify({ address: 'alias@example.com' }),
+      }),
+      '127.0.0.1',
+    )
+
+    expect(response.status).toBe(403)
+    const insert = statements.find((sql) => sql.includes('INSERT OR IGNORE INTO mailboxes'))
+    expect(insert).toContain('SELECT COUNT(*) FROM mailboxes')
+    expect(statements).not.toContain('SELECT COUNT(*) AS count FROM mailboxes WHERE user_id = ? AND is_hidden = 0')
+  })
+
   it('does not enable a mailbox through the status endpoint on a disabled domain', async () => {
     const update = vi.fn()
     const database = {

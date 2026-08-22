@@ -76,12 +76,30 @@ function messageResult(row: {
 
 export class OutboundDeliveryError extends Error {
   retryable: boolean
+  deliveryUncertain: boolean
 
-  constructor(message: string, retryable = true) {
+  constructor(message: string, retryable = true, deliveryUncertain = false) {
     super(message)
     this.name = 'OutboundDeliveryError'
     this.retryable = retryable
+    this.deliveryUncertain = deliveryUncertain
   }
+}
+
+export class OutboundProviderAcceptedError extends Error {
+  providerId: string
+
+  constructor(providerId: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : 'Unable to record accepted outbound message')
+    this.name = 'OutboundProviderAcceptedError'
+    this.providerId = providerId
+  }
+}
+
+export const DELIVERY_UNCERTAIN_PREFIX = '投递结果不确定，已停止自动重试：'
+
+export function scopedIdempotencyKey(userId: string, key: string): string {
+  return `${userId}:${key}`
 }
 
 export function arrayBufferToBase64(value: ArrayBuffer): string {
@@ -178,7 +196,9 @@ async function deliverWithSendflare(
     })
   } catch (error) {
     throw new OutboundDeliveryError(
-      error instanceof Error ? error.message : 'SendFlare request failed',
+      `${DELIVERY_UNCERTAIN_PREFIX}${error instanceof Error ? error.message : 'SendFlare request failed'}`,
+      false,
+      true,
     )
   }
   type SendflareResult = {
@@ -224,11 +244,15 @@ export async function requeueFailedOutbound(
   auditAction: OutboundJob['auditAction'],
   auditDetail: Record<string, unknown>,
 ): Promise<Response> {
-  await env.DB.prepare(
-    `UPDATE messages
+  const claimed = await env.DB.prepare(
+      `UPDATE messages
         SET status = 'processing', processing_error = NULL, updated_at = unixepoch()
-      WHERE id = ? AND status = 'failed'`,
-  ).bind(messageId).run()
+      WHERE id = ? AND status = 'failed'
+        AND (processing_error IS NULL OR processing_error NOT LIKE ?)`,
+  ).bind(messageId, `${DELIVERY_UNCERTAIN_PREFIX}%`).run()
+  if (!claimed.meta.changes) {
+    return json({ error: '邮件已被其他请求重试，或其投递结果不确定，不能自动重发。' }, 409)
+  }
   try {
     await env.MAIL_QUEUE.send({
       kind: 'outbound',
@@ -255,10 +279,11 @@ export async function sendOutboundMessage(
   input: OutboundMessage,
   ip: string,
 ): Promise<Response> {
+  const storedIdempotencyKey = scopedIdempotencyKey(user.id, input.idempotencyKey)
   const existing = await env.DB.prepare(
     `SELECT id, status, provider_id, body_key FROM messages
-      WHERE client_request_id = ? AND mailbox_address = ?`,
-  ).bind(input.idempotencyKey, input.mailboxAddress).first<{
+      WHERE client_request_id IN (?, ?) AND mailbox_address = ?`,
+  ).bind(storedIdempotencyKey, input.idempotencyKey, input.mailboxAddress).first<{
     id: string
     status: string
     provider_id: string | null
@@ -365,7 +390,7 @@ export async function sendOutboundMessage(
       quotaBytes,
       quotaBytes,
       attachments.length,
-      input.idempotencyKey,
+      storedIdempotencyKey,
     ),
     ...attachments.map((attachment) => env.DB.prepare(
       `INSERT INTO attachments (
@@ -399,8 +424,8 @@ export async function sendOutboundMessage(
   } catch {
     const duplicate = await env.DB.prepare(
       `SELECT id, status, provider_id FROM messages
-        WHERE client_request_id = ? AND mailbox_address = ?`,
-    ).bind(input.idempotencyKey, input.mailboxAddress).first<{
+        WHERE client_request_id IN (?, ?) AND mailbox_address = ?`,
+    ).bind(storedIdempotencyKey, input.idempotencyKey, input.mailboxAddress).first<{
       id: string
       status: string
       provider_id: string | null
@@ -525,14 +550,21 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
   const providerId = provider.provider === 'sendflare'
     ? await deliverWithSendflare(provider, payload)
     : await deliverWithResend(provider, payload)
-  await env.DB.batch([
-    env.DB.prepare(
+  try {
+    await env.DB.prepare(
       `UPDATE messages
         SET status = 'sent', provider_id = ?, delivery_status = 'sent',
             processing_error = NULL, updated_at = unixepoch()
       WHERE id = ?`,
-    ).bind(providerId, record.id),
-    auditOutboundStatement(env, job.userId, record.id, {
+    ).bind(providerId, record.id).run()
+  } catch (error) {
+    if (provider.provider === 'sendflare') {
+      throw new OutboundProviderAcceptedError(providerId, error)
+    }
+    throw error
+  }
+  try {
+    await auditOutboundStatement(env, job.userId, record.id, {
       mailboxAddress: record.mailbox_address,
       recipients,
       subject: record.subject,
@@ -542,7 +574,15 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       references: record.references_header || undefined,
       auditAction: job.auditAction,
       auditDetail: job.auditDetail,
-    }, job.ip),
-  ])
-  if (provider.provider === 'resend') await reconcileResendEvents(env, providerId, record.id)
+    }, job.ip).run()
+  } catch (error) {
+    console.error('Unable to write outbound delivery audit', error)
+  }
+  if (provider.provider === 'resend') {
+    try {
+      await reconcileResendEvents(env, providerId, record.id)
+    } catch (error) {
+      console.error('Unable to reconcile Resend delivery events', error)
+    }
+  }
 }

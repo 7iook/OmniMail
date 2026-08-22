@@ -60,19 +60,22 @@ const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || '').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 15000
 export const AUTH_REQUIRED_EVENT = 'omnimail:auth-required'
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+type RequestOptions = RequestInit & { timeoutMs?: number }
+
+export async function request<T>(path: string, init: RequestOptions = {}): Promise<T> {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...requestInit } = init
+  const headers = new Headers(requestInit.headers)
+  if (requestInit.body && !(requestInit.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
   let response: Response
   try {
-    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const timeout = AbortSignal.timeout(timeoutMs)
     response = await fetch(`${API_ORIGIN}${path}`, {
-      ...init,
+      ...requestInit,
       headers,
       credentials: 'include',
-      signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
+      signal: requestInit.signal ? AbortSignal.any([requestInit.signal, timeout]) : timeout,
     })
   } catch (error) {
     if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
@@ -315,10 +318,10 @@ export const api = {
       { signal },
     )
   },
-  adminMessage: (id: string) => request<{
+  adminMessage: (id: string, signal?: AbortSignal) => request<{
     message: AdminMessageDetail
     thread: AdminMessageSummary[]
-  }>(`/api/admin/messages/${encodeURIComponent(id)}`),
+  }>(`/api/admin/messages/${encodeURIComponent(id)}`, { signal }),
   manageAdminMessages: (ids: string[], action: AdminMessageAction) => request<{
     ok: true
     updatedCount: number
@@ -484,7 +487,7 @@ export const api = {
       `/api/drafts/${encodeURIComponent(id)}/attachments`, {
       method: 'POST',
       body,
-      signal: AbortSignal.timeout(60_000),
+      timeoutMs: 60_000,
       },
     )
   },
@@ -498,13 +501,15 @@ export const api = {
     method: 'POST',
     body: jsonBody({ idempotencyKey }),
   }),
-  message: (id: string) => request<{ message: MessageDetail; thread: MessageSummary[] }>(`/api/messages/${id}`),
+  message: (id: string, signal?: AbortSignal) => request<{
+    message: MessageDetail; thread: MessageSummary[]
+  }>(`/api/messages/${id}`, { signal }),
   translateMessage: (id: string, targetLanguage: TranslationTargetLanguage) => request<{
     translation: MessageTranslation
   }>(`/api/messages/${id}/translation`, {
     method: 'POST',
     body: jsonBody({ targetLanguage }),
-    signal: AbortSignal.timeout(60_000),
+    timeoutMs: 60_000,
   }),
   updateMessage: (
     id: string,
@@ -532,7 +537,7 @@ export const api = {
       {
         method: 'POST',
         body,
-        signal: attachments.length ? AbortSignal.timeout(60_000) : undefined,
+        timeoutMs: attachments.length ? 60_000 : undefined,
       },
     )
   },

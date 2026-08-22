@@ -195,7 +195,7 @@ describe('administrator message management', () => {
     expect(await response.json()).toMatchObject({ updatedCount: 1 })
     expect(remove).toHaveBeenCalledWith([message.raw_key])
     expect(batched.find(({ sql }) => sql.includes('UPDATE users'))?.bindings)
-      .toEqual([message.quota_bytes, message.owner_user_id])
+      .toEqual([message.quota_bytes, message.owner_user_id, message.id, message.owner_user_id])
     expect(statements.some(({ bindings }) => bindings.includes('message.admin_delete'))).toBe(true)
   })
 })

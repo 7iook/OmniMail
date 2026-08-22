@@ -376,7 +376,21 @@ app.delete('/api/auth/devices/:id', (context) => revokeDevice(
   context.req.param('id'),
   clientIp(context.req.raw.headers),
 ))
-app.patch('/api/account', (context) => updateAccount(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/account', async (context) => {
+  const response = await updateAccount(
+    context.env,
+    context.get('user'),
+    context.req.raw,
+    clientIp(context.req.raw.headers),
+    context.get('authKind') === 'cookie' ? getCookie(context, SESSION_COOKIE) : undefined,
+  )
+  const replacement = response.headers.get('X-OmniMail-Replacement-Session')
+  if (replacement) {
+    response.headers.delete('X-OmniMail-Replacement-Session')
+    setSessionCookie(context, context.env, replacement)
+  }
+  return response
+})
 app.get('/api/account/mfa', (context) => mfaStatus(context.env, context.get('user')))
 app.post('/api/account/mfa/setup', (context) => startMfaSetup(context.env, context.get('user')))
 app.post('/api/account/mfa/confirm', (context) => confirmMfaSetup(

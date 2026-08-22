@@ -1,5 +1,6 @@
 import { writeAudit } from './audit'
 import { outboundProviderConfigError, outboundProviderForAddress } from './outbound-provider-config'
+import { DELIVERY_UNCERTAIN_PREFIX } from './outbound-message'
 import type { Env, SessionUser } from './types'
 
 interface FailedMessageRow {
@@ -32,7 +33,8 @@ export function failedMessageSummary(row: FailedMessageRow) {
     attempts: Number(row.processing_attempts || 0),
     lastFailedAt: (row.last_failed_at || row.updated_at) * 1000,
     size: Number(row.size || 0),
-    canRetry: Boolean(row.raw_key || row.body_key),
+    canRetry: Boolean(row.raw_key || row.body_key)
+      && !row.processing_error?.startsWith(DELIVERY_UNCERTAIN_PREFIX),
   }
 }
 
@@ -71,7 +73,7 @@ export async function retryFailedMessage(
   }
   const message = await env.DB.prepare(
     `SELECT m.id, m.mailbox_address, m.direction, m.raw_key, m.body_key, m.in_reply_to,
-            m.recipients_json, mb.user_id
+            m.recipients_json, m.processing_error, mb.user_id
        FROM messages m
        JOIN mailboxes mb ON mb.address = m.mailbox_address
       WHERE m.id = ? AND m.status = 'failed'`,
@@ -84,6 +86,7 @@ export async function retryFailedMessage(
     in_reply_to: string | null
     recipients_json: string
     user_id: string
+    processing_error: string | null
   }>()
   if (!message) return Response.json({ error: '失败邮件不存在或已被处理。' }, { status: 404 })
   const objectKey = message.direction === 'outgoing' ? message.body_key : message.raw_key
@@ -95,14 +98,21 @@ export async function retryFailedMessage(
   if (message.direction === 'outgoing' && !outboundProviderForAddress(env, message.mailbox_address)) {
     return Response.json({ error: '该发件域名尚未配置发信服务。' }, { status: 503 })
   }
+  if (message.processing_error?.startsWith(DELIVERY_UNCERTAIN_PREFIX)) {
+    return Response.json({ error: '这封邮件的投递结果不确定，已禁止自动重发。' }, { status: 409 })
+  }
 
-  await env.DB.prepare(
-    `UPDATE messages
+  const claimed = await env.DB.prepare(
+      `UPDATE messages
         SET status = 'processing', processing_error = NULL,
             delivery_status = CASE WHEN direction = 'outgoing' THEN 'queued' ELSE delivery_status END,
             updated_at = unixepoch()
-      WHERE id = ? AND status = 'failed'`,
-  ).bind(message.id).run()
+      WHERE id = ? AND status = 'failed'
+        AND (processing_error IS NULL OR processing_error NOT LIKE ?)`,
+  ).bind(message.id, `${DELIVERY_UNCERTAIN_PREFIX}%`).run()
+  if (!claimed.meta.changes) {
+    return Response.json({ error: '这封邮件已经被其他请求处理。' }, { status: 409 })
+  }
   try {
     await env.MAIL_QUEUE.send(message.direction === 'outgoing' ? {
       kind: 'outbound',

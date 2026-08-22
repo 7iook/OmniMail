@@ -28,12 +28,17 @@ describe('retention cleanup batches', () => {
       { id: 'm1', raw_key: 'raw/m1', body_key: null, quota_bytes: 10, user_id: 'u1' },
       { id: 'm2', raw_key: null, body_key: 'bodies/m2', quota_bytes: 20, user_id: 'u1' },
     ]
-    const batches = vi.fn(async () => [])
+    const batches = vi.fn(async () => [
+      { meta: { changes: 1 } },
+      { meta: { changes: 1 } },
+      { meta: { changes: 1 } },
+    ])
     const db = {
       prepare(sql: string) {
         return {
           bind() { return this },
           all: async () => ({ results: sql.includes('SELECT m.id') ? messages : [] }),
+          run: async () => ({ meta: { changes: 1 } }),
         }
       },
       batch: batches,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { failedMessageSummary, retryFailedMessage } from './failed-mail-api'
+import { DELIVERY_UNCERTAIN_PREFIX } from './outbound-message'
 import type { Env, SessionUser } from './types'
 
 const administrator: SessionUser = {
@@ -35,6 +36,16 @@ describe('failed mail summaries', () => {
     expect(summary).not.toHaveProperty('rawKey')
   })
 
+  it('does not offer an automatic retry when delivery is uncertain', () => {
+    expect(failedMessageSummary({
+      id: 'message-1', mailbox_address: 'out@example.com', sender_name: null,
+      sender_address: 'out@example.com', subject: 'Maybe sent',
+      processing_error: `${DELIVERY_UNCERTAIN_PREFIX}timeout`, processing_attempts: 1,
+      last_failed_at: 100, updated_at: 100, size: 10,
+      raw_key: null, body_key: 'bodies/message-1.json',
+    }).canRetry).toBe(false)
+  })
+
   it('checks the raw message, queues the retry, and writes an audit entry', async () => {
     const queue = vi.fn(async () => undefined)
     const head = vi.fn(async () => ({ size: 2048 }))
@@ -55,7 +66,7 @@ describe('failed mail summaries', () => {
                 user_id: 'user-1',
               }
             : null,
-          run: async () => ({ success: true }),
+          run: async () => ({ success: true, meta: { changes: 1 } }),
         }
         return statement
       },

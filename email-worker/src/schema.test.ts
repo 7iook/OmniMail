@@ -93,6 +93,7 @@ const FINAL_MIGRATIONS = [
   '0019_extension_authorization.sql',
   '0020_device_token_scopes.sql',
   '0021_icloud_accounts.sql',
+  '0022_consistency_guards.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -110,10 +111,10 @@ describe('D1 migration check', () => {
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 8],
-    ['2026-08-01-p2-translation-permissions', 16, 6],
-    ['2026-08-03-p3-multiple-drafts', 17, 5],
-  ])('recovers legacy schema %s through migration 0021', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 9],
+    ['2026-08-01-p2-translation-permissions', 16, 7],
+    ['2026-08-03-p3-multiple-drafts', 17, 6],
+  ])('recovers legacy schema %s through migration 0022', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -123,9 +124,10 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(21)
+    expect(fixture.applied.size).toBe(22)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
     expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
+    expect(fixture.applied.has('0022_consistency_guards.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
@@ -142,7 +144,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(21)
+    expect(fixture.applied.size).toBe(22)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -171,13 +173,13 @@ describe('D1 migration check', () => {
     expect(fixture.prepare).not.toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
-    expect(fixture.batch).toHaveBeenCalledOnce()
+    expect(fixture.batch).toHaveBeenCalledTimes(2)
   })
 
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0021_icloud_accounts.sql',
+      concurrentMigration: '0022_consistency_guards.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
@@ -190,7 +192,7 @@ describe('D1 migration check', () => {
       failBatchOnce: true,
     })
 
-    await expect(ensureSchema(fixture.db)).rejects.toThrow('0021_icloud_accounts.sql')
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0022_consistency_guards.sql')
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledTimes(2)
   })

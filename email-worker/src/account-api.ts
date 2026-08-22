@@ -1,4 +1,11 @@
-import { hashPassword, validatePassword, verifyPassword } from './auth'
+import {
+  createSessionToken,
+  hashPassword,
+  sessionMaxAge,
+  sha256,
+  validatePassword,
+  verifyPassword,
+} from './auth'
 import type { Env, SessionUser } from './types'
 
 interface AccountUpdateInput {
@@ -100,6 +107,7 @@ export async function updateAccount(
   user: SessionUser,
   request: Request,
   ip: string,
+  currentSessionToken?: string,
 ): Promise<Response> {
   const body = await request.json<AccountUpdateInput>()
     .catch(() => ({} as AccountUpdateInput))
@@ -107,6 +115,7 @@ export async function updateAccount(
   if ('error' in result) return json({ error: result.error }, 400)
 
   const { displayName, currentPassword, newPassword } = result.value
+  let replacementSessionToken = ''
   if (newPassword) {
     const stored = await env.DB.prepare(
       'SELECT password_hash FROM users WHERE id = ?',
@@ -130,6 +139,19 @@ export async function updateAccount(
       `UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, unixepoch())
         WHERE user_id = ?`,
     ).bind(user.id))
+    statements.push(env.DB.prepare(
+      'DELETE FROM sessions WHERE user_id = ?',
+    ).bind(user.id))
+    if (currentSessionToken) {
+      replacementSessionToken = createSessionToken()
+      statements.push(env.DB.prepare(
+        'INSERT INTO sessions (id_hash, user_id, expires_at) VALUES (?, ?, ?)',
+      ).bind(
+        await sha256(replacementSessionToken),
+        user.id,
+        Math.floor(Date.now() / 1000) + sessionMaxAge,
+      ))
+    }
   }
   await env.DB.batch(statements)
   await audit(env, user.id, 'account.update', ip, {
@@ -137,12 +159,16 @@ export async function updateAccount(
     passwordChanged: Boolean(newPassword),
   })
 
-  return json({
+  const response = json({
     user: {
       ...user,
       displayName: displayName ?? user.displayName,
     },
   })
+  if (replacementSessionToken) {
+    response.headers.set('X-OmniMail-Replacement-Session', replacementSessionToken)
+  }
+  return response
 }
 
 export async function deleteAccount(

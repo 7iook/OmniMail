@@ -11,9 +11,10 @@ import {
   type DraftLimits,
 } from './draft-policy'
 import { textPreview } from './mail'
-import { reserveStorage } from './message-storage'
+import { deleteStagedObjects, reserveStorage } from './message-storage'
 import {
   requeueFailedOutbound,
+  scopedIdempotencyKey,
   sendOutboundMessage,
   type OutboundAttachment,
 } from './outbound-message'
@@ -168,23 +169,24 @@ async function purgeDraftIdBatch(env: Env, draftIds: string[]): Promise<void> {
        JOIN mail_drafts d ON d.id = a.draft_id
       WHERE a.draft_id IN (${marks})`,
   ).bind(...draftIds).all<{ r2_key: string; size: number; user_id: string }>()
-  if (attachments.length) {
-    await env.MAIL_BUCKET.delete(attachments.map((attachment) => attachment.r2_key))
-  }
-  const bytesByUser = new Map<string, number>()
-  for (const attachment of attachments) {
-    bytesByUser.set(
-      attachment.user_id,
-      (bytesByUser.get(attachment.user_id) || 0) + attachment.size,
-    )
-  }
+  const objectKeys = attachments.map((attachment) => attachment.r2_key)
   await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - COALESCE((
+          SELECT SUM(a.size) FROM mail_draft_attachments a
+          JOIN mail_drafts d ON d.id = a.draft_id
+          WHERE d.id IN (${marks}) AND d.user_id = users.id
+        ), 0)), updated_at = unixepoch()
+        WHERE id IN (SELECT user_id FROM mail_drafts WHERE id IN (${marks}))`,
+    ).bind(...draftIds, ...draftIds),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO pending_object_deletions (object_key)
+       SELECT a.r2_key FROM mail_draft_attachments a
+       WHERE a.draft_id IN (${marks})`,
+    ).bind(...draftIds),
     env.DB.prepare(`DELETE FROM mail_drafts WHERE id IN (${marks})`).bind(...draftIds),
-    ...[...bytesByUser].map(([userId, bytes]) => env.DB.prepare(
-      `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
-        updated_at = unixepoch() WHERE id = ?`,
-    ).bind(bytes, userId)),
   ])
+  await deleteStagedObjects(env, objectKeys)
 }
 
 async function pruneUserDrafts(env: Env, userId: string, limit: number): Promise<void> {
@@ -366,16 +368,31 @@ export async function uploadDraftAttachment(
       httpMetadata: { contentType },
       customMetadata: { filename, userId: user.id, draftId },
     })
-    await env.DB.batch([
+    const stored = await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mail_draft_attachments (
            id, draft_id, filename, content_type, size, r2_key, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, draftId, filename, contentType, file.size, key, Date.now()),
+         ) SELECT ?, ?, ?, ?, ?, ?, ?
+          WHERE (SELECT COUNT(*) FROM mail_draft_attachments WHERE draft_id = ?) < ?
+            AND (SELECT COALESCE(SUM(size), 0) FROM mail_draft_attachments
+                  WHERE draft_id = ?) + ? <= ?`,
+      ).bind(
+        id, draftId, filename, contentType, file.size, key, Date.now(),
+        draftId, MAX_ATTACHMENTS, draftId, file.size, MAX_ATTACHMENT_TOTAL_BYTES,
+      ),
       env.DB.prepare(
-        'UPDATE mail_drafts SET updated_at = ? WHERE id = ? AND user_id = ?',
-      ).bind(Date.now(), draftId, user.id),
+        `UPDATE mail_drafts SET updated_at = ? WHERE id = ? AND user_id = ?
+          AND EXISTS (SELECT 1 FROM mail_draft_attachments WHERE id = ?)`,
+      ).bind(Date.now(), draftId, user.id, id),
     ])
+    if (!stored[0]?.meta.changes) {
+      await env.MAIL_BUCKET.delete(key).catch(() => undefined)
+      await env.DB.prepare(
+        `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?)
+          WHERE id = ?`,
+      ).bind(file.size, user.id).run()
+      return json({ error: '附件数量或总大小已经达到上限。' }, 409)
+    }
   } catch (error) {
     await env.MAIL_BUCKET.delete(key).catch(() => undefined)
     await env.DB.prepare(
@@ -408,17 +425,32 @@ export async function deleteDraftAttachment(
       WHERE a.id = ? AND a.draft_id = ? AND d.user_id = ?`,
   ).bind(attachmentId, draftId, user.id).first<DraftAttachmentRow>()
   if (!attachment) return json({ error: '草稿附件不存在。' }, 404)
-  await env.MAIL_BUCKET.delete(attachment.r2_key)
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM mail_draft_attachments WHERE id = ?').bind(attachment.id),
+  const results = await env.DB.batch([
     env.DB.prepare(
       `UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
-        updated_at = unixepoch() WHERE id = ?`,
-    ).bind(attachment.size, user.id),
+        updated_at = unixepoch() WHERE id = ? AND EXISTS (
+          SELECT 1 FROM mail_draft_attachments a
+          JOIN mail_drafts d ON d.id = a.draft_id
+          WHERE a.id = ? AND a.draft_id = ? AND d.user_id = ?
+        )`,
+    ).bind(attachment.size, user.id, attachment.id, draftId, user.id),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO pending_object_deletions (object_key)
+       SELECT a.r2_key FROM mail_draft_attachments a
+       JOIN mail_drafts d ON d.id = a.draft_id
+       WHERE a.id = ? AND a.draft_id = ? AND d.user_id = ?`,
+    ).bind(attachment.id, draftId, user.id),
+    env.DB.prepare(
+      `DELETE FROM mail_draft_attachments WHERE id = ? AND draft_id IN (
+        SELECT id FROM mail_drafts WHERE id = ? AND user_id = ?
+      )`,
+    ).bind(attachment.id, draftId, user.id),
     env.DB.prepare(
       'UPDATE mail_drafts SET updated_at = ? WHERE id = ? AND user_id = ?',
     ).bind(Date.now(), draftId, user.id),
   ])
+  if (!results[2]?.meta.changes) return json({ error: '草稿附件不存在。' }, 404)
+  await deleteStagedObjects(env, [attachment.r2_key])
   return json({ ok: true })
 }
 
@@ -467,12 +499,13 @@ export async function sendDraft(
   if (!/^[a-zA-Z0-9_-]{8,100}$/.test(idempotencyKey)) {
     return json({ error: '无效的请求标识。' }, 400)
   }
+  const storedIdempotencyKey = scopedIdempotencyKey(user.id, idempotencyKey)
   const existing = await env.DB.prepare(
     `SELECT m.id, m.status, m.provider_id, m.body_key, m.mailbox_address
        FROM messages m
        JOIN mailboxes mb ON mb.address = m.mailbox_address
-      WHERE m.client_request_id = ? AND mb.user_id = ?`,
-  ).bind(idempotencyKey, user.id).first<{
+      WHERE m.client_request_id IN (?, ?) AND mb.user_id = ?`,
+  ).bind(storedIdempotencyKey, idempotencyKey, user.id).first<{
     id: string
     status: string
     provider_id: string | null

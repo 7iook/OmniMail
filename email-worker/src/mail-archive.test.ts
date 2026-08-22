@@ -14,6 +14,7 @@ describe('sent attachment archive', () => {
     await copyStoredAttachments(
       source as unknown as R2Bucket,
       backup as unknown as R2Bucket,
+      '0123456789abcdef0123456789abcdef',
       'message-1',
       [{
         id: 'attachment-1',
@@ -25,7 +26,7 @@ describe('sent attachment archive', () => {
     )
 
     expect(backup.put).toHaveBeenCalledWith(
-      'mail/sent/2026-07/message-1/attachments/attachment-1',
+      'instances/0123456789abcdef0123456789abcdef/mail/sent/2026-07/message-1/attachments/attachment-1',
       expect.any(ReadableStream),
       expect.objectContaining({
         customMetadata: expect.objectContaining({ filename: 'report.pdf' }),

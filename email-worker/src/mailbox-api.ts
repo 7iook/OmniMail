@@ -89,26 +89,36 @@ export async function addMailbox(
     }
   }
 
-  const mailboxCount = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM mailboxes WHERE user_id = ? AND is_hidden = 0',
-  ).bind(user.id).first<{ count: number }>()
-  const isPrimary = existing?.is_primary || Number((mailboxCount?.count ?? 0) === 0)
-  if (!existing && user.role !== 'super_admin' && (mailboxCount?.count ?? 0) >= user.mailboxLimit) {
-    return json({ error: `最多可以创建 ${user.mailboxLimit} 个邮箱。` }, 403)
-  }
-
   if (existing) {
     await env.DB.prepare(
       'UPDATE mailboxes SET is_active = 1, is_primary = ? WHERE address = ? AND user_id = ?',
-    ).bind(isPrimary, address, user.id).run()
+    ).bind(existing.is_primary, address, user.id).run()
   } else {
-    await env.DB.prepare(
-      'INSERT INTO mailboxes (address, user_id, is_primary, is_active) VALUES (?, ?, ?, 1)',
-    ).bind(address, user.id, isPrimary).run()
+    const inserted = await env.DB.prepare(
+      `INSERT OR IGNORE INTO mailboxes (address, user_id, is_primary, is_active)
+       SELECT ?, ?, CASE WHEN EXISTS (
+         SELECT 1 FROM mailboxes WHERE user_id = ? AND is_hidden = 0
+       ) THEN 0 ELSE 1 END, 1
+       WHERE ? = 'super_admin' OR (
+         SELECT COUNT(*) FROM mailboxes WHERE user_id = ? AND is_hidden = 0
+       ) < ?`,
+    ).bind(address, user.id, user.id, user.role, user.id, user.mailboxLimit).run()
+    if (!inserted.meta.changes) {
+      const conflict = await env.DB.prepare(
+        'SELECT 1 AS found FROM mailboxes WHERE address = ?',
+      ).bind(address).first<{ found: number }>()
+      if (conflict) return json({ error: '这个邮箱地址刚刚被其他请求占用。' }, 409)
+      return json({ error: `最多可以创建 ${user.mailboxLimit} 个邮箱。` }, 403)
+    }
   }
+  const saved = await env.DB.prepare(
+    `SELECT address, is_primary, is_active FROM mailboxes
+      WHERE address = ? AND user_id = ?`,
+  ).bind(address, user.id).first<MailboxRow>()
+  if (!saved) return json({ error: '邮箱创建失败，请稍后重试。' }, 409)
   await auditMailbox(env, user.id, existing ? 'mailbox.enable' : 'mailbox.create', address, ip)
   return json({
-    mailbox: mailboxJson({ address, is_primary: isPrimary, is_active: 1 }),
+    mailbox: mailboxJson(saved),
   }, existing ? 200 : 201)
 }
 

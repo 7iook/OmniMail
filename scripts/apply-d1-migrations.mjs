@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const wranglerCli = join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
 const mode = process.argv[2]
+const persistTo = process.env.OMNIMAIL_D1_PERSIST_TO?.trim()
 
 if (mode !== '--remote' && mode !== '--local') {
   throw new Error('Usage: node scripts/apply-d1-migrations.mjs --remote|--local')
@@ -31,6 +32,10 @@ function runWrangler(args, capture = false) {
     throw new Error(`Wrangler exited with code ${result.status}`)
   }
   return result.stdout
+}
+
+function localPersistenceArgs() {
+  return mode === '--local' && persistTo ? ['--persist-to', persistTo] : []
 }
 
 function migrationNames() {
@@ -59,11 +64,12 @@ function migrationImport(names) {
 
 runWrangler([
   'd1', 'execute', 'DB', mode,
+  ...localPersistenceArgs(),
   '--file', 'scripts/bootstrap-legacy-d1.sql',
 ])
 
 if (mode === '--local') {
-  runWrangler(['d1', 'migrations', 'apply', 'DB', '--local'])
+  runWrangler(['d1', 'migrations', 'apply', 'DB', '--local', ...localPersistenceArgs()])
 } else {
   const applied = appliedMigrationNames()
   const pending = migrationNames().filter((name) => !applied.has(name))

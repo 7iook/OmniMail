@@ -45,10 +45,15 @@ describe('permanent message deletion', () => {
               ? [{ r2_key: 'translations/message-1/zh.json' }]
               : [{ r2_key: 'attachments/message-1/file' }],
           }),
+          run: async () => ({ meta: { changes: 1 } }),
         }
         return statement
       },
-      batch: vi.fn(async () => undefined),
+      batch: vi.fn(async () => [
+        { meta: { changes: 1 } },
+        { meta: { changes: 1 } },
+        { meta: { changes: 1 } },
+      ]),
     }
     await permanentlyDeleteMessage(
       { DB: db, MAIL_BUCKET: { delete: remove } } as unknown as Env,
@@ -67,5 +72,28 @@ describe('permanent message deletion', () => {
       'attachments/message-1/file',
       'translations/message-1/zh.json',
     ])
+  })
+
+  it('does not release quota or delete R2 objects after another request wins deletion', async () => {
+    const remove = vi.fn(async () => undefined)
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind() { return this },
+          all: async () => ({ results: sql.includes('attachments') ? [] : [] }),
+        }
+      },
+      batch: async () => [
+        { meta: { changes: 0 } },
+        { meta: { changes: 0 } },
+        { meta: { changes: 0 } },
+      ],
+    }
+    await expect(permanentlyDeleteMessage(
+      { DB: db, MAIL_BUCKET: { delete: remove } } as unknown as Env,
+      'user-1',
+      { id: 'message-1', raw_key: 'raw/message-1.eml', body_key: null, quota_bytes: 10 },
+    )).resolves.toBe(false)
+    expect(remove).not.toHaveBeenCalled()
   })
 })

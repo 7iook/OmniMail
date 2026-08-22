@@ -345,8 +345,9 @@ export async function manageAdminMessages(
   let updatedCount = 0
   if (input.action === 'delete') {
     for (const message of results.filter((item) => item.folder === 'trash')) {
-      await permanentlyDeleteMessage(env, message.owner_user_id, message)
-      updatedCount += 1
+      if (await permanentlyDeleteMessage(env, message.owner_user_id, message)) {
+        updatedCount += 1
+      }
     }
   } else {
     let sql = ''

@@ -1,5 +1,6 @@
 import { attachmentDisposition } from './api-helpers'
 import { writeAudit } from './audit'
+import { backupIdentity, backupScope, scopedBackupKey } from './backup-scope'
 import type { Env, SessionUser } from './types'
 
 const BACKUP_PREFIXES = [
@@ -94,11 +95,15 @@ export async function listBackupObjects(
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     return json({ error: '备份分页大小无效。' }, 400)
   }
-  const listed = await env.BACKUP_BUCKET.list({ prefix, cursor, limit })
+  const identity = await backupIdentity(env.DB)
+  const scope = backupScope(identity)
+  const listed = await env.BACKUP_BUCKET.list({
+    prefix: scopedBackupKey(identity, prefix), cursor, limit,
+  })
   return json({
     prefix,
     objects: listed.objects.map((object) => ({
-      key: object.key,
+      key: object.key.slice(scope.length),
       size: object.size,
       uploadedAt: object.uploaded.getTime(),
       etag: object.etag,
@@ -119,7 +124,7 @@ export async function downloadBackupObject(
   if (!env.BACKUP_BUCKET) return json({ error: '备份存储尚未配置。' }, 503)
   const key = new URL(request.url).searchParams.get('key') || ''
   if (!validBackupKey(key)) return json({ error: '备份对象键无效。' }, 400)
-  const object = await env.BACKUP_BUCKET.get(key)
+  const object = await env.BACKUP_BUCKET.get(scopedBackupKey(await backupIdentity(env.DB), key))
   if (!object) return json({ error: '备份对象不存在。' }, 404)
   const filename = object.customMetadata?.filename || key.split('/').at(-1) || 'backup'
   return new Response(object.body, {
@@ -144,12 +149,13 @@ export async function runBackupDrill(
   const input = await request.json<{ key?: string }>().catch(() => ({} as { key?: string }))
   const key = input.key?.trim() || ''
   if (!validBackupKey(key)) return json({ error: '备份对象键无效。' }, 400)
-  const metadata = await env.BACKUP_BUCKET.head(key)
+  const scopedKey = scopedBackupKey(await backupIdentity(env.DB), key)
+  const metadata = await env.BACKUP_BUCKET.head(scopedKey)
   if (!metadata) return json({ error: '备份对象不存在。' }, 404)
   const fullJson = key.startsWith('mail/sent/')
     && !key.includes('/attachments/')
     && metadata.size <= 512 * 1024
-  const object = await env.BACKUP_BUCKET.get(key, fullJson
+  const object = await env.BACKUP_BUCKET.get(scopedKey, fullJson
     ? undefined
     : { range: { offset: 0, length: Math.min(metadata.size, 64 * 1024) } })
   if (!object) return json({ error: '备份对象无法读取。' }, 502)

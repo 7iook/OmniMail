@@ -36,7 +36,6 @@ const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, tra
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
   | { kind: 'bulk'; action: 'trash' | 'delete'; ids: string[] }
-
 function Mailbox({
   user,
   config,
@@ -74,12 +73,17 @@ function Mailbox({
   const [notice, setNotice] = useState('')
   const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
   const messageRequestId = useRef(0)
+  const detailRequestId = useRef(0)
+  const detailController = useRef<AbortController | null>(null)
   const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
-  function closeDeploymentWizard() {
-    markDeploymentGuideSeen(); setDeploymentWizardOpen(false)
-  }
+  function closeDeploymentWizard() { markDeploymentGuideSeen(); setDeploymentWizardOpen(false) }
+  const clearSelectedMessage = useCallback(() => {
+    detailRequestId.current += 1; detailController.current?.abort()
+    detailController.current = null
+    setSelectedId(null); setDetail(null); setThread([]); setDetailLoading(false)
+  }, [])
   const loadMailboxes = useCallback(async () => {
     try {
       const result = await api.mailboxes()
@@ -135,9 +139,7 @@ function Mailbox({
       setMessagePage(result.page)
       setCounts(result.counts)
       if (selectedId && !result.messages.some((message) => message.id === selectedId)) {
-        setSelectedId(null)
-        setDetail(null)
-        setThread([])
+        clearSelectedMessage()
       }
     } catch (loadError) {
       if (signal.aborted || requestId !== messageRequestId.current) return false
@@ -149,19 +151,16 @@ function Mailbox({
     } finally {
       if (requestId === messageRequestId.current) { setListLoading(false); setRefreshing(false) }
     }
-  }, [folder, mailNotifications.track, messageVersion, nextMessageSignal, onLogout, scope, searchQuery, selectedId])
+  }, [clearSelectedMessage, folder, mailNotifications.track, messageVersion, nextMessageSignal, onLogout, scope, searchQuery, selectedId])
   async function loadMoreMessages() {
     if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
+    const requestId = ++messageRequestId.current
+    const signal = nextMessageSignal()
     setLoadingMore(true)
     setError('')
     try {
-      const result = await api.messages(
-        folder,
-        searchQuery,
-        scope,
-        messagePage.nextCursor,
-      )
-      if (result.unchanged) return
+      const result = await api.messages(folder, searchQuery, scope, messagePage.nextCursor, undefined, signal)
+      if (requestId !== messageRequestId.current || result.unchanged) return
       setMessages((items) => {
         const existing = new Set(items.map((item) => item.id))
         return [...items, ...result.messages.filter((item) => !existing.has(item.id))]
@@ -169,19 +168,23 @@ function Mailbox({
       setMessagePage(result.page)
       setCounts(result.counts)
     } catch (loadError) {
+      if (signal.aborted || requestId !== messageRequestId.current) return
       if (loadError instanceof ApiError && loadError.status === 401) {
         await onLogout()
         return
       }
       setError(errorMessage(loadError))
     } finally {
-      setLoadingMore(false)
+      if (requestId === messageRequestId.current) setLoadingMore(false)
     }
   }
   useEffect(() => {
+    clearSelectedMessage()
+    setLoadingMore(false)
     setSelectedMessageIds(new Set())
     if (folder !== 'drafts') void loadMessages()
   }, [folder, searchQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { detailRequestId.current += 1; detailController.current?.abort() }, [])
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
@@ -192,42 +195,51 @@ function Mailbox({
     return () => window.clearTimeout(timer)
   }, [notice])
   async function selectMessage(message: MessageSummary) {
+    detailController.current?.abort()
+    const controller = new AbortController()
+    detailController.current = controller
+    const requestId = ++detailRequestId.current
     setSelectedId(message.id)
     setDetailLoading(true)
     setError('')
     try {
-      const result = await api.message(message.id)
+      const result = await api.message(message.id, controller.signal)
+      if (requestId !== detailRequestId.current) return
       setDetail(result.message)
       setThread(result.thread ?? [result.message])
       if (!message.isRead) {
-        await api.updateMessage(message.id, { isRead: true })
-        setMessages((items) => items.map((item) => (
-          item.id === message.id ? { ...item, isRead: true } : item
-        )))
-        if (message.direction === 'incoming' && message.folder === 'inbox') {
-          setCounts((current) => ({ ...current, unread: Math.max(0, current.unread - 1) }))
+        try {
+          await api.updateMessage(message.id, { isRead: true })
+          setMessages((items) => items.map((item) => item.id === message.id
+            ? { ...item, isRead: true } : item))
+          if (message.direction === 'incoming' && message.folder === 'inbox') {
+            setCounts((current) => ({ ...current, unread: Math.max(0, current.unread - 1) }))
+          }
+          setDetail((current) => current?.id === message.id ? { ...current, isRead: true } : current)
+        } catch (readError) {
+          if (requestId === detailRequestId.current) setError(errorMessage(readError))
         }
-        setDetail((current) => current ? { ...current, isRead: true } : current)
       }
     } catch (loadError) {
+      if (controller.signal.aborted || requestId !== detailRequestId.current) return
       setError(errorMessage(loadError))
       setDetail(null)
       setThread([])
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestId.current) setDetailLoading(false)
     }
   }
-
   async function toggleStar(message: MessageSummary | MessageDetail) {
-    const next = !message.isStarred
-    await api.updateMessage(message.id, { isStarred: next })
-    setMessages((items) => items.map((item) => (
-      item.id === message.id ? { ...item, isStarred: next } : item
-    )))
-    setDetail((current) => current?.id === message.id ? { ...current, isStarred: next } : current)
-    await loadMessages(true)
+    try {
+      const next = !message.isStarred
+      await api.updateMessage(message.id, { isStarred: next })
+      setMessages((items) => items.map((item) => (
+        item.id === message.id ? { ...item, isStarred: next } : item
+      )))
+      setDetail((current) => current?.id === message.id ? { ...current, isStarred: next } : current)
+      await loadMessages(true)
+    } catch (starError) { setError(errorMessage(starError)) }
   }
-
   function toggleMessageSelection(message: MessageSummary, selected?: boolean) {
     setSelectedMessageIds((current) => {
       const next = new Set(current)
@@ -252,9 +264,7 @@ function Mailbox({
       const result = await bulkMessages(ids, action)
       setSelectedMessageIds(new Set())
       if (selectedId && ids.includes(selectedId)) {
-        setSelectedId(null)
-        setDetail(null)
-        setThread([])
+        clearSelectedMessage()
       }
       setNotice(t('已更新 {count} 封邮件', { count: result.updatedCount }))
       await loadMessages(true)
@@ -283,9 +293,7 @@ function Mailbox({
       await api.updateMessage(message.id, { folder: 'trash' })
       setNotice(t('邮件已移入垃圾箱'))
     }
-    setSelectedId(null)
-    setDetail(null)
-    setThread([])
+    clearSelectedMessage()
     await loadMessages(true)
   }
 
@@ -296,30 +304,28 @@ function Mailbox({
   async function confirmMailDelete() {
     const pending = pendingMailDelete
     if (!pending) return
-    setPendingMailDelete(null)
-    if (pending.kind === 'single') {
-      await applySingleDelete(pending.message)
-    } else {
-      await applyBulkAction(pending.action, pending.ids)
-    }
+    try {
+      if (pending.kind === 'single') await applySingleDelete(pending.message)
+      else await applyBulkAction(pending.action, pending.ids)
+      setPendingMailDelete(null)
+    } catch (deleteError) { setError(errorMessage(deleteError)) }
   }
 
   async function restoreSelected() {
     if (!detail) return
-    await api.updateMessage(detail.id, {
-      folder: detail.direction === 'outgoing' ? 'sent' : 'inbox',
-    })
-    setSelectedId(null); setDetail(null); setThread([])
-    setNotice(t('邮件已恢复'))
-    await loadMessages(true)
+    try {
+      await api.updateMessage(detail.id, {
+        folder: detail.direction === 'outgoing' ? 'sent' : 'inbox',
+      })
+      clearSelectedMessage(); setNotice(t('邮件已恢复'))
+      await loadMessages(true)
+    } catch (restoreError) { setError(errorMessage(restoreError)) }
   }
 
   function changeFolder(next: Folder) {
     const shouldQuietRefresh = shouldQuietRefreshFolder(folder, next, query)
     openFolder(next)
-    setSelectedId(null)
-    setDetail(null)
-    setThread([])
+    clearSelectedMessage()
     setQuery('')
     if (shouldQuietRefresh) {
       void loadMessages(true)
@@ -331,9 +337,7 @@ function Mailbox({
   function changeScope(next: MailboxScope) {
     setListLoading(true)
     setScope(next)
-    setSelectedId(null)
-    setDetail(null)
-    setThread([])
+    clearSelectedMessage()
     setQuery('')
   }
 
@@ -341,9 +345,7 @@ function Mailbox({
     if (next !== 'account' && next !== 'api' && next !== 'icloud' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
-    setSelectedId(null)
-    setDetail(null)
-    setThread([])
+    clearSelectedMessage()
     setQuery('')
   }
 
@@ -474,9 +476,7 @@ function Mailbox({
           replyEnabled={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
           translationEnabled={user.canTranslate} remoteImagesEnabled={config.remoteImagesEnabled}
           onBack={() => {
-            setSelectedId(null)
-            setDetail(null)
-            setThread([])
+            clearSelectedMessage()
           }}
           onStar={() => detail && void toggleStar(detail)}
           onTrash={() => void trashSelected()}

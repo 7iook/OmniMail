@@ -7,6 +7,7 @@ import {
 import {
   pruneDraftsForLimits,
   sendDraft,
+  uploadDraftAttachment,
   validateDraftInput,
 } from './draft-api'
 import type { Env, SessionUser } from './types'
@@ -54,6 +55,45 @@ describe('mail draft validation', () => {
     expect(attachmentFilesError([{ size: 5 * 1024 * 1024 + 1 }]))
       .toBe('单个附件不能超过 5 MiB。')
     expect(attachmentFilesError([{ size: 0 }])).toBe('请选择要上传的附件。')
+  })
+
+  it('removes a staged upload when a concurrent request reaches the attachment limit', async () => {
+    const remove = vi.fn(async () => undefined)
+    const prepare = (sql: string) => ({
+      bind() { return this },
+      first: async () => {
+        if (sql.includes('FROM mail_drafts WHERE')) return {
+          id: 'draft-1', user_id: 'user-1', mailbox_address: 'owner@example.com',
+          recipient_address: '', subject: '', body_text: '', created_at: 1, updated_at: 1,
+        }
+        if (sql.includes('COUNT(*) AS count')) return { count: 4, bytes: 1 }
+        return null
+      },
+      run: async () => ({ meta: { changes: 1 } }),
+    })
+    const env = {
+      DB: {
+        prepare,
+        batch: async () => [
+          { meta: { changes: 0 } },
+          { meta: { changes: 0 } },
+        ],
+      },
+      MAIL_BUCKET: { put: vi.fn(async () => undefined), delete: remove },
+    } as unknown as Env
+    const form = new FormData()
+    form.set('file', new File(['report'], 'report.txt', { type: 'text/plain' }))
+    const response = await uploadDraftAttachment(
+      env,
+      { id: 'user-1', role: 'user', canReply: true } as SessionUser,
+      'draft-1',
+      new Request('https://mail.example/api/drafts/draft-1/attachments', {
+        method: 'POST', body: form,
+      }),
+    )
+
+    expect(response.status).toBe(409)
+    expect(remove).toHaveBeenCalledOnce()
   })
 
   it('requeues a failed idempotent draft send after the draft was transferred', async () => {

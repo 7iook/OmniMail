@@ -1,4 +1,5 @@
 import { backupEnabled } from './storage-policy'
+import { backupIdentity, scopedBackupKey } from './backup-scope'
 import type { Env } from './types'
 
 export type StoredMail = {
@@ -20,13 +21,13 @@ function backupMonth(timestamp: Date | number): string {
   return new Date(timestamp).toISOString().slice(0, 7)
 }
 
-function archiveKey(message: StoredMail): string | null {
+function archiveKey(message: StoredMail, identity: string): string | null {
   const month = backupMonth(message.stored_at * 1000)
   if (message.direction === 'incoming' && message.raw_key) {
-    return `mail/raw/${month}/${message.id}.eml`
+    return scopedBackupKey(identity, `mail/raw/${month}/${message.id}.eml`)
   }
   if (message.direction === 'outgoing' && message.body_key) {
-    return `mail/sent/${month}/${message.id}.json`
+    return scopedBackupKey(identity, `mail/sent/${month}/${message.id}.json`)
   }
   return null
 }
@@ -34,9 +35,10 @@ function archiveKey(message: StoredMail): string | null {
 export async function copyStoredMail(
   sourceBucket: R2Bucket,
   backupBucket: R2Bucket,
+  identity: string,
   message: StoredMail,
 ): Promise<void> {
-  const destination = archiveKey(message)
+  const destination = archiveKey(message, identity)
   const source = message.direction === 'incoming' ? message.raw_key : message.body_key
   if (!destination || !source || await backupBucket.head(destination)) return
   const object = await sourceBucket.get(source)
@@ -58,7 +60,10 @@ export async function archiveIncomingMessage(
   receivedAt: number,
 ): Promise<void> {
   if (!env.BACKUP_BUCKET || !await backupEnabled(env.DB)) return
-  const destination = `mail/raw/${backupMonth(receivedAt * 1000)}/${messageId}.eml`
+  const destination = scopedBackupKey(
+    await backupIdentity(env.DB),
+    `mail/raw/${backupMonth(receivedAt * 1000)}/${messageId}.eml`,
+  )
   if (await env.BACKUP_BUCKET.head(destination)) return
   await env.BACKUP_BUCKET.put(destination, raw, {
     httpMetadata: { contentType: 'message/rfc822' },
@@ -73,7 +78,10 @@ export async function archiveSentMessage(
   sentAt: number,
 ): Promise<void> {
   if (!env.BACKUP_BUCKET || !await backupEnabled(env.DB)) return
-  const destination = `mail/sent/${backupMonth(sentAt * 1000)}/${messageId}.json`
+  const destination = scopedBackupKey(
+    await backupIdentity(env.DB),
+    `mail/sent/${backupMonth(sentAt * 1000)}/${messageId}.json`,
+  )
   if (await env.BACKUP_BUCKET.head(destination)) return
   await env.BACKUP_BUCKET.put(destination, body, {
     httpMetadata: { contentType: 'application/json; charset=utf-8' },
@@ -91,6 +99,7 @@ export async function archiveSentAttachments(
   await copyStoredAttachments(
     env.MAIL_BUCKET,
     env.BACKUP_BUCKET,
+    await backupIdentity(env.DB),
     messageId,
     attachments,
     sentAt,
@@ -100,11 +109,15 @@ export async function archiveSentAttachments(
 export async function copyStoredAttachments(
   sourceBucket: R2Bucket,
   backupBucket: R2Bucket,
+  identity: string,
   messageId: string,
   attachments: StoredAttachment[],
   storedAt: number,
 ): Promise<void> {
-  const prefix = `mail/sent/${backupMonth(storedAt * 1000)}/${messageId}/attachments`
+  const prefix = scopedBackupKey(
+    identity,
+    `mail/sent/${backupMonth(storedAt * 1000)}/${messageId}/attachments`,
+  )
   for (const attachment of attachments) {
     const destination = `${prefix}/${attachment.id}`
     if (await backupBucket.head(destination)) continue

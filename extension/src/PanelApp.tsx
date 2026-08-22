@@ -46,6 +46,7 @@ function errorText(error: unknown): string {
 export function PanelApp() {
   const mainRef = useRef<HTMLElement>(null)
   const messageRequestId = useRef(0)
+  const detailRequestId = useRef(0)
   const [view, setView] = useState<View>(() => location.hash === '#inbox' ? 'inbox' : 'generate')
   const [auth, setAuth] = useState<AuthStatus | null>(null)
   const [settings, setSettings] = useState<ExtensionSettings>({
@@ -162,6 +163,32 @@ export function PanelApp() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    const handleAuthStorageChange = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string,
+    ) => {
+      if (area !== 'session' || (!changes.refreshToken && !changes.user)) return
+      void sendExtensionMessage<AuthStatus>({ type: 'auth:status' }).then((nextAuth) => {
+        setAuth(nextAuth)
+        if (nextAuth.authenticated) return
+        detailRequestId.current += 1
+        messageRequestId.current += 1
+        setMailboxes([])
+        setDomains([])
+        setMessages([])
+        setSelectedMessage(null)
+        setLoading(false)
+      }).catch((authError) => setError(errorText(authError)))
+    }
+    chrome.storage.onChanged.addListener(handleAuthStorageChange)
+    return () => chrome.storage.onChanged.removeListener(handleAuthStorageChange)
+  }, [])
+  useEffect(() => () => {
+    messageRequestId.current += 1
+    detailRequestId.current += 1
+  }, [])
+
+  useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(''), 2400)
     return () => window.clearTimeout(timer)
@@ -197,6 +224,7 @@ export function PanelApp() {
 
   async function logout() {
     messageRequestId.current += 1
+    detailRequestId.current += 1
     setLoading(true)
     try {
       await sendExtensionMessage({ type: 'auth:logout' })
@@ -289,6 +317,7 @@ export function PanelApp() {
   }
 
   async function changeMailbox(address: string) {
+    detailRequestId.current += 1
     setSelectedMailbox(address)
     setGeneratedAddress('')
     setSelectedMessage(null)
@@ -297,23 +326,29 @@ export function PanelApp() {
   }
 
   async function openMessage(message: MessageSummary) {
+    const requestId = ++detailRequestId.current
     setDetailLoading(true)
     setError('')
     try {
       const result = await sendExtensionMessage<{ message: MessageDetail; thread: MessageSummary[] }>({
         type: 'api:message', id: message.id,
       })
+      if (requestId !== detailRequestId.current) return
       setSelectedMessage(result.message)
       if (!message.isRead) {
-        void sendExtensionMessage({ type: 'api:mark-read', id: message.id })
-        setMessages((items) => items.map((item) => item.id === message.id
-          ? { ...item, isRead: true }
-          : item))
+        try {
+          await sendExtensionMessage({ type: 'api:mark-read', id: message.id })
+          setMessages((items) => items.map((item) => item.id === message.id
+            ? { ...item, isRead: true }
+            : item))
+        } catch (readError) {
+          if (requestId === detailRequestId.current) setError(errorText(readError))
+        }
       }
     } catch (loadError) {
-      setError(errorText(loadError))
+      if (requestId === detailRequestId.current) setError(errorText(loadError))
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestId.current) setDetailLoading(false)
     }
   }
 
@@ -436,7 +471,7 @@ export function PanelApp() {
               onMailbox={changeMailbox}
               onRefresh={() => loadMessages(selectedMailbox, true)}
               onSelect={openMessage}
-              onBack={() => setSelectedMessage(null)}
+              onBack={() => { detailRequestId.current += 1; setSelectedMessage(null) }}
             />
           )}
           {view === 'settings' && (

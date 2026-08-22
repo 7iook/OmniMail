@@ -425,7 +425,8 @@ export function MessageReader({
               message.direction === 'outgoing' ? '发送失败：{error}' : '解析失败：{error}',
               { error: retryError || message.processingError || t('未知错误') },
             )}</span>
-            {message.direction === 'outgoing' && canRetryFailedMessage && (
+            {message.direction === 'outgoing' && canRetryFailedMessage
+              && !message.processingError?.startsWith('投递结果不确定') && (
               <button
                 className="message-notice__action"
                 type="button"

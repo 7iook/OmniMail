@@ -1,4 +1,5 @@
 import { writeAudit } from './audit'
+import { permanentlyDeleteMessage } from './message-storage'
 import { retentionValues } from './storage-policy'
 import type { Env, MessageRow, SessionUser } from './types'
 
@@ -55,37 +56,11 @@ async function deleteOwnedMessages(
   >>()
   if (!messages.length) return 0
 
-  const ownedIds = messages.map((message) => message.id)
-  const ownedMarks = placeholders(ownedIds.length)
-  const { results: attachments } = await env.DB.prepare(
-    `SELECT r2_key FROM attachments WHERE message_id IN (${ownedMarks})`,
-  ).bind(...ownedIds).all<{ r2_key: string }>()
-  const { results: translations } = await env.DB.prepare(
-    `SELECT r2_key FROM message_translations WHERE message_id IN (${ownedMarks})`,
-  ).bind(...ownedIds).all<{ r2_key: string }>()
-  const objectKeys = [
-    ...messages.flatMap((message) => [message.raw_key, message.body_key]),
-    ...attachments.map((attachment) => attachment.r2_key),
-    ...translations.map((translation) => translation.r2_key),
-  ].filter((key): key is string => Boolean(key))
-  for (let index = 0; index < objectKeys.length; index += 1000) {
-    await env.MAIL_BUCKET.delete(objectKeys.slice(index, index + 1000))
+  let deleted = 0
+  for (const message of messages) {
+    if (await permanentlyDeleteMessage(env, userId, message)) deleted += 1
   }
-
-  const releasedBytes = messages.reduce(
-    (total, message) => total + Number(message.quota_bytes || 0),
-    0,
-  )
-  await env.DB.batch([
-    env.DB.prepare(`DELETE FROM messages WHERE id IN (${ownedMarks})`).bind(...ownedIds),
-    env.DB.prepare(
-      `UPDATE users
-          SET storage_used_bytes = MAX(0, storage_used_bytes - ?),
-              updated_at = unixepoch()
-        WHERE id = ?`,
-    ).bind(releasedBytes, userId),
-  ])
-  return messages.length
+  return deleted
 }
 
 async function updateOwnedMessages(

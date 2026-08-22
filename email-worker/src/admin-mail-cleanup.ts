@@ -182,9 +182,10 @@ export async function runAdminMailCleanup(
   let deletedBytes = 0
   try {
     for (const message of results) {
-      await permanentlyDeleteMessage(env, message.user_id, message)
-      deletedCount += 1
-      deletedBytes += message.quota_bytes
+      if (await permanentlyDeleteMessage(env, message.user_id, message)) {
+        deletedCount += 1
+        deletedBytes += message.quota_bytes
+      }
     }
   } catch (error) {
     await writeAudit(env, user.id, 'message.admin_cleanup', filter.scopeValue || 'all', ip, {

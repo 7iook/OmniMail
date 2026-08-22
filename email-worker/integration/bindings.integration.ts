@@ -8,6 +8,7 @@ import {
 import { beforeAll, describe, expect, it } from 'vitest'
 import worker from '../src/index'
 import { sha256 } from '../src/auth'
+import { permanentlyDeleteMessage } from '../src/message-storage'
 import { EXTENSION_DEVICE_SCOPES } from '../src/token-scope'
 import type { Env as OmniMailEnv, MailQueueJob } from '../src/types'
 
@@ -84,13 +85,85 @@ describe('Worker storage bindings', () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
     const migrations = await env.DB.prepare(
       `SELECT name, COUNT(*) AS total FROM d1_migrations
-       WHERE name IN ('0020_device_token_scopes.sql', '0021_icloud_accounts.sql')
+       WHERE name IN (
+         '0020_device_token_scopes.sql', '0021_icloud_accounts.sql',
+         '0022_consistency_guards.sql'
+       )
        GROUP BY name ORDER BY name`,
     ).all<{ name: string; total: number }>()
     expect(migrations.results).toEqual([
       { name: '0020_device_token_scopes.sql', total: 1 },
       { name: '0021_icloud_accounts.sql', total: 1 },
+      { name: '0022_consistency_guards.sql', total: 1 },
     ])
+  })
+
+  it('enforces consistency guards and advances draft synchronization', async () => {
+    const pendingTable = await env.DB.prepare(
+      `SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name = 'pending_object_deletions'`,
+    ).first<{ name: string }>()
+    expect(pendingTable?.name).toBe('pending_object_deletions')
+
+    await env.DB.batch([
+      env.DB.prepare("INSERT OR IGNORE INTO domains (name, is_active) VALUES ('example.com', 1)"),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO mailboxes (address, user_id, is_primary, is_active)
+         VALUES ('worker@example.com', 'worker-user', 1, 1)`,
+      ),
+    ])
+    await expect(env.DB.prepare(
+      `INSERT INTO mailboxes (address, user_id, is_primary, is_active)
+       VALUES ('second@example.com', 'worker-user', 1, 1)`,
+    ).run()).rejects.toThrow()
+
+    await env.DB.prepare(
+      `INSERT INTO mail_drafts (
+        id, user_id, mailbox_address, recipient_address, subject, body_text,
+        created_at, updated_at
+      ) VALUES ('draft-sync', 'worker-user', 'worker@example.com', '', '', '', 1, 1)`,
+    ).run()
+    const afterInsert = await env.DB.prepare(
+      "SELECT version FROM mail_state_versions WHERE user_id = 'worker-user'",
+    ).first<{ version: number }>()
+    await env.DB.prepare("DELETE FROM mail_drafts WHERE id = 'draft-sync'").run()
+    const afterDelete = await env.DB.prepare(
+      "SELECT version FROM mail_state_versions WHERE user_id = 'worker-user'",
+    ).first<{ version: number }>()
+    expect(afterDelete!.version).toBe(afterInsert!.version + 1)
+  })
+
+  it('releases storage only once when the same message is deleted concurrently', async () => {
+    await env.MAIL_BUCKET.put('raw/concurrent-delete.eml', 'message')
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE users SET storage_used_bytes = 100 WHERE id = 'worker-user'",
+      ),
+      env.DB.prepare(
+        `INSERT INTO messages (
+          id, mailbox_address, direction, status, folder, sender_address,
+          recipients_json, subject, received_at, raw_key, size, quota_bytes, stored_bytes
+        ) VALUES (
+          'concurrent-delete', 'worker@example.com', 'incoming', 'ready', 'trash',
+          'sender@example.net', '[]', 'Delete me', unixepoch(),
+          'raw/concurrent-delete.eml', 100, 100, 100
+        )`,
+      ),
+    ])
+    const message = {
+      id: 'concurrent-delete', raw_key: 'raw/concurrent-delete.eml',
+      body_key: null, quota_bytes: 100,
+    }
+    const deleted = await Promise.all([
+      permanentlyDeleteMessage(env, 'worker-user', message),
+      permanentlyDeleteMessage(env, 'worker-user', message),
+    ])
+    const usage = await env.DB.prepare(
+      "SELECT storage_used_bytes FROM users WHERE id = 'worker-user'",
+    ).first<{ storage_used_bytes: number }>()
+
+    expect(deleted.filter(Boolean)).toHaveLength(1)
+    expect(usage?.storage_used_bytes).toBe(0)
   })
 
   it('uses real D1, R2, and Queue bindings inside workerd', async () => {

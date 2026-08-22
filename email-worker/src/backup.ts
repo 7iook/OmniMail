@@ -12,6 +12,7 @@ import {
 } from './mail-archive'
 import { d1ExportFile, d1ExportPayload, type D1ExportResult } from './d1-export'
 import { validateBackupTarget } from './backup-target'
+import { backupIdentity, scopedBackupKey } from './backup-scope'
 import { backupEnabled } from './storage-policy'
 import type { BackupWorkflowParams, Env } from './types'
 
@@ -72,8 +73,9 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
           )
         }
       })
+      const identity = await step.do('Read backup identity', () => backupIdentity(this.env.DB))
       if (event.payload?.includeMail) {
-        await this.backfillMail(step)
+        await this.backfillMail(step, identity)
       }
       const bookmark = await step.do(
         'Start D1 export',
@@ -124,13 +126,13 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
           if (!exportFile) throw new Error('D1 导出文件尚未准备完成。')
 
           const date = backupDate(event.timestamp)
-          const targets = [`d1/daily/${date}/${event.instanceId}.sql`]
+          const targets = [scopedBackupKey(identity, `d1/daily/${date}/${event.instanceId}.sql`)]
           const utcDate = new Date(event.timestamp)
           if (utcDate.getUTCDay() === 0) {
-            targets.push(`d1/weekly/${date}/${event.instanceId}.sql`)
+            targets.push(scopedBackupKey(identity, `d1/weekly/${date}/${event.instanceId}.sql`))
           }
           if (utcDate.getUTCDate() === 1) {
-            targets.push(`d1/monthly/${date}/${event.instanceId}.sql`)
+            targets.push(scopedBackupKey(identity, `d1/monthly/${date}/${event.instanceId}.sql`))
           }
           let size = 0
           for (const key of targets) {
@@ -174,7 +176,7 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
     }
   }
 
-  private async backfillMail(step: WorkflowStep): Promise<void> {
+  private async backfillMail(step: WorkflowStep, identity: string): Promise<void> {
     let cursor = ''
     let page = 0
     while (true) {
@@ -198,7 +200,12 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
         { retries: { limit: 5, delay: '5 seconds', backoff: 'exponential' } },
         async () => {
           for (const message of messages) {
-            await copyStoredMail(this.env.MAIL_BUCKET, this.env.BACKUP_BUCKET!, message)
+            await copyStoredMail(
+              this.env.MAIL_BUCKET,
+              this.env.BACKUP_BUCKET!,
+              identity,
+              message,
+            )
             if (message.direction === 'outgoing') {
               const { results } = await this.env.DB.prepare(
                 `SELECT id, r2_key AS "r2Key", filename, content_type AS "contentType"
@@ -207,6 +214,7 @@ export class OmniMailBackupWorkflow extends WorkflowEntrypoint<
               await copyStoredAttachments(
                 this.env.MAIL_BUCKET,
                 this.env.BACKUP_BUCKET!,
+                identity,
                 message.id,
                 results,
                 message.stored_at,

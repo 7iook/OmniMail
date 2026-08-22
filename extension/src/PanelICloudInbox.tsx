@@ -34,6 +34,7 @@ function formatDate(value: string): string {
 
 export function PanelICloudInbox(props: Props) {
   const requestId = useRef(0)
+  const detailRequestId = useRef(0)
   const [alias, setAlias] = useState<string | null>(null)
   const [messages, setMessages] = useState<ICloudMessage[]>([])
   const [selected, setSelected] = useState<ICloudMessage | null>(null)
@@ -59,6 +60,7 @@ export function PanelICloudInbox(props: Props) {
     quiet ? setRefreshing(true) : setLoading(true)
     setError('')
     setSelected(null)
+    detailRequestId.current += 1
     try {
       const result = await sendExtensionMessage<{
         messages: ICloudMessage[]
@@ -89,10 +91,11 @@ export function PanelICloudInbox(props: Props) {
 
   useEffect(() => {
     void loadMessages()
-    return () => { requestId.current += 1 }
+    return () => { requestId.current += 1; detailRequestId.current += 1 }
   }, [loadMessages])
 
   async function openMessage(message: ICloudMessage) {
+    const currentRequest = ++detailRequestId.current
     if (method === 'web') {
       setSelected(message)
       return
@@ -103,11 +106,11 @@ export function PanelICloudInbox(props: Props) {
       const result = await sendExtensionMessage<{ message: ICloudMessage }>({
         type: 'api:icloud-message', accountId: props.accountId, id: message.id,
       })
-      setSelected(result.message)
+      if (currentRequest === detailRequestId.current) setSelected(result.message)
     } catch (loadError) {
-      setError(errorText(loadError))
+      if (currentRequest === detailRequestId.current) setError(errorText(loadError))
     } finally {
-      setDetailLoading(false)
+      if (currentRequest === detailRequestId.current) setDetailLoading(false)
     }
   }
 
@@ -128,7 +131,7 @@ export function PanelICloudInbox(props: Props) {
   if (selected) {
     return (
       <article className="message-reader icloud-message-reader">
-        <button className="back-button" type="button" onClick={() => setSelected(null)}>
+        <button className="back-button" type="button" onClick={() => { detailRequestId.current += 1; setSelected(null) }}>
           <ArrowLeft size={16} />返回 iCloud 收件箱
         </button>
         <header>

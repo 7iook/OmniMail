@@ -2,7 +2,11 @@ import PostalMime from 'postal-mime'
 import { archiveIncomingMessage } from './mail-archive'
 import { indexStoredMessage, messageSearchStatement } from './message-search'
 import { releaseStorage, reserveStorage } from './message-storage'
-import { deliverOutboundMessage, OutboundDeliveryError } from './outbound-message'
+import {
+  deliverOutboundMessage,
+  OutboundDeliveryError,
+  OutboundProviderAcceptedError,
+} from './outbound-message'
 import { ensureSchema } from './schema'
 import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from './types'
 
@@ -362,6 +366,18 @@ async function consumeOutboundJob(
     await deliverOutboundMessage(env, message.body)
     message.ack()
   } catch (error) {
+    if (error instanceof OutboundProviderAcceptedError) {
+      try {
+        await env.DB.prepare(
+          `UPDATE messages SET status = 'sent', provider_id = ?, delivery_status = 'sent',
+              processing_error = NULL, updated_at = unixepoch() WHERE id = ?`,
+        ).bind(error.providerId, message.body.messageId).run()
+      } catch (recordError) {
+        console.error('Provider accepted outbound mail but D1 could not record it', recordError)
+      }
+      message.ack()
+      return
+    }
     const detail = error instanceof Error ? error.message : 'Unable to deliver outbound message'
     const retryable = !(error instanceof OutboundDeliveryError) || error.retryable
     await env.DB.prepare(

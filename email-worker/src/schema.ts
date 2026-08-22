@@ -1,4 +1,5 @@
-const REQUIRED_MIGRATION = '0021_icloud_accounts.sql'
+const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
+const REQUIRED_MIGRATION = '0022_consistency_guards.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -22,6 +23,7 @@ const WRANGLER_MIGRATION_NAMES = [
   '0018_schema_baseline_and_message_indexes.sql',
   '0019_extension_authorization.sql',
   '0020_device_token_scopes.sql',
+  ICLOUD_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -210,7 +212,7 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: ICLOUD_MIGRATION,
     statements: [
       `CREATE TABLE IF NOT EXISTS icloud_accounts (
         id TEXT PRIMARY KEY,
@@ -233,6 +235,33 @@ const RECOVERABLE_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_icloud_accounts_user
        ON icloud_accounts(user_id, created_at)`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS pending_object_deletions (
+        object_key TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_mailboxes_one_primary
+       ON mailboxes(user_id) WHERE is_primary = 1 AND is_hidden = 0`,
+      `CREATE TRIGGER IF NOT EXISTS trg_mail_drafts_state_insert
+       AFTER INSERT ON mail_drafts BEGIN
+         INSERT INTO mail_state_versions (user_id, version, updated_at)
+         VALUES (NEW.user_id, 1, unixepoch())
+         ON CONFLICT(user_id) DO UPDATE SET
+           version = mail_state_versions.version + 1,
+           updated_at = excluded.updated_at;
+       END`,
+      `CREATE TRIGGER IF NOT EXISTS trg_mail_drafts_state_delete
+       AFTER DELETE ON mail_drafts BEGIN
+         INSERT INTO mail_state_versions (user_id, version, updated_at)
+         VALUES (OLD.user_id, 1, unixepoch())
+         ON CONFLICT(user_id) DO UPDATE SET
+           version = mail_state_versions.version + 1,
+           updated_at = excluded.updated_at;
+       END`,
     ],
   },
 ] as const

@@ -1,6 +1,6 @@
 import { expireTemporaryAccounts } from './account-api'
 import { purgeUserDraft } from './draft-api'
-import { permanentlyDeleteMessage } from './message-storage'
+import { permanentlyDeleteMessage, purgePendingObjectDeletions } from './message-storage'
 import { enqueueMissingMessageSearch } from './message-search'
 import { ensureSchema } from './schema'
 import { startScheduledBackup } from './storage-policy'
@@ -184,6 +184,7 @@ export async function cleanup(env: Env): Promise<void> {
   } catch (error) {
     console.error('Unable to enqueue message search backfill', error)
   }
+  await purgePendingObjectDeletions(env)
   await startScheduledBackup(env, now)
   await startRetentionCleanup(env, now)
 }

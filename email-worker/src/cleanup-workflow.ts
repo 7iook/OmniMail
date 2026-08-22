@@ -13,6 +13,7 @@ import {
 } from './cleanup'
 import { purgeMailboxDrafts } from './draft-api'
 import { BACKUP_RETENTION_RULES, purgeBackupObjectsPage } from './backup-retention'
+import { backupIdentity, scopedBackupKey } from './backup-scope'
 import { ensureSchema } from './schema'
 import { retentionValues } from './storage-policy'
 import type { CleanupWorkflowParams, Env } from './types'
@@ -145,6 +146,9 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
 
   private async purgeBackupPhase(step: WorkflowStep, now: number): Promise<boolean> {
     if (!this.env.BACKUP_BUCKET) return false
+    const identity = await step.do('Read backup cleanup identity', () => (
+      backupIdentity(this.env.DB)
+    ))
     let pending = false
     for (const rule of BACKUP_RETENTION_RULES) {
       let cursor: string | undefined
@@ -153,7 +157,7 @@ export class OmniMailCleanupWorkflow extends WorkflowEntrypoint<Env, CleanupWork
           `Purge backup ${rule.prefix} ${index + 1}`,
           () => purgeBackupObjectsPage(
             this.env.BACKUP_BUCKET!,
-            rule.prefix,
+            scopedBackupKey(identity, rule.prefix),
             (now - rule.days * 24 * 60 * 60) * 1000,
             cursor,
           ),

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   arrayBufferToBase64,
   deliverOutboundMessage,
+  requeueFailedOutbound,
   sendOutboundMessage,
 } from './outbound-message'
 import type { Env, SessionUser } from './types'
@@ -103,6 +104,10 @@ describe('outbound delivery', () => {
     }))
     expect(statements.some(({ sql }) => sql.includes('INSERT INTO outbound_rate_limits')))
       .toBe(true)
+    expect(statements.some(({ sql, bindings }) => (
+      sql.includes('INSERT INTO messages')
+      && bindings.includes('user-1:request_12345678')
+    ))).toBe(true)
   })
 
   it('stores direct reply attachments with the outgoing message', async () => {
@@ -338,6 +343,41 @@ describe('outbound delivery', () => {
       sql.includes("SET status = 'sent'") && bindings.includes('sendflare:sendflare-1')
     ))).toBe(true)
     expect(statements.some(({ sql }) => sql.includes('resend_webhook_events'))).toBe(false)
+  })
+
+  it('does not automatically retry an ambiguous SendFlare network failure', async () => {
+    const { env } = environment({
+      id: 'out-sendflare', status: 'processing', mailbox_address: 'owner@example.com',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Hello',
+      body_key: 'bodies/out-sendflare.json', in_reply_to: null, references_header: null,
+      client_request_id: 'request_sendflare', domain_is_active: 1,
+    })
+    env.SENDFLARE_DOMAIN_CONFIGS = JSON.stringify({
+      'example.com': { apiKey: 'sf_example', from: 'mail@example.com' },
+    })
+    env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
+      text: 'Message body', html: '<p>Message body</p>',
+    })) as unknown as R2ObjectBody)
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new DOMException('timeout', 'TimeoutError') }))
+
+    await expect(deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-sendflare', userId: user.id, ip: '127.0.0.1',
+      auditAction: 'message.send', auditDetail: {},
+    })).rejects.toMatchObject({ retryable: false, deliveryUncertain: true })
+  })
+
+  it('queues only the request that atomically claims a failed message', async () => {
+    const send = vi.fn(async () => undefined)
+    const response = await requeueFailedOutbound({
+      DB: { prepare: () => ({
+        bind() { return this },
+        run: async () => ({ meta: { changes: 0 } }),
+      }) },
+      MAIL_QUEUE: { send },
+    } as unknown as Env, 'message-1', user.id, '127.0.0.1', 'message.send', {})
+
+    expect(response.status).toBe(409)
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('does not deliver a queued message after its domain is disabled', async () => {
