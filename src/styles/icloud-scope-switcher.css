@@ -108,6 +108,51 @@
 .icloud-scope-content section + section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .icloud-scope-content h3 { margin: 4px 8px 6px; color: var(--text-tertiary); font-size: 9px; letter-spacing: 0.1em; }
 
+.icloud-scope-section-header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 2px 2px 8px;
+}
+
+.icloud-scope-section-header h3 { margin: 0; }
+
+.icloud-scope-sort {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.icloud-scope-sort:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--text) 25%, transparent);
+  outline-offset: 2px;
+}
+
+.icloud-scope-sort > svg:first-child { flex: 0 0 auto; margin-left: 10px; }
+.icloud-scope-sort > svg:last-child { flex: 0 0 auto; margin-right: 9px; pointer-events: none; }
+
+.icloud-scope-sort select {
+  min-width: 0;
+  height: 44px;
+  appearance: none;
+  padding: 0 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .icloud-scope-option {
   display: grid;
   width: 100%;
@@ -206,5 +251,6 @@
   .icloud-scope-account,
   .icloud-scope-settings,
   .icloud-scope-alias,
-  .icloud-scope-copy { animation: none; transition: none; }
+  .icloud-scope-copy,
+  .icloud-scope-sort { animation: none; transition: none; }
 }

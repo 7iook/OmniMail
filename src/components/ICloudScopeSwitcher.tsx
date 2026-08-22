@@ -1,7 +1,32 @@
-import { AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ICloudAccount, ICloudAlias } from '../lib/api'
 import { t } from '../lib/i18n'
+
+export type ICloudAliasSort = 'label' | 'newest' | 'email'
+
+const aliasCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+
+function aliasCreatedAt(value?: string): number {
+  const timestamp = value ? Date.parse(value) : Number.NaN
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY
+}
+
+export function sortICloudAliases(aliases: ICloudAlias[], sort: ICloudAliasSort): ICloudAlias[] {
+  return [...aliases].sort((left, right) => {
+    if (left.active !== right.active) return left.active ? -1 : 1
+    if (sort === 'newest') {
+      const leftTime = aliasCreatedAt(left.createdAt)
+      const rightTime = aliasCreatedAt(right.createdAt)
+      if (leftTime !== rightTime) return rightTime > leftTime ? 1 : -1
+    }
+    if (sort === 'label') {
+      const byLabel = aliasCollator.compare(left.label.trim() || left.email, right.label.trim() || right.email)
+      if (byLabel) return byLabel
+    }
+    return aliasCollator.compare(left.email, right.email)
+  })
+}
 
 export function ICloudScopeSwitcher({
   accounts,
@@ -23,9 +48,11 @@ export function ICloudScopeSwitcher({
   onAccountSettings: (account: ICloudAccount) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [aliasSort, setAliasSort] = useState<ICloudAliasSort>('label')
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const account = accounts.find((item) => item.id === selectedAccountId)
+  const sortedAliases = useMemo(() => sortICloudAliases(aliases, aliasSort), [aliases, aliasSort])
 
   useEffect(() => {
     if (!open) return
@@ -85,14 +112,27 @@ export function ICloudScopeSwitcher({
               ))}
             </section>
             <section>
-              <h3>{t('收件地址')}</h3>
+              <div className="icloud-scope-section-header">
+                <h3>{t('收件地址')}</h3>
+                <label className="icloud-scope-sort">
+                  <ArrowUpDown size={13} aria-hidden="true" />
+                  <span className="sr-only">{t('收件地址排序')}</span>
+                  <select value={aliasSort}
+                    onChange={(event) => setAliasSort(event.target.value as ICloudAliasSort)}>
+                    <option value="label">{t('名称')}</option>
+                    <option value="newest">{t('最新创建')}</option>
+                    <option value="email">{t('邮箱地址')}</option>
+                  </select>
+                  <ChevronDown size={12} aria-hidden="true" />
+                </label>
+              </div>
               <button className={`icloud-scope-option${!selectedAlias ? ' is-selected' : ''}`} type="button"
                 onClick={() => { onAliasChange(''); close() }}>
                 <span className="icloud-scope-icon"><Inbox size={16} /></span>
                 <span><strong>{t('全部邮件')}</strong><small>{t('所有收件地址')}</small></span>
                 {!selectedAlias && <Check size={15} />}
               </button>
-              {aliases.map((alias) => (
+              {sortedAliases.map((alias) => (
                 <div className={`icloud-scope-alias${alias.email === selectedAlias ? ' is-selected' : ''}`}
                   key={alias.anonymousId || alias.email}>
                   <button className="icloud-scope-option" type="button"
