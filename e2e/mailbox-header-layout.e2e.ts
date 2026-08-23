@@ -3,7 +3,7 @@ import { expect, type Page, test } from '@playwright/test'
 async function renderMailboxHeader(page: Page, paneWidth: number) {
   await page.setContent(`
     <section class="list-pane" style="width:${paneWidth}px;height:400px">
-      <header class="list-header">
+      <header class="list-header mailbox-list-header">
         <div class="list-header__scope-row">
           <div class="mailbox-switcher">
             <button class="mailbox-scope-trigger" type="button">
@@ -82,7 +82,7 @@ test('notification control stays available across desktop and mobile layouts', a
         <button class="language-quick-toggle">EN</button>
       </div>
     </aside>
-    <section class="list-pane"><header class="list-header">
+    <section class="list-pane"><header class="list-header mailbox-list-header">
       <div class="list-header__scope-row">
         <div class="mailbox-switcher"><button class="mailbox-scope-trigger">所有邮箱</button></div>
         <div class="list-header__utilities"><button class="icon-button" aria-label="顶部通知"></button></div>
@@ -105,4 +105,40 @@ test('notification control stays available across desktop and mobile layouts', a
   await page.setViewportSize({ width: 375, height: 700 })
   await expect(page.getByRole('button', { name: '侧栏通知' })).toBeHidden()
   await expect(page.getByRole('button', { name: '顶部通知' })).toBeVisible()
+})
+
+test('external mail headers keep their single-row layout', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 700 })
+  await page.setContent(`
+    <section class="list-pane icloud-list-pane" style="width:370px;height:500px">
+      <header class="list-header icloud-list-header">
+        <div><small>ICLOUD</small><h1>iCloud</h1></div>
+        <div class="list-header__actions">
+          <span>IMAP 完整邮件</span>
+          <div class="icloud-header-action-buttons">
+            <button class="icon-button"></button><button class="icon-button"></button>
+            <button class="icon-button"></button><button class="icon-button"></button>
+          </div>
+        </div>
+      </header>
+    </section>
+  `)
+  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/mailbox-header.css',
+    'src/styles/icloud-workspace.css', 'src/styles/responsive.css']) {
+    await page.addStyleTag({ path })
+  }
+  const layout = await page.locator('.icloud-list-header').evaluate((header) => {
+    const title = header.firstElementChild!.getBoundingClientRect()
+    const actions = header.querySelector('.list-header__actions')!.getBoundingClientRect()
+    return {
+      display: getComputedStyle(header).display,
+      titleAndActionsShareRow: title.right <= actions.left,
+      noHorizontalOverflow: header.scrollWidth <= header.clientWidth,
+    }
+  })
+  expect(layout).toEqual({
+    display: 'flex',
+    titleAndActionsShareRow: true,
+    noHorizontalOverflow: true,
+  })
 })

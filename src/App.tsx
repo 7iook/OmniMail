@@ -403,7 +403,7 @@ function Mailbox({
             className="list-pane page-content-enter"
             key={`${folder}:${scope.type}:${scope.type === 'all' ? '' : scope.value}`}
           >
-        <header className="list-header">
+        <header className="list-header mailbox-list-header">
           <div className="list-header__scope-row">
             {folder !== 'drafts' && <MailboxSwitcher
               mailboxes={mailboxes} loaded={mailboxesLoaded}

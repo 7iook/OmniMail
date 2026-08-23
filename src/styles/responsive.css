@@ -339,6 +339,10 @@
   }
 
   .list-header {
+    min-height: 102px;
+  }
+
+  .mailbox-list-header {
     min-height: 128px;
     padding-top: max(20px, env(safe-area-inset-top));
   }
@@ -418,6 +422,24 @@
 
   @keyframes toast-in {
     from { opacity: 0; transform: translate(50%, 8px); }
+  }
+}
+
+@media (max-width: 360px) {
+  .list-header:not(.mailbox-list-header) {
+    min-height: 154px;
+    flex-wrap: wrap;
+    align-content: flex-end;
+    gap: 10px;
+  }
+
+  .list-header:not(.mailbox-list-header) > div:first-child,
+  .list-header:not(.mailbox-list-header) > .list-header__actions {
+    width: 100%;
+  }
+
+  .list-header:not(.mailbox-list-header) > .list-header__actions {
+    justify-content: flex-end;
   }
 }
 
