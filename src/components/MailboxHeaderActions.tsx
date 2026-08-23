@@ -15,6 +15,8 @@ interface HeaderActionProps {
   canGenerate: boolean
   randomMailboxPrefix: string
   canCompose: boolean
+  refreshing: boolean
+  onRefresh: () => void
   onCopied: (address: string) => void
   onCopyError: () => void
   onMailboxCreated: (mailbox: MailboxAddress) => Promise<void>
@@ -28,6 +30,8 @@ export function MailboxHeaderActions({
   canGenerate,
   randomMailboxPrefix,
   canCompose,
+  refreshing,
+  onRefresh,
   onCopied,
   onCopyError,
   onMailboxCreated,
@@ -74,18 +78,18 @@ export function MailboxHeaderActions({
         randomMailboxPrefix={randomMailboxPrefix}
         onCreated={onMailboxCreated}
       />
+      <button className="icon-button" type="button" onClick={onRefresh}
+        aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
+        <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
+      </button>
     </div>
   )
 }
 
 export function MailboxHeaderUtilities({
-  refreshing,
   notifications,
-  onRefresh,
 }: {
-  refreshing: boolean
   notifications: MailNotificationControls
-  onRefresh: () => void
 }) {
   return (
     <div className="list-header__utilities">
@@ -100,9 +104,6 @@ export function MailboxHeaderUtilities({
           {notifications.enabled ? <Bell size={17} /> : <BellOff size={17} />}
         </button>
       )}
-      <button className="icon-button" type="button" onClick={onRefresh} aria-label={t('刷新邮件')} data-tooltip={t('刷新')}>
-        <RefreshCw className={refreshing ? 'spin' : ''} size={17} />
-      </button>
     </div>
   )
 }

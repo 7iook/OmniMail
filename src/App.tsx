@@ -355,7 +355,7 @@ function Mailbox({
   return (
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
       <MailboxSidebar user={user} folder={folder}
-        counts={counts} adminView={adminView}
+        counts={counts} adminView={adminView} notifications={mailNotifications}
         iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
         linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
         onFolderChange={changeFolder}
@@ -411,8 +411,7 @@ function Mailbox({
               canManage={isAdminRole(user.role) || user.canCreateMailboxes}
               onScopeChange={changeScope} onMailboxesChanged={loadMailboxData}
             />}
-            <MailboxHeaderUtilities refreshing={refreshing} notifications={mailNotifications}
-              onRefresh={() => folder === 'drafts' ? draftEditor.refresh() : void loadMessages(true)} />
+            <MailboxHeaderUtilities notifications={mailNotifications} />
           </div>
           <div className="list-header__title-row">
             <h1>{folderLabel(folder)}</h1>
@@ -420,6 +419,8 @@ function Mailbox({
               mailboxes={mailboxes} domains={domains} scope={scope}
               canGenerate={isAdminRole(user.role) || user.canCreateMailboxes} randomMailboxPrefix={config.randomMailboxPrefix || ''}
               canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
+              refreshing={refreshing}
+              onRefresh={() => folder === 'drafts' ? draftEditor.refresh() : void loadMessages(true)}
               onCopied={(address) => {
                 setError('')
                 setNotice(t('已复制：{address}', { address }))

@@ -14,12 +14,12 @@ async function renderMailboxHeader(page: Page, paneWidth: number) {
           </div>
           <div class="list-header__utilities">
             <button class="icon-button" type="button"></button>
-            <button class="icon-button" type="button"></button>
           </div>
         </div>
         <div class="list-header__title-row">
           <h1>星标邮件</h1>
           <div class="list-header__actions">
+            <button class="icon-button" type="button"></button>
             <button class="icon-button" type="button"></button>
             <button class="icon-button" type="button"></button>
             <button class="icon-button" type="button"></button>
@@ -32,6 +32,7 @@ async function renderMailboxHeader(page: Page, paneWidth: number) {
   await page.addStyleTag({ path: 'src/styles/mailbox.css' })
   await page.addStyleTag({ path: 'src/styles/mailbox-header.css' })
   await page.addStyleTag({ path: 'src/styles/mailbox-switcher.css' })
+  await page.addStyleTag({ path: 'src/styles/responsive.css' })
 }
 
 test('mailbox header actions stay inside narrow desktop list panes', async ({ page }) => {
@@ -42,12 +43,12 @@ test('mailbox header actions stay inside narrow desktop list panes', async ({ pa
     const layout = await page.locator('.list-header').evaluate((header) => {
       const pane = header.parentElement!.getBoundingClientRect()
       const scope = header.querySelector('.mailbox-switcher')!.getBoundingClientRect()
-      const utilities = header.querySelector('.list-header__utilities')!.getBoundingClientRect()
+      const utilities = header.querySelector<HTMLElement>('.list-header__utilities')!
       const title = header.querySelector('h1')!.getBoundingClientRect()
       const actions = header.querySelector('.list-header__actions')!.getBoundingClientRect()
       return {
-        utilitiesInsidePane: utilities.right <= pane.right + 1,
-        scopeClearOfUtilities: scope.right <= utilities.left,
+        scopeInsidePane: scope.right <= pane.right + 1,
+        utilitiesHidden: getComputedStyle(utilities).display === 'none',
         actionsInsidePane: actions.right <= pane.right + 1,
         titleClearOfActions: title.right <= actions.left || title.bottom <= actions.top,
         noHorizontalOverflow: header.scrollWidth <= header.clientWidth,
@@ -55,11 +56,53 @@ test('mailbox header actions stay inside narrow desktop list panes', async ({ pa
     })
 
     expect(layout).toEqual({
-      utilitiesInsidePane: true,
-      scopeClearOfUtilities: true,
+      scopeInsidePane: true,
+      utilitiesHidden: true,
       actionsInsidePane: true,
       titleClearOfActions: true,
       noHorizontalOverflow: true,
     })
   }
+
+  await page.setViewportSize({ width: 375, height: 700 })
+  await renderMailboxHeader(page, 375)
+  await expect(page.locator('.list-header__utilities')).toBeVisible()
+  expect(await page.locator('.list-header').evaluate((header) => (
+    header.scrollWidth <= header.clientWidth
+  ))).toBe(true)
+})
+
+test('notification control stays available across desktop and mobile layouts', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 700 })
+  await page.setContent(`
+    <aside class="mail-sidebar" style="width:230px;height:500px">
+      <div class="sidebar-theme">
+        <div class="theme-selector"><button></button><button></button><button></button></div>
+        <button class="sidebar-notification-toggle" aria-label="侧栏通知"></button>
+        <button class="language-quick-toggle">EN</button>
+      </div>
+    </aside>
+    <section class="list-pane"><header class="list-header">
+      <div class="list-header__scope-row">
+        <div class="mailbox-switcher"><button class="mailbox-scope-trigger">所有邮箱</button></div>
+        <div class="list-header__utilities"><button class="icon-button" aria-label="顶部通知"></button></div>
+      </div>
+    </header></section>
+  `)
+  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/mailbox-header.css',
+    'src/styles/mailbox-switcher.css', 'src/styles/language.css', 'src/styles/responsive.css']) {
+    await page.addStyleTag({ path })
+  }
+
+  await expect(page.getByRole('button', { name: '侧栏通知' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '顶部通知' })).toBeHidden()
+  expect(await page.locator('.sidebar-theme').evaluate((row) => row.scrollWidth <= row.clientWidth)).toBe(true)
+
+  await page.setViewportSize({ width: 1000, height: 700 })
+  await expect(page.getByRole('button', { name: '侧栏通知' })).toBeVisible()
+  await expect(page.locator('.sidebar-theme')).toHaveCSS('flex-direction', 'column')
+
+  await page.setViewportSize({ width: 375, height: 700 })
+  await expect(page.getByRole('button', { name: '侧栏通知' })).toBeHidden()
+  await expect(page.getByRole('button', { name: '顶部通知' })).toBeVisible()
 })

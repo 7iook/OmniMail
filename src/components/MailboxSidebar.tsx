@@ -1,5 +1,7 @@
 import {
   BarChart3,
+  Bell,
+  BellOff,
   BookOpen,
   ChevronUp,
   FilePenLine,
@@ -21,6 +23,7 @@ import { useEffect, useRef, useState } from 'react'
 import { type Folder, type MailCounts, type User } from '../lib/api'
 import { t } from '../lib/i18n'
 import { isAdminRole, roleLabel } from '../lib/roles'
+import type { MailNotificationControls } from '../lib/useNewMailNotifications'
 import type { AdminView } from '../lib/workspaceNavigation'
 import { Brand, ThemeToggle } from './AuthPages'
 import { LanguageQuickToggle } from './LanguageToggle'
@@ -65,6 +68,7 @@ export function MailboxSidebar({
   adminView,
   iCloudWorkspaceEnabled,
   linuxDoMailWorkspaceEnabled,
+  notifications,
   onFolderChange,
   onAdminViewChange,
   onLogout,
@@ -75,6 +79,7 @@ export function MailboxSidebar({
   adminView: AdminView | null
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
+  notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
   onLogout: () => Promise<void>
@@ -114,6 +119,12 @@ export function MailboxSidebar({
       <div className="sidebar-brand"><Brand /></div>
       <div className="sidebar-theme">
         <ThemeToggle />
+        {notifications.supported && <button className="sidebar-notification-toggle" type="button"
+          onClick={notifications.toggle}
+          aria-label={t(notifications.enabled ? '关闭新邮件通知' : '开启新邮件通知')}
+          data-tooltip={t(notifications.enabled ? '关闭新邮件通知' : '开启新邮件通知')}>
+          {notifications.enabled ? <Bell size={16} /> : <BellOff size={16} />}
+        </button>}
         <LanguageQuickToggle />
       </div>
       <div className={`sidebar-navigation${scrollbarActive ? ' is-scrollbar-active' : ''}`}

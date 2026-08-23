@@ -68,6 +68,11 @@
     height: 32px;
   }
 
+  .sidebar-theme .sidebar-notification-toggle {
+    width: 46px;
+    height: 32px;
+  }
+
   .sidebar-theme .theme-selector {
     grid-auto-flow: column;
     gap: 0;

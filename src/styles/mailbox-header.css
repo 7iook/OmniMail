@@ -44,6 +44,7 @@
 }
 
 .list-header__utilities {
+  display: none;
   margin-left: auto;
 }
 
@@ -52,5 +53,19 @@
     min-height: 128px;
     gap: 7px;
     padding-inline: 17px;
+  }
+
+  .list-header__title-row {
+    gap: 10px;
+  }
+
+  .list-header__actions {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 760px) {
+  .list-header__utilities {
+    display: flex;
   }
 }
