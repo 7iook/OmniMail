@@ -42,6 +42,8 @@ const initialFilters: AdminMessageFilters = {
   days: 0,
 }
 
+const DRAWER_EXIT_MS = 170
+
 function messageDate(value: number): string {
   return new Intl.DateTimeFormat(getLocale(), {
     month: '2-digit',
@@ -93,24 +95,59 @@ function SelectionBox({
 }
 
 function AdminMessageDrawer({
+  open,
   message,
   loading,
+  remoteImagesEnabled,
   onClose,
   onTrash,
   onRestore,
   interactionBlocked,
 }: {
+  open: boolean
   message: AdminMessageDetail | null
   loading: boolean
+  remoteImagesEnabled: boolean
   onClose: () => void
   onTrash: () => void
   onRestore: () => void
   interactionBlocked: boolean
 }) {
+  const [mounted, setMounted] = useState(open)
+  const [visible, setVisible] = useState(false)
   const drawerRef = useRef<HTMLElement>(null)
+  const retainedMessage = useRef(message)
+  const openRef = useRef(open)
+  const onCloseRef = useRef(onClose)
   const interactionBlockedRef = useRef(interactionBlocked)
+  if (message) retainedMessage.current = message
+  openRef.current = open
+  onCloseRef.current = onClose
   interactionBlockedRef.current = interactionBlocked
+
   useEffect(() => {
+    if (open) {
+      setMounted(true)
+      return
+    }
+    setVisible(false)
+    if (!mounted) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = window.setTimeout(
+      () => setMounted(false),
+      reducedMotion ? 0 : DRAWER_EXIT_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [mounted, open])
+
+  useEffect(() => {
+    if (!mounted || !open) return
+    const frame = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(frame)
+  }, [mounted, open])
+
+  useEffect(() => {
+    if (!mounted) return
     const previousFocus = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -118,8 +155,8 @@ function AdminMessageDrawer({
       drawerRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
     })
     const onKeyDown = (event: KeyboardEvent) => {
-      if (interactionBlockedRef.current) return
-      if (event.key === 'Escape') onClose()
+      if (!openRef.current || interactionBlockedRef.current) return
+      if (event.key === 'Escape') onCloseRef.current()
       if (event.key !== 'Tab') return
       const controls = drawerRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], iframe[tabindex="0"]',
@@ -142,36 +179,43 @@ function AdminMessageDrawer({
       window.removeEventListener('keydown', onKeyDown)
       previousFocus?.focus()
     }
-  }, [onClose])
+  }, [mounted])
+
+  if (!mounted) return null
+  const displayedMessage = message ?? retainedMessage.current
+  const state = open ? (visible ? 'open' : 'opening') : 'closing'
 
   return (
-    <div className="admin-mail-drawer-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
+    <div className={`admin-mail-drawer-backdrop${visible ? ' is-visible' : ''}`}
+      data-state={state} role="presentation" onMouseDown={(event) => {
+      if (open && event.target === event.currentTarget) onClose()
     }}>
       <aside
         ref={drawerRef}
         className="admin-mail-drawer"
         role="dialog"
         aria-modal="true"
+        aria-hidden={!open || undefined}
         aria-label={t('全站邮件详情')}
+        inert={!open || undefined}
       >
         <header className="admin-mail-owner">
           <ShieldCheck size={18} />
           <div>
-            <strong>{message?.owner.displayName || t('正在读取所属用户…')}</strong>
-            <span>{message?.owner.email || t('主管理员只读访问')}</span>
+            <strong>{displayedMessage?.owner.displayName || t('正在读取所属用户…')}</strong>
+            <span>{displayedMessage?.owner.email || t('主管理员只读访问')}</span>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label={t('关闭')}>
             <X size={18} />
           </button>
         </header>
         <MessageReader
-          message={message}
+          message={displayedMessage}
           loading={loading}
           replyEnabled={false}
           translationEnabled={false}
-          remoteImagesEnabled={false}
-          thread={message ? [message] : []}
+          remoteImagesEnabled={remoteImagesEnabled}
+          thread={displayedMessage ? [displayedMessage] : []}
           managementMode
           attachmentUrl={api.adminAttachmentUrl}
           attachmentPreviewUrl={api.adminAttachmentPreviewUrl}
@@ -192,7 +236,11 @@ function AdminMessageDrawer({
 
 type PendingAction = { action: AdminMessageAction; ids: string[] }
 
-export function AdminMailManagement() {
+export function AdminMailManagement({
+  remoteImagesEnabled,
+}: {
+  remoteImagesEnabled: boolean
+}) {
   const [filters, setFilters] = useState(initialFilters)
   const deferredQuery = useDeferredValue(filters.query)
   const [messages, setMessages] = useState<AdminMessageSummary[]>([])
@@ -436,7 +484,11 @@ export function AdminMailManagement() {
         {page.hasMore && <button className="button button--secondary admin-mail-load-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore && <LoaderCircle className="spin" size={15} />}{t(loadingMore ? '正在加载…' : '加载更多邮件')}</button>}
       </section>
 
-      {drawerOpen && <AdminMessageDrawer message={detail} loading={detailLoading} interactionBlocked={Boolean(pending)} onClose={() => { detailRequestId.current += 1; detailController.current?.abort(); setDrawerOpen(false) }} onTrash={() => detail && requestAction(detail.folder === 'trash' ? 'delete' : 'trash', [detail.id])} onRestore={() => detail && requestAction('restore', [detail.id])} />}
+      <AdminMessageDrawer open={drawerOpen} message={detail} loading={detailLoading}
+        remoteImagesEnabled={remoteImagesEnabled} interactionBlocked={Boolean(pending)}
+        onClose={() => { detailRequestId.current += 1; detailController.current?.abort(); setDrawerOpen(false) }}
+        onTrash={() => detail && requestAction(detail.folder === 'trash' ? 'delete' : 'trash', [detail.id])}
+        onRestore={() => detail && requestAction('restore', [detail.id])} />
 
       {pending && <DangerConfirmDialog
         icon={Trash2}

@@ -196,7 +196,7 @@ export function AdminWorkspace({
     )
   }
   if (view === 'logs') return <AuditLogs />
-  if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement />
+  if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement remoteImagesEnabled={config.remoteImagesEnabled} />
   if (view === 'account') {
     return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenApiGuide={onOpenApiGuide} onOpenICloud={onOpenICloud} iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled} />
   }
