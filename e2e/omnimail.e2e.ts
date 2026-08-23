@@ -55,7 +55,7 @@ async function mockApp(page: Page, state = mockState()) {
       registrationMethod: 'password', linuxDoLoginEnabled: false,
       registrationDomainPolicy: { mode: 'blocklist', domains: [] },
       registrationProtectionReady: false, turnstileSiteKey: '', mailRefreshInterval: state.refreshInterval,
-      remoteImagesEnabled: false, unassignedMailEnabled: state.unassignedMailEnabled,
+      remoteImagesEnabled: false, unassignedMailEnabled: state.unassignedMailEnabled, iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true,
       superAdminEmail: user.email,
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
@@ -410,7 +410,7 @@ test('bulk controls remain usable at common responsive widths', async ({ page })
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(page.getByRole('button', { name: '移入垃圾箱' })).toBeVisible(); expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth <= nav.clientWidth, nav.querySelectorAll('.folder-nav > button, .account-nav > button').length])).toEqual([true, 7])
+    if (width === 375) expect(await page.locator('.mail-sidebar').evaluate((nav) => [nav.scrollWidth <= nav.clientWidth, nav.querySelectorAll('.folder-nav > button, .account-nav > button').length])).toEqual([true, 8])
   }
 })
 test('long subjects wrap to two stable lines without horizontal overflow', async ({ page }) => {
