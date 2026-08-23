@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUp,
   Clock3,
   CheckCircle2,
   Download,
@@ -28,6 +29,7 @@ import {
   useSmoothEmailFrame,
 } from '../hooks/useSmoothEmailFrame'
 import { useTransientScrollbar } from '../hooks/useTransientScrollbar'
+import { useMessageReaderScroll } from '../hooks/useMessageReaderScroll'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageAttachments } from './MessageAttachments'
 import { MessageThread } from './MessageThread'
@@ -216,6 +218,7 @@ export function MessageReader({
     messageId: string; value: Translation
   } | null>(null)
   const readerScrollbar = useTransientScrollbar(message?.id ?? '')
+  const readerScroll = useMessageReaderScroll(loading ? '' : message?.id ?? '', readerScrollbar.root)
   const displayTranslation = useCallback((messageId: string, value: Translation | null) => {
     setDisplayedTranslation(value ? { messageId, value } : null)
   }, [])
@@ -277,6 +280,7 @@ export function MessageReader({
   const displayedHtml = activeTranslation?.html || message?.html || ''
   const displayedText = activeTranslation?.text || message?.text || ''
   const displayedSubject = activeTranslation?.subject || message?.subject || ''
+  const readerSubject = displayedSubject || t('无主题')
   const initialEmailDocument = useMemo(
     () => message?.html
       ? buildEmailDocument(message.html, remoteImagesEnabled, inlineImageSources)
@@ -354,7 +358,19 @@ export function MessageReader({
         <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}>
           <ArrowLeft size={18} />
         </button>
-        <h2 className="reader-toolbar__title">{t(managementMode ? '管理邮件' : '邮件详情')}</h2>
+        <h2 className="reader-toolbar__title">
+          {readerScroll.subjectPinned ? (
+            <button
+              className="reader-toolbar__subject"
+              type="button"
+              onClick={readerScroll.scrollToTop}
+              aria-label={`${t('回到顶部')}：${readerSubject}`}
+              data-tooltip={`${readerSubject} · ${t('回到顶部')}`}
+            >
+              {readerSubject}
+            </button>
+          ) : t(managementMode ? '管理邮件' : '邮件详情')}
+        </h2>
         <div className="reader-toolbar__spacer" />
         {message.folder === 'trash' && (
           <button className="toolbar-button" type="button" onClick={onRestore}>
@@ -381,7 +397,7 @@ export function MessageReader({
         onScroll={readerScrollbar.onScroll}
       >
         <header className="message-heading">
-          <h1>{displayedSubject || t('无主题')}</h1>
+          <h1 ref={readerScroll.subjectHeading}>{readerSubject}</h1>
           <div className="sender-block">
             <span className="sender-avatar">
               {(message.senderName || message.senderAddress || 'M').slice(0, 1).toUpperCase()}
@@ -516,6 +532,18 @@ export function MessageReader({
           )}
         </div>
       </div>
+
+      <button
+        className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}
+        type="button"
+        onClick={readerScroll.scrollToTop}
+        aria-label={t('回到顶部')}
+        aria-hidden={!readerScroll.subjectPinned}
+        data-tooltip={t('回到顶部')}
+        tabIndex={readerScroll.subjectPinned ? 0 : -1}
+      >
+        <ArrowUp size={19} aria-hidden="true" />
+      </button>
 
       {replying && (
         <ReplyComposer

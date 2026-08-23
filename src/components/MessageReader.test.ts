@@ -10,6 +10,15 @@ import {
   shouldProxyRemoteImage,
 } from './MessageReader'
 import { forceLightEmailColorScheme, normalizeRemoteImageSource } from '../lib/emailContent'
+import { subjectPassedReaderTop } from '../hooks/useMessageReaderScroll'
+
+describe('message reader scroll navigation', () => {
+  it('pins the subject only after it has passed the reader top edge', () => {
+    expect(subjectPassedReaderTop(120, 70, true)).toBe(false)
+    expect(subjectPassedReaderTop(60, 70, false)).toBe(true)
+    expect(subjectPassedReaderTop(120, 70, false)).toBe(false)
+  })
+})
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
