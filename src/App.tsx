@@ -7,7 +7,7 @@ import { DraftFolderContent } from './components/DraftFolderContent'
 import { ExtensionAuthorizationPage } from './components/ExtensionAuthorizationPage'
 import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
-import { MailboxHeaderActions } from './components/MailboxHeaderActions'
+import { MailboxHeaderActions, MailboxHeaderUtilities } from './components/MailboxHeaderActions'
 import { MailDeleteDialog } from './components/MailDeleteDialog'
 import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
@@ -404,36 +404,35 @@ function Mailbox({
             key={`${folder}:${scope.type}:${scope.type === 'all' ? '' : scope.value}`}
           >
         <header className="list-header">
-          <div>
+          <div className="list-header__scope-row">
             {folder !== 'drafts' && <MailboxSwitcher
               mailboxes={mailboxes} loaded={mailboxesLoaded}
               domains={domains} scope={scope}
               canManage={isAdminRole(user.role) || user.canCreateMailboxes}
-              onScopeChange={changeScope}
-              onMailboxesChanged={loadMailboxData}
+              onScopeChange={changeScope} onMailboxesChanged={loadMailboxData}
             />}
-            <h1>{folderLabel(folder)}</h1>
+            <MailboxHeaderUtilities refreshing={refreshing} notifications={mailNotifications}
+              onRefresh={() => folder === 'drafts' ? draftEditor.refresh() : void loadMessages(true)} />
           </div>
-          <MailboxHeaderActions
-            mailboxes={mailboxes} domains={domains} scope={scope}
-            canGenerate={isAdminRole(user.role) || user.canCreateMailboxes} randomMailboxPrefix={config.randomMailboxPrefix || ''}
-            canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
-            refreshing={refreshing} notifications={mailNotifications}
-            onRefresh={() => folder === 'drafts'
-              ? draftEditor.refresh()
-              : void loadMessages(true)}
-            onCopied={(address) => {
-              setError('')
-              setNotice(t('已复制：{address}', { address }))
-            }}
-            onCopyError={() => setError(t('无法访问剪贴板，请手动复制邮箱地址。'))}
-            onMailboxCreated={async (mailbox) => {
-              await loadMailboxData()
-              changeScope({ type: 'mailbox', value: mailbox.address })
-              setNotice(t('已生成：{address}', { address: mailbox.address }))
-            }}
-            onCompose={draftEditor.openNew}
-          />
+          <div className="list-header__title-row">
+            <h1>{folderLabel(folder)}</h1>
+            <MailboxHeaderActions
+              mailboxes={mailboxes} domains={domains} scope={scope}
+              canGenerate={isAdminRole(user.role) || user.canCreateMailboxes} randomMailboxPrefix={config.randomMailboxPrefix || ''}
+              canCompose={config.replyEnabled && (user.role === 'super_admin' || user.canReply)}
+              onCopied={(address) => {
+                setError('')
+                setNotice(t('已复制：{address}', { address }))
+              }}
+              onCopyError={() => setError(t('无法访问剪贴板，请手动复制邮箱地址。'))}
+              onMailboxCreated={async (mailbox) => {
+                await loadMailboxData()
+                changeScope({ type: 'mailbox', value: mailbox.address })
+                setNotice(t('已生成：{address}', { address: mailbox.address }))
+              }}
+              onCompose={draftEditor.openNew}
+            />
+          </div>
         </header>
         {folder !== 'drafts' && <label className="search-field">
           <Search size={17} />

@@ -8,16 +8,13 @@ import { t } from '../lib/i18n'
 import type { MailNotificationControls } from '../lib/useNewMailNotifications'
 import { QuickMailboxGenerator } from './QuickMailboxGenerator'
 
-interface Props {
+interface HeaderActionProps {
   mailboxes: MailboxAddress[]
   domains: ManagedDomain[]
   scope: MailboxScope
   canGenerate: boolean
   randomMailboxPrefix: string
   canCompose: boolean
-  refreshing: boolean
-  notifications: MailNotificationControls
-  onRefresh: () => void
   onCopied: (address: string) => void
   onCopyError: () => void
   onMailboxCreated: (mailbox: MailboxAddress) => Promise<void>
@@ -31,14 +28,11 @@ export function MailboxHeaderActions({
   canGenerate,
   randomMailboxPrefix,
   canCompose,
-  refreshing,
-  notifications,
-  onRefresh,
   onCopied,
   onCopyError,
   onMailboxCreated,
   onCompose,
-}: Props) {
+}: HeaderActionProps) {
   const activeMailboxes = mailboxes.filter((mailbox) => mailbox.isActive)
   const address = scope.type === 'mailbox'
     ? scope.value
@@ -80,6 +74,21 @@ export function MailboxHeaderActions({
         randomMailboxPrefix={randomMailboxPrefix}
         onCreated={onMailboxCreated}
       />
+    </div>
+  )
+}
+
+export function MailboxHeaderUtilities({
+  refreshing,
+  notifications,
+  onRefresh,
+}: {
+  refreshing: boolean
+  notifications: MailNotificationControls
+  onRefresh: () => void
+}) {
+  return (
+    <div className="list-header__utilities">
       {notifications.supported && (
         <button
           className="icon-button"

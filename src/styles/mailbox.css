@@ -191,49 +191,6 @@
   container: mailbox-list / inline-size;
 }
 
-.list-header {
-  display: flex;
-  min-height: 112px;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px 22px 17px;
-}
-
-.list-header > div:first-child {
-  min-width: 0;
-}
-
-.list-header h1 {
-  margin: 0;
-  font-size: 27px;
-  line-height: 1.1;
-}
-
-.list-header__actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 7px;
-}
-
-@container mailbox-list (max-width: 360px) {
-  .list-header {
-    min-height: 154px;
-    flex-wrap: wrap;
-    align-content: flex-end;
-    gap: 10px;
-  }
-
-  .list-header > div:first-child,
-  .list-header__actions {
-    width: 100%;
-  }
-
-  .list-header__actions {
-    justify-content: flex-end;
-  }
-}
-
 .search-field {
   display: flex;
   min-height: 42px;

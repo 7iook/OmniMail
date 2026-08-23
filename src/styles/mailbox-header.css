@@ -1,0 +1,56 @@
+.list-header {
+  display: grid;
+  min-height: 132px;
+  align-content: end;
+  gap: 8px;
+  padding: 24px 22px 17px;
+}
+
+.list-header__scope-row,
+.list-header__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.list-header__scope-row > .mailbox-switcher {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.list-header__scope-row .mailbox-scope-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.list-header h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 27px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-header__utilities,
+.list-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.list-header__utilities {
+  margin-left: auto;
+}
+
+@container mailbox-list (max-width: 360px) {
+  .list-header {
+    min-height: 128px;
+    gap: 7px;
+    padding-inline: 17px;
+  }
+}
