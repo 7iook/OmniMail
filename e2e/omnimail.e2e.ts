@@ -507,7 +507,7 @@ test('workspace navigation has durable URLs and browser history', async ({ page 
   await page.goto('/')
   const mailTransition = page.locator('.page-content-enter'); await expect(mailTransition).toHaveCSS('animation-name', 'page-content-settle')
   expect(await mailTransition.evaluate(() => [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).filter((rule): rule is CSSKeyframesRule => rule instanceof CSSKeyframesRule && rule.name === 'page-content-settle').every((rule) => [...rule.cssRules].every((frame) => !frame.style.opacity)))).toBe(true)
-  await expect(page.locator('.message-list')).toHaveCSS('animation-name', 'none')
+  const firstMessage = page.locator('.message-row').first(); await expect(firstMessage).toHaveCSS('animation-name', 'message-row-settle'); await page.emulateMedia({ reducedMotion: 'reduce' }); await expect(firstMessage).toHaveCSS('animation-name', 'none'); await page.emulateMedia({ reducedMotion: 'no-preference' })
   await expect(page).toHaveURL(/\/mail\/inbox$/)
   await page.getByRole('button', { name: '用户' }).click()
   await expect(page.locator('.admin-workspace')).toHaveCSS('animation-name', 'page-content-settle')

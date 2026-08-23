@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import {
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -26,6 +27,10 @@ import type { Folder, MessageSummary, PageInfo } from '../lib/api'
 import type { BulkMessageAction } from '../lib/messageActions'
 import { t } from '../lib/i18n'
 import { formatMessageDate, senderLabel } from '../lib/mailFormatting'
+
+export function messageEnterDelay(index: number): string {
+  return `${Math.min(Math.max(index, 0), 5) * 22}ms`
+}
 
 type MessageContextMenuState = {
   message: MessageSummary
@@ -461,6 +466,7 @@ export function MessageList({
         className={`message-row ${!message.isRead ? 'is-unread' : ''} ${selectedId === message.id ? 'is-selected' : ''} ${selectedIds.has(message.id) ? 'is-checked' : ''}`}
         key={message.id} role="option" aria-selected={selectedId === message.id}
         data-message-index={index}
+        style={{ '--message-enter-delay': messageEnterDelay(index) } as CSSProperties}
         onContextMenu={(event) => openContextMenu(event, message)}
       >
         <span className="message-row__check" aria-hidden={!bulkMode}>
