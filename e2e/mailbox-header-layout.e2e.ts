@@ -42,6 +42,8 @@ test('mailbox header actions stay inside narrow desktop list panes', async ({ pa
     await renderMailboxHeader(page, paneWidth)
     const layout = await page.locator('.list-header').evaluate((header) => {
       const pane = header.parentElement!.getBoundingClientRect()
+      const headerBox = header.getBoundingClientRect()
+      const paddingRight = Number.parseFloat(getComputedStyle(header).paddingRight)
       const scope = header.querySelector('.mailbox-switcher')!.getBoundingClientRect()
       const utilities = header.querySelector<HTMLElement>('.list-header__utilities')!
       const title = header.querySelector('h1')!.getBoundingClientRect()
@@ -50,6 +52,7 @@ test('mailbox header actions stay inside narrow desktop list panes', async ({ pa
         scopeInsidePane: scope.right <= pane.right + 1,
         utilitiesHidden: getComputedStyle(utilities).display === 'none',
         actionsInsidePane: actions.right <= pane.right + 1,
+        actionsRightAligned: Math.abs(actions.right - (headerBox.right - paddingRight)) <= 1,
         titleClearOfActions: title.right <= actions.left || title.bottom <= actions.top,
         noHorizontalOverflow: header.scrollWidth <= header.clientWidth,
       }
@@ -59,6 +62,7 @@ test('mailbox header actions stay inside narrow desktop list panes', async ({ pa
       scopeInsidePane: true,
       utilitiesHidden: true,
       actionsInsidePane: true,
+      actionsRightAligned: true,
       titleClearOfActions: true,
       noHorizontalOverflow: true,
     })
@@ -141,4 +145,25 @@ test('external mail headers keep their single-row layout', async ({ page }) => {
     titleAndActionsShareRow: true,
     noHorizontalOverflow: true,
   })
+})
+
+test('iCloud workspace loading state does not use an admin card', async ({ page }) => {
+  await page.setContent(`
+    <section class="list-pane icloud-list-pane" style="width:370px;height:700px">
+      <div class="icloud-workspace-loading" role="status">
+        <span class="icloud-workspace-loading__icon"><svg></svg></span>
+        <span><strong>正在打开 iCloud 收件箱…</strong><small>正在准备邮件布局</small></span>
+      </div>
+    </section>
+  `)
+  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/icloud-workspace.css']) {
+    await page.addStyleTag({ path })
+  }
+  const loading = page.getByRole('status')
+  await expect(loading).toBeVisible()
+  await expect(loading).toHaveCSS('border-top-width', '0px')
+  await expect(loading).toHaveCSS('box-shadow', 'none')
+  expect(await loading.evaluate((element) => (
+    element.getBoundingClientRect().width === element.parentElement!.clientWidth
+  ))).toBe(true)
 })

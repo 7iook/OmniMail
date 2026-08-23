@@ -365,8 +365,8 @@ function Mailbox({
       {adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
         : adminView === 'icloud' ? (
         <Suspense fallback={(
-          <div className="icloud-mail-view"><section className="list-pane"><div className="statistics-loading" role="status">
-            <LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}
+          <div className="icloud-mail-view"><section className="list-pane icloud-list-pane"><div className="icloud-workspace-loading" role="status">
+            <span className="icloud-workspace-loading__icon"><LoaderCircle className="spin" size={18} /></span><span><strong>{t('正在打开 iCloud 收件箱…')}</strong><small>{t('正在准备邮件布局')}</small></span>
           </div></section><main className="reader-pane" /></div>
         )}>
           <ICloudWorkspace userId={user.id} enabled={config.iCloudEnabled} remoteImagesEnabled={config.remoteImagesEnabled} />

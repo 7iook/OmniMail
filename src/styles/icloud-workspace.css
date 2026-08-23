@@ -15,6 +15,44 @@
   container: icloud-list / inline-size;
 }
 
+.icloud-workspace-loading {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 24px;
+  color: var(--text-tertiary);
+}
+
+.icloud-workspace-loading__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.icloud-workspace-loading > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.icloud-workspace-loading strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.icloud-workspace-loading small {
+  font-size: 10px;
+}
+
 .icloud-list-header .eyebrow {
   margin: 0 0 5px;
   color: var(--text-tertiary);
