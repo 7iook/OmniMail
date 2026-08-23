@@ -7,6 +7,8 @@ export interface AppConfig {
   setupComplete: boolean
   replyEnabled: boolean
   iCloudEnabled: boolean
+  iCloudWorkspaceEnabled: boolean
+  linuxDoMailWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod
@@ -121,6 +123,23 @@ export interface ICloudMessage {
   body: string
   html: string
   isRead?: boolean
+}
+
+export interface LinuxDoMailAccount {
+  id: string
+  username: string
+  status: 'active' | 'error'
+  lastValidated: string
+  lastError: string
+  createdAt: string
+  hasPassword: boolean
+}
+
+export interface LinuxDoMailMessage extends ICloudMessage {
+  direction?: 'incoming' | 'outgoing'
+  status?: 'processing' | 'ready' | 'failed' | 'sent'
+  deliveryStatus?: string | null
+  processingError?: string
 }
 
 export interface MfaStatus {
@@ -255,6 +274,7 @@ export type AuditCategory =
   | 'invitation'
   | 'message'
   | 'icloud'
+  | 'linuxdo-mail'
   | 'system'
 
 export interface AuditLog {

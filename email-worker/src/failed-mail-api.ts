@@ -73,7 +73,7 @@ export async function retryFailedMessage(
   }
   const message = await env.DB.prepare(
     `SELECT m.id, m.mailbox_address, m.direction, m.raw_key, m.body_key, m.in_reply_to,
-            m.recipients_json, m.processing_error, mb.user_id
+            m.recipients_json, m.processing_error, mb.user_id, mb.is_hidden
        FROM messages m
        JOIN mailboxes mb ON mb.address = m.mailbox_address
       WHERE m.id = ? AND m.status = 'failed'`,
@@ -86,6 +86,7 @@ export async function retryFailedMessage(
     in_reply_to: string | null
     recipients_json: string
     user_id: string
+    is_hidden: number
     processing_error: string | null
   }>()
   if (!message) return Response.json({ error: '失败邮件不存在或已被处理。' }, { status: 404 })
@@ -93,9 +94,19 @@ export async function retryFailedMessage(
   if (!objectKey || !await env.MAIL_BUCKET.head(objectKey)) {
     return Response.json({ error: '邮件存档不存在，无法重新处理。' }, { status: 409 })
   }
-  const configError = message.direction === 'outgoing' ? outboundProviderConfigError(env) : null
+  const linuxDoAccount = message.is_hidden ? await env.DB.prepare(
+    `SELECT 1 AS found FROM linux_do_mail_accounts
+      WHERE user_id = ? AND username = ? LIMIT 1`,
+  ).bind(message.user_id, message.mailbox_address).first<{ found: number }>() : null
+  if (message.direction === 'outgoing' && message.is_hidden && !linuxDoAccount) {
+    return Response.json({ error: 'Linux DO Mail 账号已断开，无法重新发送。' }, { status: 409 })
+  }
+  const configError = message.direction === 'outgoing' && !message.is_hidden
+    ? outboundProviderConfigError(env)
+    : null
   if (configError) return Response.json({ error: configError }, { status: 503 })
-  if (message.direction === 'outgoing' && !outboundProviderForAddress(env, message.mailbox_address)) {
+  if (message.direction === 'outgoing' && !message.is_hidden
+    && !outboundProviderForAddress(env, message.mailbox_address)) {
     return Response.json({ error: '该发件域名尚未配置发信服务。' }, { status: 503 })
   }
   if (message.processing_error?.startsWith(DELIVERY_UNCERTAIN_PREFIX)) {

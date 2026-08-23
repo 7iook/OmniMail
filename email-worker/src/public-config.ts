@@ -47,7 +47,9 @@ export async function publicConfig(env: Env) {
       'remote_images_enabled',
       'unassigned_mail_enabled',
       'official_extension_enabled',
-      'random_mailbox_prefix'
+      'random_mailbox_prefix',
+      'icloud_workspace_enabled',
+      'linuxdo_mail_workspace_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -64,6 +66,8 @@ export async function publicConfig(env: Env) {
     setupComplete,
     replyEnabled: hasOutboundProviderConfig(env),
     iCloudEnabled: iCloudCredentialsReady(env),
+    iCloudWorkspaceEnabled: settings.get('icloud_workspace_enabled') !== '0',
+    linuxDoMailWorkspaceEnabled: settings.get('linuxdo_mail_workspace_enabled') !== '0',
     registrationEnabled,
     registrationAvailable: registrationEnabled && (
       registrationMethod === 'linuxdo' ? linuxDoLoginEnabled : passwordRegistrationReady

@@ -31,6 +31,10 @@ describe('workspace routes', () => {
       kind: 'admin',
       view: 'icloud',
     })
+    expect(workspaceRoute('/linux-do-mail', 'user')).toMatchObject({
+      kind: 'admin',
+      view: 'linuxdo-mail',
+    })
   })
 
   it('falls back to the inbox for unknown or unauthorized paths', () => {
@@ -48,6 +52,19 @@ describe('workspace routes', () => {
       kind: 'folder',
       folder: 'inbox',
       path: '/mail/inbox',
+    })
+  })
+
+  it('falls back to the inbox when an optional mailbox entry is disabled', () => {
+    const disabled = {
+      iCloudWorkspaceEnabled: false,
+      linuxDoMailWorkspaceEnabled: false,
+    }
+    expect(workspaceRoute('/icloud', 'user', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
+    })
+    expect(workspaceRoute('/linux-do-mail', 'admin', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
     })
   })
 })

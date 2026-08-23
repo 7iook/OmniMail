@@ -40,17 +40,20 @@ describe('legacy D1 deployment bootstrap', () => {
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'users'").get()).toEqual({
       name: 'users',
     })
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 22 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 24 })
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
     ).get()).toEqual({ name: 'icloud_accounts' })
+    expect(db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'linux_do_mail_accounts'",
+    ).get()).toEqual({ name: 'linux_do_mail_accounts' })
   })
 
   it.each([
     [14, '2026-07-29-p5-outbound-rate-limit-admin'],
     [16, '2026-08-01-p2-translation-permissions'],
     [17, '2026-08-03-p3-multiple-drafts'],
-  ])('baselines legacy migration %i and applies through 0022', (position, version) => {
+  ])('baselines legacy migration %i and applies through 0024', (position, version) => {
     const db = legacyDatabase(position, version)
     db.exec(bootstrap)
 
@@ -58,13 +61,16 @@ describe('legacy D1 deployment bootstrap', () => {
       count: position,
     })
     applyMigrations(db, position + 1)
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 22 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 24 })
     expect(db.prepare(
       "SELECT name FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).get()).toEqual({ name: 'scopes' })
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
     ).get()).toEqual({ name: 'icloud_accounts' })
+    expect(db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'linux_do_mail_accounts'",
+    ).get()).toEqual({ name: 'linux_do_mail_accounts' })
   })
 
   it('does not baseline an unknown legacy schema', () => {

@@ -1,6 +1,6 @@
 {
   "name": "omnimail",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "A small, self-hosted webmail deployed as one Cloudflare Worker with Static Assets, D1, R2, Queues, and Resend.",
@@ -14,6 +14,9 @@
       },
       "ICLOUD_CREDENTIALS_KEY": {
         "description": "Optional. At least 32 random UTF-8 bytes for encrypting iCloud cookies and app-specific passwords."
+      },
+      "LINUX_DO_MAIL_CREDENTIALS_KEY": {
+        "description": "Optional. At least 32 random UTF-8 bytes for encrypting Linux DO Mail passwords or authentication tokens."
       }
     }
   },

@@ -19,6 +19,7 @@ import { confirmMfaSetup, disableMfa, mfaStatus, startMfaSetup } from './mfa-api
 import { completeMfaChallenge, createMfaChallenge, mfaEnabled } from './mfa'
 import { clearMfaChallengeCookie, mfaChallengeCookie, setMfaChallengeCookie } from './mfa-cookie'
 import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
+import { linuxDoMailRoutes } from './linux-do-mail-routes'
 import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
 import { iCloudRoutes } from './icloud-routes'
 import { authenticatePassword } from './password-login'
@@ -38,6 +39,7 @@ import { syncSuperAdminIdentity } from './super-admin-sync'
 import {
   officialExtensionEnabled,
   updateMailRefreshInterval,
+  updateMailWorkspaceSettings,
   updateOfficialExtensionSetting,
   updateRandomMailboxPrefix,
   updateRemoteImagesSetting,
@@ -452,6 +454,7 @@ app.post('/api/admin/users', (context) => createManagedUser(
 app.patch('/api/admin/settings/registration', (context) => updateExternalRegistration(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/registration-domains', (context) => updateRegistrationDomainPolicy(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/mail-refresh', (context) => updateMailRefreshInterval(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
+app.patch('/api/admin/settings/mail-workspaces', (context) => updateMailWorkspaceSettings(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/remote-images', (context) => updateRemoteImagesSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/unassigned-mail', (context) => updateUnassignedMailSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
 app.patch('/api/admin/settings/official-extension', (context) => updateOfficialExtensionSetting(context.env, context.get('user'), context.req.raw, clientIp(context.req.raw.headers)))
@@ -517,6 +520,7 @@ app.delete('/api/mailboxes/:address', (context) => (
 
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
 app.route('/api', iCloudRoutes)
+app.route('/api', linuxDoMailRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)
 app.post('/api/messages', async (context) => {

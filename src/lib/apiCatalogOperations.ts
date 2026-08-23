@@ -93,6 +93,80 @@ export const iCloudEndpoints: ApiEndpoint[] = [
   },
 ]
 
+export const linuxDoMailEndpoints: ApiEndpoint[] = [
+  {
+    method: 'GET', path: '/api/linux-do-mail/account', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 连接', 'Read the Linux DO Mail connection'),
+    description: l('返回功能状态和当前用户的脱敏账号信息，不返回密码或认证令牌。', 'Return feature status and sanitized account metadata without returning the password or authentication token.'),
+    request: 'No parameters', response: '200 · { enabled, account }',
+  },
+  {
+    method: 'POST', path: '/api/linux-do-mail/account', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('连接 Linux DO Mail', 'Connect Linux DO Mail'),
+    description: l('使用完整邮箱用户名和密码或认证令牌验证 IMAP，再加密保存凭据。', 'Validate IMAP with the full mailbox username and a password or authentication token, then encrypt the credential.'),
+    request: 'JSON · username, password', response: '201 · { account }',
+    exampleBody: { username: 'member@linux.do', password: 'authentication-token' },
+    notes: [l('官方建议使用可撤销的专用认证令牌，不要提交邮箱主密码。', 'Linux DO recommends a revocable dedicated authentication token instead of the mailbox master password.')],
+  },
+  {
+    method: 'DELETE', path: '/api/linux-do-mail/account', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('断开 Linux DO Mail', 'Disconnect Linux DO Mail'),
+    description: l('删除当前用户的账号记录和凭据密文，不修改服务器端邮箱。', 'Delete the current user’s account record and encrypted credential without changing the server-side mailbox.'),
+    request: 'No parameters', response: '200 · { ok: true }',
+  },
+  {
+    method: 'POST', path: '/api/linux-do-mail/account/verify', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('验证 Linux DO Mail 凭据', 'Verify Linux DO Mail credentials'),
+    description: l('重新登录 IMAP 并执行只读 EXAMINE INBOX。', 'Sign in to IMAP again and run the read-only EXAMINE INBOX command.'),
+    request: 'No parameters', response: '200 · { ok: true, validatedAt }',
+  },
+  {
+    method: 'PUT', path: '/api/linux-do-mail/account/credential', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('更新 Linux DO Mail 凭据', 'Update the Linux DO Mail credential'),
+    description: l('先验证新密码或认证令牌，再替换已保存的密文；验证失败时保留原凭据。', 'Validate the new password or authentication token before replacing the saved ciphertext; keep the existing credential when validation fails.'),
+    request: 'JSON · password', response: '200 · { account }',
+    exampleBody: { password: 'new-authentication-token' },
+    notes: [l('响应不会包含新旧凭据。', 'The response never contains the old or new credential.')],
+  },
+  {
+    method: 'POST', path: '/api/linux-do-mail/messages', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('发送 Linux DO Mail 邮件', 'Send a Linux DO Mail message'),
+    description: l('使用已连接账号通过 SMTP 465 异步发送邮件，并复用 OmniMail 的幂等、限速、队列和失败保护。', 'Send asynchronously through SMTP 465 with the connected account while reusing OmniMail idempotency, rate limits, queueing, and failure protection.'),
+    request: 'JSON · to, subject, text, idempotencyKey', response: '200/202 · { message }',
+    exampleBody: { to: 'recipient@example.net', subject: 'Hello', text: 'Message body', idempotencyKey: 'request_12345678' },
+    notes: [
+      l('From 固定为当前已验证的 Linux DO Mail 地址，不能由请求覆盖。', 'From is fixed to the currently verified Linux DO Mail address and cannot be overridden by the request.'),
+      l('当前额外执行每日 50 封硬上限；相同 idempotencyKey 不会重复入队。', 'A hard cap of 50 messages per day is currently enforced; the same idempotencyKey is not queued twice.'),
+    ],
+  },
+  {
+    method: 'GET', path: '/api/linux-do-mail/inbox', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 最近来信', 'List recent Linux DO Mail messages'),
+    description: l('通过 IMAP 读取 INBOX 最近 20 封邮件，或在服务器上搜索主题、联系人与正文。', 'Read the 20 most recent INBOX messages over IMAP, or search subjects, contacts, and body text on the server.'),
+    request: 'Query · q?', response: '200 · { messages }',
+    examplePath: '/api/linux-do-mail/inbox?q=release',
+  },
+  {
+    method: 'GET', path: '/api/linux-do-mail/inbox/:uid', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 正文', 'Read a Linux DO Mail message'),
+    description: l('通过数字 IMAP UID 只读获取受大小限制的邮件正文。', 'Read a size-limited message by numeric IMAP UID without changing mailbox state.'),
+    request: 'Path · uid', response: '200 · { message }',
+  },
+  {
+    method: 'GET', path: '/api/linux-do-mail/sent', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 发件记录', 'List sent Linux DO Mail messages'),
+    description: l('读取或搜索当前账号最近 20 条 OmniMail 发件记录及排队、成功或失败状态。', 'List or search the 20 most recent OmniMail outbound records for the current account with queued, sent, or failed status.'),
+    request: 'Query · q?', response: '200 · { messages }',
+    examplePath: '/api/linux-do-mail/sent?q=invoice',
+  },
+  {
+    method: 'GET', path: '/api/linux-do-mail/sent/:id', group: 'linuxdoMail', auth: 'authenticated',
+    title: l('读取 Linux DO Mail 发件正文', 'Read a sent Linux DO Mail message'),
+    description: l('从受当前用户约束的 D1 和 R2 记录读取发件正文与投递状态。', 'Read outbound content and delivery state from user-scoped D1 and R2 records.'),
+    request: 'Path · id', response: '200 · { message }',
+  },
+]
+
 export const adminOperationEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/admin/audit-logs', group: 'adminOperations', auth: 'admin',

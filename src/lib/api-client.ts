@@ -46,6 +46,7 @@ import type {
 } from './api-types'
 import type { ExtensionAuthorizationRequest } from './extensionAuthorization'
 import { createICloudApi } from './icloud-api-client'
+import { createLinuxDoMailApi } from './linux-do-mail-api-client'
 
 export class ApiError extends Error {
   status: number
@@ -159,6 +160,16 @@ export const api = {
       body: jsonBody({ interval }),
     })
   ),
+  updateMailWorkspaceSettings: (settings: {
+    iCloudWorkspaceEnabled: boolean
+    linuxDoMailWorkspaceEnabled: boolean
+  }) => request<{
+    iCloudWorkspaceEnabled: boolean
+    linuxDoMailWorkspaceEnabled: boolean
+  }>('/api/admin/settings/mail-workspaces', {
+    method: 'PATCH',
+    body: jsonBody(settings),
+  }),
   updateRemoteImagesSetting: (enabled: boolean) => (
     request<{ remoteImagesEnabled: boolean }>('/api/admin/settings/remote-images', {
       method: 'PATCH',
@@ -418,6 +429,7 @@ export const api = {
   }),
   mailboxes: () => request<{ mailboxes: MailboxAddress[] }>('/api/mailboxes'),
   ...createICloudApi(request, jsonBody),
+  ...createLinuxDoMailApi(request, jsonBody),
   addMailbox: (address: string) => request<{ mailbox: MailboxAddress }>('/api/mailboxes', {
     method: 'POST',
     body: jsonBody({ address }),

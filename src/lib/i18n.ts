@@ -4,6 +4,7 @@ import { enAdmin } from './i18n-en-admin'
 import { enAdminMail } from './i18n-en-admin-mail'
 import { enInvites } from './i18n-en-invites'
 import { enMailFeatures } from './i18n-en-mail-features'
+import { enMailWorkspaces } from './i18n-en-mail-workspaces'
 import { enMailboxSettings } from './i18n-en-mailbox-settings'
 import { enRateLimit } from './i18n-en-rate-limit'
 import { enVersion } from './i18n-en-version'
@@ -12,6 +13,7 @@ import { enExtension } from './i18n-en-extension'
 import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
 import { enICloud } from './i18n-en-icloud'
+import { enLinuxDoMail } from './i18n-en-linux-do-mail'
 import { enApi } from './i18n-en-api'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -52,10 +54,12 @@ const english = {
   ...enOauth,
   ...enSecurity,
   ...enMailFeatures,
+  ...enMailWorkspaces,
   ...enMailboxSettings,
   ...enRateLimit,
   ...enVersion,
   ...enICloud,
+  ...enLinuxDoMail,
   ...enApi,
 }
 const englishPlurals: Record<string, [string, string]> = {

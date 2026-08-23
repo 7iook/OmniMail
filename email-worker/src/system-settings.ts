@@ -8,6 +8,8 @@ const REMOTE_IMAGES_SETTING = 'remote_images_enabled'
 const UNASSIGNED_MAIL_SETTING = 'unassigned_mail_enabled'
 const OFFICIAL_EXTENSION_SETTING = 'official_extension_enabled'
 const RANDOM_MAILBOX_PREFIX_SETTING = 'random_mailbox_prefix'
+const ICLOUD_WORKSPACE_SETTING = 'icloud_workspace_enabled'
+const LINUX_DO_MAIL_WORKSPACE_SETTING = 'linuxdo_mail_workspace_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -34,6 +36,10 @@ export function parseUnassignedMailEnabled(value: unknown): boolean | null {
 }
 
 export function parseOfficialExtensionEnabled(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
+export function parseMailWorkspaceEnabled(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
@@ -160,6 +166,44 @@ export async function updateOfficialExtensionSetting(
   ).bind(OFFICIAL_EXTENSION_SETTING, enabled ? '1' : '0').run()
   await writeAudit(env, actor.id, 'system.official_extension.update', null, ip, { enabled })
   return json({ officialExtensionEnabled: enabled })
+}
+
+export async function updateMailWorkspaceSettings(
+  env: Env,
+  actor: SessionUser,
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  if (!isAdministrator(actor)) {
+    return json({ error: '只有管理员可以修改邮箱功能入口。' }, 403)
+  }
+  const body = await request.json<{
+    iCloudWorkspaceEnabled?: unknown
+    linuxDoMailWorkspaceEnabled?: unknown
+  }>().catch(() => ({} as {
+    iCloudWorkspaceEnabled?: unknown
+    linuxDoMailWorkspaceEnabled?: unknown
+  }))
+  const iCloudWorkspaceEnabled = parseMailWorkspaceEnabled(body.iCloudWorkspaceEnabled)
+  const linuxDoMailWorkspaceEnabled = parseMailWorkspaceEnabled(
+    body.linuxDoMailWorkspaceEnabled,
+  )
+  if (iCloudWorkspaceEnabled === null || linuxDoMailWorkspaceEnabled === null) {
+    return json({ error: '邮箱功能入口设置无效。' }, 400)
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(ICLOUD_WORKSPACE_SETTING, iCloudWorkspaceEnabled ? '1' : '0'),
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(LINUX_DO_MAIL_WORKSPACE_SETTING, linuxDoMailWorkspaceEnabled ? '1' : '0'),
+  ])
+  const settings = { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled }
+  await writeAudit(env, actor.id, 'system.mail_workspaces.update', null, ip, settings)
+  return json(settings)
 }
 
 export async function updateRandomMailboxPrefix(

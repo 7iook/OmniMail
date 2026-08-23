@@ -7,6 +7,7 @@ export type ApiGroupId =
   | 'messages'
   | 'drafts'
   | 'icloud'
+  | 'linuxdoMail'
   | 'adminOperations'
   | 'adminAccess'
   | 'adminSettings'

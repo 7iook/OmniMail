@@ -95,6 +95,7 @@ Serverless Webmail：
 - 仅支持已开通 iCloud+ 且拥有 **Hide My Email** 权限的 Apple 账号；“仅网页访问”、未开通 iCloud+ 或没有隐藏邮箱权限的账号无法添加。
 - 添加账号时需要从对应的 `icloud.com` / `icloud.com.cn` 会话导入 Cookie。Cookie 过期、复制不完整或 Apple 拒绝权限时，添加会失败并在弹窗显示原因，不会退出 OmniMail 当前登录账号。
 - `ICLOUD_CREDENTIALS_KEY` 必须配置为至少 32 字节的 Secret；更换或恢复部署时请确认该 Secret 没有丢失，否则无法解密已保存凭据。
+- `LINUX_DO_MAIL_CREDENTIALS_KEY` 必须配置为至少 32 字节的 Secret；它用于加密 Linux DO Mail 密码或认证令牌。
 - 应用专用密码不是创建隐藏邮箱的必需项；只有需要通过 IMAP 按地址筛选或读取完整邮件正文时才需要配置，并且必须绑定当前 iCloud 邮箱。
 - iCloud 邮件和别名由 Worker 按需访问 Apple，不会同步进 OmniMail 收件箱；Apple 服务、订阅状态、区域限制和请求频率可能影响读取结果。
 - 不要把 Cookie 或应用专用密码提交到 Git、截图、工单或第三方聊天中；OmniMail 只在 Worker 内加密保存，浏览器不会再次读取原值。
@@ -311,6 +312,7 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `SENDFLARE_DOMAIN_CONFIGS` | Secret | 按发件域名配置独立的 SendFlare API Key 与可选发件邮箱 |
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `ICLOUD_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 iCloud Cookie 与应用专用密码；不使用 iCloud 功能时可留空 |
+| `LINUX_DO_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 Linux DO Mail 密码或认证令牌；不使用该功能时可留空 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
 | `UPDATE_REPOSITORY` | Text | Release 来源仓库，默认 `mibgb65-cloud/OmniMail` |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
@@ -422,6 +424,14 @@ Builds 检测到分支更新后会自动构建、迁移并重新部署。
 将回调地址设置为 `https://你的域名/api/auth/linux-do/callback`，再配置上表两个变量。
 管理员随后可在 **系统设置 → 外部注册** 中选择“仅 Linux DO”。现有账号仍可使用
 邮箱密码登录；公开注册的新用户默认可在已启用域名中选择 1 个尚未占用的邮箱地址。
+
+若要启用独立的 **Linux DO 邮箱** 工作区，另行配置
+`LINUX_DO_MAIL_CREDENTIALS_KEY`。每个 OmniMail 用户可连接一个完整的 `@linux.do`
+邮箱用户名，并填写密码或认证令牌；推荐使用 Linux DO Mail 提供的可撤销专用令牌。
+工作区按用户操作读取 INBOX 最近 20 封邮件和单封正文，不执行后台同步。已连接账号可
+通过官方 SMTP 465 向单个收件人发信，`From` 固定为已验证的账号地址，并复用现有队列、
+幂等和限速保护；当前不支持附件或向服务器 Sent 文件夹追加副本。账号也可先验证再替换
+密码或认证令牌；验证失败时仍保留原凭据。
 
 ### 备份、保留与配额
 

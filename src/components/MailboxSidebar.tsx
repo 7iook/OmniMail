@@ -6,6 +6,7 @@ import {
   Inbox,
   Cloud,
   Link2,
+  Mail,
   LogOut,
   ScrollText,
   SearchCheck,
@@ -62,6 +63,8 @@ export function MailboxSidebar({
   folder,
   counts,
   adminView,
+  iCloudWorkspaceEnabled,
+  linuxDoMailWorkspaceEnabled,
   onFolderChange,
   onAdminViewChange,
   onLogout,
@@ -70,11 +73,16 @@ export function MailboxSidebar({
   folder: Folder
   counts: MailCounts
   adminView: AdminView | null
+  iCloudWorkspaceEnabled: boolean
+  linuxDoMailWorkspaceEnabled: boolean
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
   onLogout: () => Promise<void>
 }) {
   const showAdmin = isAdminRole(user.role)
+  const folderEntryCount = folders.length
+    + Number(iCloudWorkspaceEnabled)
+    + Number(linuxDoMailWorkspaceEnabled)
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -102,7 +110,7 @@ export function MailboxSidebar({
   }
 
   return (
-    <aside className={`mail-sidebar ${showAdmin ? 'is-admin' : ''}`} ref={sidebarRef}>
+    <aside className={`mail-sidebar folder-count-${folderEntryCount} ${showAdmin ? 'is-admin' : ''}`} ref={sidebarRef}>
       <div className="sidebar-brand"><Brand /></div>
       <div className="sidebar-theme">
         <ThemeToggle />
@@ -110,7 +118,7 @@ export function MailboxSidebar({
       </div>
       <div className={`sidebar-navigation${scrollbarActive ? ' is-scrollbar-active' : ''}`}
         onScroll={showScrollbarWhileScrolling}>
-      <nav className="folder-nav" aria-label={t('邮箱文件夹')}>
+      <nav className={`folder-nav folder-count-${folderEntryCount}`} aria-label={t('邮箱文件夹')}>
         {folders.map((item) => {
           const Icon = item.icon
           const count = counts[item.count]
@@ -135,7 +143,7 @@ export function MailboxSidebar({
             </button>
           )
         })}
-        <button
+        {iCloudWorkspaceEnabled && <button
           className={adminView === 'icloud' ? 'is-active' : ''}
           type="button"
           onClick={() => {
@@ -145,7 +153,18 @@ export function MailboxSidebar({
         >
           <Cloud size={18} />
           <span>{t('iCloud 隐藏邮箱')}</span>
-        </button>
+        </button>}
+        {linuxDoMailWorkspaceEnabled && <button
+          className={adminView === 'linuxdo-mail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('linuxdo-mail')
+          }}
+        >
+          <Mail size={18} />
+          <span>{t('Linux DO 邮箱')}</span>
+        </button>}
       </nav>
 
       {showAdmin && (

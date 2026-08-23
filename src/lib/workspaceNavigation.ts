@@ -2,7 +2,17 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Folder, UserRole } from './api'
 import { isAdminRole } from './roles'
 
-export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud'
+export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail'
+
+export type WorkspaceFeatures = {
+  iCloudWorkspaceEnabled: boolean
+  linuxDoMailWorkspaceEnabled: boolean
+}
+
+const defaultWorkspaceFeatures: WorkspaceFeatures = {
+  iCloudWorkspaceEnabled: true,
+  linuxDoMailWorkspaceEnabled: true,
+}
 
 export type WorkspaceRoute =
   | { kind: 'folder'; folder: Folder; path: string }
@@ -26,10 +36,17 @@ const adminPaths: Record<AdminView, string> = {
   account: '/settings/account',
   api: '/settings/api',
   icloud: '/icloud',
+  'linuxdo-mail': '/linux-do-mail',
 }
 
-function canOpenAdminView(view: AdminView, role: UserRole): boolean {
-  if (view === 'account' || view === 'api' || view === 'icloud') return true
+function canOpenAdminView(
+  view: AdminView,
+  role: UserRole,
+  features: WorkspaceFeatures,
+): boolean {
+  if (view === 'icloud') return features.iCloudWorkspaceEnabled
+  if (view === 'linuxdo-mail') return features.linuxDoMailWorkspaceEnabled
+  if (view === 'account' || view === 'api') return true
   if (view === 'mail') return role === 'super_admin'
   return isAdminRole(role)
 }
@@ -39,7 +56,11 @@ function normalizedPath(pathname: string): string {
   return pathname.replace(/\/+$/, '')
 }
 
-export function workspaceRoute(pathname: string, role: UserRole): WorkspaceRoute {
+export function workspaceRoute(
+  pathname: string,
+  role: UserRole,
+  features: WorkspaceFeatures = defaultWorkspaceFeatures,
+): WorkspaceRoute {
   const path = normalizedPath(pathname)
   const folder = (Object.entries(folderPaths) as Array<[Folder, string]>)
     .find(([, candidate]) => candidate === path)?.[0]
@@ -47,7 +68,7 @@ export function workspaceRoute(pathname: string, role: UserRole): WorkspaceRoute
 
   const view = (Object.entries(adminPaths) as Array<[AdminView, string]>)
     .find(([, candidate]) => candidate === path)?.[0]
-  if (view && canOpenAdminView(view, role)) {
+  if (view && canOpenAdminView(view, role, features)) {
     return { kind: 'admin', view, path: adminPaths[view] }
   }
   return { kind: 'folder', folder: 'inbox', path: folderPaths.inbox }
@@ -61,8 +82,11 @@ function updatePath(path: string, replace = false) {
   window.history[replace ? 'replaceState' : 'pushState'](null, '', path)
 }
 
-export function useWorkspaceNavigation(role: UserRole) {
-  const initial = workspaceRoute(window.location.pathname, role)
+export function useWorkspaceNavigation(
+  role: UserRole,
+  features: WorkspaceFeatures = defaultWorkspaceFeatures,
+) {
+  const initial = workspaceRoute(window.location.pathname, role, features)
   const [folder, setFolder] = useState<Folder>(
     initial.kind === 'folder' ? initial.folder : 'inbox',
   )
@@ -77,7 +101,7 @@ export function useWorkspaceNavigation(role: UserRole) {
 
   useEffect(() => {
     const syncFromLocation = () => {
-      const route = workspaceRoute(window.location.pathname, role)
+      const route = workspaceRoute(window.location.pathname, role, features)
       setFolder(route.kind === 'folder' ? route.folder : 'inbox')
       setAdminView(route.kind === 'admin' ? route.view : null)
       updatePath(route.path, true)
@@ -85,7 +109,7 @@ export function useWorkspaceNavigation(role: UserRole) {
     syncFromLocation()
     window.addEventListener('popstate', syncFromLocation)
     return () => window.removeEventListener('popstate', syncFromLocation)
-  }, [role])
+  }, [features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
 
   const openFolder = useCallback((next: Folder) => {
     setFolder(next)
@@ -94,11 +118,11 @@ export function useWorkspaceNavigation(role: UserRole) {
   }, [])
 
   const openAdminView = useCallback((next: AdminView) => {
-    if (!canOpenAdminView(next, role)) return
+    if (!canOpenAdminView(next, role, features)) return
     setFolder('inbox')
     setAdminView(next)
     updatePath(adminPaths[next])
-  }, [role])
+  }, [features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
 
   return { folder, adminView, openFolder, openAdminView }
 }

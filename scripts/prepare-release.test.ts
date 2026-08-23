@@ -14,25 +14,25 @@ function prepare(tag: string) {
 
 describe('release metadata preparation', () => {
   it('validates the matching versioned release notes file', () => {
-    const result = prepare('v0.3.7')
+    const result = prepare('v0.4.0')
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('v0.3.7.md')
+    expect(result.stdout).toContain('v0.4.0.md')
     const notes = readFileSync(
-      join(process.cwd(), 'docs', 'releases', 'web', 'v0.3.7.md'),
+      join(process.cwd(), 'docs', 'releases', 'web', 'v0.4.0.md'),
       'utf8',
     )
     expect(notes).toContain('### 新增')
-    expect(notes).toContain('Apple IMAP 邮件搜索')
-    expect(notes).toContain('旧版带连字符的备份身份 UUID')
-    expect(notes).toContain('无需新增 D1 迁移')
-    expect(notes).toContain('OmniMail Float 与 Android 继续使用各自独立版本号')
+    expect(notes).toContain('Linux DO Mail')
+    expect(notes).toContain('LINUX_DO_MAIL_CREDENTIALS_KEY')
+    expect(notes).toContain('0023_linux_do_mail_accounts.sql')
+    expect(notes).toContain('OmniMail Float 扩展包或 Android 安装包')
   })
 
   it('rejects a tag that does not match package metadata', () => {
-    const result = prepare('v0.3.8')
+    const result = prepare('v0.4.1')
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain('does not match tag v0.3.8')
+    expect(result.stderr).toContain('does not match tag v0.4.1')
   })
 })

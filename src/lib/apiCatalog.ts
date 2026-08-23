@@ -1,5 +1,5 @@
 import { adminAccessEndpoints, adminSettingsEndpoints } from './apiCatalogAdmin'
-import { iCloudEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
+import { iCloudEndpoints, linuxDoMailEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
 import { mailboxEndpoints, messageEndpoints, draftEndpoints } from './apiCatalogMail'
 import { systemEndpoints, authEndpoints } from './apiCatalogPublic'
 import { localized, type ApiAuth, type ApiEndpoint, type ApiGroupId } from './apiCatalogTypes'
@@ -23,6 +23,8 @@ export const apiGroups: Array<{
     description: localized('服务端草稿的创建、保存、附件和幂等发送。', 'Create, save, attach files to, and idempotently send server drafts.') },
   { id: 'icloud', title: localized('iCloud 隐藏邮箱', 'iCloud Hide My Email'),
     description: localized('iCloud 账号、凭据、隐藏地址和按需收件箱。', 'iCloud accounts, credentials, aliases, and on-demand inbox access.') },
+  { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
+    description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),
     description: localized('统计、审计、失败邮件、全站邮件和安全清理。', 'Statistics, audit, failed mail, site-wide mail, and controlled cleanup.') },
   { id: 'adminAccess', title: localized('管理员：用户与访问', 'Admin: users and access'),
@@ -38,6 +40,7 @@ export const apiEndpoints: ApiEndpoint[] = [
   ...messageEndpoints,
   ...draftEndpoints,
   ...iCloudEndpoints,
+  ...linuxDoMailEndpoints,
   ...adminOperationEndpoints,
   ...adminAccessEndpoints,
   ...adminSettingsEndpoints,

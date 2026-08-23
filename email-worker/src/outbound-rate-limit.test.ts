@@ -73,6 +73,20 @@ describe('outbound rate limiting', () => {
     expect(disabled.statements).toHaveLength(1)
   })
 
+  it('enforces a provider hard cap even when the global limiter is disabled', async () => {
+    const capped = database(1, undefined, {
+      outbound_minute_limit: null,
+      outbound_day_limit: null,
+      enabled: '0',
+      minute_limit: '10',
+      day_limit: '200',
+    })
+
+    await expect(claimOutboundSend(capped.db, 'user-1', 125, { dayLimit: 50 }))
+      .resolves.toEqual({ allowed: true })
+    expect(capped.statements[1].bindings.slice(-2)).toEqual([10, 50])
+  })
+
   it('returns the remaining minute window after the short limit is reached', async () => {
     const { db } = database(0, {
       minute_started_at: 120,

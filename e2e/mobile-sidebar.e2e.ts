@@ -17,6 +17,7 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
         registrationMethod: 'password', linuxDoLoginEnabled: false,
         registrationDomainPolicy: { mode: 'blocklist', domains: [] },
         registrationProtectionReady: false, turnstileSiteKey: '',
+        iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true,
         mailRefreshInterval: 30, remoteImagesEnabled: false,
         unassignedMailEnabled: false, superAdminEmail: user.email,
         setupRequirements: {
@@ -66,7 +67,7 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
   for (const width of [360, 393, 430]) {
     await page.setViewportSize({ width, height: 800 })
     const metrics = await primaryMetrics()
-    expect(metrics.count).toBe(7)
+    expect(metrics.count).toBe(8)
     expect(metrics.widthDelta).toBeLessThanOrEqual(3)
     expect(metrics.minWidth).toBeGreaterThanOrEqual(44)
     expect(metrics.topDelta).toBeLessThanOrEqual(1)
@@ -99,7 +100,7 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
 
   await page.setViewportSize({ width: 1280, height: 520 })
   expect(await sidebar.locator('.folder-nav > button span').allTextContents())
-    .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 隐藏邮箱'])
+    .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 隐藏邮箱', 'Linux DO 邮箱'])
   await expect(sidebar).toHaveCSS('overflow-y', 'hidden')
   await expect(navigation).toHaveCSS('overflow-y', 'scroll')
   expect(await navigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
@@ -133,5 +134,5 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
   await page.reload()
   await expect(page.getByRole('button', { name: '展开管理员功能' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: '管理员功能' })).toHaveCount(0)
-  expect((await primaryMetrics()).count).toBe(7)
+  expect((await primaryMetrics()).count).toBe(8)
 })

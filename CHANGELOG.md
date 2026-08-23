@@ -5,6 +5,34 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.4.0] - 2026-08-23
+
+### 新增
+
+- 新增独立的 Linux DO Mail 工作区，支持连接一个 `@linux.do` 邮箱、读取 INBOX 最近
+  邮件与正文，并执行服务器端搜索。
+- 新增 Linux DO Mail SMTP 发信、已发送视图与发件搜索，复用现有队列、幂等、失败状态、
+  审计日志和用户限速。
+- 管理员可分别控制 iCloud 与 Linux DO Mail 工作区入口是否显示。
+
+### 改进
+
+- 提取 iCloud 与 Linux DO Mail 共用的最小 IMAP 连接层，统一 TLS、超时与协议错误处理。
+- Linux DO Mail 支持先验证再轮换密码或认证令牌，验证失败时保留原凭据。
+
+### 安全与兼容
+
+- Linux DO Mail 凭据通过独立 Secret 进行 AES-GCM 加密，服务地址固定为官方
+  `mail.linux.do:993/465`，API 不返回原始凭据。
+- SMTP 发件地址固定为已验证账号，并拒绝命令和邮件头换行注入；每日硬上限不受全局限速
+  开关影响。
+- 从 `v0.3.7` 升级会自动应用 D1 迁移 `0023` 和 `0024`；使用 Linux DO Mail 时需新增
+  `LINUX_DO_MAIL_CREDENTIALS_KEY` Secret，不使用该功能时可以留空。
+
+### 发布
+
+- Web 版本升级为 `0.4.0`；OmniMail Float 与 Android 保持各自独立版本。
+
 ## [0.3.7] - 2026-08-22
 
 ### 新增

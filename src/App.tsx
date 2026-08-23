@@ -32,6 +32,7 @@ import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigatio
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
 const ICloudWorkspace = lazy(async () => ({ default: (await import('./components/ICloudWorkspace')).ICloudWorkspace }))
+const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('./components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
 const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
@@ -49,7 +50,8 @@ function Mailbox({
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
-  const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role)
+  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled }
+  const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role, workspaceFeatures)
   const [query, setQuery] = useState('')
   const [searchQuery, nextMessageSignal] = useMessageSearch(query)
   const [messages, setMessages] = useState<MessageSummary[]>([])
@@ -342,28 +344,26 @@ function Mailbox({
   }
 
   function changeAdminView(next: AdminView) {
-    if (next !== 'account' && next !== 'api' && next !== 'icloud' && !isAdminRole(user.role)) return
+    if (next !== 'account' && next !== 'api' && next !== 'icloud' && next !== 'linuxdo-mail' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
     clearSelectedMessage()
     setQuery('')
   }
-
   const changeDraftCount = useCallback((drafts: number) => setCounts((current) => ({ ...current, drafts })), [])
   const draftEditorInline = !adminView && folder === 'drafts' && draftEditor.draftId !== undefined
   return (
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
-      <MailboxSidebar
-        user={user}
-        folder={folder}
-        counts={counts}
-        adminView={adminView}
+      <MailboxSidebar user={user} folder={folder}
+        counts={counts} adminView={adminView}
+        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
+        linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
         onFolderChange={changeFolder}
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}
       />
-
-      {adminView === 'icloud' ? (
+      {adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
+        : adminView === 'icloud' ? (
         <Suspense fallback={(
           <div className="icloud-mail-view"><section className="list-pane"><div className="statistics-loading" role="status">
             <LoaderCircle className="spin" size={20} />{t('正在打开 iCloud 收件箱…')}

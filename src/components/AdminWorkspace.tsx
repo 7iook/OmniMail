@@ -17,6 +17,7 @@ import { AdminPageHeader } from './AdminPageHeader'
 import { AuditLogs } from './AuditLogs'
 import { DomainManagement } from './DomainManagement'
 import { InvitationManagement } from './InvitationManagement'
+import { MailWorkspaceSettings } from './MailWorkspaceSettings'
 import type { AdminView } from './MailboxSidebar'
 import { MailStatistics } from './MailStatistics'
 import { OutboundRateLimitSettings } from './OutboundRateLimitSettings'
@@ -197,7 +198,7 @@ export function AdminWorkspace({
   if (view === 'logs') return <AuditLogs />
   if (view === 'mail' && user.role === 'super_admin') return <AdminMailManagement />
   if (view === 'account') {
-    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenApiGuide={onOpenApiGuide} onOpenICloud={onOpenICloud} />
+    return <AccountSettings user={user} onUserChange={onUserChange} onLogout={onLogout} onOpenApiGuide={onOpenApiGuide} onOpenICloud={onOpenICloud} iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled} />
   }
   if (view === 'api') return <ApiGuide />
 
@@ -279,6 +280,12 @@ export function AdminWorkspace({
             ...config,
             randomMailboxPrefix,
           })}
+        />
+
+        <MailWorkspaceSettings
+          iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
+          linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
+          onChange={(settings) => onConfigChange({ ...config, ...settings })}
         />
 
         <section className="admin-card admin-card--settings">

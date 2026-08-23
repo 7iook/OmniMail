@@ -7,6 +7,21 @@ import {
 } from './outbound-message'
 import type { Env, SessionUser } from './types'
 
+const linuxDoDelivery = vi.hoisted(() => ({
+  deliver: vi.fn(async () => 'smtp:message-id@linux.do'),
+}))
+
+vi.mock('./linux-do-mail-outbound-provider', () => {
+  class LinuxDoMailOutboundError extends Error {
+    constructor(
+      message: string,
+      readonly retryable: boolean,
+      readonly deliveryUncertain = false,
+    ) { super(message) }
+  }
+  return { LinuxDoMailOutboundError, deliverWithLinuxDoMail: linuxDoDelivery.deliver }
+})
+
 const user: SessionUser = {
   id: 'user-1',
   email: 'owner@example.com',
@@ -302,6 +317,33 @@ describe('outbound delivery', () => {
     ))).toBe(true)
     expect(statements.some(({ sql, bindings }) => (
       sql.includes('INSERT INTO audit_logs') && bindings.includes('message.send')
+    ))).toBe(true)
+  })
+
+  it('uses the connected Linux DO SMTP provider for a hidden external mailbox', async () => {
+    linuxDoDelivery.deliver.mockClear()
+    const { env, statements } = environment({
+      id: 'out-linuxdo', status: 'processing', mailbox_address: 'member@linux.do',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Hello',
+      body_key: 'bodies/out-linuxdo.json', in_reply_to: null, references_header: null,
+      client_request_id: 'request_linuxdo', domain_is_active: 0, mailbox_is_hidden: 1,
+    })
+    env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
+      text: 'Message body', html: '<p>Message body</p>',
+    })) as unknown as R2ObjectBody)
+
+    await deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-linuxdo', userId: user.id, ip: '127.0.0.1',
+      auditAction: 'linuxdo_mail.message.send', auditDetail: { recipient: 'friend@example.net' },
+    })
+
+    expect(linuxDoDelivery.deliver).toHaveBeenCalledWith(env, expect.objectContaining({
+      userId: user.id,
+      mailboxAddress: 'member@linux.do',
+      recipient: 'friend@example.net',
+    }))
+    expect(statements.some(({ sql, bindings }) => (
+      sql.includes("SET status = 'sent'") && bindings.includes('smtp:message-id@linux.do')
     ))).toBe(true)
   })
 
