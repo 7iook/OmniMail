@@ -32,6 +32,7 @@ import { useTransientScrollbar } from '../hooks/useTransientScrollbar'
 import { useMessageReaderScroll } from '../hooks/useMessageReaderScroll'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 import { MessageAttachments } from './MessageAttachments'
+import { MessageReaderToolbarTitle } from './MessageReaderToolbarTitle'
 import { MessageThread } from './MessageThread'
 import { MessageTranslation } from './MessageTranslation'
 import { ReplyComposer } from './ReplyComposer'
@@ -358,19 +359,14 @@ export function MessageReader({
         <button className="icon-button mobile-back" type="button" onClick={onBack} aria-label={t('返回邮件列表')}>
           <ArrowLeft size={18} />
         </button>
-        <h2 className="reader-toolbar__title">
-          {readerScroll.subjectPinned ? (
-            <button
-              className="reader-toolbar__subject"
-              type="button"
-              onClick={readerScroll.scrollToTop}
-              aria-label={`${t('回到顶部')}：${readerSubject}`}
-              data-tooltip={`${readerSubject} · ${t('回到顶部')}`}
-            >
-              {readerSubject}
-            </button>
-          ) : t(managementMode ? '管理邮件' : '邮件详情')}
-        </h2>
+        <MessageReaderToolbarTitle
+          key={message.id}
+          detailsLabel={t(managementMode ? '管理邮件' : '邮件详情')}
+          scrollTopLabel={t('回到顶部')}
+          subject={readerSubject}
+          subjectPinned={readerScroll.subjectPinned}
+          onScrollTop={readerScroll.scrollToTop}
+        />
         <div className="reader-toolbar__spacer" />
         {message.folder === 'trash' && (
           <button className="toolbar-button" type="button" onClick={onRestore}>

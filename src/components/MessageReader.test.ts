@@ -11,12 +11,26 @@ import {
 } from './MessageReader'
 import { forceLightEmailColorScheme, normalizeRemoteImageSource } from '../lib/emailContent'
 import { subjectPassedReaderTop } from '../hooks/useMessageReaderScroll'
+import { typewriterFrame } from './MessageReaderToolbarTitle'
 
 describe('message reader scroll navigation', () => {
   it('pins the subject only after it has passed the reader top edge', () => {
     expect(subjectPassedReaderTop(120, 70, true)).toBe(false)
     expect(subjectPassedReaderTop(60, 70, false)).toBe(true)
     expect(subjectPassedReaderTop(120, 70, false)).toBe(false)
+  })
+
+  it('erases and types text in both toolbar-title directions', () => {
+    expect(typewriterFrame('邮件详情', 'Apple Invites', 0)).toEqual({
+      text: '邮件详情', complete: false,
+    })
+    expect(typewriterFrame('邮件详情', 'Apple Invites', 80).text).toBe('')
+    expect(typewriterFrame('邮件详情', 'Apple Invites', 10_000)).toEqual({
+      text: 'Apple Invites', complete: true,
+    })
+    expect(typewriterFrame('Apple Invites', '邮件详情', 10_000)).toEqual({
+      text: '邮件详情', complete: true,
+    })
   })
 })
 
