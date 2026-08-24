@@ -247,14 +247,16 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
               <span>{t('下一步会验证凭据，并加密保存在当前 OmniMail 部署中。')}</span></li>
           </ol>
         </div>
-        <a className="button button--secondary gmail-guide-link"
-          href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
-          <ExternalLink size={16} aria-hidden="true" />{t('打开 Google 应用密码')}</a>
         <p className="gmail-guide-warning"><AlertCircle size={15} aria-hidden="true" />
           {t('删除本地连接不会撤销 Google 端密码；断开后仍需返回该页面手动移除。')}</p>
-        <button className="button button--primary" type="button" onClick={() => {
-          clearFeedback(); setView('connect')
-        }}>{t('我已准备好应用密码')}</button>
+        <div className="gmail-guide-actions">
+          <a className="button button--secondary gmail-guide-link"
+            href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+            <ExternalLink size={16} aria-hidden="true" />{t('打开 Google 应用密码')}</a>
+          <button className="button button--primary" type="button" onClick={() => {
+            clearFeedback(); setView('connect')
+          }}>{t('我已准备好应用密码')}</button>
+        </div>
       </div>}
 
       {view === 'connect' && <form className="icloud-form gmail-connect-form"

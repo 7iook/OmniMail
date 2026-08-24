@@ -124,10 +124,29 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await page.locator('.gmail-list-state--empty')
     .getByRole('button', { name: '添加 Gmail 账号' }).click()
   const guide = page.getByRole('dialog', { name: '创建应用专用密码' })
-  await expect(guide.getByRole('link', { name: '打开 Google 应用密码' })).toHaveAttribute(
+  const googlePasswordLink = guide.getByRole('link', { name: '打开 Google 应用密码' })
+  const readyButton = guide.getByRole('button', { name: '我已准备好应用密码' })
+  await expect(googlePasswordLink).toHaveAttribute(
     'href', 'https://myaccount.google.com/apppasswords',
   )
-  await guide.getByRole('button', { name: '我已准备好应用密码' }).click()
+  const guideSymbol = guide.locator('.gmail-guide-symbol')
+  const guideSteps = guide.locator('.gmail-guide-card ol')
+  expect(await guideSymbol.evaluate((element) => element.getBoundingClientRect().bottom))
+    .toBeLessThanOrEqual(await guideSteps.evaluate((element) => element.getBoundingClientRect().top))
+  expect(Math.abs(
+    await googlePasswordLink.evaluate((element) => element.getBoundingClientRect().top)
+      - await readyButton.evaluate((element) => element.getBoundingClientRect().top),
+  )).toBeLessThan(1)
+  await page.setViewportSize({ width: 375, height: 812 })
+  expect(Math.abs(
+    await googlePasswordLink.evaluate((element) => element.getBoundingClientRect().top)
+      - await readyButton.evaluate((element) => element.getBoundingClientRect().top),
+  )).toBeLessThan(1)
+  expect(await guide.locator('.gmail-guide-actions').evaluate((element) => (
+    element.scrollWidth <= element.clientWidth
+  ))).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await readyButton.click()
   const connect = page.getByRole('dialog', { name: '连接 Gmail 账号' })
   await connect.getByLabel('账号名称').fill('个人 Gmail')
   await connect.getByLabel('邮箱地址').fill('user@gmail.com')
