@@ -20,7 +20,7 @@ import { api, type GmailAccount } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 
-type View = 'accounts' | 'account' | 'guide' | 'connect'
+type View = 'accounts' | 'account' | 'connect'
 
 function statusLabel(account: GmailAccount): string {
   if (account.status === 'syncing') return t('正在同步')
@@ -45,7 +45,7 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
   onClose: () => void
   onChanged: () => Promise<void>
 }) {
-  const [view, setView] = useState<View>(accounts.length && !startAdding ? 'accounts' : 'guide')
+  const [view, setView] = useState<View>(accounts.length && !startAdding ? 'accounts' : 'connect')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -96,10 +96,6 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
     clearFeedback()
     setConfirmDelete(false)
     setPassword('')
-    if (view === 'connect') {
-      setView('guide')
-      return
-    }
     setTarget(null)
     setView('accounts')
   }
@@ -205,12 +201,11 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
 
   const title = view === 'accounts' ? t('Gmail 账号管理')
     : view === 'account' ? t('设置 {name}', { name: target?.name || t('Gmail 账号') })
-      : view === 'guide' ? t('创建应用专用密码') : t('连接 Gmail 账号')
+      : t('连接 Gmail 账号')
   const description = view === 'accounts' ? t('连接新账号，或选择已有账号管理凭据与状态。')
     : view === 'account' ? t('修改备注、验证连接、更新凭据或断开邮箱。')
-      : view === 'guide' ? t('先在 Google 账号中生成一组独立凭据。')
-        : t('验证 Gmail IMAP 后，加密保存应用专用密码。')
-  const canGoBack = view !== 'accounts' && (view !== 'guide' || accounts.length > 0)
+      : t('验证 Gmail IMAP 后，加密保存应用专用密码。')
+  const canGoBack = view === 'account' || (view === 'connect' && accounts.length > 0)
 
   return <div className="icloud-modal-backdrop is-visible gmail-dialog-backdrop" role="presentation"
     onMouseDown={(event) => {
@@ -233,30 +228,6 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
       {(notice || error) && <div className="gmail-dialog-feedback">
         {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
-      </div>}
-
-      {view === 'guide' && <div className="gmail-guide">
-        <div className="gmail-guide-card">
-          <span className="gmail-guide-symbol"><ShieldCheck size={23} aria-hidden="true" /></span>
-          <ol>
-            <li><strong>{t('先开启 Google 两步验证')}</strong>
-              <span>{t('应用专用密码只对已启用两步验证的账号开放。')}</span></li>
-            <li><strong>{t('创建名为 OmniMail 的应用密码')}</strong>
-              <span>{t('某些 Workspace 和 Advanced Protection 账号不支持。')}</span></li>
-            <li><strong>{t('复制一次性显示的 16 位密码')}</strong>
-              <span>{t('下一步会验证凭据，并加密保存在当前 OmniMail 部署中。')}</span></li>
-          </ol>
-        </div>
-        <p className="gmail-guide-warning"><AlertCircle size={15} aria-hidden="true" />
-          {t('删除本地连接不会撤销 Google 端密码；断开后仍需返回该页面手动移除。')}</p>
-        <div className="gmail-guide-actions">
-          <a className="button button--secondary gmail-guide-link"
-            href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
-            <ExternalLink size={16} aria-hidden="true" />{t('打开 Google 应用密码')}</a>
-          <button className="button button--primary" type="button" onClick={() => {
-            clearFeedback(); setView('connect')
-          }}>{t('我已准备好应用密码')}</button>
-        </div>
       </div>}
 
       {view === 'connect' && <form className="icloud-form gmail-connect-form"
@@ -283,17 +254,22 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
           <small id="gmail-connect-password-help">
             {t('这不是 Google 账号主密码；可以直接粘贴带空格的分组格式。')}</small>
         </label>
-        <footer><button className="button button--primary" type="submit" disabled={Boolean(busy)}>
-          {busy === 'connect' ? <LoaderCircle className="spin" size={16} /> : <KeyRound size={16} />}
-          {t(busy === 'connect' ? '正在验证并连接…' : '验证并连接')}
-        </button></footer>
+        <footer className="gmail-connect-actions">
+          <a className="button button--secondary" href="https://myaccount.google.com/apppasswords"
+            target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden="true" />
+            {t('创建 Google 应用密码')}</a>
+          <button className="button button--primary" type="submit" disabled={Boolean(busy)}>
+            {busy === 'connect' ? <LoaderCircle className="spin" size={16} /> : <KeyRound size={16} />}
+            {t(busy === 'connect' ? '正在验证并连接…' : '验证并连接')}
+          </button>
+        </footer>
       </form>}
 
       {view === 'accounts' && <div className="gmail-account-list">
         <div className="gmail-account-list__summary">
           <span>{t('已连接 {count} 个账号', { count: accounts.length })}</span>
           <button className="button button--primary button--small" type="button"
-            onClick={() => { clearFeedback(); setView('guide') }}>
+            onClick={() => { clearFeedback(); setView('connect') }}>
             <Plus size={15} aria-hidden="true" />{t('添加账号')}</button>
         </div>
         {!accounts.length && <div className="gmail-account-list__empty">

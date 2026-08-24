@@ -42,10 +42,11 @@ export function createGmailApi(request: Request, jsonBody: (value: unknown) => s
       `/api/gmail/accounts/${encodeURIComponent(accountId)}/sync`,
       { method: 'POST' },
     ),
-    gmailMessages: (accountId = '', cursor = '', signal?: AbortSignal) => {
+    gmailMessages: (accountId = '', cursor = '', query = '', signal?: AbortSignal) => {
       const search = new URLSearchParams({ limit: '30' })
       if (accountId) search.set('accountId', accountId)
       if (cursor) search.set('cursor', cursor)
+      if (query) search.set('q', query)
       return request<{ messages: GmailMessageSummary[]; page: PageInfo }>(
         `/api/gmail/messages?${search}`,
         { signal },

@@ -13,14 +13,16 @@ describe('Gmail workspace accessibility boundaries', () => {
     expect(html).toContain('Gmail 功能尚未启用')
   })
 
-  it('renders the account guide as a named modal without exposing credentials', () => {
+  it('opens the connection form directly with an app-password recovery link', () => {
     const html = renderToStaticMarkup(
       <GmailAccountDialog accounts={[]}
         onClose={() => undefined} onChanged={async () => undefined} />,
     )
     expect(html).toContain('role="dialog"')
     expect(html).toContain('aria-modal="true"')
-    expect(html).toContain('创建应用专用密码')
+    expect(html).toContain('连接 Gmail 账号')
+    expect(html).toContain('创建 Google 应用密码')
+    expect(html).not.toContain('先开启 Google 两步验证')
     expect(html).not.toContain('app_password_cipher')
   })
 

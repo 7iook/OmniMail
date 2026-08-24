@@ -30,7 +30,6 @@
 
 .gmail-dialog-notice,
 .gmail-account-detail-error,
-.gmail-guide-warning,
 .gmail-account-note {
   display: flex;
   align-items: flex-start;
@@ -49,25 +48,10 @@
 
 .gmail-dialog-notice svg,
 .gmail-account-detail-error svg,
-.gmail-guide-warning svg,
 .gmail-account-note svg { flex: 0 0 auto; margin-top: 1px; }
 
-.gmail-guide,
 .gmail-account-list,
 .gmail-account-settings { display: grid; gap: 14px; }
-
-.gmail-guide-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  background: color-mix(in srgb, var(--surface-muted) 58%, var(--surface));
-}
-
-.gmail-guide-symbol,
 .gmail-account-card__icon,
 .gmail-account-summary__icon,
 .gmail-account-section-icon {
@@ -78,59 +62,9 @@
   color: var(--text-secondary);
 }
 
-.gmail-guide-symbol {
-  width: 52px;
-  height: 52px;
-  border-radius: 15px;
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.gmail-guide ol {
-  display: grid;
-  gap: 13px;
-  margin: 0;
-  padding-left: 21px;
-}
-
-.gmail-guide li { padding-left: 3px; }
-.gmail-guide li strong,
-.gmail-guide li span { display: block; }
-.gmail-guide li strong { color: var(--text); font-size: 13px; }
-.gmail-guide li span {
-  margin-top: 3px;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.gmail-guide-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.gmail-guide-actions .button {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding-inline: 12px;
-  line-height: 1.35;
-  text-align: center;
-  white-space: normal;
-}
-
-.gmail-guide-warning {
-  padding: 10px 11px;
-  border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--line));
-  border-radius: 11px;
-  background: var(--warning-soft);
-  color: var(--warning);
-  font-size: 11px;
-}
-
 .gmail-connect-form { gap: 14px; }
-.gmail-connect-form > footer { justify-content: flex-start; }
-.gmail-connect-form > footer .button { min-height: 44px; }
+.gmail-connect-form > footer.gmail-connect-actions { justify-content: flex-end; gap: 9px; }
+.gmail-connect-actions .button { min-width: 150px; min-height: 44px; }
 .gmail-connect-form label > small {
   color: var(--text-tertiary);
   font-size: 10px;
@@ -347,10 +281,21 @@
 @media (max-width: 760px) {
   .gmail-account-dialog { width: 100%; }
   .gmail-account-dialog > header.has-back { grid-template-columns: 38px minmax(0, 1fr) 38px; }
-  .gmail-guide-card { gap: 12px; padding: 13px; }
-  .gmail-guide-symbol { width: 44px; height: 44px; border-radius: 13px; }
-  .gmail-guide-actions { gap: 8px; }
-  .gmail-guide-actions .button { padding-inline: 8px; font-size: 11px; }
+  .gmail-connect-form > footer.gmail-connect-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+  .gmail-connect-actions .button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: center;
+    white-space: normal;
+  }
   .gmail-account-card { grid-template-columns: 38px minmax(0, 1fr); }
   .gmail-account-card__icon { width: 38px; height: 38px; }
   .gmail-account-card__side { grid-column: 2; grid-template-columns: auto 1fr; align-items: center; justify-items: start; }

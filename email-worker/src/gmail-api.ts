@@ -4,7 +4,9 @@ import { gmailImapEnabled } from './gmail-credentials'
 import type { GmailImapClient } from './gmail-imap'
 import { ImapConnectionError } from './imap-errors'
 import { GmailAccountStore, GmailStoreError, publicGmailAccount } from './gmail-store'
+import { markRemoteMessageRead } from './gmail-read-state'
 import { gmailSyncErrorCode } from './gmail-sync'
+import { searchLikePattern } from './message-search'
 import type { GmailAccount, PublicGmailAccount } from './gmail-types'
 import { sha256 } from './auth'
 import type { Env, GmailSyncJob, SessionUser } from './types'
@@ -422,12 +424,20 @@ export async function listGmailMessages(
     }
     const limitValue = Number(search.get('limit') || 30)
     const limit = Number.isInteger(limitValue) ? Math.max(1, Math.min(50, limitValue)) : 30
+    const query = (search.get('q') || '').trim().slice(0, 120)
     const cursor = decodeCursor(search.get('cursor'))
     const conditions = ['a.user_id = ?']
     const bindings: unknown[] = [user.id]
     if (accountId) {
       conditions.push('a.id = ?')
       bindings.push(accountId)
+    }
+    if (query) {
+      const pattern = searchLikePattern(query)
+      conditions.push(`(m.sender_name LIKE ? ESCAPE '\' OR m.sender_address LIKE ? ESCAPE '\'
+        OR m.recipients_json LIKE ? ESCAPE '\' OR m.cc_json LIKE ? ESCAPE '\'
+        OR m.subject LIKE ? ESCAPE '\')`)
+      bindings.push(pattern, pattern, pattern, pattern, pattern)
     }
     if (cursor) {
       conditions.push('(m.internal_date < ? OR (m.internal_date = ? AND m.id < ?))')
@@ -519,28 +529,6 @@ async function remoteMessage(
   }
 }
 
-async function markRemoteMessageRead(env: Env, account: GmailAccount, row: GmailMessageRow, uid: number): Promise<boolean> {
-  let client: GmailImapClient | null = null
-  try {
-    client = await gmailClient(account.email, account.appPassword)
-    await client.open()
-    await client.markSeen(uid)
-    try {
-      await env.DB.prepare('UPDATE gmail_imap_messages SET is_read = 1, updated_at = ? WHERE id = ? AND account_id = ?')
-        .bind(Math.floor(Date.now() / 1000), row.id, account.id).run()
-    } catch (error) {
-      console.error('Unable to persist Gmail read state', { accountId: account.id, messageId: row.id, type: error instanceof Error ? error.name : typeof error })
-    }
-    return true
-  } catch (error) {
-    console.error('Unable to mark Gmail message as seen', { accountId: account.id, messageId: row.id,
-      code: gmailSyncErrorCode(error), type: error instanceof Error ? error.name : typeof error })
-    return false
-  } finally {
-    try { await client?.close() } catch { /* read-state cleanup must not affect the body */ }
-  }
-}
-
 export async function getGmailMessage(
   env: Env,
   user: SessionUser,
@@ -549,7 +537,7 @@ export async function getGmailMessage(
 ): Promise<Response> {
   try {
     const { row, parsed, account, uid } = await remoteMessage(env, user, accountId, messageId)
-    const markedRead = !row.is_read && await markRemoteMessageRead(env, account, row, uid)
+    const markedRead = !row.is_read && await markRemoteMessageRead(env, account, row.id, uid)
     return privateJson({
       message: {
         ...publicMessage(row),

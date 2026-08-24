@@ -77,7 +77,7 @@ describe('Gmail account API validation', () => {
     const list = await listGmailMessages(
       env,
       user,
-      new Request('https://mail.example.com/api/gmail/messages'),
+      new Request('https://mail.example.com/api/gmail/messages?q=Security%20100%25_'),
     )
     const detail = await getGmailMessage(env, user, 'other-account', 'other-message')
 
@@ -85,6 +85,11 @@ describe('Gmail account API validation', () => {
     expect(detail.status).toBe(404)
     expect(statements[0].sql).toContain('a.user_id = ?')
     expect(statements[0].bindings[0]).toBe(user.id)
+    expect(statements[0].sql).toContain('m.sender_name LIKE ?')
+    expect(statements[0].sql).toContain('m.subject LIKE ?')
+    expect(statements[0].bindings.slice(1, 6)).toEqual(
+      Array(5).fill('%security 100\\%\\_%'),
+    )
     expect(statements[1].sql).toContain('WHERE a.user_id = ? AND a.id = ? AND m.id = ?')
     expect(statements[1].bindings).toEqual([user.id, 'other-account', 'other-message'])
   })

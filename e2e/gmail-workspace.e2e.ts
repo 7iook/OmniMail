@@ -53,7 +53,7 @@ async function mockGmail(page: Page) {
       return json(route, { enabled: true, accounts: account ? [account] : [] })
     }
     if (path === '/api/gmail/messages' && request.method() === 'GET') {
-      const messages = account ? Array.from({ length: 30 }, (_, index) => ({
+      const indexed = account ? Array.from({ length: 30 }, (_, index) => ({
         id: `message-${index + 1}`, account: {
           id: 'gmail-1', name: '个人 Gmail', email: 'user@gmail.com', status: 'active',
         },
@@ -65,9 +65,17 @@ async function mockGmail(page: Page) {
         sizeBytes: 1024, isRead: index !== 0, isStarred: false,
         hasAttachments: index === 0,
       })) : []
+      const query = (url.searchParams.get('q') || '').trim().toLowerCase()
+      const messages = query ? indexed.filter((message) => [
+        message.senderName, message.senderAddress, message.subject, ...message.recipients,
+      ].some((value) => value.toLowerCase().includes(query))) : indexed
       return json(route, {
         messages,
-        page: { hasMore: Boolean(account), nextCursor: account ? 'cursor-1' : null, limit: 30 },
+        page: {
+          hasMore: Boolean(account) && !query,
+          nextCursor: account && !query ? 'cursor-1' : null,
+          limit: 30,
+        },
       })
     }
     if (path === '/api/gmail/accounts/gmail-1/messages/message-1') {
@@ -123,31 +131,32 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await expect(page.getByRole('heading', { name: '连接你的第一个 Gmail' })).toBeVisible()
   await page.locator('.gmail-list-state--empty')
     .getByRole('button', { name: '添加 Gmail 账号' }).click()
-  const guide = page.getByRole('dialog', { name: '创建应用专用密码' })
-  const googlePasswordLink = guide.getByRole('link', { name: '打开 Google 应用密码' })
-  const readyButton = guide.getByRole('button', { name: '我已准备好应用密码' })
+  const connect = page.getByRole('dialog', { name: '连接 Gmail 账号' })
+  const googlePasswordLink = connect.getByRole('link', { name: '创建 Google 应用密码' })
+  const connectButton = connect.getByRole('button', { name: '验证并连接' })
   await expect(googlePasswordLink).toHaveAttribute(
     'href', 'https://myaccount.google.com/apppasswords',
   )
-  const guideSymbol = guide.locator('.gmail-guide-symbol')
-  const guideSteps = guide.locator('.gmail-guide-card ol')
-  expect(await guideSymbol.evaluate((element) => element.getBoundingClientRect().bottom))
-    .toBeLessThanOrEqual(await guideSteps.evaluate((element) => element.getBoundingClientRect().top))
   expect(Math.abs(
     await googlePasswordLink.evaluate((element) => element.getBoundingClientRect().top)
-      - await readyButton.evaluate((element) => element.getBoundingClientRect().top),
+      - await connectButton.evaluate((element) => element.getBoundingClientRect().top),
+  )).toBeLessThan(1)
+  expect(await connectButton.evaluate((element) => element.getBoundingClientRect().right))
+    .toBeGreaterThan(await googlePasswordLink.evaluate((element) => element.getBoundingClientRect().right))
+  expect(Math.abs(
+    await connectButton.evaluate((element) => element.getBoundingClientRect().right)
+      - await connect.locator('.gmail-connect-actions')
+        .evaluate((element) => element.getBoundingClientRect().right),
   )).toBeLessThan(1)
   await page.setViewportSize({ width: 375, height: 812 })
   expect(Math.abs(
     await googlePasswordLink.evaluate((element) => element.getBoundingClientRect().top)
-      - await readyButton.evaluate((element) => element.getBoundingClientRect().top),
+      - await connectButton.evaluate((element) => element.getBoundingClientRect().top),
   )).toBeLessThan(1)
-  expect(await guide.locator('.gmail-guide-actions').evaluate((element) => (
+  expect(await connect.locator('.gmail-connect-actions').evaluate((element) => (
     element.scrollWidth <= element.clientWidth
   ))).toBe(true)
   await page.setViewportSize({ width: 1280, height: 720 })
-  await readyButton.click()
-  const connect = page.getByRole('dialog', { name: '连接 Gmail 账号' })
   await connect.getByLabel('账号名称').fill('个人 Gmail')
   await connect.getByLabel('邮箱地址').fill('user@gmail.com')
   const password = connect.getByLabel('16 位应用专用密码')
@@ -168,6 +177,12 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await page.getByRole('button', { name: '关闭' }).click()
   await expect(page.getByText('安全提醒')).toBeVisible()
   await expect(page.locator('.gmail-mail-view.icloud-mail-view')).toBeVisible()
+  await expect(page.locator('.gmail-message-list .message-row')).toHaveCount(30)
+  const search = page.getByRole('searchbox', { name: '搜索 Gmail 邮件' })
+  await search.fill('Sender 30')
+  await expect(page.locator('.gmail-message-list .message-row')).toHaveCount(1)
+  await expect(page.getByText('测试邮件 30')).toBeVisible()
+  await page.getByRole('button', { name: '清除搜索' }).click()
   await expect(page.locator('.gmail-message-list .message-row')).toHaveCount(30)
   await page.getByRole('button', { name: '同步全部 Gmail 账号' }).click()
   await expect.poll(() => state.syncRequests).toEqual([

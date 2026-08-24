@@ -189,19 +189,19 @@ curl --request POST \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/gmail/messages catalog:e92dc7090f05 -->
+<!-- endpoint:GET /api/gmail/messages catalog:5d0abc8719b4 -->
 ## `GET /api/gmail/messages`
 
 **列出 Gmail 聚合邮件 / List unified Gmail messages**
 
-按账号或全部账号读取 D1 元数据索引，并使用稳定游标分页。
+按账号或全部账号搜索 D1 元数据索引，并使用稳定游标分页。
 
-> Read the D1 metadata index for one or all accounts with stable cursor pagination.
+> Search the D1 metadata index for one or all accounts with stable cursor pagination.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Query · accountId?, limit=1..50?, cursor? |
+| 请求 | Query · accountId?, q?, limit=1..50?, cursor? |
 | 成功响应 | 200 · { messages, page } |
 
 ### cURL 示例

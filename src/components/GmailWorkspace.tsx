@@ -7,6 +7,7 @@ import {
   Paperclip,
   Plus,
   RefreshCw,
+  Search,
   Settings2,
   ShieldCheck,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 import { GmailAccountDialog } from './GmailAccountDialog'
 import { GmailReader } from './GmailReader'
+import { GmailSearchField } from './GmailSearchField'
 import { GmailScopeSwitcher } from './GmailScopeSwitcher'
 
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
@@ -44,6 +46,8 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
 }) {
   const [accounts, setAccounts] = useState<GmailAccount[]>([])
   const [accountId, setAccountId] = useState('')
+  const [query, setQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [messages, setMessages] = useState<GmailMessageSummary[]>([])
   const [page, setPage] = useState<PageInfo>(emptyPage)
   const [selected, setSelected] = useState<GmailMessageSummary | null>(null)
@@ -56,6 +60,8 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
   const [error, setError] = useState('')
   const [detailError, setDetailError] = useState('')
   const [notice, setNotice] = useState('')
+  const listController = useRef<AbortController | null>(null)
+  const listRequestId = useRef(0)
   const messageController = useRef<AbortController | null>(null)
   const syncRequestId = useRef(0)
   const manageButton = useRef<HTMLButtonElement>(null)
@@ -75,20 +81,25 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
 
   const loadMessages = useCallback(async (quiet = false) => {
     if (!enabled) return
+    listController.current?.abort()
+    const controller = new AbortController()
+    listController.current = controller
+    const current = ++listRequestId.current
     if (!quiet) setLoading(true)
     setError('')
     try {
-      const result = await api.gmailMessages(accountId)
+      const result = await api.gmailMessages(accountId, '', searchQuery, controller.signal)
+      if (current !== listRequestId.current) return
       setMessages(result.messages)
       setPage(result.page)
       setSelected((current) => current && result.messages.some(({ id }) => id === current.id)
         ? current : null)
     } catch (loadError) {
-      setError(errorMessage(loadError))
+      if (current === listRequestId.current) setError(errorMessage(loadError))
     } finally {
-      if (!quiet) setLoading(false)
+      if (!quiet && current === listRequestId.current) setLoading(false)
     }
-  }, [accountId, enabled])
+  }, [accountId, enabled, searchQuery])
 
   const refresh = useCallback(async () => {
     setError('')
@@ -100,11 +111,16 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     }
   }, [loadAccounts, loadMessages])
 
+  useEffect(() => { void loadAccounts() }, [loadAccounts])
+  useEffect(() => { void loadMessages() }, [loadMessages])
   useEffect(() => {
-    void loadAccounts().then(() => loadMessages()).catch((loadError) => {
-      setError(errorMessage(loadError)); setLoading(false)
-    })
-  }, [loadAccounts, loadMessages])
+    const timer = window.setTimeout(() => setSearchQuery(query.trim()), 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
+  useEffect(() => {
+    messageController.current?.abort()
+    setSelected(null); setDetail(null); setDetailError(''); setDetailLoading(false)
+  }, [searchQuery])
 
   useEffect(() => {
     if (!notice) return
@@ -113,6 +129,8 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
   }, [notice])
 
   useEffect(() => () => {
+    listController.current?.abort()
+    listRequestId.current += 1
     messageController.current?.abort()
     syncRequestId.current += 1
   }, [])
@@ -213,7 +231,9 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     setLoadingMore(true)
     setError('')
     try {
-      const result = await api.gmailMessages(accountId, page.nextCursor)
+      const current = listRequestId.current
+      const result = await api.gmailMessages(accountId, page.nextCursor, searchQuery)
+      if (current !== listRequestId.current) return
       setMessages((current) => {
         const ids = new Set(current.map(({ id }) => id))
         return [...current, ...result.messages.filter(({ id }) => !ids.has(id))]
@@ -271,6 +291,8 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
           </div>
         </div>
       </header>
+      {accounts.length > 0 && <GmailSearchField value={query} loading={loading}
+        onChange={setQuery} />}
       {accountError(accounts) && <p className="gmail-partial-error" role="status">
         <AlertCircle size={15} />{accountError(accounts)}
       </p>}
@@ -284,8 +306,11 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
           <button className="button button--primary" type="button" onClick={() => setDialogMode('add')}>
             <Plus size={16} />{t('添加 Gmail 账号')}</button>
         </div> : !messages.length ? <div className="gmail-list-state gmail-list-state--empty">
-          <span><Mail size={25} /></span><h2>{t('还没有已索引邮件')}</h2>
-          <p>{t('首次同步可能需要片刻；可在账号管理中手动加入同步任务。')}</p>
+          <span>{searchQuery ? <Search size={25} /> : <Mail size={25} />}</span>
+          <h2>{t(searchQuery ? '未找到相关 Gmail 邮件' : '还没有已索引邮件')}</h2>
+          <p>{t(searchQuery
+            ? '请尝试其他发件人、收件人或主题关键词。'
+            : '首次同步可能需要片刻；可在账号管理中手动加入同步任务。')}</p>
         </div> : <>
           <div className="message-list-shell"><div className="message-list" role="listbox"
             aria-label={t('Gmail 邮件列表')}>

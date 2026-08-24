@@ -662,12 +662,13 @@ Google 账号中手动撤销对应应用密码。更新密码会先验证新值�
 邮件接口：
 
 ```http
-GET /api/gmail/messages?accountId={id}&limit=30&cursor={cursor}
+GET /api/gmail/messages?accountId={id}&q={query}&limit=30&cursor={cursor}
 GET /api/gmail/accounts/{accountId}/messages/{messageId}
 GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 ```
 
-列表读取 D1 中最多每账号 500 封 INBOX 元数据；正文通过 `BODY.PEEK[]` 按需读取，成功后以
+列表读取 D1 中最多每账号 500 封 INBOX 元数据，`q` 可搜索发件人、收件人和主题；
+正文通过 `BODY.PEEK[]` 按需读取，成功后以
 固定的 `UID STORE ... +FLAGS.SILENT (\\Seen)` 标记已读；正文和附件均不持久化。所有详情查询
 先以当前用户 ID、账号 ID 和本地消息 ID 联合验证归属，避免跨用户资源存在性泄露。同步由
 5 分钟 Cron 错峰加入 Queue，并使用账号租约、
@@ -752,7 +753,7 @@ npm run docs:api
 | `PUT /api/gmail/accounts/{id}/app-password` | 验证并更新 Gmail 应用专用密码 |
 | `POST /api/gmail/accounts/{id}/verify` | 验证已保存的 Gmail 凭据 |
 | `POST /api/gmail/accounts/{id}/sync` | 请求受限的异步 Gmail 同步 |
-| `GET /api/gmail/messages` | 读取多账号 Gmail 元数据索引并游标分页 |
+| `GET /api/gmail/messages` | 搜索多账号 Gmail 元数据索引并游标分页 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 按需获取 Gmail 正文并同步标记已读 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
 | `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |

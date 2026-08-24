@@ -59,7 +59,7 @@ Serverless Webmail：
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
 | iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
-| Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，聚合最近 INBOX 邮件并在打开后同步已读 |
+| Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，搜索聚合的 INBOX 元数据并在打开后同步已读 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -109,6 +109,8 @@ Serverless Webmail：
 - 不开放星标、归档、移动、删除或发送邮件等其他远端写操作。
 - D1 每个账号首次索引最近 100 封、最多保留最近 500 封 INBOX 元数据；正文、内嵌图片
   和附件仅在用户打开时读取，不持久化到 D1 / R2。
+- 搜索框在当前账号或全部账号的 D1 索引中匹配发件人、收件人和主题，
+  不会为搜索额外下载或持久化 Gmail 正文。
 - 每 5 分钟由 Cron 错峰加入 Queue，同一账号通过短时租约避免并发同步；账号失败不会阻断
   其他 Gmail 账号或 OmniMail 主邮箱。
 - 应用专用密码使用独立的 `GMAIL_CREDENTIALS_KEY` 进行 AES-GCM 加密，密文上下文绑定

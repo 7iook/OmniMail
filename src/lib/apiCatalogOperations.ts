@@ -143,8 +143,8 @@ export const gmailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/gmail/messages', group: 'gmail', auth: 'authenticated',
     title: l('列出 Gmail 聚合邮件', 'List unified Gmail messages'),
-    description: l('按账号或全部账号读取 D1 元数据索引，并使用稳定游标分页。', 'Read the D1 metadata index for one or all accounts with stable cursor pagination.'),
-    request: 'Query · accountId?, limit=1..50?, cursor?', response: '200 · { messages, page }',
+    description: l('按账号或全部账号搜索 D1 元数据索引，并使用稳定游标分页。', 'Search the D1 metadata index for one or all accounts with stable cursor pagination.'),
+    request: 'Query · accountId?, q?, limit=1..50?, cursor?', response: '200 · { messages, page }',
     examplePath: '/api/gmail/messages?limit=30',
   },
   {
