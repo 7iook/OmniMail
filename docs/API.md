@@ -7,7 +7,7 @@ OmniMail 网页端与桌面端共用 Core Worker 的 JSON API。浏览器默认�
 下面示例中的 API 地址使用 `https://mail.example.com`。生产环境中前端与 API
 由同一个 Worker 提供，API 路径统一位于 `/api/*`。
 
-> 逐端点参考：[`docs/api/README.md`](api/README.md)。该索引按 9 个业务分类展开当前
+> 逐端点参考：[`docs/api/README.md`](api/README.md)。该索引按 11 个业务分类展开当前
 > 全部 102 个接口，并提供认证要求、参数、响应、注意事项和可执行 cURL 示例。
 
 ## 公开配置与注册
@@ -631,6 +631,47 @@ GET /api/icloud/inbox/{uid}?accountId={id}
 时优先使用 iCloud IMAP；全部邮件视图可在 IMAP 失败时回退到 iCloud Web 摘要，按隐藏
 地址筛选和读取完整正文必须使用 IMAP。
 
+## Gmail 聚合收件箱
+
+配置至少 32 字节的 `GMAIL_CREDENTIALS_KEY` 后，每个用户最多连接 5 个 Gmail 或
+Google Workspace 账号。应用专用密码使用 AES-GCM 加密，附加数据绑定用户、账号与字段；
+列表接口只返回 `hasAppPassword: true`。添加、验证与更新凭据按用户和来源 IP 限速，服务器、
+端口和 TLS 模式固定为 `imap.gmail.com:993`，请求不能把 Worker 当作任意 TCP 代理。
+
+账号接口：
+
+```http
+GET /api/gmail/accounts
+POST /api/gmail/accounts
+{ "name": "个人 Gmail", "email": "name@gmail.com", "appPassword": "xxxx xxxx xxxx xxxx" }
+
+PATCH /api/gmail/accounts/{id}
+{ "name": "工作 Gmail" }
+
+PUT /api/gmail/accounts/{id}/app-password
+{ "appPassword": "xxxx xxxx xxxx xxxx" }
+
+POST /api/gmail/accounts/{id}/verify
+POST /api/gmail/accounts/{id}/sync
+DELETE /api/gmail/accounts/{id}
+```
+
+删除接口只清除本地密文和元数据索引，并返回 `remoteRevocationRequired: true`；用户仍需在
+Google 账号中手动撤销对应应用密码。更新密码会先验证新值，失败时保留原密文。
+
+邮件接口：
+
+```http
+GET /api/gmail/messages?accountId={id}&limit=30&cursor={cursor}
+GET /api/gmail/accounts/{accountId}/messages/{messageId}
+GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
+```
+
+列表读取 D1 中最多每账号 500 封 INBOX 元数据；正文和附件通过 `BODY.PEEK[]` 按需读取，
+不持久化且不会设置 `\\Seen`。所有详情查询先以当前用户 ID、账号 ID 和本地消息 ID 联合验证
+归属，避免跨用户资源存在性泄露。同步由 5 分钟 Cron 错峰加入 Queue，并使用账号租约、
+`UIDVALIDITY`、UID 与 Gmail 扩展 ID 保持最终一致。
+
 ## 版本与更新
 
 管理员打开系统设置时可以查询当前安装版本与 GitHub 最新 Release：
@@ -649,12 +690,12 @@ Workers Builds 根据分支变更重新部署。
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 109 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 123 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
 仓库内的 [完整 Markdown API 参考](api/README.md) 使用同一个 Catalog 数据源，按以下
-10 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
-iCloud 隐藏邮箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
+11 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
+iCloud 隐藏邮箱、Gmail 聚合收件箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
 代码审查或生成外部知识库时应从该索引进入。
 
 修改 `src/lib/apiCatalog*.ts` 后运行：
@@ -705,6 +746,14 @@ npm run docs:api
 | `PATCH/DELETE /api/icloud/aliases/{anonymousId}` | 停用、恢复或删除隐藏地址 |
 | `GET /api/icloud/inbox` | 按需读取 iCloud 最近来信 |
 | `GET /api/icloud/inbox/{uid}` | 通过 IMAP 读取完整正文 |
+| `GET/POST /api/gmail/accounts` | 列出或连接当前用户的 Gmail 账号 |
+| `PATCH/DELETE /api/gmail/accounts/{id}` | 重命名或断开 Gmail 账号 |
+| `PUT /api/gmail/accounts/{id}/app-password` | 验证并更新 Gmail 应用专用密码 |
+| `POST /api/gmail/accounts/{id}/verify` | 验证已保存的 Gmail 凭据 |
+| `POST /api/gmail/accounts/{id}/sync` | 请求受限的异步 Gmail 同步 |
+| `GET /api/gmail/messages` | 读取多账号 Gmail 元数据索引并游标分页 |
+| `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 只读按需获取 Gmail 正文 |
+| `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
 | `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |
 | `POST /api/linux-do-mail/account/verify` | 重新验证已保存的 Linux DO Mail 凭据 |
 | `PUT /api/linux-do-mail/account/credential` | 验证并替换 Linux DO Mail 密码或认证令牌 |

@@ -68,6 +68,7 @@ describe('mail workspace entry settings', () => {
         method: 'PATCH', body: JSON.stringify({
           iCloudWorkspaceEnabled: false,
           linuxDoMailWorkspaceEnabled: false,
+          gmailWorkspaceEnabled: false,
         }),
       }),
       '127.0.0.1',
@@ -97,6 +98,7 @@ describe('mail workspace entry settings', () => {
         body: JSON.stringify({
           iCloudWorkspaceEnabled: false,
           linuxDoMailWorkspaceEnabled: true,
+          gmailWorkspaceEnabled: true,
         }),
       }),
       '127.0.0.1',
@@ -106,6 +108,7 @@ describe('mail workspace entry settings', () => {
     await expect(response.json()).resolves.toEqual({
       iCloudWorkspaceEnabled: false,
       linuxDoMailWorkspaceEnabled: true,
+      gmailWorkspaceEnabled: true,
     })
     expect(db.batch).toHaveBeenCalledOnce()
     expect(statements.some(({ bindings }) => (
@@ -113,6 +116,9 @@ describe('mail workspace entry settings', () => {
     ))).toBe(true)
     expect(statements.some(({ bindings }) => (
       bindings[0] === 'linuxdo_mail_workspace_enabled' && bindings[1] === '1'
+    ))).toBe(true)
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'gmail_workspace_enabled' && bindings[1] === '1'
     ))).toBe(true)
   })
 })

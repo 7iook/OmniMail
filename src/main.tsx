@@ -52,6 +52,8 @@ import './styles/icloud-workspace.css'
 import './styles/icloud-region-select.css'
 import './styles/icloud-scope-switcher.css'
 import './styles/linux-do-mail.css'
+import './styles/gmail-dialog.css'
+import './styles/gmail-workspace.css'
 import './styles/api-guide.css'
 import './styles/api-reference.css'
 

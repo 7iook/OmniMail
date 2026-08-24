@@ -59,6 +59,7 @@ Serverless Webmail：
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
 | iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
+| Gmail 聚合收件箱 | 最多连接 5 个 Gmail / Workspace 账号，以只读 IMAP 聚合最近 INBOX 邮件 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -99,6 +100,29 @@ Serverless Webmail：
 - 应用专用密码不是创建隐藏邮箱的必需项；只有需要通过 IMAP 按地址筛选或读取完整邮件正文时才需要配置，并且必须绑定当前 iCloud 邮箱。
 - iCloud 邮件和别名由 Worker 按需访问 Apple，不会同步进 OmniMail 收件箱；Apple 服务、订阅状态、区域限制和请求频率可能影响读取结果。
 - 不要把 Cookie 或应用专用密码提交到 Git、截图、工单或第三方聊天中；OmniMail 只在 Worker 内加密保存，浏览器不会再次读取原值。
+
+### Gmail 聚合收件箱
+
+- 每个 OmniMail 用户最多连接 5 个自己有权访问的 Gmail 或 Google Workspace 账号。
+- 固定连接 `imap.gmail.com:993`，只使用 `EXAMINE`、受控 `UID SEARCH` / `UID FETCH`
+  和 `BODY.PEEK[]`；不会标记已读、星标、归档、删除或发送邮件。
+- D1 每个账号首次索引最近 100 封、最多保留最近 500 封 INBOX 元数据；正文、内嵌图片
+  和附件仅在用户打开时读取，不持久化到 D1 / R2。
+- 每 5 分钟由 Cron 错峰加入 Queue，同一账号通过短时租约避免并发同步；账号失败不会阻断
+  其他 Gmail 账号或 OmniMail 主邮箱。
+- 应用专用密码使用独立的 `GMAIL_CREDENTIALS_KEY` 进行 AES-GCM 加密，密文上下文绑定
+  用户、账号和字段；API 只返回 `hasAppPassword: true`。
+
+#### Gmail 使用注意事项
+
+- Google 官方优先推荐“使用 Google 账号登录”；OmniMail 为保持纯自托管部署而提供应用专用
+  密码模式。应用密码本身不具备只读 scope，只读边界由 OmniMail 的命令白名单保证。
+- 应用专用密码要求先开启两步验证，并且某些 Workspace、Advanced Protection 或仅安全密钥
+  两步验证账号无法创建。请勿填写 Google 账号主密码。
+- Google 账号主密码变化时，现有应用密码会被撤销。连接失效后需生成新密码并在账号管理中更新。
+- 删除 OmniMail 本地连接只会删除密文和索引；还必须前往
+  [Google 应用专用密码](https://myaccount.google.com/apppasswords)手动撤销对应密码。
+- 个人 Gmail 的 IMAP 默认开启；Workspace 是否允许第三方 IMAP 和应用密码仍由组织策略决定。
 
 ### 多域名与用户
 
@@ -313,6 +337,8 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `TOTP_ENCRYPTION_KEY` | Secret | 至少 32 个随机字符，用于加密管理员 TOTP 密钥 |
 | `ICLOUD_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 iCloud Cookie 与应用专用密码；不使用 iCloud 功能时可留空 |
 | `LINUX_DO_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 Linux DO Mail 密码或认证令牌；不使用该功能时可留空 |
+| `GMAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，只用于加密 Gmail 应用专用密码；不使用该功能时可留空 |
+| `GMAIL_IMAP_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 Gmail 接入，默认启用 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
 | `UPDATE_REPOSITORY` | Text | Release 来源仓库，默认 `mibgb65-cloud/OmniMail` |
 | `D1_DATABASE_ID` | Text | 可选备份所需的生产 D1 Database ID |
@@ -432,6 +458,11 @@ Builds 检测到分支更新后会自动构建、迁移并重新部署。
 通过官方 SMTP 465 向单个收件人发信，`From` 固定为已验证的账号地址，并复用现有队列、
 幂等和限速保护；当前不支持附件或向服务器 Sent 文件夹追加副本。账号也可先验证再替换
 密码或认证令牌；验证失败时仍保留原凭据。
+
+若要启用独立的 **Gmail 聚合收件箱**，配置至少 32 字节的
+`GMAIL_CREDENTIALS_KEY`，部署并完成 D1 迁移。用户随后从左侧 Gmail 入口创建或粘贴一个
+Google 应用专用密码；连接验证成功后，Worker 会异步建立最近邮件索引。管理员可在
+**系统设置 → 邮箱功能入口** 中隐藏或恢复入口，隐藏不会删除已保存账号或索引。
 
 ### 备份、保留与配额
 

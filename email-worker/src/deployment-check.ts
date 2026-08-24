@@ -4,6 +4,7 @@ import { resendWebhookSecrets } from './resend-webhook'
 import { validSetupTokenSecret } from './setup-security'
 import { iCloudCredentialsReady } from './icloud-credentials'
 import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
+import { gmailCredentialsReady } from './gmail-credentials'
 import type { Env, SessionUser } from './types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -181,6 +182,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       ready: linuxDoMailCredentialsReady(env), required: false, missingState: 'warning',
       detail: 'LINUX_DO_MAIL_CREDENTIALS_KEY 用于加密保存邮箱密码或认证令牌。',
       action: '需要 Linux DO Mail 时，配置至少 32 字节的 LINUX_DO_MAIL_CREDENTIALS_KEY Secret。',
+    }),
+    check({
+      id: 'gmail-key', group: 'security', label: 'Gmail 凭据加密密钥',
+      ready: gmailCredentialsReady(env), required: false, missingState: 'warning',
+      detail: 'GMAIL_CREDENTIALS_KEY 仅用于加密 Gmail 应用专用密码。',
+      action: '需要 Gmail 聚合收件箱时，配置至少 32 字节的 GMAIL_CREDENTIALS_KEY Secret。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,

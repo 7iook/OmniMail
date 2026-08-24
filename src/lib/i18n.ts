@@ -14,6 +14,7 @@ import { enOauth } from './i18n-en-oauth'
 import { enSecurity } from './i18n-en-security'
 import { enICloud } from './i18n-en-icloud'
 import { enLinuxDoMail } from './i18n-en-linux-do-mail'
+import { enGmail } from './i18n-en-gmail'
 import { enApi } from './i18n-en-api'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -60,6 +61,7 @@ const english = {
   ...enVersion,
   ...enICloud,
   ...enLinuxDoMail,
+  ...enGmail,
   ...enApi,
 }
 const englishPlurals: Record<string, [string, string]> = {

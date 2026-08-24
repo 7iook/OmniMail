@@ -17,7 +17,13 @@ export interface SearchIndexJob {
   messageId: string
 }
 
-export type MailQueueJob = ParseJob | OutboundJob | SearchIndexJob
+export interface GmailSyncJob {
+  kind: 'gmail-sync'
+  accountId: string
+  reason: 'connect' | 'manual' | 'scheduled'
+}
+
+export type MailQueueJob = ParseJob | OutboundJob | SearchIndexJob | GmailSyncJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -57,6 +63,8 @@ export interface Env {
   TOTP_ENCRYPTION_KEY?: string
   ICLOUD_CREDENTIALS_KEY?: string
   LINUX_DO_MAIL_CREDENTIALS_KEY?: string
+  GMAIL_CREDENTIALS_KEY?: string
+  GMAIL_IMAP_ENABLED?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string

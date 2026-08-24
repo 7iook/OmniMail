@@ -47,6 +47,7 @@ import type {
 import type { ExtensionAuthorizationRequest } from './extensionAuthorization'
 import { createICloudApi } from './icloud-api-client'
 import { createLinuxDoMailApi } from './linux-do-mail-api-client'
+import { createGmailApi } from './gmail-api-client'
 
 export class ApiError extends Error {
   status: number
@@ -163,9 +164,11 @@ export const api = {
   updateMailWorkspaceSettings: (settings: {
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
+    gmailWorkspaceEnabled: boolean
   }) => request<{
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
+    gmailWorkspaceEnabled: boolean
   }>('/api/admin/settings/mail-workspaces', {
     method: 'PATCH',
     body: jsonBody(settings),
@@ -430,6 +433,7 @@ export const api = {
   mailboxes: () => request<{ mailboxes: MailboxAddress[] }>('/api/mailboxes'),
   ...createICloudApi(request, jsonBody),
   ...createLinuxDoMailApi(request, jsonBody),
+  ...createGmailApi(request, jsonBody),
   addMailbox: (address: string) => request<{ mailbox: MailboxAddress }>('/api/mailboxes', {
     method: 'POST',
     body: jsonBody({ address }),

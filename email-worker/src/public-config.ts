@@ -13,6 +13,7 @@ import {
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env } from './types'
 import { iCloudCredentialsReady } from './icloud-credentials'
+import { gmailCredentialsReady } from './gmail-credentials'
 
 type Setting = { key: string; value: string }
 
@@ -49,7 +50,8 @@ export async function publicConfig(env: Env) {
       'official_extension_enabled',
       'random_mailbox_prefix',
       'icloud_workspace_enabled',
-      'linuxdo_mail_workspace_enabled'
+      'linuxdo_mail_workspace_enabled',
+      'gmail_workspace_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -66,6 +68,9 @@ export async function publicConfig(env: Env) {
     setupComplete,
     replyEnabled: hasOutboundProviderConfig(env),
     iCloudEnabled: iCloudCredentialsReady(env),
+    gmailEnabled: env.GMAIL_IMAP_ENABLED !== 'false' && gmailCredentialsReady(env),
+    gmailWorkspaceEnabled: env.GMAIL_IMAP_ENABLED !== 'false'
+      && settings.get('gmail_workspace_enabled') !== '0',
     iCloudWorkspaceEnabled: settings.get('icloud_workspace_enabled') !== '0',
     linuxDoMailWorkspaceEnabled: settings.get('linuxdo_mail_workspace_enabled') !== '0',
     registrationEnabled,

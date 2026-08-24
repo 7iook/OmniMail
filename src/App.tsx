@@ -33,6 +33,7 @@ const AdminWorkspace = lazy(async () => ({ default: (await import('./components/
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
 const ICloudWorkspace = lazy(async () => ({ default: (await import('./components/ICloudWorkspace')).ICloudWorkspace }))
 const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('./components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
+const GmailWorkspace = lazy(async () => ({ default: (await import('./components/GmailWorkspace')).GmailWorkspace }))
 const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 }
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 type PendingMailDelete = { kind: 'single'; message: MessageDetail }
@@ -50,7 +51,7 @@ function Mailbox({
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
-  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled }
+  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled: config.gmailWorkspaceEnabled }
   const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role, workspaceFeatures)
   const [query, setQuery] = useState('')
   const [searchQuery, nextMessageSignal] = useMessageSearch(query)
@@ -344,7 +345,7 @@ function Mailbox({
   }
 
   function changeAdminView(next: AdminView) {
-    if (next !== 'account' && next !== 'api' && next !== 'icloud' && next !== 'linuxdo-mail' && !isAdminRole(user.role)) return
+    if (next !== 'account' && next !== 'api' && next !== 'icloud' && next !== 'linuxdo-mail' && next !== 'gmail' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
     clearSelectedMessage()
@@ -356,13 +357,12 @@ function Mailbox({
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
       <MailboxSidebar user={user} folder={folder}
         counts={counts} adminView={adminView} notifications={mailNotifications}
-        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
-        linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
-        onFolderChange={changeFolder}
+        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled} linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled} gmailWorkspaceEnabled={config.gmailWorkspaceEnabled} onFolderChange={changeFolder}
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}
       />
-      {adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
+      {adminView === 'gmail' ? <Suspense fallback={null}><GmailWorkspace enabled={config.gmailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
+        : adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
         : adminView === 'icloud' ? (
         <Suspense fallback={(
           <div className="icloud-mail-view"><section className="list-pane icloud-list-pane"><div className="icloud-workspace-loading" role="status">

@@ -11,6 +11,7 @@ const CATEGORIES = [
   'invitation',
   'message',
   'icloud',
+  'gmail',
   'linuxdo-mail',
   'system',
 ] as const

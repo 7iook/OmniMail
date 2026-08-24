@@ -159,6 +159,27 @@
     padding-inline: 3px;
   }
 
+  .folder-nav.folder-count-8 {
+    flex: 1 1 auto;
+    grid-template-columns: repeat(8, minmax(44px, 1fr));
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .folder-nav.folder-count-8::-webkit-scrollbar { display: none; }
+
+  .mail-sidebar.folder-count-8 {
+    gap: 0;
+    padding-inline: 2px;
+  }
+
+  .mail-sidebar.folder-count-8 .account-nav { flex: 0 0 44px; }
+
+  .folder-nav.folder-count-8 button span {
+    font-size: 8px;
+  }
+
   .folder-nav button,
   .admin-nav button,
   .account-nav button {

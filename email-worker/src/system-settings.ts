@@ -10,6 +10,7 @@ const OFFICIAL_EXTENSION_SETTING = 'official_extension_enabled'
 const RANDOM_MAILBOX_PREFIX_SETTING = 'random_mailbox_prefix'
 const ICLOUD_WORKSPACE_SETTING = 'icloud_workspace_enabled'
 const LINUX_DO_MAIL_WORKSPACE_SETTING = 'linuxdo_mail_workspace_enabled'
+const GMAIL_WORKSPACE_SETTING = 'gmail_workspace_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -180,15 +181,22 @@ export async function updateMailWorkspaceSettings(
   const body = await request.json<{
     iCloudWorkspaceEnabled?: unknown
     linuxDoMailWorkspaceEnabled?: unknown
+    gmailWorkspaceEnabled?: unknown
   }>().catch(() => ({} as {
     iCloudWorkspaceEnabled?: unknown
     linuxDoMailWorkspaceEnabled?: unknown
+    gmailWorkspaceEnabled?: unknown
   }))
   const iCloudWorkspaceEnabled = parseMailWorkspaceEnabled(body.iCloudWorkspaceEnabled)
   const linuxDoMailWorkspaceEnabled = parseMailWorkspaceEnabled(
     body.linuxDoMailWorkspaceEnabled,
   )
-  if (iCloudWorkspaceEnabled === null || linuxDoMailWorkspaceEnabled === null) {
+  const gmailWorkspaceEnabled = parseMailWorkspaceEnabled(body.gmailWorkspaceEnabled)
+  if (
+    iCloudWorkspaceEnabled === null
+    || linuxDoMailWorkspaceEnabled === null
+    || gmailWorkspaceEnabled === null
+  ) {
     return json({ error: '邮箱功能入口设置无效。' }, 400)
   }
   await env.DB.batch([
@@ -200,8 +208,16 @@ export async function updateMailWorkspaceSettings(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
     ).bind(LINUX_DO_MAIL_WORKSPACE_SETTING, linuxDoMailWorkspaceEnabled ? '1' : '0'),
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(GMAIL_WORKSPACE_SETTING, gmailWorkspaceEnabled ? '1' : '0'),
   ])
-  const settings = { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled }
+  const settings = {
+    iCloudWorkspaceEnabled,
+    linuxDoMailWorkspaceEnabled,
+    gmailWorkspaceEnabled,
+  }
   await writeAudit(env, actor.id, 'system.mail_workspaces.update', null, ip, settings)
   return json(settings)
 }

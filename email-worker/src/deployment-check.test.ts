@@ -27,6 +27,7 @@ function environment(): Env {
     SUPER_ADMIN_EMAIL: 'owner@example.com',
     SETUP_TOKEN: 'do-not-return-this-secret'.repeat(2),
     ICLOUD_CREDENTIALS_KEY: 'icloud-do-not-return-this-secret'.repeat(2),
+    GMAIL_CREDENTIALS_KEY: 'gmail-do-not-return-this-secret'.repeat(2),
     RESEND_DOMAIN_CONFIGS: JSON.stringify({
       'example.com': { apiKey: 're_do-not-return' },
     }),
@@ -54,7 +55,7 @@ describe('deployment check', () => {
     const response = await deploymentCheck(environment(), administrator)
     const result = await response.json() as {
       ready: boolean
-      checks: Array<{ group: string; state: string }>
+      checks: Array<{ id: string; group: string; state: string }>
     }
     expect(response.status).toBe(200)
     expect(result.ready).toBe(true)
@@ -62,6 +63,8 @@ describe('deployment check', () => {
       new Set(['core', 'security', 'mail']),
     )
     expect(JSON.stringify(result)).not.toContain('do-not-return')
+    expect(result.checks.find((item) => item.id === 'gmail-key'))
+      .toMatchObject({ state: 'ready' })
   })
 
   it('recognizes multi-account Resend webhook secrets', async () => {

@@ -8,6 +8,8 @@ export { quoteImapValue } from './imap-values'
 const CONNECT_TIMEOUT_MS = 10_000
 const COMMAND_TIMEOUT_MS = 20_000
 const CLOSE_TIMEOUT_MS = 2_000
+const MAX_LINE_BYTES = 1_048_576
+const MAX_RESPONSE_BYTES = 12 * 1024 * 1024
 const encoder = new TextEncoder()
 
 export interface ImapCommandResult {
@@ -60,10 +62,16 @@ class SocketReader {
     for (;;) {
       for (let index = 0; index < this.buffer.length - 1; index += 1) {
         if (this.buffer[index] === 13 && this.buffer[index + 1] === 10) {
+          if (index > MAX_LINE_BYTES) {
+            throw new ImapConnectionError(502, 'IMAP 响应行超过读取上限。')
+          }
           const line = new TextDecoder().decode(this.buffer.slice(0, index))
           this.buffer = this.buffer.slice(index + 2)
           return line
         }
+      }
+      if (this.buffer.length > MAX_LINE_BYTES) {
+        throw new ImapConnectionError(502, 'IMAP 响应行超过读取上限。')
       }
       await this.fill()
     }
@@ -161,16 +169,33 @@ export class ImapConnection {
       const tag = `A${String(++this.tagNumber).padStart(4, '0')}`
       await this.writer!.write(encoder.encode(`${tag} ${command}\r\n`))
       const result: ImapCommandResult = { lines: [], literals: [] }
+      let responseBytes = 0
+      let pendingLiteral: number | null = null
       for (;;) {
         const line = await this.reader!.line()
+        responseBytes += encoder.encode(line).byteLength + 2
+        if (responseBytes > MAX_RESPONSE_BYTES) {
+          throw new ImapConnectionError(502, 'IMAP 响应超过读取上限。')
+        }
+        if (pendingLiteral !== null) {
+          if (line && !line.startsWith('* ') && !line.startsWith(`${tag} `)) {
+            result.literals[pendingLiteral].line += ` ${line}`
+          }
+          if (line) pendingLiteral = null
+        }
         result.lines.push(line)
         const literal = line.match(/\{(\d+)\}$/)
         if (literal) {
           const length = Number(literal[1])
           if (!Number.isSafeInteger(length) || length > this.maximumLiteralBytes) {
-            throw new ImapConnectionError(502, '邮件内容超过单封读取上限。', true)
+            throw new ImapConnectionError(502, '邮件内容超过单封读取上限。')
+          }
+          responseBytes += length
+          if (responseBytes > MAX_RESPONSE_BYTES) {
+            throw new ImapConnectionError(502, 'IMAP 响应超过读取上限。')
           }
           result.literals.push({ line, data: await this.reader!.exactly(length) })
+          pendingLiteral = result.literals.length - 1
         }
         if (line.startsWith(`${tag} `)) {
           if (!line.startsWith(`${tag} OK`)) {

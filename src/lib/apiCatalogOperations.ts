@@ -93,6 +93,75 @@ export const iCloudEndpoints: ApiEndpoint[] = [
   },
 ]
 
+export const gmailEndpoints: ApiEndpoint[] = [
+  {
+    method: 'GET', path: '/api/gmail/accounts', group: 'gmail', auth: 'authenticated',
+    title: l('列出 Gmail 账号', 'List Gmail accounts'),
+    description: l('返回当前用户的脱敏 Gmail 账号和同步状态，不返回凭据或密文。', 'Return the current user’s sanitized Gmail accounts and sync state without credentials or ciphertext.'),
+    request: 'No parameters', response: '200 · { enabled, accountLimit, accounts }',
+  },
+  {
+    method: 'POST', path: '/api/gmail/accounts', group: 'gmail', auth: 'authenticated',
+    title: l('连接 Gmail 账号', 'Connect a Gmail account'),
+    description: l('验证固定 Gmail IMAP 端点后，用独立密钥加密保存应用专用密码。', 'Validate the fixed Gmail IMAP endpoint, then encrypt the app password with a dedicated key.'),
+    request: 'JSON · name, email, appPassword', response: '201 · { account }',
+    exampleBody: { name: 'Personal Gmail', email: 'owner@gmail.com', appPassword: 'xxxx xxxx xxxx xxxx' },
+    notes: [l('只接受 Google 生成的 16 位应用专用密码；不要提交 Google 账号主密码。', 'Only a Google-generated 16-character app password is accepted; never submit the Google Account password.')],
+  },
+  {
+    method: 'PATCH', path: '/api/gmail/accounts/:id', group: 'gmail', auth: 'authenticated',
+    title: l('重命名 Gmail 账号', 'Rename a Gmail account'),
+    description: l('修改当前用户 Gmail 账号的显示名称。', 'Change the display name of a Gmail account owned by the current user.'),
+    request: 'Path · id; JSON · name', response: '200 · { account }',
+    exampleBody: { name: 'Work Gmail' },
+  },
+  {
+    method: 'PUT', path: '/api/gmail/accounts/:id/app-password', group: 'gmail', auth: 'authenticated',
+    title: l('更新 Gmail 应用密码', 'Update a Gmail app password'),
+    description: l('先验证新密码，再替换密文；验证失败时保留原凭据。', 'Validate the new password before replacing ciphertext; preserve the existing credential if validation fails.'),
+    request: 'Path · id; JSON · appPassword', response: '200 · { account }',
+    exampleBody: { appPassword: 'xxxx xxxx xxxx xxxx' },
+  },
+  {
+    method: 'DELETE', path: '/api/gmail/accounts/:id', group: 'gmail', auth: 'authenticated',
+    title: l('断开 Gmail 账号', 'Disconnect a Gmail account'),
+    description: l('级联删除本地凭据和元数据索引，不会撤销 Google 端应用密码。', 'Cascade-delete local credentials and metadata without revoking the Google-side app password.'),
+    request: 'Path · id', response: '200 · { ok, remoteRevocationRequired=true }',
+  },
+  {
+    method: 'POST', path: '/api/gmail/accounts/:id/verify', group: 'gmail', auth: 'authenticated',
+    title: l('验证 Gmail 连接', 'Verify a Gmail connection'),
+    description: l('使用已保存凭据重新执行只读 Gmail IMAP 登录与 EXAMINE。', 'Use the saved credential to run read-only Gmail IMAP login and EXAMINE again.'),
+    request: 'Path · id', response: '200 · { ok, validatedAt }',
+  },
+  {
+    method: 'POST', path: '/api/gmail/accounts/:id/sync', group: 'gmail', auth: 'authenticated',
+    title: l('请求 Gmail 同步', 'Request Gmail synchronization'),
+    description: l('在频率限制和账号租约保护下，把只读同步任务加入 Queue。', 'Queue a read-only sync under rate limiting and an account lease.'),
+    request: 'Path · id', response: '202 · { queued: true }',
+  },
+  {
+    method: 'GET', path: '/api/gmail/messages', group: 'gmail', auth: 'authenticated',
+    title: l('列出 Gmail 聚合邮件', 'List unified Gmail messages'),
+    description: l('按账号或全部账号读取 D1 元数据索引，并使用稳定游标分页。', 'Read the D1 metadata index for one or all accounts with stable cursor pagination.'),
+    request: 'Query · accountId?, limit=1..50?, cursor?', response: '200 · { messages, page }',
+    examplePath: '/api/gmail/messages?limit=30',
+  },
+  {
+    method: 'GET', path: '/api/gmail/accounts/:accountId/messages/:messageId', group: 'gmail', auth: 'authenticated',
+    title: l('读取 Gmail 正文', 'Read a Gmail message'),
+    description: l('验证账号归属后，通过 BODY.PEEK[] 按需读取正文，不写回已读状态。', 'Verify account ownership, then fetch the body on demand with BODY.PEEK[] without changing read state.'),
+    request: 'Path · accountId, messageId', response: '200 · { message }',
+  },
+  {
+    method: 'GET', path: '/api/gmail/accounts/:accountId/messages/:messageId/attachments/:partId', group: 'gmail', auth: 'authenticated',
+    title: l('下载 Gmail 附件', 'Download a Gmail attachment'),
+    description: l('验证账号与邮件归属后，按需读取并转发不超过 5 MiB 的附件。', 'Verify account and message ownership, then fetch and proxy an attachment up to 5 MiB.'),
+    request: 'Path · accountId, messageId, partId', response: '200 · attachment bytes',
+    outputFile: 'gmail-attachment.bin',
+  },
+]
+
 export const linuxDoMailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/linux-do-mail/account', group: 'linuxdoMail', auth: 'authenticated',

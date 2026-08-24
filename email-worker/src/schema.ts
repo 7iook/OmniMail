@@ -1,7 +1,8 @@
 const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
 const CONSISTENCY_MIGRATION = '0022_consistency_guards.sql'
 const LINUX_DO_MAIL_MIGRATION = '0023_linux_do_mail_accounts.sql'
-const REQUIRED_MIGRATION = '0024_linux_do_mail_outbound.sql'
+const LINUX_DO_MAIL_OUTBOUND_MIGRATION = '0024_linux_do_mail_outbound.sql'
+const REQUIRED_MIGRATION = '0025_gmail_imap.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -28,6 +29,7 @@ const WRANGLER_MIGRATION_NAMES = [
   ICLOUD_MIGRATION,
   CONSISTENCY_MIGRATION,
   LINUX_DO_MAIL_MIGRATION,
+  LINUX_DO_MAIL_OUTBOUND_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -288,7 +290,7 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: LINUX_DO_MAIL_OUTBOUND_MIGRATION,
     statements: [
       `INSERT INTO mailboxes (
         address, user_id, is_primary, is_active, created_at, is_hidden
@@ -297,6 +299,78 @@ const RECOVERABLE_MIGRATIONS = [
       FROM linux_do_mail_accounts
       WHERE NOT EXISTS (
         SELECT 1 FROM mailboxes WHERE address = linux_do_mail_accounts.username
+      )`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS gmail_imap_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL COLLATE NOCASE,
+        app_password_cipher TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'syncing', 'credential_error', 'error')),
+        uid_validity INTEGER,
+        last_seen_uid INTEGER NOT NULL DEFAULT 0 CHECK (last_seen_uid >= 0),
+        last_synced_at INTEGER,
+        next_sync_at INTEGER NOT NULL DEFAULT 0,
+        last_error_code TEXT NOT NULL DEFAULT '',
+        last_error_at INTEGER,
+        sync_lease_id TEXT,
+        sync_lease_until INTEGER,
+        last_manual_sync_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (user_id, email)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_gmail_imap_accounts_due
+       ON gmail_imap_accounts(next_sync_at, status, id)`,
+      `CREATE INDEX IF NOT EXISTS idx_gmail_imap_accounts_user
+       ON gmail_imap_accounts(user_id, created_at, id)`,
+      `CREATE TRIGGER IF NOT EXISTS gmail_imap_accounts_limit
+       BEFORE INSERT ON gmail_imap_accounts
+       WHEN (SELECT COUNT(*) FROM gmail_imap_accounts WHERE user_id = NEW.user_id) >= 5
+       BEGIN
+         SELECT RAISE(ABORT, 'gmail_account_limit');
+       END`,
+      `CREATE TABLE IF NOT EXISTS gmail_imap_messages (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES gmail_imap_accounts(id) ON DELETE CASCADE,
+        gmail_message_id TEXT NOT NULL,
+        gmail_thread_id TEXT NOT NULL DEFAULT '',
+        imap_uid INTEGER NOT NULL CHECK (imap_uid > 0),
+        uid_validity INTEGER NOT NULL CHECK (uid_validity > 0),
+        message_id_header TEXT NOT NULL DEFAULT '',
+        sender_name TEXT NOT NULL DEFAULT '',
+        sender_address TEXT NOT NULL DEFAULT '',
+        recipients_json TEXT NOT NULL DEFAULT '[]',
+        cc_json TEXT NOT NULL DEFAULT '[]',
+        subject TEXT NOT NULL DEFAULT '',
+        preview TEXT NOT NULL DEFAULT '',
+        internal_date INTEGER NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+        flags_json TEXT NOT NULL DEFAULT '[]',
+        labels_json TEXT NOT NULL DEFAULT '[]',
+        is_read INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
+        is_starred INTEGER NOT NULL DEFAULT 0 CHECK (is_starred IN (0, 1)),
+        has_attachments INTEGER NOT NULL DEFAULT 0 CHECK (has_attachments IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (account_id, gmail_message_id),
+        UNIQUE (account_id, uid_validity, imap_uid)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_gmail_imap_messages_account_date
+       ON gmail_imap_messages(account_id, internal_date DESC, id DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_gmail_imap_messages_date
+       ON gmail_imap_messages(internal_date DESC, id DESC, account_id)`,
+      `CREATE TABLE IF NOT EXISTS gmail_imap_validation_limits (
+        identity_hash TEXT PRIMARY KEY,
+        window_started_at INTEGER NOT NULL,
+        attempt_count INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
       )`,
     ],
   },

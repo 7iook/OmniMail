@@ -17,6 +17,9 @@
       },
       "LINUX_DO_MAIL_CREDENTIALS_KEY": {
         "description": "Optional. At least 32 random UTF-8 bytes for encrypting Linux DO Mail passwords or authentication tokens."
+      },
+      "GMAIL_CREDENTIALS_KEY": {
+        "description": "Optional. At least 32 random UTF-8 bytes for encrypting Gmail app passwords."
       }
     }
   },

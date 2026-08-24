@@ -1,5 +1,5 @@
 import { adminAccessEndpoints, adminSettingsEndpoints } from './apiCatalogAdmin'
-import { iCloudEndpoints, linuxDoMailEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
+import { gmailEndpoints, iCloudEndpoints, linuxDoMailEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
 import { mailboxEndpoints, messageEndpoints, draftEndpoints } from './apiCatalogMail'
 import { systemEndpoints, authEndpoints } from './apiCatalogPublic'
 import { localized, type ApiAuth, type ApiEndpoint, type ApiGroupId } from './apiCatalogTypes'
@@ -23,6 +23,8 @@ export const apiGroups: Array<{
     description: localized('服务端草稿的创建、保存、附件和幂等发送。', 'Create, save, attach files to, and idempotently send server drafts.') },
   { id: 'icloud', title: localized('iCloud 隐藏邮箱', 'iCloud Hide My Email'),
     description: localized('iCloud 账号、凭据、隐藏地址和按需收件箱。', 'iCloud accounts, credentials, aliases, and on-demand inbox access.') },
+  { id: 'gmail', title: localized('Gmail 聚合收件箱', 'Gmail unified inbox'),
+    description: localized('多账号凭据、只读 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, read-only IMAP synchronization, unified indexing, message bodies, and attachments.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),
@@ -40,6 +42,7 @@ export const apiEndpoints: ApiEndpoint[] = [
   ...messageEndpoints,
   ...draftEndpoints,
   ...iCloudEndpoints,
+  ...gmailEndpoints,
   ...linuxDoMailEndpoints,
   ...adminOperationEndpoints,
   ...adminAccessEndpoints,
@@ -55,6 +58,8 @@ const authHeaders: Partial<Record<ApiAuth, string>> = {
 function exampleRoute(path: string): string {
   return path
     .replace(':messageId', 'message_id')
+    .replace(':accountId', 'gmail_account_id')
+    .replace(':partId', '0')
     .replace(':attachmentId', 'attachment_id')
     .replace(':anonymousId', 'alias_id')
     .replace(':address', 'owner%40example.com')

@@ -2,16 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Folder, UserRole } from './api'
 import { isAdminRole } from './roles'
 
-export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail'
+export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail'
 
 export type WorkspaceFeatures = {
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
+  gmailWorkspaceEnabled: boolean
 }
 
 const defaultWorkspaceFeatures: WorkspaceFeatures = {
   iCloudWorkspaceEnabled: true,
   linuxDoMailWorkspaceEnabled: true,
+  gmailWorkspaceEnabled: true,
 }
 
 export type WorkspaceRoute =
@@ -37,6 +39,7 @@ const adminPaths: Record<AdminView, string> = {
   api: '/settings/api',
   icloud: '/icloud',
   'linuxdo-mail': '/linux-do-mail',
+  gmail: '/gmail',
 }
 
 function canOpenAdminView(
@@ -46,6 +49,7 @@ function canOpenAdminView(
 ): boolean {
   if (view === 'icloud') return features.iCloudWorkspaceEnabled
   if (view === 'linuxdo-mail') return features.linuxDoMailWorkspaceEnabled
+  if (view === 'gmail') return features.gmailWorkspaceEnabled
   if (view === 'account' || view === 'api') return true
   if (view === 'mail') return role === 'super_admin'
   return isAdminRole(role)
@@ -109,7 +113,7 @@ export function useWorkspaceNavigation(
     syncFromLocation()
     window.addEventListener('popstate', syncFromLocation)
     return () => window.removeEventListener('popstate', syncFromLocation)
-  }, [features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
+  }, [features.gmailWorkspaceEnabled, features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
 
   const openFolder = useCallback((next: Folder) => {
     setFolder(next)
@@ -122,7 +126,7 @@ export function useWorkspaceNavigation(
     setFolder('inbox')
     setAdminView(next)
     updatePath(adminPaths[next])
-  }, [features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
+  }, [features.gmailWorkspaceEnabled, features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
 
   return { folder, adminView, openFolder, openAdminView }
 }

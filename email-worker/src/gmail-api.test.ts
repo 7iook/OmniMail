@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest'
+import {
+  createGmailAccount,
+  gmailAppPasswordField,
+  gmailEmailField,
+  gmailNameField,
+  getGmailMessage,
+  listGmailMessages,
+  listGmailAccounts,
+} from './gmail-api'
+import type { Env, SessionUser } from './types'
+
+const user = {
+  id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
+  mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
+  canCreateMailboxes: false, canReply: false, canTranslate: false,
+  temporaryExpiresAt: null,
+} satisfies SessionUser
+
+function request(body: unknown): Request {
+  return new Request('https://mail.example.com/api/gmail/accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+describe('Gmail account API validation', () => {
+  it('normalizes only ordinary display spaces in the 16-character app password', () => {
+    expect(gmailAppPasswordField('abcd efgh ijkl mnop')).toBe('abcdefghijklmnop')
+    expect(() => gmailAppPasswordField('google-account-password')).toThrow('16 位')
+    expect(() => gmailAppPasswordField('abcd\tefghijklmnop')).toThrow('16 位')
+  })
+
+  it('validates account labels and full email addresses', () => {
+    expect(gmailNameField(' Personal ')).toBe('Personal')
+    expect(gmailEmailField('USER@Example.com')).toBe('user@example.com')
+    expect(() => gmailEmailField('gmail-user')).toThrow('完整')
+  })
+
+  it('does not touch D1 or the network for invalid credentials', async () => {
+    const response = await createGmailAccount(
+      {} as Env,
+      user,
+      request({ name: 'Personal', email: 'user@gmail.com', appPassword: 'main-password' }),
+      '192.0.2.1',
+    )
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: '请填写 Google 生成的 16 位应用专用密码，而不是账号主密码。',
+    })
+  })
+
+  it('reports the feature as disabled without reading D1', async () => {
+    const response = await listGmailAccounts({} as Env, user)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ enabled: false, accountLimit: 5, accounts: [] })
+  })
+
+  it('scopes list and detail lookups by the authenticated user before returning data', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const env = {
+      GMAIL_CREDENTIALS_KEY: 'gmail-test-key-that-is-longer-than-thirty-two-characters',
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...bindings: unknown[]) => {
+            statements.push({ sql, bindings })
+            return {
+              all: async () => ({ results: [] }),
+              first: async () => null,
+            }
+          } }
+        },
+      },
+    } as unknown as Env
+
+    const list = await listGmailMessages(
+      env,
+      user,
+      new Request('https://mail.example.com/api/gmail/messages'),
+    )
+    const detail = await getGmailMessage(env, user, 'other-account', 'other-message')
+
+    expect(list.status).toBe(200)
+    expect(detail.status).toBe(404)
+    expect(statements[0].sql).toContain('a.user_id = ?')
+    expect(statements[0].bindings[0]).toBe(user.id)
+    expect(statements[1].sql).toContain('WHERE a.user_id = ? AND a.id = ? AND m.id = ?')
+    expect(statements[1].bindings).toEqual([user.id, 'other-account', 'other-message'])
+  })
+})

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  AtSign,
   Bell,
   BellOff,
   BookOpen,
@@ -68,6 +69,7 @@ export function MailboxSidebar({
   adminView,
   iCloudWorkspaceEnabled,
   linuxDoMailWorkspaceEnabled,
+  gmailWorkspaceEnabled,
   notifications,
   onFolderChange,
   onAdminViewChange,
@@ -79,6 +81,7 @@ export function MailboxSidebar({
   adminView: AdminView | null
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
+  gmailWorkspaceEnabled: boolean
   notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
@@ -86,8 +89,9 @@ export function MailboxSidebar({
 }) {
   const showAdmin = isAdminRole(user.role)
   const folderEntryCount = folders.length
-    + Number(iCloudWorkspaceEnabled)
-    + Number(linuxDoMailWorkspaceEnabled)
+    + Number(Boolean(iCloudWorkspaceEnabled))
+    + Number(Boolean(linuxDoMailWorkspaceEnabled))
+    + Number(Boolean(gmailWorkspaceEnabled))
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -175,6 +179,17 @@ export function MailboxSidebar({
         >
           <Mail size={18} />
           <span>{t('Linux DO 邮箱')}</span>
+        </button>}
+        {gmailWorkspaceEnabled && <button
+          className={adminView === 'gmail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('gmail')
+          }}
+        >
+          <AtSign size={18} />
+          <span>{t('Gmail 邮箱')}</span>
         </button>}
       </nav>
 

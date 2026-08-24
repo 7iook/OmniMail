@@ -1,0 +1,43 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { GmailAccountDialog } from './GmailAccountDialog'
+import { GmailReader } from './GmailReader'
+import { GmailWorkspace } from './GmailWorkspace'
+
+describe('Gmail workspace accessibility boundaries', () => {
+  it('shows a deployment recovery path when the credential key is missing', () => {
+    const html = renderToStaticMarkup(
+      <GmailWorkspace enabled={false} remoteImagesEnabled={false} />,
+    )
+    expect(html).toContain('GMAIL_CREDENTIALS_KEY')
+    expect(html).toContain('Gmail 功能尚未启用')
+  })
+
+  it('renders the account guide as a named modal without exposing credentials', () => {
+    const html = renderToStaticMarkup(
+      <GmailAccountDialog accounts={[]} accountLimit={5}
+        onClose={() => undefined} onChanged={async () => undefined} />,
+    )
+    expect(html).toContain('role="dialog"')
+    expect(html).toContain('aria-modal="true"')
+    expect(html).toContain('创建应用专用密码')
+    expect(html).not.toContain('app_password_cipher')
+  })
+
+  it('shows detail failures inside the reader with an explicit retry action', () => {
+    const html = renderToStaticMarkup(<GmailReader
+      selected={{
+        id: 'message-1',
+        account: { id: 'gmail-1', name: 'Personal', email: 'user@gmail.com', status: 'active' },
+        senderName: 'Sender', senderAddress: 'sender@example.com', recipients: [], cc: [],
+        subject: 'Subject', preview: '', date: 1, sizeBytes: 10, isRead: false,
+        isStarred: false, hasAttachments: false,
+      }}
+      message={null} loading={false} error="读取失败" remoteImagesEnabled={false}
+      onBack={() => undefined} onRetry={() => undefined} />)
+
+    expect(html).toContain('role="alert"')
+    expect(html).toContain('无法显示这封 Gmail 邮件')
+    expect(html).toContain('重试读取')
+  })
+})

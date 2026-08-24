@@ -3,6 +3,7 @@ import { purgeUserDraft } from './draft-api'
 import { permanentlyDeleteMessage, purgePendingObjectDeletions } from './message-storage'
 import { enqueueMissingMessageSearch } from './message-search'
 import { ensureSchema } from './schema'
+import { enqueueDueGmailSyncs } from './gmail-sync'
 import { startScheduledBackup } from './storage-policy'
 import type { Env } from './types'
 
@@ -178,11 +179,18 @@ export async function cleanup(env: Env): Promise<void> {
       .bind(now - 2 * 24 * 60 * 60),
     env.DB.prepare('DELETE FROM outbound_rate_limits WHERE updated_at < ?')
       .bind(now - 2 * 24 * 60 * 60),
+    env.DB.prepare('DELETE FROM gmail_imap_validation_limits WHERE updated_at < ?')
+      .bind(now - 24 * 60 * 60),
   ])
   try {
     await enqueueMissingMessageSearch(env)
   } catch (error) {
     console.error('Unable to enqueue message search backfill', error)
+  }
+  try {
+    await enqueueDueGmailSyncs(env, now)
+  } catch (error) {
+    console.error('Unable to enqueue Gmail synchronization', error)
   }
   await purgePendingObjectDeletions(env)
   await startScheduledBackup(env, now)

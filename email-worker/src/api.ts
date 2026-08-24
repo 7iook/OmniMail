@@ -22,6 +22,7 @@ import { beginLinuxDoAuth, finishLinuxDoAuth } from './linux-do-auth'
 import { linuxDoMailRoutes } from './linux-do-mail-routes'
 import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
 import { iCloudRoutes } from './icloud-routes'
+import { gmailRoutes } from './gmail-routes'
 import { authenticatePassword } from './password-login'
 import { publicConfig } from './public-config'
 import { proxyRemoteImage } from './remote-image'
@@ -520,6 +521,7 @@ app.delete('/api/mailboxes/:address', (context) => (
 
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
 app.route('/api', iCloudRoutes)
+app.route('/api', gmailRoutes)
 app.route('/api', linuxDoMailRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)

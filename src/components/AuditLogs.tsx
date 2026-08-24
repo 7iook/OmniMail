@@ -35,6 +35,7 @@ const categories: Array<{ id: AuditCategory; label: string }> = [
   { id: 'invitation', label: '邀请' },
   { id: 'message', label: '邮件' },
   { id: 'icloud', label: 'iCloud' },
+  { id: 'gmail', label: 'Gmail' },
   { id: 'linuxdo-mail', label: 'Linux DO Mail' },
   { id: 'system', label: '系统' },
 ]
@@ -99,6 +100,11 @@ const actionLabels: Record<string, string> = {
   'icloud.alias.deactivate': '已停用 iCloud 隐藏邮箱',
   'icloud.alias.reactivate': '已恢复 iCloud 隐藏邮箱',
   'icloud.alias.delete': '已删除 iCloud 隐藏邮箱',
+  'gmail.account.connect': '已连接 Gmail 账号',
+  'gmail.account.rename': '已重命名 Gmail 账号',
+  'gmail.account.credential_update': '已更新 Gmail 应用专用密码',
+  'gmail.account.verify': '已验证 Gmail 账号',
+  'gmail.account.disconnect': '已断开 Gmail 账号',
   'linuxdo_mail.account.connect': '已连接 Linux DO 邮箱',
   'linuxdo_mail.account.disconnect': '已断开 Linux DO 邮箱',
   'linuxdo_mail.account.verify': '已验证 Linux DO 邮箱',
@@ -127,6 +133,7 @@ const categoryLabels: Record<string, string> = {
   temporary_invite: '邀请',
   message: '邮件',
   icloud: 'iCloud',
+  gmail: 'Gmail',
   linuxdo_mail: 'Linux DO Mail',
   system: '系统',
 }

@@ -8,6 +8,7 @@ import {
   OutboundProviderAcceptedError,
 } from './outbound-message'
 import { ensureSchema } from './schema'
+import { consumeGmailSyncJob } from './gmail-sync'
 import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from './types'
 
 type ParsedAddress = {
@@ -415,6 +416,10 @@ async function consumeSearchIndexJob(
 export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: Env): Promise<void> {
   await ensureSchema(env.DB)
   for (const message of batch.messages) {
+    if (message.body.kind === 'gmail-sync') {
+      await consumeGmailSyncJob(message, env)
+      continue
+    }
     if (message.body.kind === 'outbound') {
       await consumeOutboundJob(message, env)
       continue

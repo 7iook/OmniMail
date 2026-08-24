@@ -1,0 +1,89 @@
+import { AlertCircle, ArrowLeft, LoaderCircle, Mail, Paperclip, RefreshCw } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { api, type GmailMessageDetail, type GmailMessageSummary } from '../lib/api'
+import { t } from '../lib/i18n'
+import { ICloudMessageBody } from './ICloudMessageBody'
+
+function senderLabel(message: Pick<GmailMessageSummary, 'senderName' | 'senderAddress'>): string {
+  return message.senderName || message.senderAddress || t('未知发件人')
+}
+
+export function GmailReader({
+  selected,
+  message,
+  loading,
+  error,
+  remoteImagesEnabled,
+  onBack,
+  onRetry,
+}: {
+  selected: GmailMessageSummary | null
+  message: GmailMessageDetail | null
+  loading: boolean
+  error: string
+  remoteImagesEnabled: boolean
+  onBack: () => void
+  onRetry: () => void
+}) {
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.focus()
+  }, [error])
+
+  if (loading) {
+    return <div className="reader-state reader-state--loading" role="status">
+      <LoaderCircle className="spin" size={23} aria-hidden="true" />
+      {t('正在通过只读 IMAP 获取正文…')}
+    </div>
+  }
+  if (error && selected) {
+    return <div ref={errorRef} className="reader-state gmail-reader-error" role="alert" tabIndex={-1}>
+      <span className="reader-empty-symbol"><AlertCircle size={27} /></span>
+      <h2>{t('无法显示这封 Gmail 邮件')}</h2>
+      <p>{error}</p>
+      <button className="button button--secondary button--small" type="button" onClick={onRetry}>
+        <RefreshCw size={15} />{t('重试读取')}
+      </button>
+    </div>
+  }
+  if (!message) {
+    return <div className="reader-state reader-state--empty">
+      <span className="reader-empty-symbol"><Mail size={29} /></span>
+      <h2>{t('选择一封 Gmail 邮件')}</h2>
+      <p>{t('打开邮件不会改变 Gmail 中的未读状态。')}</p>
+    </div>
+  }
+
+  return <article className="icloud-reader gmail-reader">
+    <header className="reader-toolbar">
+      <button className="icon-button mobile-back" type="button" onClick={onBack}
+        aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
+      <h2 className="reader-toolbar__title">{t('Gmail 邮件')}</h2>
+      <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>
+    </header>
+    <div className="reader-content icloud-reader-content">
+      <div className="icloud-reader-heading">
+        <h1>{message.subject || t('无主题')}</h1>
+        <div className="icloud-reader-sender">
+          <span>{senderLabel(message).slice(0, 1).toUpperCase()}</span>
+          <p><strong>{senderLabel(message)}</strong>
+            {message.senderAddress && <small>&lt;{message.senderAddress}&gt;</small>}
+            {message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
+          {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+        </div>
+      </div>
+      <p className="gmail-readonly-note"><AlertCircle size={14} />
+        {t('此视图只读；打开邮件不会在 Gmail 中标记为已读。')}</p>
+      <div className="icloud-reader-body"><ICloudMessageBody message={message}
+        remoteImagesEnabled={remoteImagesEnabled} /></div>
+      {message.attachments.length > 0 && <section className="gmail-attachments">
+        <h2><Paperclip size={16} />{t('附件')}</h2>
+        <div>{message.attachments.map((attachment) => <a key={attachment.partId}
+          href={api.gmailAttachmentUrl(message.account.id, message.id, attachment.partId)} download>
+          <span><strong>{attachment.filename}</strong>
+            <small>{attachment.contentType} · {Math.ceil(attachment.size / 1024)} KiB</small></span>
+        </a>)}</div>
+      </section>}
+    </div>
+  </article>
+}

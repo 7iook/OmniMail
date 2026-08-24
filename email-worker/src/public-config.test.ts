@@ -52,12 +52,14 @@ describe('public registration configuration', () => {
     expect(JSON.stringify(config)).not.toContain('sf_do-not-return')
   })
 
-  it('exposes only iCloud readiness, never the credential key', async () => {
+  it('exposes only external mailbox readiness, never credential keys', async () => {
     const env = environment({})
     env.ICLOUD_CREDENTIALS_KEY = 'icloud-do-not-return-this-secret-value'
+    env.GMAIL_CREDENTIALS_KEY = 'gmail-do-not-return-this-secret-value'
     const config = await publicConfig(env)
 
     expect(config.iCloudEnabled).toBe(true)
+    expect(config.gmailEnabled).toBe(true)
     expect(JSON.stringify(config)).not.toContain('do-not-return')
   })
 
@@ -82,12 +84,15 @@ describe('public registration configuration', () => {
     const disabled = await publicConfig(environment({
       icloud_workspace_enabled: '0',
       linuxdo_mail_workspace_enabled: '0',
+      gmail_workspace_enabled: '0',
     }))
 
     expect(defaults.iCloudWorkspaceEnabled).toBe(true)
     expect(defaults.linuxDoMailWorkspaceEnabled).toBe(true)
+    expect(defaults.gmailWorkspaceEnabled).toBe(true)
     expect(disabled.iCloudWorkspaceEnabled).toBe(false)
     expect(disabled.linuxDoMailWorkspaceEnabled).toBe(false)
+    expect(disabled.gmailWorkspaceEnabled).toBe(false)
   })
 
   it('exposes an empty random mailbox prefix by default', async () => {
