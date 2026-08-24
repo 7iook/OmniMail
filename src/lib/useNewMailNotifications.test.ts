@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { MessageSummary } from './api'
-import { newUnreadMessages, rememberMessageIds } from './useNewMailNotifications'
+import {
+  newUnreadMessages,
+  notificationInboxNeedsRefresh,
+  rememberMessageIds,
+} from './useNewMailNotifications'
 
 function message(
   id: string,
@@ -16,6 +20,13 @@ function message(
 }
 
 describe('new mail notifications', () => {
+  it('reuses the known global inbox version while browsing another folder', () => {
+    expect(notificationInboxNeedsRefresh(true, false, 12, 12)).toBe(false)
+    expect(notificationInboxNeedsRefresh(true, false, 13, 12)).toBe(true)
+    expect(notificationInboxNeedsRefresh(true, true, 13, 12)).toBe(false)
+    expect(notificationInboxNeedsRefresh(false, false, 13, 12)).toBe(false)
+  })
+
   it('returns only unseen unread inbox messages', () => {
     expect(newUnreadMessages(
       new Set(['old']),

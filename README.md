@@ -626,6 +626,7 @@ npm run dev
 
 ```powershell
 npm run check:lines
+npm run lint
 npm run check
 npm test
 npm run test:worker
@@ -640,11 +641,12 @@ npx wrangler deploy --dry-run
 Web Store 素材时，运行 `npm run update:extension-store-assets`。
 
 最后一条命令只执行 Worker 打包验证，不会部署。CI 会在每次 Push 和 Pull Request
-中运行测试、类型检查、生产构建与 Wrangler dry-run。生产发布由已连接仓库的
+中运行测试、Hooks lint、类型检查、生产构建与 Wrangler dry-run。生产发布由已连接仓库的
 Cloudflare Workers Builds 自动执行。
 
-项目要求手写代码、测试和配置文件单文件不超过 600 行。自动生成的依赖锁文件和
-Wrangler 构建产物不计入限制。
+项目要求 Web 与扩展的 TypeScript 实现文件不超过 500 行，其他手写代码、测试和配置
+文件不超过 600 行。纯类型声明、翻译数据、自动生成的依赖锁文件和 Wrangler 构建产物
+不计入 500 行实现文件限制。
 
 ## 安全模型
 

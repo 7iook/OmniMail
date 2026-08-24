@@ -28,7 +28,7 @@ import { AdminPageHeader } from './AdminPageHeader'
 import { TemporaryUserExpiry } from './TemporaryUserExpiry'
 import { UserBanDialog } from './UserBanDialog'
 import { UserPolicyPanel } from './UserPolicyPanel'
-import { UserRoleSelect } from './UserRoleSelect'
+import { UserPolicyFields } from './UserPolicyFields'
 import { UserOutboundRateLimit } from './UserOutboundRateLimit'
 
 const initialCreate: CreateManagedUser = {
@@ -68,124 +68,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(0, bytes / 1024).toFixed(1)} KiB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
-}
-
-function PolicyFields({
-  value,
-  onChange,
-  allowAdmin,
-  showStatus,
-  useRoleDefaults = false,
-  disabled = false,
-}: {
-  value: ManagedUserPolicy
-  onChange: (next: ManagedUserPolicy) => void
-  allowAdmin: boolean
-  showStatus: boolean
-  useRoleDefaults?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <div className="user-policy-fields">
-      <label>
-        <span>{t('账户角色')}</span>
-        <UserRoleSelect
-          value={value.role}
-          allowAdmin={allowAdmin}
-          disabled={disabled}
-          onChange={(role) => {
-            onChange({
-              ...value,
-              role,
-              canCreateMailboxes: role === 'admin' ? true : value.canCreateMailboxes,
-              canTranslate: role === 'admin'
-                ? true
-                : useRoleDefaults ? role !== 'temporary' : value.canTranslate,
-            })
-          }}
-        />
-      </label>
-
-      <label>
-        <span>{t('邮箱数量上限')}</span>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={value.mailboxLimit}
-          disabled={disabled}
-          onChange={(event) => onChange({
-            ...value,
-            mailboxLimit: Math.max(0, Math.min(100, Number(event.target.value))),
-          })}
-        />
-        <small>{t('范围 0–100；已经创建的邮箱不会被自动删除。')}</small>
-      </label>
-
-      <label>
-        <span>{t('存储配额（MiB）')}</span>
-        <input
-          type="number"
-          min="0"
-          max="102400"
-          value={value.storageQuotaMiB}
-          disabled={disabled}
-          onChange={(event) => onChange({
-            ...value,
-            storageQuotaMiB: Number(event.target.value) === 0
-              ? 0
-              : Math.max(16, Math.min(102400, Number(event.target.value))),
-          })}
-        />
-        <small>{t('填写 0 表示不限；其他值需要在 16–102400 MiB 之间。')}</small>
-      </label>
-
-      <label className="policy-toggle">
-        <span><MailPlus size={17} /><span><strong>{t('创建与管理邮箱')}</strong><small>{t(value.role === 'admin' ? '管理员默认拥有此权限' : '允许添加、启用和停用自己的收件地址')}</small></span></span>
-        <input
-          type="checkbox"
-          checked={value.role === 'admin' || value.canCreateMailboxes}
-          disabled={disabled || value.role === 'admin'}
-          onChange={(event) => onChange({ ...value, canCreateMailboxes: event.target.checked })}
-        />
-      </label>
-
-      <label className="policy-toggle">
-        <span><Send size={17} /><span><strong>{t('使用发信服务发信与回复')}</strong><small>{t('仍需 Worker 已配置发信服务')}</small></span></span>
-        <input
-          type="checkbox"
-          checked={value.canReply}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...value, canReply: event.target.checked })}
-        />
-      </label>
-
-      <label className="policy-toggle">
-        <span><Languages size={17} /><span><strong>{t('使用 AI 翻译邮件')}</strong><small>{t(value.role === 'admin' ? '管理员默认拥有此权限' : '允许查看缓存译文并请求新的 AI 翻译')}</small></span></span>
-        <input
-          type="checkbox"
-          checked={value.role === 'admin' || value.canTranslate}
-          disabled={disabled || value.role === 'admin'}
-          onChange={(event) => onChange({ ...value, canTranslate: event.target.checked })}
-        />
-      </label>
-
-      {showStatus && (
-        <label className="policy-toggle policy-toggle--danger">
-          <span><Ban size={17} /><span><strong>{t('封禁账户')}</strong><small>{t('保存后立即注销该用户的所有会话')}</small></span></span>
-          <input
-            type="checkbox"
-            checked={value.status === 'disabled'}
-            disabled={disabled}
-            onChange={(event) => onChange({
-              ...value,
-              status: event.target.checked ? 'disabled' : 'active',
-            })}
-          />
-        </label>
-      )}
-    </div>
-  )
 }
 
 export function UserManagement({
@@ -455,7 +337,7 @@ export function UserManagement({
                   <label><span>{t('登录邮箱')}</span><input required type="email" value={createDraft.email} onChange={(event) => setCreateDraft({ ...createDraft, email: event.target.value })} /></label>
                   <label><span>{t('初始密码')}</span><input required type="password" minLength={10} maxLength={128} value={createDraft.password} onChange={(event) => setCreateDraft({ ...createDraft, password: event.target.value })} /></label>
                 </div>
-                <PolicyFields
+                <UserPolicyFields
                   value={createDraft}
                   onChange={(next) => setCreateDraft({ ...createDraft, ...next })}
                   allowAdmin={currentUser.role === 'super_admin'}
@@ -484,7 +366,7 @@ export function UserManagement({
                       : t('为了避免权限升级或自我锁定，当前管理员不能修改这个账户。')}
                   </p>
                 )}
-                <PolicyFields
+                <UserPolicyFields
                   value={policy}
                   onChange={setPolicy}
                   allowAdmin={currentUser.role === 'super_admin'}

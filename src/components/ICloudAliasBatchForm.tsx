@@ -1,6 +1,6 @@
 import { AlertCircle, Check, LoaderCircle, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { flushSync } from 'react-dom'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react'
 import { api, type ICloudAccount, type ICloudAlias } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
@@ -72,15 +72,18 @@ export function ICloudAliasBatchForm({ account, close, onCreated }: {
     }
   }
 
+  const previewInitialDraft = useEffectEvent(() => previewDraft(initialDraft.id))
+
   useEffect(() => {
-    const timer = window.setTimeout(() => void previewDraft(initialDraft.id), 0)
+    const previewVersionsAtMount = previewVersions.current
+    const timer = window.setTimeout(() => void previewInitialDraft(), 0)
     return () => {
       window.clearTimeout(timer)
-      for (const [id, version] of previewVersions.current) {
-        previewVersions.current.set(id, version + 1)
+      for (const [id, version] of previewVersionsAtMount) {
+        previewVersionsAtMount.set(id, version + 1)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   function addDraft() {
     if (drafts.length >= MAX_ALIASES || previewBusy || creating) return

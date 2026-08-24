@@ -1,4 +1,9 @@
 export const enMailFeatures: Record<string, string> = {
+  '天': 'days',
+  '存储配额（MiB）': 'Storage quota (MiB)',
+  '填写 0 表示不限；其他值需要在 16–102400 MiB 之间。':
+    'Enter 0 for unlimited storage; otherwise use a value from 16 to 102400 MiB.',
+  '邮箱 / 存储': 'Mailboxes / storage',
   '草稿箱': 'Drafts',
   '编辑草稿': 'Edit draft',
   '选择草稿继续编辑': 'Select a draft to continue editing',

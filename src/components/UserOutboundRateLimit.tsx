@@ -41,7 +41,7 @@ export function UserOutboundRateLimit({
     setMinuteLimit(rate.minuteLimitOverride?.toString() ?? '')
     setDayLimit(rate.dayLimitOverride?.toString() ?? '')
     setMessage('')
-  }, [user.id])
+  }, [rate.dayLimitOverride, rate.minuteLimitOverride, user.id])
 
   async function save(event: FormEvent) {
     event.preventDefault()

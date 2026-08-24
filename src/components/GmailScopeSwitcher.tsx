@@ -1,5 +1,5 @@
 import { AtSign, Check, ChevronDown, Inbox, Settings2, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { GmailAccount } from '../lib/api'
 import { t } from '../lib/i18n'
 
@@ -52,13 +52,15 @@ export function GmailScopeSwitcher({ accounts, selectedAccountId, onChange, onMa
     else close()
   }
 
+  const closeFromEffect = useEffectEvent(close)
+
   useEffect(() => {
     if (!open) return
     requestAnimationFrame(() => panel.current?.focus())
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      close()
+      closeFromEffect()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)

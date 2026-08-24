@@ -10,6 +10,7 @@ import {
   shouldProxyRemoteImage,
 } from './MessageReader'
 import { forceLightEmailColorScheme, normalizeRemoteImageSource } from '../lib/emailContent'
+import { fitEmailDocument } from '../hooks/useSmoothEmailFrame'
 import { subjectPassedReaderTop } from '../hooks/useMessageReaderScroll'
 import { typewriterFrame } from './MessageReaderToolbarTitle'
 
@@ -36,14 +37,14 @@ describe('message reader scroll navigation', () => {
 
 describe('email remote image policy', () => {
   it('blocks remote image protocols by default', () => {
-    expect(emailImageSources(false)).toBe('data:')
+    expect(emailImageSources(false)).toBe('data: blob:')
   })
 
   it('allows only proxied same-origin images when enabled', () => {
     expect(emailImageSources(
       true,
       'https://mail.example.com/api/remote-images',
-    )).toBe('data: https://mail.example.com/api/remote-images')
+    )).toBe('data: blob: https://mail.example.com/api/remote-images')
   })
 
   it('proxies public web images through HTTPS', () => {
@@ -69,14 +70,34 @@ describe('email frame layout', () => {
     } as unknown as Document)).toBe(470)
   })
 
+  it('skips element geometry scans when the document already fits', () => {
+    const style = { removeProperty: () => undefined, setProperty: () => undefined }
+    const document = {
+      body: {
+        style,
+        offsetHeight: 600,
+        scrollHeight: 600,
+        scrollWidth: 600,
+        getBoundingClientRect: () => { throw new Error('geometry scan was not skipped') },
+      },
+      documentElement: {
+        clientWidth: 600,
+        offsetHeight: 600,
+        scrollHeight: 600,
+        scrollWidth: 600,
+      },
+    } as unknown as Document
+
+    expect(fitEmailDocument(document)).toBe(600)
+  })
+
   it('reveals only the prepared version of the current HTML message', () => {
     const prepared = { messageId: 'message-1', document: '<p>Ready</p>' }
-    expect(emailFrameReady('message-1', '', '', false, null)).toBe(true)
-    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', false, null)).toBe(false)
-    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', true, prepared)).toBe(false)
-    expect(emailFrameReady('message-2', '<p>Ready</p>', '<p>Ready</p>', false, prepared)).toBe(false)
-    expect(emailFrameReady('message-1', '<p>Updated</p>', '<p>Updated</p>', false, prepared)).toBe(false)
-    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', false, prepared)).toBe(true)
+    expect(emailFrameReady('message-1', '', '', null)).toBe(true)
+    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', null)).toBe(false)
+    expect(emailFrameReady('message-2', '<p>Ready</p>', '<p>Ready</p>', prepared)).toBe(false)
+    expect(emailFrameReady('message-1', '<p>Updated</p>', '<p>Updated</p>', prepared)).toBe(false)
+    expect(emailFrameReady('message-1', '<p>Ready</p>', '<p>Ready</p>', prepared)).toBe(true)
   })
 })
 

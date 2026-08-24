@@ -21,6 +21,7 @@ import {
   type DeploymentCheckState,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import '../styles/deployment-wizard.css'
 
 const steps = [
   { id: 'core' as const, label: '核心资源', description: 'Worker、D1、R2 与队列', Icon: Database },

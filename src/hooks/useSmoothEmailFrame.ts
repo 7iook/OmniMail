@@ -40,6 +40,9 @@ export function fitEmailDocument(document: Document): number {
   const viewportWidth = documentElement.clientWidth
   if (viewportWidth <= 0) return emailDocumentHeight(document)
 
+  const scrollWidth = Math.max(body.scrollWidth, documentElement.scrollWidth)
+  if (scrollWidth <= viewportWidth + 1) return emailDocumentHeight(document)
+
   const bodyLeft = body.getBoundingClientRect().left
   let minLeft = 0
   let maxRight = viewportWidth
@@ -74,11 +77,9 @@ export function emailFrameReady(
   messageId: string,
   html: string,
   frameDocument: string,
-  inlineImagesLoading: boolean,
   prepared: PreparedEmailFrame | null,
 ): boolean {
-  return !html || (!inlineImagesLoading
-    && prepared?.messageId === messageId
+  return !html || (prepared?.messageId === messageId
     && prepared.document === frameDocument)
 }
 

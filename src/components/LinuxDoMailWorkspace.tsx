@@ -23,6 +23,7 @@ import { api, type LinuxDoMailAccount, type LinuxDoMailMessage } from '../lib/ap
 import { errorMessage } from '../lib/errorMessage'
 import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
+import '../styles/linux-do-mail.css'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 import { ICloudMessageBody } from './ICloudMessageBody'
 import { LinuxDoMailAccountDialog } from './LinuxDoMailAccountDialog'
@@ -174,7 +175,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   }, [account, folder, query])
 
   useEffect(() => { void loadAccount() }, [loadAccount])
-  useEffect(() => { if (account) void loadMessages() }, [account?.id, folder, query]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (account) void loadMessages() }, [account, loadMessages])
   useEffect(() => () => { inboxController.current?.abort(); messageController.current?.abort() }, [])
   useEffect(() => {
     if (!notice) return

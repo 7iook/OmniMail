@@ -22,6 +22,15 @@ export function rememberMessageIds(
   return new Set([...knownIds, ...messages.map((message) => message.id)])
 }
 
+export function notificationInboxNeedsRefresh(
+  enabled: boolean,
+  currentIsGlobalInbox: boolean,
+  currentVersion: number,
+  inboxVersion: number | undefined,
+): boolean {
+  return enabled && !currentIsGlobalInbox && currentVersion !== inboxVersion
+}
+
 export interface MailNotificationControls {
   enabled: boolean
   supported: boolean
@@ -35,6 +44,7 @@ export function useNewMailNotifications(
 ) {
   const storageKey = `omnimail.mail-notifications.${userId}`
   const knownIds = useRef<ReadonlySet<string>>(new Set())
+  const inboxVersion = useRef<number | undefined>(undefined)
   const supported = typeof window !== 'undefined' && 'Notification' in window
   const [enabled, setEnabled] = useState(() => (
     supported
@@ -55,6 +65,7 @@ export function useNewMailNotifications(
       if (permission !== 'granted') throw new Error(t('浏览器未授予通知权限。'))
       const baseline = await api.messages('inbox', '', { type: 'all' })
       if (!baseline.unchanged) {
+        inboxVersion.current = baseline.version
         knownIds.current = rememberMessageIds(knownIds.current, baseline.messages)
       }
       window.localStorage.setItem(storageKey, '1')
@@ -81,12 +92,27 @@ export function useNewMailNotifications(
     quiet: boolean,
     messages: MessageSummary[],
     currentIsGlobalInbox: boolean,
+    version: number,
   ) => {
     try {
       let tracked = messages
-      if (enabled && !currentIsGlobalInbox) {
-        const inbox = await api.messages('inbox', '', { type: 'all' })
-        if (!inbox.unchanged) tracked = inbox.messages
+      if (currentIsGlobalInbox) inboxVersion.current = version
+      if (notificationInboxNeedsRefresh(
+        enabled,
+        currentIsGlobalInbox,
+        version,
+        inboxVersion.current,
+      )) {
+        const inbox = await api.messages(
+          'inbox',
+          '',
+          { type: 'all' },
+          undefined,
+          inboxVersion.current,
+        )
+        inboxVersion.current = inbox.version
+        if (inbox.unchanged) return
+        tracked = inbox.messages
       }
       if (quiet) notify(knownIds.current, tracked)
       knownIds.current = rememberMessageIds(knownIds.current, tracked)

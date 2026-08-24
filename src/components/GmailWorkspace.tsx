@@ -21,6 +21,8 @@ import {
 } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
+import '../styles/gmail-dialog.css'
+import '../styles/gmail-workspace.css'
 import { GmailAccountDialog } from './GmailAccountDialog'
 import { GmailReader } from './GmailReader'
 import { GmailSearchField } from './GmailSearchField'

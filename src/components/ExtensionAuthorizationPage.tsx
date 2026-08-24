@@ -16,6 +16,7 @@ import {
   extensionAuthorizationResult,
 } from '../lib/extensionAuthorization'
 import { t } from '../lib/i18n'
+import '../styles/extension-authorization.css'
 import { AuthModal, Brand, ThemeToggle } from './AuthPages'
 import { LanguageToggle } from './LanguageToggle'
 

@@ -1,21 +1,5 @@
 import { useSyncExternalStore } from 'react'
 import { enCore } from './i18n-en-core'
-import { enAdmin } from './i18n-en-admin'
-import { enAdminMail } from './i18n-en-admin-mail'
-import { enInvites } from './i18n-en-invites'
-import { enMailFeatures } from './i18n-en-mail-features'
-import { enMailWorkspaces } from './i18n-en-mail-workspaces'
-import { enMailboxSettings } from './i18n-en-mailbox-settings'
-import { enRateLimit } from './i18n-en-rate-limit'
-import { enVersion } from './i18n-en-version'
-import { enErrors } from './i18n-en-errors'
-import { enExtension } from './i18n-en-extension'
-import { enOauth } from './i18n-en-oauth'
-import { enSecurity } from './i18n-en-security'
-import { enICloud } from './i18n-en-icloud'
-import { enLinuxDoMail } from './i18n-en-linux-do-mail'
-import { enGmail } from './i18n-en-gmail'
-import { enApi } from './i18n-en-api'
 
 export type Locale = 'zh-CN' | 'en-US'
 export type TranslationValues = Record<string, string | number>
@@ -47,23 +31,10 @@ function initialLocale(): Locale {
 let currentLocale = initialLocale()
 const english = {
   ...enCore,
-  ...enAdmin,
-  ...enAdminMail,
-  ...enInvites,
-  ...enErrors,
-  ...enExtension,
-  ...enOauth,
-  ...enSecurity,
-  ...enMailFeatures,
-  ...enMailWorkspaces,
-  ...enMailboxSettings,
-  ...enRateLimit,
-  ...enVersion,
-  ...enICloud,
-  ...enLinuxDoMail,
-  ...enGmail,
-  ...enApi,
 }
+let requestedLocale = currentLocale
+let englishLoaded = false
+let englishLoad: Promise<void> | null = null
 const englishPlurals: Record<string, [string, string]> = {
   '{count} 个邮箱地址': ['{count} mailbox', '{count} mailboxes'],
   '{count} 个启用地址': ['{count} enabled address', '{count} enabled addresses'],
@@ -79,6 +50,32 @@ const englishPlurals: Record<string, [string, string]> = {
   '已使用 {count} 个邮箱': ['{count} mailbox used', '{count} mailboxes used'],
   '{count} 天': ['{count} day', '{count} days'],
   '{count} 小时': ['{count} hour', '{count} hours'],
+}
+
+export function hasEnglishTranslation(source: string): boolean {
+  if (!/[\u3400-\u9fff]/.test(source)) return true
+  return Object.hasOwn(english, source)
+    || Object.hasOwn(englishPlurals, source)
+}
+
+export function ensureEnglishTranslations(): Promise<void> {
+  if (englishLoaded) return Promise.resolve()
+  if (!englishLoad) {
+    englishLoad = import('./i18n-en')
+      .then(({ englishTranslations }) => {
+        Object.assign(english, englishTranslations)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        englishLoaded = true
+        listeners.forEach((listener) => listener())
+      })
+  }
+  return englishLoad
+}
+
+export function translationsReady(): boolean {
+  return currentLocale === 'zh-CN' || englishLoaded
 }
 
 function syncDocument(locale: Locale): void {
@@ -104,7 +101,14 @@ export function subscribeLocale(listener: () => void): () => void {
 }
 
 export function setLocale(locale: Locale): void {
+  requestedLocale = locale
   if (locale === currentLocale) return
+  if (locale === 'en-US' && !englishLoaded) {
+    void ensureEnglishTranslations().then(() => {
+      if (requestedLocale === 'en-US') setLocale('en-US')
+    })
+    return
+  }
   currentLocale = locale
   try {
     window.localStorage.setItem(STORAGE_KEY, locale)
@@ -117,6 +121,10 @@ export function setLocale(locale: Locale): void {
 
 export function useLocale(): Locale {
   return useSyncExternalStore(subscribeLocale, getLocale, getLocale)
+}
+
+export function useTranslationsReady(): boolean {
+  return useSyncExternalStore(subscribeLocale, translationsReady, translationsReady)
 }
 
 export function translate(
@@ -149,3 +157,5 @@ export function translate(
 }
 
 export const t = translate
+
+if (currentLocale === 'en-US') void ensureEnglishTranslations()

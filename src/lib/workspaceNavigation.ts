@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Folder, UserRole } from './api'
 import { isAdminRole } from './roles'
 
@@ -90,7 +90,16 @@ export function useWorkspaceNavigation(
   role: UserRole,
   features: WorkspaceFeatures = defaultWorkspaceFeatures,
 ) {
-  const initial = workspaceRoute(window.location.pathname, role, features)
+  const stableFeatures = useMemo(() => ({
+    iCloudWorkspaceEnabled: features.iCloudWorkspaceEnabled,
+    linuxDoMailWorkspaceEnabled: features.linuxDoMailWorkspaceEnabled,
+    gmailWorkspaceEnabled: features.gmailWorkspaceEnabled,
+  }), [
+    features.gmailWorkspaceEnabled,
+    features.iCloudWorkspaceEnabled,
+    features.linuxDoMailWorkspaceEnabled,
+  ])
+  const initial = workspaceRoute(window.location.pathname, role, stableFeatures)
   const [folder, setFolder] = useState<Folder>(
     initial.kind === 'folder' ? initial.folder : 'inbox',
   )
@@ -105,7 +114,7 @@ export function useWorkspaceNavigation(
 
   useEffect(() => {
     const syncFromLocation = () => {
-      const route = workspaceRoute(window.location.pathname, role, features)
+      const route = workspaceRoute(window.location.pathname, role, stableFeatures)
       setFolder(route.kind === 'folder' ? route.folder : 'inbox')
       setAdminView(route.kind === 'admin' ? route.view : null)
       updatePath(route.path, true)
@@ -113,7 +122,7 @@ export function useWorkspaceNavigation(
     syncFromLocation()
     window.addEventListener('popstate', syncFromLocation)
     return () => window.removeEventListener('popstate', syncFromLocation)
-  }, [features.gmailWorkspaceEnabled, features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
+  }, [role, stableFeatures])
 
   const openFolder = useCallback((next: Folder) => {
     setFolder(next)
@@ -122,11 +131,11 @@ export function useWorkspaceNavigation(
   }, [])
 
   const openAdminView = useCallback((next: AdminView) => {
-    if (!canOpenAdminView(next, role, features)) return
+    if (!canOpenAdminView(next, role, stableFeatures)) return
     setFolder('inbox')
     setAdminView(next)
     updatePath(adminPaths[next])
-  }, [features.gmailWorkspaceEnabled, features.iCloudWorkspaceEnabled, features.linuxDoMailWorkspaceEnabled, role])
+  }, [role, stableFeatures])
 
   return { folder, adminView, openFolder, openAdminView }
 }

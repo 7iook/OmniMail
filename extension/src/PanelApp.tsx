@@ -1,10 +1,7 @@
 import {
   AlertCircle,
   Check,
-  ExternalLink,
   Inbox,
-  LoaderCircle,
-  LogOut,
   MailPlus,
   Settings,
 } from 'lucide-react'
@@ -26,7 +23,7 @@ import { GenerateView } from './PanelGenerate'
 import { InboxView } from './PanelInbox'
 import type { MailSource } from './PanelMailSourceTabs'
 import { PanelScrollbar } from './PanelScrollbar'
-import { PanelThemeSettings } from './PanelThemeSettings'
+import { LoginView, NavButton, SettingsView } from './PanelViews'
 import {
   type AuthStatus,
   type ExtensionSettings,
@@ -42,7 +39,6 @@ type View = 'generate' | 'inbox' | 'settings'
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : '操作失败，请稍后重试。'
 }
-
 export function PanelApp() {
   const mainRef = useRef<HTMLElement>(null)
   const messageRequestId = useRef(0)
@@ -160,7 +156,7 @@ export function PanelApp() {
       }
     })
     return () => { active = false }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadAuthenticatedData])
 
   useEffect(() => {
     const handleAuthStorageChange = (
@@ -490,65 +486,5 @@ export function PanelApp() {
       </div>
       {notice && <div className="panel-toast" role="status"><Check size={15} />{notice}</div>}
     </div>
-  )
-}
-
-function NavButton({ active, icon, label, onClick }: {
-  active: boolean; icon: React.ReactNode; label: string; onClick: () => void
-}) {
-  return (
-    <button className={active ? 'is-active' : ''} type="button" aria-current={active ? 'page' : undefined} onClick={onClick}>
-      {icon}<span>{label}</span>
-    </button>
-  )
-}
-
-function LoginView({ apiOrigin, busy, error, onLogin }: {
-  apiOrigin: string
-  busy: boolean
-  error: string
-  onLogin: (input: { apiOrigin: string }) => void
-}) {
-  const [site, setSite] = useState(apiOrigin)
-  return (
-    <section className="login-view">
-      <div className="login-logo"><OmniLogo size={30} /></div>
-      <p className="eyebrow">OMNIMAIL FLOAT</p>
-      <h1>连接你的邮箱</h1>
-      <p className="login-copy">前往你的 OmniMail 网站验证身份并确认授权，扩展不会读取密码。</p>
-      <form onSubmit={(event) => {
-        event.preventDefault()
-        onLogin({ apiOrigin: site })
-      }}>
-        <label htmlFor="omnimail-site">OmniMail 地址</label>
-        <input id="omnimail-site" type="url" required placeholder="https://mail.example.com" value={site} onChange={(event) => setSite(event.target.value)} />
-        {error && <p className="login-error" role="alert"><AlertCircle size={15} />{error}</p>}
-        <button className="primary-button" type="submit" disabled={busy}>
-          {busy ? <LoaderCircle className="spin" size={17} /> : <ExternalLink size={17} />}
-          {busy ? '等待网站授权…' : '前往 OmniMail 授权'}
-        </button>
-      </form>
-      <p className="login-security">授权完成后会安全保存登录，关闭浏览器后仍可自动恢复。</p>
-    </section>
-  )
-}
-
-function SettingsView({ auth, settings, onToggleFloating, onTheme, onOpenWeb, onLogout }: {
-  auth: AuthStatus
-  settings: ExtensionSettings
-  onToggleFloating: (enabled: boolean) => void
-  onTheme: (theme: ThemePreference) => void
-  onOpenWeb: () => void
-  onLogout: () => void
-}) {
-  return (
-    <section className="panel-page settings-page">
-      <header className="page-heading"><p className="eyebrow">SETTINGS</p><h1>扩展设置</h1><p>管理外观、悬浮入口和当前 OmniMail 会话。</p></header>
-      <div className="page-card setting-row"><div><strong>网页悬浮按钮</strong><span>在普通 HTTP/HTTPS 网页显示入口</span></div><input aria-label="网页悬浮按钮" type="checkbox" checked={settings.floatingEnabled} onChange={(event) => onToggleFloating(event.target.checked)} /></div>
-      <PanelThemeSettings value={settings.theme} onChange={onTheme} />
-      <div className="page-card account-card"><span>当前账户</span><strong>{auth.user?.displayName}</strong><small>{auth.user?.email}</small><small>{auth.apiOrigin}</small></div>
-      <button className="secondary-button" type="button" onClick={onOpenWeb}><ExternalLink size={16} />打开完整网页端</button>
-      <button className="danger-button" type="button" onClick={onLogout}><LogOut size={16} />退出扩展登录</button>
-    </section>
   )
 }

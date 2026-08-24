@@ -1,30 +1,27 @@
 import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
 import { DraftComposer, useDraftEditor } from './components/DraftComposer'
 import { DraftFolderContent } from './components/DraftFolderContent'
-import { ExtensionAuthorizationPage } from './components/ExtensionAuthorizationPage'
 import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions, MailboxHeaderUtilities } from './components/MailboxHeaderActions'
 import { MailDeleteDialog } from './components/MailDeleteDialog'
 import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
-import { TemporaryInvitePage } from './components/TemporaryInvitePage'
 import {
   api, ApiError,
-  type AppConfig, type Folder, type ManagedDomain, type MailboxAddress, type MailCounts,
-  type MailboxScope, type MessageDetail, type MessageSummary, type PageInfo, type User,
+  type AppConfig, type Folder, type ManagedDomain, type MailboxAddress,
+  type MailboxScope, type User,
 } from './lib/api'
 import { isAdminRole } from './lib/roles'
 import { deploymentGuideUnseen, markDeploymentGuideSeen } from './lib/deploymentGuide'
-import { useMailboxRefresh } from './lib/useAutoRefresh'
 import { openingSplashDelay } from './lib/initialSplash'
-import { t, useLocale } from './lib/i18n'
-import { bulkMessages, type BulkMessageAction } from './lib/messageActions'
+import { t, useLocale, useTranslationsReady } from './lib/i18n'
 import { errorMessage } from './lib/errorMessage'
 import { shouldQuietRefreshFolder } from './lib/mailboxNavigation'
+import { useMailboxMessages } from './lib/useMailboxMessages'
 import { useMessageSearch } from './lib/useMessageSearch'
 import { useSessionExpiry } from './lib/useSessionExpiry'
 import { useNewMailNotifications } from './lib/useNewMailNotifications'
@@ -34,10 +31,8 @@ const DeploymentWizard = lazy(async () => ({ default: (await import('./component
 const ICloudWorkspace = lazy(async () => ({ default: (await import('./components/ICloudWorkspace')).ICloudWorkspace }))
 const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('./components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
 const GmailWorkspace = lazy(async () => ({ default: (await import('./components/GmailWorkspace')).GmailWorkspace }))
-const emptyCounts: MailCounts = { unread: 0, starred: 0, drafts: 0, sent: 0, trash: 0 }
-const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
-type PendingMailDelete = { kind: 'single'; message: MessageDetail }
-  | { kind: 'bulk'; action: 'trash' | 'delete'; ids: string[] }
+const ExtensionAuthorizationPage = lazy(async () => ({ default: (await import('./components/ExtensionAuthorizationPage')).ExtensionAuthorizationPage }))
+const TemporaryInvitePage = lazy(async () => ({ default: (await import('./components/TemporaryInvitePage')).TemporaryInvitePage }))
 function Mailbox({
   user,
   config,
@@ -55,38 +50,35 @@ function Mailbox({
   const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role, workspaceFeatures)
   const [query, setQuery] = useState('')
   const [searchQuery, nextMessageSignal] = useMessageSearch(query)
-  const [messages, setMessages] = useState<MessageSummary[]>([])
-  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set())
-  const [messageVersion, setMessageVersion] = useState<number>()
-  const [messagePage, setMessagePage] = useState<PageInfo>(emptyPage)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
   const [mailboxesLoaded, setMailboxesLoaded] = useState(false)
   const [domains, setDomains] = useState<ManagedDomain[]>([])
   const [scope, setScope] = useState<MailboxScope>({ type: 'all' })
-  const [counts, setCounts] = useState<MailCounts>(emptyCounts)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<MessageDetail | null>(null)
-  const [thread, setThread] = useState<MessageSummary[]>([])
-  const [listLoading, setListLoading] = useState(true)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [bulkLoading, setBulkLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [pendingMailDelete, setPendingMailDelete] = useState<PendingMailDelete | null>(null)
-  const messageRequestId = useRef(0)
-  const detailRequestId = useRef(0)
-  const detailController = useRef<AbortController | null>(null)
   const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
+  const {
+    messages, selectedMessageIds, messagePage, counts, selectedId, detail, thread,
+    listLoading, detailLoading, refreshing, loadingMore, bulkLoading, pendingMailDelete,
+    clearSelectedMessage, loadMessages, loadMoreMessages, selectMessage, toggleStar,
+    toggleMessageSelection, selectAllLoadedMessages, runBulkAction, requestSelectedDelete,
+    confirmMailDelete, restoreSelected, changeDraftCount, markSelectedMessageRetrying,
+    cancelMailDelete, beginListLoading,
+  } = useMailboxMessages({
+    folder,
+    searchQuery,
+    scope,
+    refreshInterval: config.mailRefreshInterval,
+    refreshEnabled: !adminView && folder !== 'drafts',
+    nextMessageSignal,
+    trackNotifications: mailNotifications.track,
+    onLogout,
+    setError,
+    setNotice,
+  })
   function closeDeploymentWizard() { markDeploymentGuideSeen(); setDeploymentWizardOpen(false) }
-  const clearSelectedMessage = useCallback(() => {
-    detailRequestId.current += 1; detailController.current?.abort()
-    detailController.current = null
-    setSelectedId(null); setDetail(null); setThread([]); setDetailLoading(false)
-  }, [])
   const loadMailboxes = useCallback(async () => {
     try {
       const result = await api.mailboxes()
@@ -123,208 +115,14 @@ function Mailbox({
   const loadMailboxData = useCallback(async () => {
     await Promise.all([loadMailboxes(), loadDomains()])
   }, [loadDomains, loadMailboxes])
-  const loadMessages = useCallback(async (quiet = false) => {
-    const requestId = ++messageRequestId.current
-    const signal = nextMessageSignal()
-    if (quiet) setRefreshing(true)
-    else setListLoading(true)
-    setError('')
-    try {
-      const result = await api.messages(folder, searchQuery, scope, undefined, quiet ? messageVersion : undefined, signal)
-      if (requestId !== messageRequestId.current || result.unchanged) return false
-      await mailNotifications.track(quiet, result.messages, folder === 'inbox' && !searchQuery && scope.type === 'all')
-      if (requestId !== messageRequestId.current) return false
-      setMessageVersion(result.version)
-      setMessages(result.messages)
-      setSelectedMessageIds((current) => new Set(
-        [...current].filter((id) => result.messages.some((message) => message.id === id)),
-      ))
-      setMessagePage(result.page)
-      setCounts(result.counts)
-      if (selectedId && !result.messages.some((message) => message.id === selectedId)) {
-        clearSelectedMessage()
-      }
-    } catch (loadError) {
-      if (signal.aborted || requestId !== messageRequestId.current) return false
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        await onLogout()
-        return
-      }
-      setError(errorMessage(loadError))
-    } finally {
-      if (requestId === messageRequestId.current) { setListLoading(false); setRefreshing(false) }
-    }
-  }, [clearSelectedMessage, folder, mailNotifications.track, messageVersion, nextMessageSignal, onLogout, scope, searchQuery, selectedId])
-  async function loadMoreMessages() {
-    if (!messagePage.hasMore || !messagePage.nextCursor || loadingMore) return
-    const requestId = ++messageRequestId.current
-    const signal = nextMessageSignal()
-    setLoadingMore(true)
-    setError('')
-    try {
-      const result = await api.messages(folder, searchQuery, scope, messagePage.nextCursor, undefined, signal)
-      if (requestId !== messageRequestId.current || result.unchanged) return
-      setMessages((items) => {
-        const existing = new Set(items.map((item) => item.id))
-        return [...items, ...result.messages.filter((item) => !existing.has(item.id))]
-      })
-      setMessagePage(result.page)
-      setCounts(result.counts)
-    } catch (loadError) {
-      if (signal.aborted || requestId !== messageRequestId.current) return
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        await onLogout()
-        return
-      }
-      setError(errorMessage(loadError))
-    } finally {
-      if (requestId === messageRequestId.current) setLoadingMore(false)
-    }
-  }
-  useEffect(() => {
-    clearSelectedMessage()
-    setLoadingMore(false)
-    setSelectedMessageIds(new Set())
-    if (folder !== 'drafts') void loadMessages()
-  }, [folder, searchQuery, scope]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { detailRequestId.current += 1; detailController.current?.abort() }, [])
   useEffect(() => {
     void loadMailboxData()
   }, [loadMailboxData])
-  useMailboxRefresh(config.mailRefreshInterval, () => loadMessages(true), !adminView && folder !== 'drafts', messages, selectedId, detail?.status, selectMessage)
   useEffect(() => {
     if (!notice) return
     const timer = window.setTimeout(() => setNotice(''), 3000)
     return () => window.clearTimeout(timer)
   }, [notice])
-  async function selectMessage(message: MessageSummary) {
-    detailController.current?.abort()
-    const controller = new AbortController()
-    detailController.current = controller
-    const requestId = ++detailRequestId.current
-    setSelectedId(message.id)
-    setDetailLoading(true)
-    setError('')
-    try {
-      const result = await api.message(message.id, controller.signal)
-      if (requestId !== detailRequestId.current) return
-      setDetail(result.message)
-      setThread(result.thread ?? [result.message])
-      if (!message.isRead) {
-        try {
-          await api.updateMessage(message.id, { isRead: true })
-          setMessages((items) => items.map((item) => item.id === message.id
-            ? { ...item, isRead: true } : item))
-          if (message.direction === 'incoming' && message.folder === 'inbox') {
-            setCounts((current) => ({ ...current, unread: Math.max(0, current.unread - 1) }))
-          }
-          setDetail((current) => current?.id === message.id ? { ...current, isRead: true } : current)
-        } catch (readError) {
-          if (requestId === detailRequestId.current) setError(errorMessage(readError))
-        }
-      }
-    } catch (loadError) {
-      if (controller.signal.aborted || requestId !== detailRequestId.current) return
-      setError(errorMessage(loadError))
-      setDetail(null)
-      setThread([])
-    } finally {
-      if (requestId === detailRequestId.current) setDetailLoading(false)
-    }
-  }
-  async function toggleStar(message: MessageSummary | MessageDetail) {
-    try {
-      const next = !message.isStarred
-      await api.updateMessage(message.id, { isStarred: next })
-      setMessages((items) => items.map((item) => (
-        item.id === message.id ? { ...item, isStarred: next } : item
-      )))
-      setDetail((current) => current?.id === message.id ? { ...current, isStarred: next } : current)
-      await loadMessages(true)
-    } catch (starError) { setError(errorMessage(starError)) }
-  }
-  function toggleMessageSelection(message: MessageSummary, selected?: boolean) {
-    setSelectedMessageIds((current) => {
-      const next = new Set(current)
-      const shouldSelect = selected ?? !next.has(message.id)
-      if (!shouldSelect) next.delete(message.id)
-      else if (next.size < 50) next.add(message.id)
-      return next
-    })
-  }
-  function selectAllLoadedMessages(candidateMessages: MessageSummary[] = messages) {
-    const selectable = candidateMessages.slice(0, 50)
-    const allSelected = selectable.every((message) => selectedMessageIds.has(message.id))
-    setSelectedMessageIds(allSelected
-      ? new Set()
-      : new Set(selectable.map((message) => message.id)))
-  }
-
-  async function applyBulkAction(action: BulkMessageAction, ids: string[]) {
-    setBulkLoading(true)
-    setError('')
-    try {
-      const result = await bulkMessages(ids, action)
-      setSelectedMessageIds(new Set())
-      if (selectedId && ids.includes(selectedId)) {
-        clearSelectedMessage()
-      }
-      setNotice(t('已更新 {count} 封邮件', { count: result.updatedCount }))
-      await loadMessages(true)
-    } catch (bulkError) {
-      setError(errorMessage(bulkError))
-    } finally {
-      setBulkLoading(false)
-    }
-  }
-
-  async function runBulkAction(action: BulkMessageAction, selectedIds = [...selectedMessageIds]) {
-    const ids = selectedIds
-    if (!ids.length) return
-    if (action === 'trash' || action === 'delete') {
-      setPendingMailDelete({ kind: 'bulk', action, ids })
-      return
-    }
-    await applyBulkAction(action, ids)
-  }
-
-  async function applySingleDelete(message: MessageDetail) {
-    if (message.folder === 'trash') {
-      await api.deleteMessage(message.id)
-      setNotice(t('邮件已永久删除'))
-    } else {
-      await api.updateMessage(message.id, { folder: 'trash' })
-      setNotice(t('邮件已移入垃圾箱'))
-    }
-    clearSelectedMessage()
-    await loadMessages(true)
-  }
-
-  function trashSelected() {
-    if (detail) setPendingMailDelete({ kind: 'single', message: detail })
-  }
-
-  async function confirmMailDelete() {
-    const pending = pendingMailDelete
-    if (!pending) return
-    try {
-      if (pending.kind === 'single') await applySingleDelete(pending.message)
-      else await applyBulkAction(pending.action, pending.ids)
-      setPendingMailDelete(null)
-    } catch (deleteError) { setError(errorMessage(deleteError)) }
-  }
-
-  async function restoreSelected() {
-    if (!detail) return
-    try {
-      await api.updateMessage(detail.id, {
-        folder: detail.direction === 'outgoing' ? 'sent' : 'inbox',
-      })
-      clearSelectedMessage(); setNotice(t('邮件已恢复'))
-      await loadMessages(true)
-    } catch (restoreError) { setError(errorMessage(restoreError)) }
-  }
-
   function changeFolder(next: Folder) {
     const shouldQuietRefresh = shouldQuietRefreshFolder(folder, next, query)
     openFolder(next)
@@ -334,11 +132,11 @@ function Mailbox({
       void loadMessages(true)
       return
     }
-    setListLoading(true)
+    beginListLoading()
   }
 
   function changeScope(next: MailboxScope) {
-    setListLoading(true)
+    beginListLoading()
     setScope(next)
     clearSelectedMessage()
     setQuery('')
@@ -351,7 +149,6 @@ function Mailbox({
     clearSelectedMessage()
     setQuery('')
   }
-  const changeDraftCount = useCallback((drafts: number) => setCounts((current) => ({ ...current, drafts })), [])
   const draftEditorInline = !adminView && folder === 'drafts' && draftEditor.draftId !== undefined
   return (
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
@@ -479,11 +276,11 @@ function Mailbox({
             clearSelectedMessage()
           }}
           onStar={() => detail && void toggleStar(detail)}
-          onTrash={() => void trashSelected()}
+          onTrash={requestSelectedDelete}
           onRestore={() => void restoreSelected()}
           onReplySent={() => { setNotice(t('回复已进入发送队列')); void loadMessages(true) }}
           canRetryFailedMessage={isAdminRole(user.role)}
-          onRetryFailedMessage={() => { setDetail((current) => current ? { ...current, status: 'processing', processingError: null, deliveryStatus: 'queued' } : current); setNotice(t('邮件已重新进入发送队列')); void loadMessages(true) }}
+          onRetryFailedMessage={() => { markSelectedMessageRetrying(); setNotice(t('邮件已重新进入发送队列')); void loadMessages(true) }}
           onSelectThread={(message) => void selectMessage(message)}
         />
       </main>}
@@ -499,7 +296,7 @@ function Mailbox({
           permanent={pendingMailDelete.kind === 'single'
             ? pendingMailDelete.message.folder === 'trash'
             : pendingMailDelete.action === 'delete'}
-          onCancel={() => setPendingMailDelete(null)}
+          onCancel={cancelMailDelete}
           onConfirm={() => void confirmMailDelete()}
         />
       )}
@@ -515,6 +312,7 @@ function Mailbox({
 
 export function App() {
   useLocale()
+  const localeReady = useTranslationsReady()
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -557,7 +355,7 @@ export function App() {
       clearSession()
     }
   }, [clearSession])
-  if (loading) return <PageLoader />
+  if (loading || !localeReady) return <PageLoader />
   if (connectionError || !config) {
     return <ConnectionError message={connectionError || t('配置读取失败。')} retry={() => setLoadVersion((value) => value + 1)} />
   }
@@ -575,14 +373,20 @@ export function App() {
   }
   if (inviteToken && !user) {
     return (
-      <TemporaryInvitePage
-        token={inviteToken}
-        appName={config.appName}
-        turnstileSiteKey={config.turnstileSiteKey}
-        onAuthenticated={setUser}
-      />
+      <Suspense fallback={<PageLoader />}>
+        <TemporaryInvitePage
+          token={inviteToken}
+          appName={config.appName}
+          turnstileSiteKey={config.turnstileSiteKey}
+          onAuthenticated={setUser}
+        />
+      </Suspense>
     )
-  } else if (extensionAuthorization) return <ExtensionAuthorizationPage config={config} user={user} onAuthenticated={setUser} onLogout={logout} />
+  } else if (extensionAuthorization) return (
+    <Suspense fallback={<PageLoader />}>
+      <ExtensionAuthorizationPage config={config} user={user} onAuthenticated={setUser} onLogout={logout} />
+    </Suspense>
+  )
   if (!user) {
     return (
       <PublicLanding

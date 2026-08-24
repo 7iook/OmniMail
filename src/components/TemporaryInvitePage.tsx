@@ -14,6 +14,7 @@ import {
 import { type FormEvent, useEffect, useState } from 'react'
 import { api, type TemporaryInvite, type User } from '../lib/api'
 import { getLocale, t } from '../lib/i18n'
+import '../styles/temporary-invite-page.css'
 import { Brand, ThemeToggle } from './AuthPages'
 import { LanguageToggle } from './LanguageToggle'
 import { TurnstileWidget } from './TurnstileWidget'

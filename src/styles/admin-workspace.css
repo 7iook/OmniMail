@@ -82,13 +82,9 @@
   min-height: 100%;
   padding: 42px var(--admin-page-padding-x) 70px;
 }
-.admin-workspace,
-.page-content-enter {
+.admin-workspace {
   backface-visibility: hidden;
   animation: page-content-settle 180ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-}
-@keyframes page-content-settle {
-  from { transform: translate3d(3px, 0, 0); }
 }
 
 .admin-workspace__header,
@@ -580,10 +576,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-workspace,
-  .page-content-enter {
-    animation: none;
-  }
+  .admin-workspace { animation: none; }
 
   .admin-workspace__header,
   .admin-workspace__header::before,

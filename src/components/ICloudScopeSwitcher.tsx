@@ -1,5 +1,5 @@
 import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ICloudAccount, ICloudAlias } from '../lib/api'
 import { t } from '../lib/i18n'
 
@@ -103,13 +103,15 @@ export function ICloudScopeSwitcher({
     close()
   }
 
+  const closeFromEffect = useEffectEvent(close)
+
   useEffect(() => {
     if (!open) return
     requestAnimationFrame(() => panel.current?.focus())
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      close()
+      closeFromEffect()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)

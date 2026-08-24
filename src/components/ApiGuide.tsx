@@ -16,6 +16,8 @@ import {
   type ApiExampleLanguage,
 } from '../lib/apiGuide'
 import { t } from '../lib/i18n'
+import '../styles/api-guide.css'
+import '../styles/api-reference.css'
 import { AdminPageHeader } from './AdminPageHeader'
 import {
   ApiCodeBlock as CodeBlock,

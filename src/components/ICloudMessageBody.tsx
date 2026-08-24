@@ -7,6 +7,7 @@ import {
 } from '../lib/emailContent'
 import { EMAIL_FRAME_SANDBOX, fitEmailDocument } from '../hooks/useSmoothEmailFrame'
 import { t } from '../lib/i18n'
+import '../styles/icloud-message-body.css'
 import { ExternalLinkDialog } from './ExternalLinkDialog'
 
 function safeHttpHref(value: string): string | null {

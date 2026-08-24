@@ -1,5 +1,32 @@
-import { describe, expect, it } from 'vitest'
-import { detectLocale, translate } from './i18n'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { beforeAll, describe, expect, it } from 'vitest'
+import {
+  detectLocale,
+  ensureEnglishTranslations,
+  hasEnglishTranslation,
+  translate,
+} from './i18n'
+
+beforeAll(() => ensureEnglishTranslations())
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return sourceFiles(path)
+    if (!/\.(ts|tsx)$/.test(entry.name) || /\.test\.(ts|tsx)$/.test(entry.name)) return []
+    if (entry.name.startsWith('i18n-en-')) return []
+    return [path]
+  })
+}
+
+function staticTranslationKeys(source: string): string[] {
+  const singleQuoted = [...source.matchAll(/\bt\(\s*'((?:\\.|[^'\\])*)'/g)]
+  const doubleQuoted = [...source.matchAll(/\bt\(\s*"((?:\\.|[^"\\])*)"/g)]
+  return [...singleQuoted, ...doubleQuoted].map((match) => (
+    match[1].replace(/\\(['"\\])/g, '$1')
+  ))
+}
 
 describe('locale detection', () => {
   it('prefers a saved language', () => {
@@ -29,5 +56,15 @@ describe('translation', () => {
 
   it('keeps unknown strings as a safe fallback', () => {
     expect(translate('OmniMail', {}, 'en-US')).toBe('OmniMail')
+  })
+
+  it('has an English translation for every direct Chinese UI string', () => {
+    const missing = [...new Set(sourceFiles('src')
+      .flatMap((filename) => staticTranslationKeys(readFileSync(filename, 'utf8'))
+        .filter((key) => !hasEnglishTranslation(key))
+        .map((key) => `${filename}: ${key}`)))]
+      .sort()
+
+    expect(missing).toEqual([])
   })
 })

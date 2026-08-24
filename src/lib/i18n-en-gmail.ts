@@ -1,4 +1,5 @@
 export const enGmail: Record<string, string> = {
+  '返回': 'Back',
   'Gmail 邮箱': 'Gmail',
   'Gmail 邮箱入口': 'Gmail entry',
   '入口已隐藏，已保存的 Gmail 账号和索引不会删除': 'The entry is hidden; saved Gmail accounts and indexes are kept',

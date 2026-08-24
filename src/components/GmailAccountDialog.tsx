@@ -126,10 +126,11 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
   }, [])
 
   useEffect(() => {
-    if (!target) return
-    const current = accounts.find(({ id }) => id === target.id)
-    if (current) setTarget(current)
-  }, [accounts, target?.id])
+    setTarget((currentTarget) => {
+      if (!currentTarget) return currentTarget
+      return accounts.find(({ id }) => id === currentTarget.id) ?? currentTarget
+    })
+  }, [accounts])
 
   function clearFeedback() {
     setError('')
