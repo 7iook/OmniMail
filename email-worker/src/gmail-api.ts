@@ -6,7 +6,6 @@ import { ImapConnectionError } from './imap-errors'
 import { GmailAccountStore, GmailStoreError, publicGmailAccount } from './gmail-store'
 import { markRemoteMessageRead } from './gmail-read-state'
 import { gmailSyncErrorCode } from './gmail-sync'
-import { searchLikePattern } from './message-search'
 import type { GmailAccount, PublicGmailAccount } from './gmail-types'
 import { sha256 } from './auth'
 import type { Env, GmailSyncJob, SessionUser } from './types'
@@ -433,11 +432,13 @@ export async function listGmailMessages(
       bindings.push(accountId)
     }
     if (query) {
-      const pattern = searchLikePattern(query)
-      conditions.push(`(m.sender_name LIKE ? ESCAPE '\' OR m.sender_address LIKE ? ESCAPE '\'
-        OR m.recipients_json LIKE ? ESCAPE '\' OR m.cc_json LIKE ? ESCAPE '\'
-        OR m.subject LIKE ? ESCAPE '\')`)
-      bindings.push(pattern, pattern, pattern, pattern, pattern)
+      const term = query.toLowerCase()
+      conditions.push(`(instr(lower(m.sender_name), ?) > 0
+        OR instr(lower(m.sender_address), ?) > 0
+        OR instr(lower(m.recipients_json), ?) > 0
+        OR instr(lower(m.cc_json), ?) > 0
+        OR instr(lower(m.subject), ?) > 0)`)
+      bindings.push(term, term, term, term, term)
     }
     if (cursor) {
       conditions.push('(m.internal_date < ? OR (m.internal_date = ? AND m.id < ?))')
