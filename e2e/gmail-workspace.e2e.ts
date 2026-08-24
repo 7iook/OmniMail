@@ -50,7 +50,7 @@ async function mockGmail(page: Page) {
       return json(route, { account }, 201)
     }
     if (path === '/api/gmail/accounts' && request.method() === 'GET') {
-      return json(route, { enabled: true, accountLimit: 5, accounts: account ? [account] : [] })
+      return json(route, { enabled: true, accounts: account ? [account] : [] })
     }
     if (path === '/api/gmail/messages' && request.method() === 'GET') {
       const messages = account ? Array.from({ length: 30 }, (_, index) => ({
@@ -76,13 +76,13 @@ async function mockGmail(page: Page) {
           id: 'gmail-1', name: '个人 Gmail', email: 'user@gmail.com', status: 'active',
         },
         senderName: 'Google', senderAddress: 'no-reply@google.com', recipients: ['user@gmail.com'],
-        subject: '安全提醒', preview: '', sizeBytes: 1024, isRead: false,
+        subject: '安全提醒', preview: '', sizeBytes: 1024, isRead: true,
         isStarred: false, hasAttachments: true, from: 'Google <no-reply@google.com>',
         to: 'user@gmail.com', cc: '', date: '2026-08-23T12:00:00.000Z',
-        body: '这是一封只读 Gmail 测试邮件。', html: `
+        body: '这是一封 Gmail 测试邮件。', html: `
           <table id="wide-table" width="900" style="width:900px;min-width:900px">
             <tr><td><div style="min-width:760px;white-space:nowrap;overflow:hidden">
-              <h1 id="wide-title" style="white-space:nowrap">这是一封只读 Gmail 测试邮件，标题需要在窄阅读区完整换行显示。</h1>
+              <h1 id="wide-title" style="white-space:nowrap">这是一封 Gmail 测试邮件，标题需要在窄阅读区完整换行显示。</h1>
               <img id="wide-image" width="900" height="120" alt="响应式测试图片"
                 src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='120'%3E%3Crect width='900' height='120' fill='%23ddd'/%3E%3C/svg%3E">
               <div id="fixed-canvas" style="position:relative;width:900px;height:100px;overflow:hidden">
@@ -115,7 +115,7 @@ async function mockGmail(page: Page) {
   return { connections, gmailRequests, syncRequests }
 }
 
-test('connects multiple-account Gmail UI and keeps message reads read-only', async ({ page }) => {
+test('connects Gmail, marks opened mail read, and preserves controlled IMAP behavior', async ({ page }) => {
   const state = await mockGmail(page)
   await page.goto('/gmail')
 
@@ -138,6 +138,14 @@ test('connects multiple-account Gmail UI and keeps message reads read-only', asy
   await expect.poll(() => state.connections).toEqual([{
     name: '个人 Gmail', email: 'user@gmail.com', appPassword: 'abcd efgh ijkl mnop',
   }])
+  const accounts = page.getByRole('dialog', { name: 'Gmail 账号管理' })
+  await expect(accounts.getByText('已连接 1 个账号')).toBeVisible()
+  await expect(accounts).not.toContainText('1/5')
+  await accounts.getByRole('button', { name: /个人 Gmail.*管理/s }).click()
+  const settings = page.getByRole('dialog', { name: '设置 个人 Gmail' })
+  await expect(settings.getByText('验证邮箱连接')).toBeVisible()
+  await expect(settings.getByText('更新应用专用密码')).toBeVisible()
+  await settings.getByRole('button', { name: '返回' }).click()
   await page.getByRole('button', { name: '关闭' }).click()
   await expect(page.getByText('安全提醒')).toBeVisible()
   await expect(page.locator('.gmail-mail-view.icloud-mail-view')).toBeVisible()
@@ -161,13 +169,16 @@ test('connects multiple-account Gmail UI and keeps message reads read-only', asy
   await expect(loadMore).toBeInViewport()
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('abcd')
 
+  const unreadRow = page.locator('.gmail-message-list .message-row').filter({ hasText: '安全提醒' })
+  await expect(unreadRow).toHaveClass(/is-unread/)
   await page.getByRole('button', { name: /Google.*安全提醒/s }).click()
+  await expect(unreadRow).not.toHaveClass(/is-unread/)
   await expect(page.locator('.gmail-reader-pane .icloud-reader')).toBeVisible()
   await expect(page.locator('.gmail-reader-pane .reader-toolbar')).toBeVisible()
   const emailFrame = page.locator('.gmail-reader-pane iframe')
   const emailDocument = page.frameLocator('.gmail-reader-pane iframe')
   await expect(emailFrame).toBeVisible()
-  await expect(emailDocument.getByText(/这是一封只读 Gmail 测试邮件/)).toBeVisible()
+  await expect(emailDocument.getByText(/这是一封 Gmail 测试邮件/)).toBeVisible()
   expect(await emailDocument.locator('html').evaluate((element) => (
     element.scrollWidth <= element.clientWidth
   ))).toBe(true)
@@ -183,7 +194,6 @@ test('connects multiple-account Gmail UI and keeps message reads read-only', asy
   expect(await emailDocument.locator('#right-edge').evaluate((element) => (
     element.getBoundingClientRect().right <= document.documentElement.clientWidth + 1
   ))).toBe(true)
-  await expect(page.getByText('此视图只读；打开邮件不会在 Gmail 中标记为已读。')).toBeVisible()
   await expect(page.getByRole('link', { name: /notice.txt/ })).toHaveAttribute(
     'href', '/api/gmail/accounts/gmail-1/messages/message-1/attachments/0',
   )

@@ -33,7 +33,7 @@ export function GmailReader({
   if (loading) {
     return <div className="reader-state reader-state--loading" role="status">
       <LoaderCircle className="spin" size={23} aria-hidden="true" />
-      {t('正在通过只读 IMAP 获取正文…')}
+      {t('正在获取 Gmail 正文…')}
     </div>
   }
   if (error && selected) {
@@ -59,7 +59,7 @@ export function GmailReader({
       <button className="icon-button mobile-back" type="button" onClick={onBack}
         aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
       <h2 className="reader-toolbar__title">{t('Gmail 邮件')}</h2>
-      <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>
+      <span className="icloud-source-badge is-imap">IMAP</span>
     </header>
     <div className="reader-content icloud-reader-content">
       <div className="icloud-reader-heading">
@@ -72,8 +72,8 @@ export function GmailReader({
           {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
         </div>
       </div>
-      <p className="gmail-readonly-note"><AlertCircle size={14} />
-        {t('此视图只读；打开邮件不会在 Gmail 中标记为已读。')}</p>
+      {!message.isRead && <p className="gmail-readonly-note"><AlertCircle size={14} />
+        {t('邮件正文已打开，但未能同步 Gmail 已读状态；重新打开可重试。')}</p>}
       <div className="icloud-reader-body"><ICloudMessageBody message={message}
         remoteImagesEnabled={remoteImagesEnabled} /></div>
       {message.attachments.length > 0 && <section className="gmail-attachments">

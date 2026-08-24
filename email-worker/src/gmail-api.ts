@@ -163,7 +163,7 @@ export async function listGmailAccounts(env: Env, user: SessionUser): Promise<Re
   try {
     const enabled = gmailImapEnabled(env)
     const accounts = enabled ? await new GmailAccountStore(env, user.id).list() : []
-    return privateJson({ enabled, accountLimit: 5, accounts })
+    return privateJson({ enabled, accounts })
   } catch (error) {
     return responseError(error)
   }
@@ -182,9 +182,6 @@ export async function createGmailAccount(
     const appPassword = gmailAppPasswordField(body.appPassword)
     const store = new GmailAccountStore(env, user.id)
     const existing = await store.list()
-    if (existing.length >= 5) {
-      throw new GmailStoreError(409, '每个用户最多连接 5 个 Gmail 账号。')
-    }
     if (existing.some((account) => account.email === email)) {
       throw new GmailStoreError(409, '这个 Gmail 账号已经连接。')
     }
@@ -488,6 +485,7 @@ async function remoteMessage(
   user: SessionUser,
   accountId: string,
   messageId: string,
+  markRead = false,
 ) {
   const row = await ownedMessage(env, user.id, accountId, messageId)
   const account = await new GmailAccountStore(env, user.id).get(accountId)
@@ -513,6 +511,25 @@ async function remoteMessage(
           WHERE id = ? AND account_id = ?`,
       ).bind(uid, mailbox.uidValidity, Math.floor(Date.now() / 1000), row.id, accountId).run()
     }
+    if (markRead && !row.is_read) {
+      try {
+        await client.markSeen(uid)
+        row.is_read = 1
+        try {
+          await env.DB.prepare(
+            `UPDATE gmail_imap_messages SET is_read = 1, updated_at = ?
+              WHERE id = ? AND account_id = ?`,
+          ).bind(Math.floor(Date.now() / 1000), row.id, accountId).run()
+        } catch (error) {
+          console.error('Unable to persist Gmail read state', { accountId, messageId,
+            type: error instanceof Error ? error.name : typeof error })
+        }
+      } catch (error) {
+        console.error('Unable to mark Gmail message as seen', {
+          accountId, messageId, code: gmailSyncErrorCode(error),
+        })
+      }
+    }
     return { row, parsed }
   } catch (error) {
     await recordRemoteFailure(env, accountId, error)
@@ -529,7 +546,7 @@ export async function getGmailMessage(
   messageId: string,
 ): Promise<Response> {
   try {
-    const { row, parsed } = await remoteMessage(env, user, accountId, messageId)
+    const { row, parsed } = await remoteMessage(env, user, accountId, messageId, true)
     return privateJson({
       message: {
         ...publicMessage(row),

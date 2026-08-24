@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  ChevronRight,
   ExternalLink,
   Eye,
   EyeOff,
@@ -14,12 +15,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { api, type GmailAccount } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 
-type View = 'accounts' | 'guide' | 'connect' | 'password'
+type View = 'accounts' | 'account' | 'guide' | 'connect'
 
 function statusLabel(account: GmailAccount): string {
   if (account.status === 'syncing') return t('正在同步')
@@ -38,9 +39,8 @@ function accountErrorLabel(code: string): string {
   return t('暂时无法同步，系统稍后会重试。')
 }
 
-export function GmailAccountDialog({ accounts, accountLimit, startAdding = false, onClose, onChanged }: {
+export function GmailAccountDialog({ accounts, startAdding = false, onClose, onChanged }: {
   accounts: GmailAccount[]
-  accountLimit: number
   startAdding?: boolean
   onClose: () => void
   onChanged: () => Promise<void>
@@ -51,16 +51,20 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
   const [password, setPassword] = useState('')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [target, setTarget] = useState<GmailAccount | null>(null)
-  const [renaming, setRenaming] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const titleId = useId()
+  const descriptionId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     closeRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !busy) onClose()
     }
@@ -68,16 +72,36 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [busy, onClose])
 
+  useEffect(() => {
+    if (!target) return
+    const current = accounts.find(({ id }) => id === target.id)
+    if (current) setTarget(current)
+  }, [accounts, target?.id])
+
   function clearFeedback() {
     setError('')
     setNotice('')
   }
 
-  function openPassword(account: GmailAccount) {
+  function openAccount(account: GmailAccount) {
     clearFeedback()
     setTarget(account)
+    setRenameValue(account.name)
     setPassword('')
-    setView('password')
+    setConfirmDelete(false)
+    setView('account')
+  }
+
+  function goBack() {
+    clearFeedback()
+    setConfirmDelete(false)
+    setPassword('')
+    if (view === 'connect') {
+      setView('guide')
+      return
+    }
+    setTarget(null)
+    setView('accounts')
   }
 
   async function connect(event: FormEvent) {
@@ -109,7 +133,6 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
       setPassword('')
       await onChanged()
       setNotice(t('应用专用密码已更新，旧凭据未在验证前被覆盖。'))
-      setView('accounts')
     } catch (updateError) {
       setError(errorMessage(updateError))
     } finally {
@@ -117,12 +140,15 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
     }
   }
 
-  async function rename(account: GmailAccount) {
-    setBusy(`rename:${account.id}`)
+  async function rename(event: FormEvent) {
+    event.preventDefault()
+    if (!target) return
+    setBusy(`rename:${target.id}`)
     clearFeedback()
     try {
-      await api.renameGmail(account.id, renameValue)
-      setRenaming(null)
+      const result = await api.renameGmail(target.id, renameValue)
+      setTarget(result.account)
+      setRenameValue(result.account.name)
       await onChanged()
       setNotice(t('账号名称已更新。'))
     } catch (renameError) {
@@ -165,9 +191,11 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
     clearFeedback()
     try {
       await api.disconnectGmail(account.id)
-      setConfirmDelete(null)
+      setConfirmDelete(false)
+      setTarget(null)
       await onChanged()
       setNotice(t('本地连接和索引已删除；请继续在 Google 账号中撤销对应应用密码。'))
+      setView('accounts')
     } catch (deleteError) {
       setError(errorMessage(deleteError))
     } finally {
@@ -175,123 +203,210 @@ export function GmailAccountDialog({ accounts, accountLimit, startAdding = false
     }
   }
 
-  const passwordForm = (submit: (event: FormEvent) => Promise<void>, label: string) => (
-    <form className="gmail-connect-form" onSubmit={(event) => void submit(event)}>
-      {view === 'connect' && <>
-        <label htmlFor="gmail-account-name"><span>{t('账号名称')}</span>
-          <input id="gmail-account-name" value={name} maxLength={60} required
-            autoComplete="off" onChange={(event) => setName(event.target.value)}
-            placeholder={t('例如：个人 Gmail')} /></label>
-        <label htmlFor="gmail-account-email"><span>{t('邮箱地址')}</span>
-          <input id="gmail-account-email" type="email" value={email} maxLength={254} required
-            autoComplete="username" onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@gmail.com" /></label>
-      </>}
-      {view === 'password' && target && <div className="gmail-password-target">
-        <strong>{target.name}</strong><span>{target.email}</span>
-      </div>}
-      <label htmlFor="gmail-app-password"><span>{t('16 位应用专用密码')}</span>
-        <span className="gmail-password-input"><input id="gmail-app-password"
-          type={passwordVisible ? 'text' : 'password'} value={password} required
-          autoComplete="new-password" inputMode="text"
-          aria-describedby="gmail-password-help"
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="abcd efgh ijkl mnop" />
-          <button type="button" onClick={() => setPasswordVisible((visible) => !visible)}
-            aria-label={t(passwordVisible ? '隐藏应用密码' : '显示应用密码')}>
-            {passwordVisible ? <EyeOff size={17} /> : <Eye size={17} />}
-          </button></span>
-        <small id="gmail-password-help">{t('这不是 Google 账号主密码；可以直接粘贴带空格的分组格式。')}</small>
-      </label>
-      {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
-      <button className="button button--primary" type="submit" disabled={Boolean(busy)}>
-        {busy ? <LoaderCircle className="spin" size={16} /> : <KeyRound size={16} />}{label}
-      </button>
-    </form>
-  )
+  const title = view === 'accounts' ? t('Gmail 账号管理')
+    : view === 'account' ? t('设置 {name}', { name: target?.name || t('Gmail 账号') })
+      : view === 'guide' ? t('创建应用专用密码') : t('连接 Gmail 账号')
+  const description = view === 'accounts' ? t('连接新账号，或选择已有账号管理凭据与状态。')
+    : view === 'account' ? t('修改备注、验证连接、更新凭据或断开邮箱。')
+      : view === 'guide' ? t('先在 Google 账号中生成一组独立凭据。')
+        : t('验证 Gmail IMAP 后，加密保存应用专用密码。')
+  const canGoBack = view !== 'accounts' && (view !== 'guide' || accounts.length > 0)
 
-  return <div className="icloud-modal-backdrop is-visible gmail-dialog-backdrop" role="presentation" onMouseDown={(event) => {
-    if (event.target === event.currentTarget && !busy) onClose()
-  }}>
+  return <div className="icloud-modal-backdrop is-visible gmail-dialog-backdrop" role="presentation"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !busy) onClose()
+    }}>
     <section className="icloud-modal gmail-account-dialog" role="dialog" aria-modal="true"
-      aria-labelledby="gmail-dialog-title">
-      <header>
-        {view !== 'accounts' && accounts.length > 0 && <button className="icon-button" type="button"
-          onClick={() => { clearFeedback(); setView('accounts') }} aria-label={t('返回账号列表')}>
-          <ArrowLeft size={17} />
+      aria-busy={Boolean(busy)} aria-labelledby={titleId} aria-describedby={descriptionId}>
+      <header className={canGoBack ? 'has-back' : ''}>
+        {canGoBack && <button className="icon-button gmail-dialog-back" type="button"
+          onClick={goBack} disabled={Boolean(busy)} aria-label={t('返回')}>
+          <ArrowLeft size={17} aria-hidden="true" />
         </button>}
-        <div><span className="eyebrow">GMAIL IMAP</span>
-          <h2 id="gmail-dialog-title">{t(view === 'accounts' ? '管理 Gmail 账号'
-            : view === 'guide' ? '创建应用专用密码'
-              : view === 'password' ? '更新应用专用密码' : '连接 Gmail 账号')}</h2></div>
+        <div><p className="eyebrow">GMAIL · IMAP</p>
+          <h2 id={titleId}>{title}</h2>
+          <p id={descriptionId}>{description}</p></div>
         <button ref={closeRef} className="icon-button" type="button" onClick={onClose}
-          disabled={Boolean(busy)} aria-label={t('关闭')}><X size={17} /></button>
+          disabled={Boolean(busy)} aria-label={t('关闭')}><X size={17} aria-hidden="true" /></button>
       </header>
 
+      {(notice || error) && <div className="gmail-dialog-feedback">
+        {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
+        {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
+      </div>}
+
       {view === 'guide' && <div className="gmail-guide">
-        <div className="gmail-guide-symbol"><ShieldCheck size={25} /></div>
-        <ol>
-          <li><strong>{t('先开启 Google 两步验证')}</strong><span>{t('应用专用密码只对已启用两步验证的账号开放。')}</span></li>
-          <li><strong>{t('创建名为 OmniMail 的应用密码')}</strong><span>{t('某些 Workspace 和 Advanced Protection 账号不支持。')}</span></li>
-          <li><strong>{t('复制一次性显示的 16 位密码')}</strong><span>{t('凭据会加密保存在当前 OmniMail 部署中。')}</span></li>
-        </ol>
-        <a className="button button--secondary" href="https://myaccount.google.com/apppasswords"
-          target="_blank" rel="noreferrer"><ExternalLink size={16} />{t('打开 Google 应用密码')}</a>
-        <p><AlertCircle size={15} />{t('删除本地连接不会撤销 Google 端密码；断开后仍需返回该页面手动移除。')}</p>
+        <div className="gmail-guide-card">
+          <span className="gmail-guide-symbol"><ShieldCheck size={23} aria-hidden="true" /></span>
+          <ol>
+            <li><strong>{t('先开启 Google 两步验证')}</strong>
+              <span>{t('应用专用密码只对已启用两步验证的账号开放。')}</span></li>
+            <li><strong>{t('创建名为 OmniMail 的应用密码')}</strong>
+              <span>{t('某些 Workspace 和 Advanced Protection 账号不支持。')}</span></li>
+            <li><strong>{t('复制一次性显示的 16 位密码')}</strong>
+              <span>{t('下一步会验证凭据，并加密保存在当前 OmniMail 部署中。')}</span></li>
+          </ol>
+        </div>
+        <a className="button button--secondary gmail-guide-link"
+          href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+          <ExternalLink size={16} aria-hidden="true" />{t('打开 Google 应用密码')}</a>
+        <p className="gmail-guide-warning"><AlertCircle size={15} aria-hidden="true" />
+          {t('删除本地连接不会撤销 Google 端密码；断开后仍需返回该页面手动移除。')}</p>
         <button className="button button--primary" type="button" onClick={() => {
           clearFeedback(); setView('connect')
         }}>{t('我已准备好应用密码')}</button>
       </div>}
 
-      {view === 'connect' && passwordForm(connect, t('验证并连接'))}
-      {view === 'password' && passwordForm(updatePassword, t('验证并更新'))}
+      {view === 'connect' && <form className="icloud-form gmail-connect-form"
+        onSubmit={(event) => void connect(event)}>
+        <label htmlFor="gmail-account-name"><span>{t('账号名称')}</span>
+          <input id="gmail-account-name" value={name} maxLength={60} required autoComplete="off"
+            disabled={Boolean(busy)} onChange={(event) => setName(event.target.value)}
+            placeholder={t('例如：个人 Gmail')} /></label>
+        <label htmlFor="gmail-account-email"><span>{t('邮箱地址')}</span>
+          <input id="gmail-account-email" type="email" value={email} maxLength={254} required
+            autoComplete="username" disabled={Boolean(busy)}
+            onChange={(event) => setEmail(event.target.value)} placeholder="name@gmail.com" /></label>
+        <label htmlFor="gmail-app-password"><span>{t('16 位应用专用密码')}</span>
+          <span className="gmail-password-input"><input id="gmail-app-password"
+            type={passwordVisible ? 'text' : 'password'} value={password} required
+            autoComplete="new-password" inputMode="text" disabled={Boolean(busy)}
+            aria-describedby="gmail-connect-password-help"
+            onChange={(event) => setPassword(event.target.value)} placeholder="abcd efgh ijkl mnop" />
+            <button type="button" disabled={Boolean(busy)}
+              onClick={() => setPasswordVisible((visible) => !visible)}
+              aria-label={t(passwordVisible ? '隐藏应用密码' : '显示应用密码')}>
+              {passwordVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button></span>
+          <small id="gmail-connect-password-help">
+            {t('这不是 Google 账号主密码；可以直接粘贴带空格的分组格式。')}</small>
+        </label>
+        <footer><button className="button button--primary" type="submit" disabled={Boolean(busy)}>
+          {busy === 'connect' ? <LoaderCircle className="spin" size={16} /> : <KeyRound size={16} />}
+          {t(busy === 'connect' ? '正在验证并连接…' : '验证并连接')}
+        </button></footer>
+      </form>}
 
       {view === 'accounts' && <div className="gmail-account-list">
         <div className="gmail-account-list__summary">
-          <span>{t('已连接 {count}/{limit} 个账号', { count: accounts.length, limit: accountLimit })}</span>
+          <span>{t('已连接 {count} 个账号', { count: accounts.length })}</span>
           <button className="button button--primary button--small" type="button"
-            disabled={accounts.length >= accountLimit}
-            onClick={() => { clearFeedback(); setView('guide') }}><Plus size={15} />{t('添加账号')}</button>
+            onClick={() => { clearFeedback(); setView('guide') }}>
+            <Plus size={15} aria-hidden="true" />{t('添加账号')}</button>
         </div>
-        {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
-        {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{error}</p>}
-        {accounts.map((account) => <article className="gmail-account-card" key={account.id}>
-          <div className="gmail-account-card__identity">
-            <span>{account.name.slice(0, 1).toUpperCase()}</span>
-            <div>{renaming === account.id ? <form onSubmit={(event) => {
-              event.preventDefault(); void rename(account)
-            }}><label className="sr-only" htmlFor={`gmail-rename-${account.id}`}>{t('账号名称')}</label>
-              <input id={`gmail-rename-${account.id}`} value={renameValue} maxLength={60} required
-                onChange={(event) => setRenameValue(event.target.value)} />
-              <button type="submit" disabled={Boolean(busy)} aria-label={t('保存账号名称')}><Check size={15} /></button></form>
-              : <strong>{account.name}</strong>}
-              <small>{account.email}</small>
-            </div>
+        {!accounts.length && <div className="gmail-account-list__empty">
+          <KeyRound size={20} aria-hidden="true" />
+          <strong>{t('还没有 Gmail 账号')}</strong>
+          <span>{t('添加账号后，可在这里分别管理连接与凭据。')}</span>
+        </div>}
+        {accounts.map((account) => <button className="gmail-account-card" type="button"
+          key={account.id} onClick={() => openAccount(account)}>
+          <span className="gmail-account-card__icon">{account.name.slice(0, 1).toUpperCase()}</span>
+          <span className="gmail-account-card__content"><strong>{account.name}</strong>
+            <small>{account.email}</small>
+            {account.lastSyncedAt && <small>{t('最后同步：{time}', {
+              time: new Date(account.lastSyncedAt * 1000).toLocaleString(),
+            })}</small>}
+            {account.lastErrorCode && <small className="gmail-account-error">
+              {accountErrorLabel(account.lastErrorCode)}</small>}</span>
+          <span className="gmail-account-card__side">
             <em className={`is-${account.status}`}>{statusLabel(account)}</em>
+            <span>{t('管理')}<ChevronRight size={14} aria-hidden="true" /></span>
+          </span>
+        </button>)}
+      </div>}
+
+      {view === 'account' && target && <div className="gmail-account-settings">
+        <div className="gmail-account-summary">
+          <span className="gmail-account-summary__icon"><KeyRound size={18} aria-hidden="true" /></span>
+          <span><strong>{target.email}</strong>
+            <small>{target.lastSyncedAt ? t('最后同步：{time}', {
+              time: new Date(target.lastSyncedAt * 1000).toLocaleString(),
+            }) : t('尚未完成首次同步')}</small></span>
+          <em className={`is-${target.status}`}>
+            {target.status === 'active' ? <ShieldCheck size={13} /> : <AlertCircle size={13} />}
+            {statusLabel(target)}</em>
+        </div>
+        {target.lastErrorCode && <p className="gmail-account-detail-error">
+          <AlertCircle size={15} aria-hidden="true" />{accountErrorLabel(target.lastErrorCode)}</p>}
+
+        <form className="icloud-form gmail-account-rename" onSubmit={(event) => void rename(event)}>
+          <div className="gmail-account-section-heading">
+            <span className="gmail-account-section-icon"><Pencil size={16} aria-hidden="true" /></span>
+            <span><strong>{t('备注名称')}</strong><small>{t('只用于 OmniMail 内区分账号。')}</small></span>
           </div>
-          {account.lastSyncedAt && <p>{t('最后同步：{time}', {
-            time: new Date(account.lastSyncedAt * 1000).toLocaleString(),
-          })}</p>}
-          {account.lastErrorCode && <p className="gmail-account-error">{accountErrorLabel(account.lastErrorCode)}</p>}
-          <div className="gmail-account-card__actions">
-            <button type="button" onClick={() => {
-              setRenaming(account.id); setRenameValue(account.name); clearFeedback()
-            }}><Pencil size={14} />{t('重命名')}</button>
-            <button type="button" disabled={Boolean(busy)} onClick={() => void verify(account)}>
-              {busy === `verify:${account.id}` ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />}{t('验证')}</button>
-            <button type="button" disabled={Boolean(busy)} onClick={() => void sync(account)}>
-              {busy === `sync:${account.id}` ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{t('同步')}</button>
-            <button type="button" onClick={() => openPassword(account)}><KeyRound size={14} />{t('更新密码')}</button>
-            <button className="is-danger" type="button" onClick={() => setConfirmDelete(account.id)}>
-              <Trash2 size={14} />{t('断开')}</button>
+          <label htmlFor={`gmail-rename-${target.id}`}><span>{t('账号名称')}</span>
+            <span className="gmail-account-rename__field">
+              <input id={`gmail-rename-${target.id}`} value={renameValue} maxLength={60} required
+                disabled={Boolean(busy)} onChange={(event) => setRenameValue(event.target.value)} />
+              <button className="button button--secondary" type="submit"
+                disabled={Boolean(busy) || renameValue.trim() === target.name}>
+                {busy === `rename:${target.id}` ? <LoaderCircle className="spin" size={15} />
+                  : <Check size={15} />}{t('保存备注')}</button>
+            </span>
+          </label>
+        </form>
+
+        <section className="gmail-account-action">
+          <span><strong>{t('验证邮箱连接')}</strong>
+            <small>{t('检查当前应用专用密码是否仍可登录 Gmail IMAP。')}</small></span>
+          <button className="button button--secondary" type="button" disabled={Boolean(busy)}
+            onClick={() => void verify(target)}>
+            {busy === `verify:${target.id}` ? <LoaderCircle className="spin" size={16} />
+              : <ShieldCheck size={16} />}{t('立即验证')}</button>
+        </section>
+        <section className="gmail-account-action">
+          <span><strong>{t('同步这个账号')}</strong>
+            <small>{t('立即将最新 Gmail 邮件加入后台同步队列。')}</small></span>
+          <button className="button button--secondary" type="button" disabled={Boolean(busy)}
+            onClick={() => void sync(target)}>
+            {busy === `sync:${target.id}` ? <LoaderCircle className="spin" size={16} />
+              : <RefreshCw size={16} />}{t('立即同步')}</button>
+        </section>
+
+        <form className="icloud-form gmail-account-credential"
+          onSubmit={(event) => void updatePassword(event)}>
+          <div className="gmail-account-section-heading">
+            <span className="gmail-account-section-icon"><KeyRound size={16} aria-hidden="true" /></span>
+            <span><strong>{t('更新应用专用密码')}</strong>
+              <small>{t('验证成功后才会替换已保存的密文。')}</small></span>
           </div>
-          {confirmDelete === account.id && <div className="gmail-delete-confirm" role="alert">
-            <p>{t('这会删除本地凭据和 Gmail 索引，但不会撤销 Google 端的应用密码。')}</p>
-            <span><button type="button" onClick={() => setConfirmDelete(null)}>{t('取消')}</button>
-              <button type="button" disabled={Boolean(busy)} onClick={() => void remove(account)}>
-                {busy === `delete:${account.id}` && <LoaderCircle className="spin" size={14} />}{t('删除本地连接')}</button></span>
-          </div>}
-        </article>)}
+          <label htmlFor={`gmail-password-${target.id}`}><span>{t('新应用专用密码')}</span>
+            <span className="gmail-password-input"><input id={`gmail-password-${target.id}`}
+              type={passwordVisible ? 'text' : 'password'} value={password} required
+              autoComplete="new-password" inputMode="text" disabled={Boolean(busy)}
+              aria-describedby={`gmail-password-help-${target.id}`}
+              onChange={(event) => setPassword(event.target.value)} placeholder="abcd efgh ijkl mnop" />
+              <button type="button" disabled={Boolean(busy)}
+                onClick={() => setPasswordVisible((visible) => !visible)}
+                aria-label={t(passwordVisible ? '隐藏应用密码' : '显示应用密码')}>
+                {passwordVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button></span>
+          </label>
+          <p id={`gmail-password-help-${target.id}`} className="gmail-account-note">
+            <ShieldCheck size={15} aria-hidden="true" />
+            {t('新凭据不会显示或保存到浏览器；旧凭据会保留到验证成功。')}</p>
+          <footer><button className="button button--primary" type="submit"
+            disabled={Boolean(busy) || !password.trim()}>
+            {busy === `password:${target.id}` ? <LoaderCircle className="spin" size={16} />
+              : <KeyRound size={16} />}{t('验证并更新')}</button></footer>
+        </form>
+
+        <div className="gmail-account-danger">
+          <span><strong>{t('断开这个 Gmail 账号')}</strong>
+            <small>{t('删除 OmniMail 保存的密文和本地索引，不会删除 Gmail 中的邮件。')}</small></span>
+          <button className="button icloud-danger-button" type="button" disabled={Boolean(busy)}
+            onClick={() => setConfirmDelete(true)}><Trash2 size={16} />{t('断开账号')}</button>
+        </div>
+        {confirmDelete && <div className="gmail-delete-confirm" role="alert">
+          <p>{t('确认断开？Google 端的应用专用密码仍需前往账号设置手动撤销。')}</p>
+          <span><button className="button button--secondary" type="button"
+            onClick={() => setConfirmDelete(false)}>{t('取消')}</button>
+            <button className="button icloud-danger-button" type="button" disabled={Boolean(busy)}
+              onClick={() => void remove(target)}>
+              {busy === `delete:${target.id}` && <LoaderCircle className="spin" size={15} />}
+              {t('确认断开')}</button></span>
+        </div>}
       </div>}
     </section>
   </div>

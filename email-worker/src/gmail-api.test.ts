@@ -54,7 +54,7 @@ describe('Gmail account API validation', () => {
   it('reports the feature as disabled without reading D1', async () => {
     const response = await listGmailAccounts({} as Env, user)
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ enabled: false, accountLimit: 5, accounts: [] })
+    await expect(response.json()).resolves.toEqual({ enabled: false, accounts: [] })
   })
 
   it('scopes list and detail lookups by the authenticated user before returning data', async () => {

@@ -633,7 +633,7 @@ GET /api/icloud/inbox/{uid}?accountId={id}
 
 ## Gmail 聚合收件箱
 
-配置至少 32 字节的 `GMAIL_CREDENTIALS_KEY` 后，每个用户最多连接 5 个 Gmail 或
+配置至少 32 字节的 `GMAIL_CREDENTIALS_KEY` 后，每个用户可连接多个 Gmail 或
 Google Workspace 账号。应用专用密码使用 AES-GCM 加密，附加数据绑定用户、账号与字段；
 列表接口只返回 `hasAppPassword: true`。添加、验证与更新凭据按用户和来源 IP 限速，服务器、
 端口和 TLS 模式固定为 `imap.gmail.com:993`，请求不能把 Worker 当作任意 TCP 代理。
@@ -667,9 +667,10 @@ GET /api/gmail/accounts/{accountId}/messages/{messageId}
 GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 ```
 
-列表读取 D1 中最多每账号 500 封 INBOX 元数据；正文和附件通过 `BODY.PEEK[]` 按需读取，
-不持久化且不会设置 `\\Seen`。所有详情查询先以当前用户 ID、账号 ID 和本地消息 ID 联合验证
-归属，避免跨用户资源存在性泄露。同步由 5 分钟 Cron 错峰加入 Queue，并使用账号租约、
+列表读取 D1 中最多每账号 500 封 INBOX 元数据；正文通过 `BODY.PEEK[]` 按需读取，成功后以
+固定的 `UID STORE ... +FLAGS.SILENT (\\Seen)` 标记已读；正文和附件均不持久化。所有详情查询
+先以当前用户 ID、账号 ID 和本地消息 ID 联合验证归属，避免跨用户资源存在性泄露。同步由
+5 分钟 Cron 错峰加入 Queue，并使用账号租约、
 `UIDVALIDITY`、UID 与 Gmail 扩展 ID 保持最终一致。
 
 ## 版本与更新
@@ -752,7 +753,7 @@ npm run docs:api
 | `POST /api/gmail/accounts/{id}/verify` | 验证已保存的 Gmail 凭据 |
 | `POST /api/gmail/accounts/{id}/sync` | 请求受限的异步 Gmail 同步 |
 | `GET /api/gmail/messages` | 读取多账号 Gmail 元数据索引并游标分页 |
-| `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 只读按需获取 Gmail 正文 |
+| `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 按需获取 Gmail 正文并同步标记已读 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
 | `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |
 | `POST /api/linux-do-mail/account/verify` | 重新验证已保存的 Linux DO Mail 凭据 |

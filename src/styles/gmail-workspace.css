@@ -155,10 +155,5 @@
     max-height: 92dvh;
     border-radius: 22px 22px 0 0;
   }
-  .gmail-guide,
-  .gmail-connect-form,
-  .gmail-account-list { padding: 20px 16px 28px; }
-  .gmail-account-card__identity { grid-template-columns: 36px minmax(0, 1fr); }
-  .gmail-account-card__identity em { grid-column: 2; justify-self: start; }
   .gmail-account-list__summary { align-items: flex-start; }
 }

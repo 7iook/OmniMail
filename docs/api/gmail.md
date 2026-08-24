@@ -4,13 +4,13 @@
 
 **Gmail unified inbox**
 
-多账号凭据、只读 IMAP 同步、聚合索引、正文与附件。
+多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。
 
-> Multi-account credentials, read-only IMAP synchronization, unified indexing, message bodies, and attachments.
+> Multi-account credentials, controlled IMAP synchronization, unified indexing, message bodies, and attachments.
 
 本分类共 **10** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
-<!-- endpoint:GET /api/gmail/accounts catalog:20ecd0dccabf -->
+<!-- endpoint:GET /api/gmail/accounts catalog:8c806c7ce678 -->
 ## `GET /api/gmail/accounts`
 
 **列出 Gmail 账号 / List Gmail accounts**
@@ -23,7 +23,7 @@
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
 | 请求 | No parameters |
-| 成功响应 | 200 · { enabled, accountLimit, accounts } |
+| 成功响应 | 200 · { enabled, accounts } |
 
 ### cURL 示例
 
@@ -212,14 +212,14 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/gmail/accounts/:accountId/messages/:messageId catalog:1adef9915cd6 -->
+<!-- endpoint:GET /api/gmail/accounts/:accountId/messages/:messageId catalog:2c57f22dafd7 -->
 ## `GET /api/gmail/accounts/{accountId}/messages/{messageId}`
 
 **读取 Gmail 正文 / Read a Gmail message**
 
-验证账号归属后，通过 BODY.PEEK[] 按需读取正文，不写回已读状态。
+验证账号归属后，通过 BODY.PEEK[] 读取正文，并以受控 STORE 命令同步标记已读。
 
-> Verify account ownership, then fetch the body on demand with BODY.PEEK[] without changing read state.
+> Verify account ownership, fetch the body with BODY.PEEK[], and synchronize Seen with a controlled STORE command.
 
 | 项目 | 内容 |
 | --- | --- |

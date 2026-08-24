@@ -166,9 +166,6 @@ export class GmailAccountStore {
       ).run()
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
-      if (/gmail_account_limit/i.test(message)) {
-        throw new GmailStoreError(409, '每个用户最多连接 5 个 Gmail 账号。')
-      }
       if (/UNIQUE|constraint/i.test(message)) {
         throw new GmailStoreError(409, '这个 Gmail 账号已经连接。')
       }

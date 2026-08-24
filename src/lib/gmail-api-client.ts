@@ -14,7 +14,6 @@ export function createGmailApi(request: Request, jsonBody: (value: unknown) => s
   return {
     gmailAccounts: (signal?: AbortSignal) => request<{
       enabled: boolean
-      accountLimit: number
       accounts: GmailAccount[]
     }>('/api/gmail/accounts', { signal }),
     connectGmail: (input: { name: string; email: string; appPassword: string }) => request<{

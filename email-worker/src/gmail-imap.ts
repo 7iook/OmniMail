@@ -124,6 +124,14 @@ export class GmailImapClient {
     return parseGmailMessage(literal.data, String(uid))
   }
 
+  async markSeen(uid: number): Promise<void> {
+    if (!Number.isSafeInteger(uid) || uid < 1) {
+      throw new ImapConnectionError(400, 'Gmail 邮件 UID 无效。', true)
+    }
+    await this.connection.command('SELECT INBOX')
+    await this.connection.command(`UID STORE ${uid} +FLAGS.SILENT (\\Seen)`)
+  }
+
   async getAttachment(uid: number, partId: string) {
     const { parsedAttachments } = await this.getMessage(uid)
     return gmailAttachmentContent(parsedAttachments, partId)

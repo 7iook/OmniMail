@@ -1,7 +1,8 @@
 # Gmail 聚合收件箱使用说明
 
-OmniMail 通过固定的 `imap.gmail.com:993` TLS 连接，以只读方式聚合多个 Gmail 账号的
-INBOX。它不会使用 Google Cloud Project、OAuth Client，也不会标记已读、归档、删除或发信。
+OmniMail 通过固定的 `imap.gmail.com:993` TLS 连接聚合多个 Gmail 账号的 INBOX。它不使用
+Google Cloud Project 或 OAuth Client；用户打开正文后会同步标记 Gmail 已读，但不会归档、
+移动、删除、星标或发信。
 
 ## 部署者配置
 
@@ -24,11 +25,12 @@ INBOX。它不会使用 Google Cloud Project、OAuth Client，也不会标记已
 应用密码可按原显示格式粘贴空格。请勿填写 Google 账号主密码。某些 Workspace、
 Advanced Protection 或仅使用安全密钥进行两步验证的账号可能没有应用密码入口。
 
-## 同步与只读行为
+## 同步与已读行为
 
 - 首次连接索引最近 100 封 INBOX 邮件，之后每 5 分钟错峰同步。
 - 每账号最多保留最近 500 封元数据；正文和附件只在打开时读取，不保存到 D1 / R2。
-- 打开邮件使用 `BODY.PEEK[]`，不会改变 Gmail 的未读状态。
+- 正文先使用 `BODY.PEEK[]` 读取；打开成功后使用受控 `UID STORE ... (\Seen)` 同步已读状态。
+- 除标记已读外，不允许其他 Gmail 远端写操作。
 - 单个账号失败不会阻断其他 Gmail 账号或 OmniMail 主邮箱。
 - 手动同步一分钟内只能请求一次；重复 Queue 任务由账号租约去重。
 

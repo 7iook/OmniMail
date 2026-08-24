@@ -59,7 +59,7 @@ Serverless Webmail：
 | Web 与桌面共用 API | 浏览器使用安全 Cookie，桌面客户端使用 Access / Refresh Token |
 | 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
 | iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
-| Gmail 聚合收件箱 | 最多连接 5 个 Gmail / Workspace 账号，以只读 IMAP 聚合最近 INBOX 邮件 |
+| Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，聚合最近 INBOX 邮件并在打开后同步已读 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -103,9 +103,10 @@ Serverless Webmail：
 
 ### Gmail 聚合收件箱
 
-- 每个 OmniMail 用户最多连接 5 个自己有权访问的 Gmail 或 Google Workspace 账号。
-- 固定连接 `imap.gmail.com:993`，只使用 `EXAMINE`、受控 `UID SEARCH` / `UID FETCH`
-  和 `BODY.PEEK[]`；不会标记已读、星标、归档、删除或发送邮件。
+- 每个 OmniMail 用户可连接多个自己有权访问的 Gmail 或 Google Workspace 账号。
+- 固定连接 `imap.gmail.com:993`。后台同步使用 `EXAMINE`、受控 `UID SEARCH` / `UID FETCH`；
+  用户打开正文后只允许执行固定的 `UID STORE ... +FLAGS.SILENT (\Seen)` 标记已读。
+- 不开放星标、归档、移动、删除或发送邮件等其他远端写操作。
 - D1 每个账号首次索引最近 100 封、最多保留最近 500 封 INBOX 元数据；正文、内嵌图片
   和附件仅在用户打开时读取，不持久化到 D1 / R2。
 - 每 5 分钟由 Cron 错峰加入 Queue，同一账号通过短时租约避免并发同步；账号失败不会阻断
@@ -116,7 +117,7 @@ Serverless Webmail：
 #### Gmail 使用注意事项
 
 - Google 官方优先推荐“使用 Google 账号登录”；OmniMail 为保持纯自托管部署而提供应用专用
-  密码模式。应用密码本身不具备只读 scope，只读边界由 OmniMail 的命令白名单保证。
+  密码模式。应用密码本身不具备细粒度 scope，远端操作边界由 OmniMail 的命令白名单保证。
 - 应用专用密码要求先开启两步验证，并且某些 Workspace、Advanced Protection 或仅安全密钥
   两步验证账号无法创建。请勿填写 Google 账号主密码。
 - Google 账号主密码变化时，现有应用密码会被撤销。连接失效后需生成新密码并在账号管理中更新。

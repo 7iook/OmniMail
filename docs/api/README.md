@@ -49,7 +49,7 @@ Webhook 端点按文档示例提交 Svix 签名头。除公开端点外，服务
 | [邮件](messages.md) | 10 | 列表、详情、状态、附件、原文、发信、回复和翻译。 |
 | [草稿与附件](drafts.md) | 8 | 服务端草稿的创建、保存、附件和幂等发送。 |
 | [iCloud 隐藏邮箱](icloud.md) | 13 | iCloud 账号、凭据、隐藏地址和按需收件箱。 |
-| [Gmail 聚合收件箱](gmail.md) | 10 | 多账号凭据、只读 IMAP 同步、聚合索引、正文与附件。 |
+| [Gmail 聚合收件箱](gmail.md) | 10 | 多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。 |
 | [Linux DO 邮箱](linux-do-mail.md) | 10 | 加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。 |
 | [管理员：运营与邮件](admin-operations.md) | 12 | 统计、审计、失败邮件、全站邮件和安全清理。 |
 | [管理员：用户与访问](admin-access.md) | 11 | 邀请、用户、用户限速和收件域名管理。 |

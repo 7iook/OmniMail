@@ -15,13 +15,29 @@ describe('Gmail workspace accessibility boundaries', () => {
 
   it('renders the account guide as a named modal without exposing credentials', () => {
     const html = renderToStaticMarkup(
-      <GmailAccountDialog accounts={[]} accountLimit={5}
+      <GmailAccountDialog accounts={[]}
         onClose={() => undefined} onChanged={async () => undefined} />,
     )
     expect(html).toContain('role="dialog"')
     expect(html).toContain('aria-modal="true"')
     expect(html).toContain('创建应用专用密码')
     expect(html).not.toContain('app_password_cipher')
+  })
+
+  it('renders connected accounts as management entries without an account cap', () => {
+    const html = renderToStaticMarkup(
+      <GmailAccountDialog accounts={[{
+        id: 'gmail-1', name: '个人', email: 'user@gmail.com', status: 'active',
+        lastSyncedAt: 1_787_486_400, nextSyncAt: 1_787_486_700,
+        lastErrorCode: '', lastErrorAt: null, createdAt: 1_787_486_400,
+        hasAppPassword: true,
+      }]} onClose={() => undefined} onChanged={async () => undefined} />,
+    )
+    expect(html).toContain('Gmail 账号管理')
+    expect(html).toContain('已连接 1 个账号')
+    expect(html).toContain('管理')
+    expect(html).not.toContain('1/5')
+    expect(html).not.toContain('每个用户最多连接')
   })
 
   it('shows detail failures inside the reader with an explicit retry action', () => {

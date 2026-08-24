@@ -24,7 +24,7 @@ export const apiGroups: Array<{
   { id: 'icloud', title: localized('iCloud 隐藏邮箱', 'iCloud Hide My Email'),
     description: localized('iCloud 账号、凭据、隐藏地址和按需收件箱。', 'iCloud accounts, credentials, aliases, and on-demand inbox access.') },
   { id: 'gmail', title: localized('Gmail 聚合收件箱', 'Gmail unified inbox'),
-    description: localized('多账号凭据、只读 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, read-only IMAP synchronization, unified indexing, message bodies, and attachments.') },
+    description: localized('多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, controlled IMAP synchronization, unified indexing, message bodies, and attachments.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),

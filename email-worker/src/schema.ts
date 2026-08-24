@@ -2,7 +2,8 @@ const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
 const CONSISTENCY_MIGRATION = '0022_consistency_guards.sql'
 const LINUX_DO_MAIL_MIGRATION = '0023_linux_do_mail_accounts.sql'
 const LINUX_DO_MAIL_OUTBOUND_MIGRATION = '0024_linux_do_mail_outbound.sql'
-const REQUIRED_MIGRATION = '0025_gmail_imap.sql'
+const GMAIL_MIGRATION = '0025_gmail_imap.sql'
+const REQUIRED_MIGRATION = '0026_gmail_unlimited_accounts.sql'
 const schemaChecks = new WeakMap<D1Database, Promise<void>>()
 
 const WRANGLER_MIGRATION_NAMES = [
@@ -30,6 +31,7 @@ const WRANGLER_MIGRATION_NAMES = [
   CONSISTENCY_MIGRATION,
   LINUX_DO_MAIL_MIGRATION,
   LINUX_DO_MAIL_OUTBOUND_MIGRATION,
+  GMAIL_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -303,7 +305,7 @@ const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: GMAIL_MIGRATION,
     statements: [
       `CREATE TABLE IF NOT EXISTS gmail_imap_accounts (
         id TEXT PRIMARY KEY,
@@ -373,6 +375,10 @@ const RECOVERABLE_MIGRATIONS = [
         updated_at INTEGER NOT NULL
       )`,
     ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: ['DROP TRIGGER IF EXISTS gmail_imap_accounts_limit'],
   },
 ] as const
 

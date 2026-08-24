@@ -2,18 +2,18 @@
 
 - 状态：MVP 已在 `feat/gmail-multi-account` 实施，等待真实 Gmail 灰度验证
 - 记录日期：2026-08-23
-- 当前范围：Web 端多个 Gmail 账号的只读聚合查看；Android、扩展、OAuth 和发信仍不在范围内
+- 当前范围：Web 端多个 Gmail 账号聚合查看；打开正文后同步已读，其他远端写操作仍不在范围内
 - 主要接入方式：Gmail 应用专用密码 + IMAP over TLS
 - 核心目标：同一个 OmniMail 用户连接自己的多个 Gmail 账号，并在一个网站中查看全部账号的最近来信
 
 ## 当前实施进度
 
-已完成 D1 迁移、独立凭据加密、多账号 API、只读 Gmail IMAP 客户端、Queue/Cron 同步、
+已完成 D1 迁移、独立凭据加密、多账号 API、受控 Gmail IMAP 客户端、Queue/Cron 同步、
 账号租约、UIDVALIDITY 与 Gmail 扩展字段索引、聚合列表、按需正文和附件、账号管理 UI、
 部署自检、双语文案、API Catalog、单元/Worker/浏览器测试与部署文档。
 
 尚未完成且不能由仓库测试替代的是：使用真实个人 Gmail / Workspace 测试账号，从实际部署的
-Cloudflare Worker 验证登录、扩展字段、中文与多段 MIME、`BODY.PEEK[]` 不改变未读状态，以及
+Cloudflare Worker 验证登录、扩展字段、中文与多段 MIME、正文读取后受控同步 `\Seen`，以及
 撤销应用密码后的稳定错误行为。在这些真实验证通过前，本功能不应标记为生产 Go-Live。
 
 ## 结论与推荐方向
@@ -24,7 +24,7 @@ OAuth Client 还会让项目维护者成为集中授权服务的运营方。综�
 现有 IMAP 能力，首版推荐使用：
 
 > 用户为每个 Gmail 账号生成独立的应用专用密码，OmniMail 使用
-> `imap.gmail.com:993` 直接 TLS 连接并提供只读聚合收件箱。
+> `imap.gmail.com:993` 直接 TLS 连接并提供受控聚合收件箱。
 
 该方案不需要部署者申请 Google Cloud 服务，不需要 OAuth Client、Restricted Scope Verification、
 Pub/Sub 或 CASA 安全评估。每个 Gmail 账号只需开启两步验证并生成一次应用专用密码。
@@ -32,15 +32,16 @@ Pub/Sub 或 CASA 安全评估。每个 Gmail 账号只需开启两步验证并�
 首版提供独立的“Gmail”工作区，其中包含“全部 Gmail”和单账号筛选；不把 Gmail 邮件写入
 OmniMail 当前的自有域邮箱 `messages` 表，也不与主收件箱、iCloud 或 Linux DO Mail 混合。
 
-首版保持严格的产品只读边界：
+首版保持严格的远端操作边界：
 
-- 只读取 INBOX 最近邮件、单封正文和用户主动下载的附件。
-- 使用 `EXAMINE`、`BODY.PEEK[]` 等不会主动改变邮箱状态的命令。
-- 不标记已读、不星标、不归档、不移动、不删除、不发送邮件。
+- 读取 INBOX 最近邮件、单封正文和用户主动下载的附件。
+- 后台同步使用 `EXAMINE`；正文使用 `BODY.PEEK[]` 读取。
+- 用户打开正文后只允许执行固定的 `UID STORE ... +FLAGS.SILENT (\Seen)` 标记已读。
+- 不星标、不归档、不移动、不删除、不发送邮件。
 - D1 只保存聚合列表所需的元数据；正文和附件按需读取，首版不持久化到 R2。
 
 需要明确：应用专用密码本身并不是只读凭据。它没有 OAuth scope，理论上可以被用于 Gmail
-允许的其他 IMAP/SMTP 操作。只读是 OmniMail 实现层的约束，因此必须对密码密文、连接命令、
+允许的其他 IMAP/SMTP 操作。受控写入是 OmniMail 实现层的约束，因此必须对密码密文、连接命令、
 账号隔离和日志脱敏采取严格保护。
 
 ## 成功标准
@@ -75,7 +76,7 @@ OmniMail 当前的自有域邮箱 `messages` 表，也不与主收件箱、iClou
 | 定时同步间隔 | 5 分钟，按账号错峰 | 平衡更新延迟与 IMAP 连接数量 |
 | 元数据保留范围 | 保持每账号最近 500 封 INBOX 索引 | 控制 D1 容量和对账开销 |
 | 正文与附件缓存 | 不持久化 | 降低敏感数据和存储风险 |
-| 打开邮件是否回写已读 | 不回写 | 保持首版只读和命令安全边界 |
+| 打开邮件是否回写已读 | 回写 `\Seen` | 符合常见邮箱体验，仍禁止其他远端状态操作 |
 
 如果真实需求是“把 OmniMail、Gmail、iCloud 和 Linux DO Mail 合成同一个总收件箱”，应在
 本计划稳定后单独设计跨提供方数据模型和操作语义，不在 Gmail MVP 中顺带改造。
@@ -124,13 +125,13 @@ OmniMail 当前的自有域邮箱 `messages` 表，也不与主收件箱、iClou
 
 ### 凭据权限较宽
 
-应用专用密码不像 `gmail.readonly` 那样具有细粒度权限。即使 OmniMail 只发出只读命令，泄露
+应用专用密码不像 OAuth scope 那样具有细粒度权限。即使 OmniMail 只发出受控命令，泄露
 的凭据仍可能被其他客户端用于更广泛的邮件操作。该风险通过以下措施降低，但无法完全消除：
 
 - 凭据只保存于用户自己的自托管实例。
 - 每个 Gmail 账号使用独立、可撤销的应用密码，不使用 Google 主密码。
 - 密码必须加密保存，解密范围限制在单次 Gmail 请求内。
-- 首版代码层只允许固定的只读 IMAP 命令集合。
+- 代码层只允许固定的 IMAP 命令白名单，远端写入仅限当前邮件的 `\Seen`。
 - 不开放任意 IMAP 主机、端口或原始命令接口。
 
 ### Google 不推荐把应用密码作为首选认证
@@ -191,7 +192,7 @@ Gmail 将标签映射为 IMAP 文件夹，同一封邮件可能出现在多个�
 所有这些 ID 都是 Gmail 账号作用域，数据库唯一约束必须包含 `account_id`，不能假设不同 Gmail
 账号之间的 ID 全局唯一。
 
-### 只读命令边界
+### 受控命令边界
 
 首版允许的业务命令限定为：
 
@@ -199,14 +200,16 @@ Gmail 将标签映射为 IMAP 文件夹，同一封邮件可能出现在多个�
 - `ID`
 - 认证命令
 - `EXAMINE INBOX`
+- `SELECT INBOX`（仅在打开正文后的已读同步阶段）
 - 受控的 `UID SEARCH`
 - 受控的 `UID FETCH`
+- 精确的 `UID STORE <uid> +FLAGS.SILENT (\Seen)`
 - `NOOP`（仅在单次请求连接内必要时使用）
 - `LOGOUT`
 
-读取正文使用 `BODY.PEEK[]` 或精确的 `BODY.PEEK[section]`，避免因为 FETCH 自动设置 `\Seen`。
-首版禁止 `SELECT`、`STORE`、`COPY`、`MOVE`、`EXPUNGE`、`APPEND`、邮箱创建/重命名/删除及任意
-原始命令透传。
+读取正文使用 `BODY.PEEK[]` 或精确的 `BODY.PEEK[section]`，正文解析成功后再单独设置 `\Seen`，
+避免读取中途失败却提前改变状态。首版禁止任意其他 `STORE`、`COPY`、`MOVE`、`EXPUNGE`、
+`APPEND`、邮箱创建/重命名/删除及任意原始命令透传。
 
 ## 同步策略
 
@@ -358,7 +361,7 @@ Gmail 地址。不同 OmniMail 用户仍可各自连接自己有权使用的同�
 - 每封邮件显示账号颜色/名称、发件人、主题、摘要、时间、未读和附件标识。
 - 切换单账号时保持相同列表和分页语义。
 - 首版只显示 INBOX，不显示 All Mail、Sent、Spam、Trash 和自定义标签文件夹。
-- 打开邮件不会回写 Gmail 已读状态，界面需明确避免造成错误预期。
+- 打开正文后同步回写 Gmail 已读状态；失败时正文仍可查看，并显示可恢复提示。
 - 账号同步失败时显示账号级状态，其他账号邮件仍可浏览。
 
 ### 账号管理
@@ -411,7 +414,7 @@ Linux DO Mail。如果复用会导致大范围改动，允许 Gmail 先保留小
 - 使用专门测试账号的应用密码完成登录。
 - 验证 `CAPABILITY`、`ID`、`EXAMINE INBOX`、受限 `UID SEARCH` 和 `UID FETCH`。
 - 验证 `X-GM-MSGID`、`X-GM-THRID`、`X-GM-LABELS`、中文 header 和多段 MIME。
-- 验证 `BODY.PEEK[]` 不会把未读邮件标为已读。
+- 验证 `BODY.PEEK[]` 读取成功后仅通过受控 STORE 把当前邮件标为已读。
 - 撤销应用密码后确认新连接失败，并记录 Gmail 返回的稳定错误类型。
 - 如能获得 Workspace 测试账号，确认管理员允许和禁止应用密码时的行为。
 
@@ -536,7 +539,7 @@ Linux DO Mail。如果复用会导致大范围改动，允许 Gmail 先保留小
 - 无法创建应用专用密码账号的兼容接入。
 - Gmail 全历史同步和完整离线镜像。
 - 与 OmniMail 自有域、iCloud、Linux DO Mail 混合成一个总收件箱。
-- 已读回写、星标、归档、移动标签、删除和垃圾邮件操作。
+- 星标、归档、移动标签、删除和垃圾邮件操作。
 - SMTP 发信、草稿、回复、转发和 Send As 别名。
 - All Mail、Sent、Spam、Trash、自定义标签树和完整 Gmail 搜索语法。
 - 联系人、日历、Google Drive 或其他 Google 服务。
@@ -561,7 +564,7 @@ Linux DO Mail。如果复用会导致大范围改动，允许 Gmail 先保留小
 - 已确认接受“应用密码权限较宽”这一安全权衡。
 - 已确认首版只支持能够创建应用专用密码的账号。
 - 真实个人 Gmail 在实际 Worker 中完成登录、列表、正文和撤销验证。
-- 已验证 `BODY.PEEK[]` 不会回写已读状态。
+- 已验证正文读取后只对当前 UID 回写 `\Seen`，不改变其他远端状态。
 - 已确认每用户账号上限、同步间隔、索引窗口和正文不持久化策略。
 - 已批准用户删除连接后仍需手动到 Google 撤销应用密码的交互说明。
 

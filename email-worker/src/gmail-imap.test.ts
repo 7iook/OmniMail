@@ -45,7 +45,17 @@ function responseWithMessage(raw: string): Uint8Array {
     `* 1 FETCH (BODY[] {${encoder.encode(raw).byteLength}}`,
     '',
   ].join('\r\n'))
-  const suffix = encoder.encode(' UID 42)\r\nA0006 OK FETCH\r\n* BYE\r\nA0007 OK LOGOUT\r\n')
+  const suffix = encoder.encode([
+    ' UID 42)',
+    'A0006 OK FETCH',
+    '* 1 EXISTS',
+    '* OK [READ-WRITE] Mailbox selected',
+    'A0007 OK SELECT',
+    'A0008 OK STORE',
+    '* BYE',
+    'A0009 OK LOGOUT',
+    '',
+  ].join('\r\n'))
   const bytes = new Uint8Array(prefix.byteLength + encoder.encode(raw).byteLength + suffix.byteLength)
   bytes.set(prefix)
   bytes.set(encoder.encode(raw), prefix.byteLength)
@@ -53,10 +63,10 @@ function responseWithMessage(raw: string): Uint8Array {
   return bytes
 }
 
-describe('Gmail IMAP read-only command boundary', () => {
+describe('Gmail IMAP controlled command boundary', () => {
   beforeEach(() => vi.mocked(connect).mockReset())
 
-  it('reads bodies when Gmail returns UID after the literal and keeps commands read-only', async () => {
+  it('reads with BODY.PEEK and permits only the controlled Seen update', async () => {
     const raw = [
       'From: Sender <sender@example.com>',
       'To: user@gmail.com',
@@ -73,11 +83,14 @@ describe('Gmail IMAP read-only command boundary', () => {
     await expect(client.getMessage(42)).resolves.toMatchObject({
       message: { subject: 'Read only', body: 'Body' },
     })
+    await client.markSeen(42)
     await client.close()
 
     const commands = fixture.commands()
     expect(commands).toContain('EXAMINE INBOX')
     expect(commands).toContain('UID FETCH 42 (UID BODY.PEEK[])')
-    expect(commands).not.toMatch(/\bSELECT\b|\bSTORE\b|\bMOVE\b|\bEXPUNGE\b|\bAPPEND\b/)
+    expect(commands).toContain('SELECT INBOX')
+    expect(commands).toContain('UID STORE 42 +FLAGS.SILENT (\\Seen)')
+    expect(commands).not.toMatch(/\bMOVE\b|\bCOPY\b|\bEXPUNGE\b|\bAPPEND\b/)
   })
 })

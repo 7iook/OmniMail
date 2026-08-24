@@ -43,7 +43,6 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
   remoteImagesEnabled: boolean
 }) {
   const [accounts, setAccounts] = useState<GmailAccount[]>([])
-  const [accountLimit, setAccountLimit] = useState(5)
   const [accountId, setAccountId] = useState('')
   const [messages, setMessages] = useState<GmailMessageSummary[]>([])
   const [page, setPage] = useState<PageInfo>(emptyPage)
@@ -69,7 +68,6 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     }
     const result = await api.gmailAccounts()
     setAccounts(result.accounts)
-    setAccountLimit(result.accountLimit)
     setAccountId((current) => current && !result.accounts.some(({ id }) => id === current)
       ? '' : current)
     return result.accounts
@@ -197,7 +195,12 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     setError('')
     try {
       const result = await api.gmailMessage(message.account.id, message.id, controller.signal)
-      if (!controller.signal.aborted) setDetail(result.message)
+      if (!controller.signal.aborted) {
+        setDetail(result.message)
+        setMessages((items) => items.map((item) => item.id === message.id
+          ? { ...item, isRead: result.message.isRead }
+          : item))
+      }
     } catch (loadError) {
       if (!controller.signal.aborted) setDetailError(errorMessage(loadError))
     } finally {
@@ -251,9 +254,9 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
           : <p className="eyebrow">GMAIL · IMAP</p>}<h1>Gmail</h1></div>
         <div className="list-header__actions">
           {accounts.length > 0 && <span className="icloud-mail-status is-imap">
-            <ShieldCheck size={13} aria-hidden="true" />{t('IMAP 只读')}</span>}
+            <ShieldCheck size={13} aria-hidden="true" />{t('IMAP 同步')}</span>}
           <div className="icloud-header-action-buttons">
-          <button className="icon-button" type="button" disabled={accounts.length >= accountLimit}
+          <button className="icon-button" type="button"
             onClick={() => setDialogMode('add')} aria-label={t('添加 Gmail 账号')}
             data-tooltip={t('添加 Gmail 账号')}><Plus size={17} /></button>
           <button className="icon-button" type="button" disabled={!accounts.length || remoteSyncing}
@@ -277,7 +280,7 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
           <LoaderCircle className="spin" size={21} />{t('正在读取 Gmail 索引…')}
         </div> : !accounts.length ? <div className="gmail-list-state gmail-list-state--empty">
           <span><AtSign size={25} /></span><h2>{t('连接你的第一个 Gmail')}</h2>
-          <p>{t('使用独立应用专用密码，只读聚合最近的 INBOX 邮件。')}</p>
+          <p>{t('使用独立应用专用密码，安全聚合最近的 INBOX 邮件。')}</p>
           <button className="button button--primary" type="button" onClick={() => setDialogMode('add')}>
             <Plus size={16} />{t('添加 Gmail 账号')}</button>
         </div> : !messages.length ? <div className="gmail-list-state gmail-list-state--empty">
@@ -321,7 +324,7 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
         onBack={() => { setSelected(null); setDetail(null); setDetailError('') }}
         onRetry={() => selected && void selectMessage(selected)} />
     </main>
-    {dialogMode && <GmailAccountDialog accounts={accounts} accountLimit={accountLimit}
+    {dialogMode && <GmailAccountDialog accounts={accounts}
       startAdding={dialogMode === 'add'} onClose={closeDialog} onChanged={refresh} />}
     {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
   </div>

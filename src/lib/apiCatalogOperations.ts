@@ -98,7 +98,7 @@ export const gmailEndpoints: ApiEndpoint[] = [
     method: 'GET', path: '/api/gmail/accounts', group: 'gmail', auth: 'authenticated',
     title: l('列出 Gmail 账号', 'List Gmail accounts'),
     description: l('返回当前用户的脱敏 Gmail 账号和同步状态，不返回凭据或密文。', 'Return the current user’s sanitized Gmail accounts and sync state without credentials or ciphertext.'),
-    request: 'No parameters', response: '200 · { enabled, accountLimit, accounts }',
+    request: 'No parameters', response: '200 · { enabled, accounts }',
   },
   {
     method: 'POST', path: '/api/gmail/accounts', group: 'gmail', auth: 'authenticated',
@@ -150,7 +150,7 @@ export const gmailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/gmail/accounts/:accountId/messages/:messageId', group: 'gmail', auth: 'authenticated',
     title: l('读取 Gmail 正文', 'Read a Gmail message'),
-    description: l('验证账号归属后，通过 BODY.PEEK[] 按需读取正文，不写回已读状态。', 'Verify account ownership, then fetch the body on demand with BODY.PEEK[] without changing read state.'),
+    description: l('验证账号归属后，通过 BODY.PEEK[] 读取正文，并以受控 STORE 命令同步标记已读。', 'Verify account ownership, fetch the body with BODY.PEEK[], and synchronize Seen with a controlled STORE command.'),
     request: 'Path · accountId, messageId', response: '200 · { message }',
   },
   {
