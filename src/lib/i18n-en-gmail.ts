@@ -44,7 +44,7 @@ export const enGmail: Record<string, string> = {
   '无法显示这封 Gmail 邮件': 'Unable to display this Gmail message',
   '重试读取': 'Retry',
   '选择一封 Gmail 邮件': 'Select a Gmail message',
-  '打开邮件不会改变 Gmail 中的未读状态。': 'Opening a message does not change its unread state in Gmail.',
+  '打开邮件后会尝试同步 Gmail 已读状态。': 'Opening a message attempts to sync its read state to Gmail.',
   '邮件正文已打开，但未能同步 Gmail 已读状态；重新打开可重试。': 'The message opened, but Gmail read state could not be updated. Open it again to retry.',
   'Gmail 账号管理': 'Gmail account management',
   '设置 {name}': 'Set up {name}',

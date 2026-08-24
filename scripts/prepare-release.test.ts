@@ -14,25 +14,25 @@ function prepare(tag: string) {
 
 describe('release metadata preparation', () => {
   it('validates the matching versioned release notes file', () => {
-    const result = prepare('v0.4.1')
+    const result = prepare('v0.5.0')
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('v0.4.1.md')
+    expect(result.stdout).toContain('v0.5.0.md')
     const notes = readFileSync(
-      join(process.cwd(), 'docs', 'releases', 'web', 'v0.4.1.md'),
+      join(process.cwd(), 'docs', 'releases', 'web', 'v0.5.0.md'),
       'utf8',
     )
     expect(notes).toContain('### 新增')
-    expect(notes).toContain('邮件主标题')
-    expect(notes).toContain('无需新增 D1 迁移')
-    expect(notes).toContain('65 项 Playwright')
+    expect(notes).toContain('Gmail 多账号聚合收件箱')
+    expect(notes).toContain('0025_gmail_imap.sql')
+    expect(notes).toContain('双账号聚合与范围切换')
     expect(notes).toContain('OmniMail Float 扩展包或 Android 安装包')
   })
 
   it('rejects a tag that does not match package metadata', () => {
-    const result = prepare('v0.4.2')
+    const result = prepare('v0.5.1')
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain('does not match tag v0.4.2')
+    expect(result.stderr).toContain('does not match tag v0.5.1')
   })
 })

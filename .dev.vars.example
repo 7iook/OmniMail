@@ -5,5 +5,5 @@ SUPER_ADMIN_EMAIL=
 # Optional. At least 32 UTF-8 bytes; enables iCloud Hide My Email.
 ICLOUD_CREDENTIALS_KEY=
 
-# Optional. At least 32 UTF-8 bytes; enables the read-only Gmail workspace.
+# Optional. At least 32 UTF-8 bytes; enables Gmail with controlled IMAP access.
 GMAIL_CREDENTIALS_KEY=

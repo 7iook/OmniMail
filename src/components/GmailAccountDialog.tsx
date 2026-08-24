@@ -21,6 +21,7 @@ import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
 
 type View = 'accounts' | 'account' | 'connect'
+const DIALOG_EXIT_MS = 170
 
 function statusLabel(account: GmailAccount): string {
   if (account.status === 'syncing') return t('正在同步')
@@ -56,21 +57,73 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [closing, setClosing] = useState(false)
   const titleId = useId()
   const descriptionId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  const closeTimer = useRef<number | null>(null)
+  const busyRef = useRef(busy)
+  const onCloseRef = useRef(onClose)
+  busyRef.current = busy
+  onCloseRef.current = onClose
+
+  function close() {
+    if (busyRef.current || closeTimer.current !== null) return
+    setClosing(true)
+    setVisible(false)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null
+      onCloseRef.current()
+    }, reducedMotion ? 0 : DIALOG_EXIT_MS)
+  }
 
   useEffect(() => {
-    closeRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const enterFrame = window.requestAnimationFrame(() => {
+      setVisible(true)
+      closeRef.current?.focus()
+    })
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+    ) || [])
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) onClose()
+      if (closeTimer.current !== null) {
+        if (event.key === 'Tab' || event.key === 'Escape') event.preventDefault()
+        return
+      }
+      if (event.key === 'Escape' && !busyRef.current) {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const controls = focusable()
+      if (!controls.length) return
+      const first = controls[0]
+      const last = controls.at(-1)!
+      if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault(); (event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, onClose])
+    return () => {
+      window.cancelAnimationFrame(enterFrame)
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+      previousFocus?.focus()
+    }
+  }, [])
 
   useEffect(() => {
     if (!target) return
@@ -207,12 +260,14 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
       : t('验证 Gmail IMAP 后，加密保存应用专用密码。')
   const canGoBack = view === 'account' || (view === 'connect' && accounts.length > 0)
 
-  return <div className="icloud-modal-backdrop is-visible gmail-dialog-backdrop" role="presentation"
+  return <div className={`icloud-modal-backdrop gmail-dialog-backdrop${visible ? ' is-visible' : ''}${closing ? ' is-closing' : ''}`}
+    role="presentation"
     onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !busy) onClose()
+      if (event.target === event.currentTarget) close()
     }}>
-    <section className="icloud-modal gmail-account-dialog" role="dialog" aria-modal="true"
-      aria-busy={Boolean(busy)} aria-labelledby={titleId} aria-describedby={descriptionId}>
+    <section ref={dialogRef} className="icloud-modal gmail-account-dialog" role="dialog"
+      aria-modal="true" aria-busy={Boolean(busy)} aria-labelledby={titleId}
+      aria-describedby={descriptionId}>
       <header className={canGoBack ? 'has-back' : ''}>
         {canGoBack && <button className="icon-button gmail-dialog-back" type="button"
           onClick={goBack} disabled={Boolean(busy)} aria-label={t('返回')}>
@@ -221,7 +276,7 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
         <div><p className="eyebrow">GMAIL · IMAP</p>
           <h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>{description}</p></div>
-        <button ref={closeRef} className="icon-button" type="button" onClick={onClose}
+        <button ref={closeRef} className="icon-button" type="button" onClick={close}
           disabled={Boolean(busy)} aria-label={t('关闭')}><X size={17} aria-hidden="true" /></button>
       </header>
 

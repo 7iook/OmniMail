@@ -58,4 +58,12 @@ describe('Gmail workspace accessibility boundaries', () => {
     expect(html).toContain('无法显示这封 Gmail 邮件')
     expect(html).toContain('重试读取')
   })
+
+  it('states that opening a message attempts to sync its Gmail read state', () => {
+    const html = renderToStaticMarkup(<GmailReader
+      selected={null} message={null} loading={false} error="" remoteImagesEnabled={false}
+      onBack={() => undefined} onRetry={() => undefined} />)
+
+    expect(html).toContain('打开邮件后会尝试同步 Gmail 已读状态。')
+  })
 })

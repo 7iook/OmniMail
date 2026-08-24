@@ -50,4 +50,28 @@ describe('Gmail storage boundary', () => {
     expect(statements[0]).not.toContain('app_password_cipher')
     expect(statements[1]).toContain('DELETE FROM gmail_imap_accounts')
   })
+
+  it('invalidates an in-flight sync lease when replacing the app password', async () => {
+    const statements: Array<{ sql: string; bindings: unknown[] }> = []
+    const env = {
+      GMAIL_CREDENTIALS_KEY: key,
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...bindings: unknown[]) => ({
+            run: async () => {
+              statements.push({ sql, bindings })
+              return { meta: { changes: 1 } }
+            },
+          }) }
+        },
+      },
+    } as unknown as Env
+
+    await new GmailAccountStore(env, 'user-1')
+      .replaceAppPassword('gmail-1', 'newnewnewnewnewn', 10)
+
+    expect(statements[0].sql).toContain('sync_lease_id = NULL')
+    expect(statements[0].sql).toContain('sync_lease_until = NULL')
+    expect(statements[0].bindings.slice(-3)).toEqual([10, 'gmail-1', 'user-1'])
+  })
 })

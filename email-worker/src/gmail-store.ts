@@ -192,7 +192,7 @@ export class GmailAccountStore {
     const result = await this.env.DB.prepare(
       `UPDATE gmail_imap_accounts SET app_password_cipher = ?, status = 'active',
               last_error_code = '', last_error_at = NULL, next_sync_at = 0,
-              updated_at = ?
+              sync_lease_id = NULL, sync_lease_until = NULL, updated_at = ?
         WHERE id = ? AND user_id = ?`,
     ).bind(cipher, now, accountId, this.userId).run()
     if (!result.meta.changes) throw new GmailStoreError(404, 'Gmail 账号不存在。')

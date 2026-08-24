@@ -40,7 +40,7 @@ export function createGmailApi(request: Request, jsonBody: (value: unknown) => s
     }>(`/api/gmail/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
     syncGmail: (accountId: string) => request<{ queued: true }>(
       `/api/gmail/accounts/${encodeURIComponent(accountId)}/sync`,
-      { method: 'POST' },
+      { method: 'POST', timeoutMs: 30_000 },
     ),
     gmailMessages: (accountId = '', cursor = '', query = '', signal?: AbortSignal) => {
       const search = new URLSearchParams({ limit: '30' })

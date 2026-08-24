@@ -50,7 +50,7 @@ export function GmailReader({
     return <div className="reader-state reader-state--empty">
       <span className="reader-empty-symbol"><Mail size={29} /></span>
       <h2>{t('选择一封 Gmail 邮件')}</h2>
-      <p>{t('打开邮件不会改变 Gmail 中的未读状态。')}</p>
+      <p>{t('打开邮件后会尝试同步 Gmail 已读状态。')}</p>
     </div>
   }
 

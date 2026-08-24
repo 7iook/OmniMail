@@ -334,6 +334,7 @@ export async function requestGmailSync(
   env: Env,
   user: SessionUser,
   accountId: string,
+  defer: (task: Promise<unknown>) => void,
 ): Promise<Response> {
   try {
     const store = new GmailAccountStore(env, user.id)
@@ -352,14 +353,12 @@ export async function requestGmailSync(
     if (!result.meta.changes) {
       throw new GmailStoreError(429, '手动同步过于频繁，请稍后重试。')
     }
-    try {
-      await enqueueSync(env, accountId, 'manual')
-    } catch (error) {
-      await env.DB.prepare(
-        'UPDATE gmail_imap_accounts SET next_sync_at = 0 WHERE id = ? AND user_id = ?',
-      ).bind(accountId, user.id).run()
-      throw error
-    }
+    defer(enqueueSync(env, accountId, 'manual').catch((error) => {
+      console.error('Unable to enqueue manual Gmail synchronization', {
+        accountId,
+        type: error instanceof Error ? error.name : typeof error,
+      })
+    }))
     return privateJson({ queued: true }, 202)
   } catch (error) {
     return responseError(error)

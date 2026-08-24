@@ -4,21 +4,16 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function mockGmail(page: Page) {
-  let account: Record<string, unknown> | null = null
-  const connections: Array<{ name: string; email: string; appPassword: string }> = []
-  const gmailRequests: Array<{ method: string; path: string }> = []
-  const syncRequests: string[] = []
+async function preparePage(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname
-    if (path.startsWith('/api/gmail/')) gmailRequests.push({ method: request.method(), path })
-    if (path === '/api/config') return json(route, {
+}
+
+async function mockAppShell(route: Route, path: string): Promise<boolean> {
+  if (path === '/api/config') {
+    await json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,
       iCloudEnabled: false, iCloudWorkspaceEnabled: true,
       linuxDoMailWorkspaceEnabled: true, gmailEnabled: true, gmailWorkspaceEnabled: true,
@@ -31,14 +26,40 @@ async function mockGmail(page: Page) {
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
     })
-    if (path === '/api/session') return json(route, { user: {
+    return true
+  }
+  if (path === '/api/session') {
+    await json(route, { user: {
       id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
       mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
       canCreateMailboxes: false, canReply: false, canTranslate: false,
       temporaryExpiresAt: null,
     } })
-    if (path === '/api/mailboxes') return json(route, { mailboxes: [] })
-    if (path === '/api/domains') return json(route, { domains: [] })
+    return true
+  }
+  if (path === '/api/mailboxes') {
+    await json(route, { mailboxes: [] })
+    return true
+  }
+  if (path === '/api/domains') {
+    await json(route, { domains: [] })
+    return true
+  }
+  return false
+}
+
+async function mockGmail(page: Page) {
+  let account: Record<string, unknown> | null = null
+  const connections: Array<{ name: string; email: string; appPassword: string }> = []
+  const gmailRequests: Array<{ method: string; path: string }> = []
+  const syncRequests: string[] = []
+  await preparePage(page)
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    if (path.startsWith('/api/gmail/')) gmailRequests.push({ method: request.method(), path })
+    if (await mockAppShell(route, path)) return
     if (path === '/api/gmail/accounts' && request.method() === 'POST') {
       connections.push(request.postDataJSON())
       account = {
@@ -123,6 +144,70 @@ async function mockGmail(page: Page) {
   return { connections, gmailRequests, syncRequests }
 }
 
+async function mockTwoGmailAccounts(page: Page) {
+  const accounts = [{
+    id: 'gmail-1', name: '个人 Gmail', email: 'personal@gmail.com', status: 'active',
+    lastSyncedAt: 1_787_486_400, nextSyncAt: 1_787_486_700,
+    lastErrorCode: '', lastErrorAt: null, createdAt: 1_787_486_400,
+    hasAppPassword: true,
+  }, {
+    id: 'gmail-2', name: '工作 Gmail', email: 'work@example.com', status: 'active',
+    lastSyncedAt: 1_787_486_300, nextSyncAt: 1_787_486_700,
+    lastErrorCode: '', lastErrorAt: null, createdAt: 1_787_486_401,
+    hasAppPassword: true,
+  }]
+  const listRequests: string[] = []
+  const syncRequests: string[] = []
+  await preparePage(page)
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    if (await mockAppShell(route, path)) return
+    if (path === '/api/gmail/accounts' && request.method() === 'GET') {
+      return json(route, { enabled: true, accounts })
+    }
+    if (path === '/api/gmail/messages' && request.method() === 'GET') {
+      listRequests.push(url.search)
+      const accountId = url.searchParams.get('accountId') || ''
+      const query = (url.searchParams.get('q') || '').toLowerCase()
+      const messages = [{
+        id: 'personal-message', account: {
+          id: 'gmail-1', name: '个人 Gmail', email: 'personal@gmail.com', status: 'active',
+        },
+        senderName: 'Personal Sender', senderAddress: 'personal@example.com',
+        recipients: ['personal@gmail.com'], cc: [], subject: '个人邮件', preview: '',
+        date: 1_787_486_400, sizeBytes: 100, isRead: true, isStarred: false,
+        hasAttachments: false,
+      }, {
+        id: 'work-message', account: {
+          id: 'gmail-2', name: '工作 Gmail', email: 'work@example.com', status: 'active',
+        },
+        senderName: 'Work Sender', senderAddress: 'work-sender@example.com',
+        recipients: ['work@example.com'], cc: [], subject: '工作邮件', preview: '',
+        date: 1_787_486_300, sizeBytes: 100, isRead: true, isStarred: false,
+        hasAttachments: false,
+      }].filter((message) => (!accountId || message.account.id === accountId)
+        && (!query || [message.senderName, message.senderAddress, message.subject]
+          .some((value) => value.toLowerCase().includes(query))))
+      return json(route, {
+        messages,
+        page: { hasMore: false, nextCursor: null, limit: 30 },
+      })
+    }
+    if (path.endsWith('/sync')) {
+      syncRequests.push(path)
+      if (path.includes('/gmail-2/')) {
+        return json(route, { error: '工作 Gmail 暂时无法同步。' }, 502)
+      }
+      accounts[0].lastSyncedAt += 1
+      return json(route, { queued: true }, 202)
+    }
+    return route.abort()
+  })
+  return { listRequests, syncRequests }
+}
+
 test('connects Gmail, marks opened mail read, and preserves controlled IMAP behavior', async ({ page }) => {
   const state = await mockGmail(page)
   await page.goto('/gmail')
@@ -132,8 +217,17 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await page.locator('.gmail-list-state--empty')
     .getByRole('button', { name: '添加 Gmail 账号' }).click()
   const connect = page.getByRole('dialog', { name: '连接 Gmail 账号' })
+  await expect.poll(() => connect.evaluate((element) => (
+    getComputedStyle(element).transform
+  ))).toBe('none')
   const googlePasswordLink = connect.getByRole('link', { name: '创建 Google 应用密码' })
   const connectButton = connect.getByRole('button', { name: '验证并连接' })
+  const closeButton = connect.getByRole('button', { name: '关闭' })
+  await expect(closeButton).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(connectButton).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(closeButton).toBeFocused()
   await expect(googlePasswordLink).toHaveAttribute(
     'href', 'https://myaccount.google.com/apppasswords',
   )
@@ -174,10 +268,31 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await expect(settings.getByText('验证邮箱连接')).toBeVisible()
   await expect(settings.getByText('更新应用专用密码')).toBeVisible()
   await settings.getByRole('button', { name: '返回' }).click()
+  const dialogBackdrop = page.locator('.gmail-dialog-backdrop')
+  await expect(dialogBackdrop).toHaveClass(/is-visible/)
+  expect(await dialogBackdrop.locator('.gmail-account-dialog').evaluate((element) => (
+    getComputedStyle(element).transitionDuration
+  ))).not.toBe('0s')
   await page.getByRole('button', { name: '关闭' }).click()
+  await expect(dialogBackdrop).toHaveClass(/is-closing/)
+  await expect(dialogBackdrop).not.toHaveClass(/is-visible/)
+  await expect(dialogBackdrop).toHaveCount(0)
   await expect(page.getByText('安全提醒')).toBeVisible()
   await expect(page.locator('.gmail-mail-view.icloud-mail-view')).toBeVisible()
   await expect(page.locator('.gmail-message-list .message-row')).toHaveCount(30)
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('button', { name: '添加 Gmail 账号' }).click()
+  const reducedMotionDialog = page.locator('.gmail-dialog-backdrop')
+  await expect(reducedMotionDialog).toHaveClass(/is-visible/)
+  expect(await reducedMotionDialog.locator('.gmail-account-dialog').evaluate((element) => (
+    Math.max(...getComputedStyle(element).transitionDuration.split(',')
+      .map((duration) => Number.parseFloat(duration)))
+  ))).toBeLessThan(0.001)
+  await reducedMotionDialog.getByRole('button', { name: '关闭' }).click()
+  await expect(reducedMotionDialog).toHaveCount(0)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+
   const search = page.getByRole('searchbox', { name: '搜索 Gmail 邮件' })
   await search.fill('Sender 30')
   await expect(page.locator('.gmail-message-list .message-row')).toHaveCount(1)
@@ -249,4 +364,34 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
     element.scrollWidth <= element.clientWidth
   ))).toBe(true)
   await expect(page.getByRole('button', { name: '返回邮件列表' })).toBeVisible()
+})
+
+test('aggregates two Gmail accounts and isolates scoped search and partial sync failure', async ({ page }) => {
+  const state = await mockTwoGmailAccounts(page)
+  await page.goto('/gmail')
+
+  await expect(page.getByText('个人邮件')).toBeVisible()
+  await expect(page.getByText('工作邮件')).toBeVisible()
+
+  await page.getByRole('button', { name: /当前 Gmail.*全部 Gmail/s }).click()
+  await page.getByRole('dialog', { name: '选择 Gmail 邮箱' })
+    .getByRole('button', { name: /工作 Gmail.*work@example.com/s }).click()
+  await expect(page.getByText('工作邮件')).toBeVisible()
+  await expect(page.getByText('个人邮件')).toHaveCount(0)
+
+  await page.getByRole('searchbox', { name: '搜索 Gmail 邮件' }).fill('Work Sender')
+  await expect.poll(() => state.listRequests.some((search) => (
+    search.includes('accountId=gmail-2') && search.includes('q=Work+Sender')
+  ))).toBe(true)
+
+  await page.getByRole('button', { name: /当前 Gmail.*工作 Gmail/s }).click()
+  await page.getByRole('dialog', { name: '选择 Gmail 邮箱' })
+    .getByRole('button', { name: /全部 Gmail/s }).click()
+  await page.getByRole('button', { name: '同步全部 Gmail 账号' }).click()
+
+  await expect.poll(() => state.syncRequests).toEqual([
+    '/api/gmail/accounts/gmail-1/sync',
+    '/api/gmail/accounts/gmail-2/sync',
+  ])
+  await expect(page.getByRole('alert')).toContainText('部分 Gmail 账号同步失败')
 })

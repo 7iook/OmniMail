@@ -1,4 +1,25 @@
-.gmail-dialog-backdrop { z-index: 1000; }
+.gmail-dialog-backdrop {
+  z-index: 1000;
+  overscroll-behavior: contain;
+  backdrop-filter: blur(8px);
+  transition: opacity 180ms ease-out;
+}
+
+.gmail-dialog-backdrop .gmail-account-dialog {
+  transform: translateY(16px) scale(0.98);
+  transition: opacity 190ms ease-out, transform 230ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gmail-dialog-backdrop.is-closing {
+  pointer-events: none;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in;
+}
+
+.gmail-dialog-backdrop.is-closing .gmail-account-dialog {
+  transition-duration: 140ms, 160ms;
+  transition-timing-function: ease-in, cubic-bezier(0.4, 0, 1, 1);
+}
 
 .gmail-account-dialog { width: min(620px, 100%); }
 
@@ -279,6 +300,9 @@
 .gmail-delete-confirm .button { min-height: 40px; }
 
 @media (max-width: 760px) {
+  .gmail-dialog-backdrop .gmail-account-dialog {
+    transform: translateY(24px) scale(0.99);
+  }
   .gmail-account-dialog { width: 100%; }
   .gmail-account-dialog > header.has-back { grid-template-columns: 38px minmax(0, 1fr) 38px; }
   .gmail-connect-form > footer.gmail-connect-actions {
@@ -310,5 +334,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gmail-dialog-backdrop,
+  .gmail-dialog-backdrop .gmail-account-dialog,
   .gmail-account-card { transition: none; }
 }

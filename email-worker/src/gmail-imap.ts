@@ -1,5 +1,6 @@
 import { ImapConnection } from './imap-connection'
 import { ImapConnectionError } from './imap-errors'
+import packageMetadata from '../../package.json'
 import {
   gmailAttachmentContent,
   parseGmailMessage,
@@ -48,7 +49,7 @@ export class GmailImapClient {
       throw new ImapConnectionError(502, 'Gmail 服务未提供所需的 IMAP 扩展。', true)
     }
     await this.connection.command(
-      'ID ("name" "OmniMail" "version" "0.4.1" "contact" "https://github.com/mibgb65-cloud/OmniMail")',
+      `ID ("name" "OmniMail" "version" "${packageMetadata.version}" "contact" "https://github.com/mibgb65-cloud/OmniMail")`,
     )
   }
 

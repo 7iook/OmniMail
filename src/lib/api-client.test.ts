@@ -31,4 +31,13 @@ describe('API request timeouts', () => {
     expect(timeout).toHaveBeenCalledWith(60_000)
     expect(timeout).not.toHaveBeenCalledWith(15_000)
   })
+
+  it('gives Gmail manual enqueue requests a longer fallback timeout', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ queued: true })))
+
+    await api.syncGmail('gmail-1')
+
+    expect(timeout).toHaveBeenCalledWith(30_000)
+  })
 })

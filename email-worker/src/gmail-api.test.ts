@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createGmailAccount,
   gmailAppPasswordField,
@@ -7,6 +7,7 @@ import {
   getGmailMessage,
   listGmailMessages,
   listGmailAccounts,
+  requestGmailSync,
 } from './gmail-api'
 import type { Env, SessionUser } from './types'
 
@@ -93,5 +94,38 @@ describe('Gmail account API validation', () => {
     )
     expect(statements[1].sql).toContain('WHERE a.user_id = ? AND a.id = ? AND m.id = ?')
     expect(statements[1].bindings).toEqual([user.id, 'other-account', 'other-message'])
+  })
+
+  it('returns after deferring a manual sync enqueue instead of waiting for Queue', async () => {
+    let deferred: Promise<unknown> | null = null
+    const env = {
+      GMAIL_CREDENTIALS_KEY: 'gmail-test-key-that-is-longer-than-thirty-two-characters',
+      DB: {
+        prepare(sql: string) {
+          return { bind: () => ({
+            first: async () => sql.includes('SELECT id, name, email, status') ? {
+              id: 'gmail-1', name: 'Personal', email: 'user@gmail.com', status: 'active',
+              uid_validity: 1, last_seen_uid: 1, last_synced_at: 1, next_sync_at: 1,
+              last_error_code: '', last_error_at: null, sync_lease_id: null,
+              sync_lease_until: null, last_manual_sync_at: null, created_at: 1, updated_at: 1,
+            } : null,
+            run: async () => ({ meta: { changes: 1 } }),
+          }) }
+        },
+      },
+      MAIL_QUEUE: { send: vi.fn(() => new Promise<void>(() => undefined)) },
+    } as unknown as Env
+
+    const response = await Promise.race([
+      requestGmailSync(env, user, 'gmail-1', (task) => { deferred = task }),
+      new Promise<never>((_resolve, reject) => setTimeout(
+        () => reject(new Error('request waited for Queue send')),
+        100,
+      )),
+    ])
+
+    expect(response.status).toBe(202)
+    expect(deferred).toBeInstanceOf(Promise)
+    expect(env.MAIL_QUEUE.send).toHaveBeenCalledOnce()
   })
 })
