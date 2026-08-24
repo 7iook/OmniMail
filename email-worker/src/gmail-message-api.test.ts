@@ -3,12 +3,15 @@ import { getGmailMessage } from './gmail-api'
 import { encryptGmailCredential } from './gmail-credentials'
 import type { Env, SessionUser } from './types'
 
-const { markSeen } = vi.hoisted(() => ({ markSeen: vi.fn(async () => undefined) }))
+const { close, markSeen } = vi.hoisted(() => ({
+  close: vi.fn(async () => undefined),
+  markSeen: vi.fn(async () => undefined),
+}))
 
 vi.mock('./gmail-imap', () => ({
   GmailImapClient: class {
     async open() { /* no-op */ }
-    async close() { /* no-op */ }
+    async close() { return close() }
     async examineInbox() { return { uidValidity: 123, exists: 1 } }
     async findUid() { return 42 }
     async markSeen(uid: number) { return markSeen(uid) }
@@ -34,6 +37,7 @@ const user = {
 
 describe('Gmail message open behavior', () => {
   it('marks an unread remote message Seen and updates the local index', async () => {
+    close.mockClear()
     markSeen.mockClear()
     const key = 'gmail-test-key-that-is-longer-than-thirty-two-characters'
     const cipher = await encryptGmailCredential(
@@ -92,9 +96,17 @@ describe('Gmail message open behavior', () => {
     const failedResult = await failedResponse.json() as {
       message: { isRead: boolean; body: string }
     }
-    logged.mockRestore()
-
     expect(failedResponse.status).toBe(200)
     expect(failedResult.message).toMatchObject({ isRead: false, body: 'Body' })
+
+    close.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('close failed'))
+    const closeFailedResponse = await getGmailMessage(env, user, 'gmail-1', 'message-1')
+    const closeFailedResult = await closeFailedResponse.json() as {
+      message: { isRead: boolean; body: string }
+    }
+    logged.mockRestore()
+
+    expect(closeFailedResponse.status).toBe(200)
+    expect(closeFailedResult.message).toMatchObject({ isRead: true, body: 'Body' })
   })
 })
