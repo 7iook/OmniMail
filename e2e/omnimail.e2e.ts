@@ -497,7 +497,7 @@ test('administrators can review usage estimates and retry failed mail', async ({
   await mockApp(page)
   await page.goto('/')
   await page.getByRole('button', { name: '统计' }).click()
-  await expect(page.getByRole('heading', { name: 'Cloudflare 免费额度参考' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Cloudflare 免费额度参考' })).toBeVisible(); const trendPoint = page.locator('.statistics-point').last(); await expect(trendPoint).toHaveAttribute('tabindex', '0'); await trendPoint.scrollIntoViewIfNeeded(); await expect(trendPoint).toBeInViewport(); await trendPoint.hover(); const trendTooltip = page.locator('.omni-tooltip'); await expect(trendTooltip).toHaveAttribute('data-state', 'open'); await expect(trendTooltip).toContainText('1 封')
   await expect(page.getByText('Broken MIME')).toBeVisible()
   await page.getByRole('button', { name: '重新处理' }).click()
   await expect(page.getByText('当前没有失败邮件')).toBeVisible()

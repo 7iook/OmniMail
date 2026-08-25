@@ -68,11 +68,14 @@ function TrendChart({ data }: { data: StatisticsData }) {
         })}
         <path className="statistics-area" d={area} />
         <path className="statistics-line" d={line} />
-        {points.map((point) => (
-          <circle className="statistics-point" cx={point.x} cy={point.y} r="4" key={point.day}>
-            <title>{t('{date}：{count} 封', { date: formatDay(point.day), count: point.count })}</title>
-          </circle>
-        ))}
+        {points.map((point) => {
+          const label = t('{date}：{count} 封', {
+            date: formatDay(point.day),
+            count: point.count,
+          })
+          return <circle className="statistics-point" cx={point.x} cy={point.y} r="4"
+            role="img" aria-label={label} data-tooltip={label} tabIndex={0} key={point.day} />
+        })}
         {labelIndexes.map((index) => (
           <text
             className="statistics-axis-label"

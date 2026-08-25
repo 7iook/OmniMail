@@ -146,9 +146,11 @@
   transition: r 160ms ease, fill 160ms ease;
 }
 
-.statistics-point:hover {
+.statistics-point:hover,
+.statistics-point:focus-visible {
   r: 6px;
   fill: var(--text);
+  outline: none;
 }
 
 .statistics-insight-grid {

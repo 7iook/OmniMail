@@ -340,6 +340,12 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   const scopeTrigger = page.getByRole('button', { name: /当前 Gmail.*全部 Gmail/s })
   await scopeTrigger.click()
   const scope = page.getByRole('dialog', { name: '选择 Gmail 邮箱' })
+  await expect(scope).toHaveCSS('position', 'absolute')
+  expect(await scope.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return rect.left >= 0 && rect.right <= window.innerWidth
+      && rect.top >= 0 && rect.bottom <= window.innerHeight
+  })).toBe(true)
   await scope.getByRole('button', { name: /个人 Gmail.*user@gmail.com/s }).click()
   await expect(page.getByRole('button', { name: /当前 Gmail.*个人 Gmail/s })).toBeVisible()
   await expect(page.getByRole('button', { name: '同步当前 Gmail 账号' })).toBeVisible()

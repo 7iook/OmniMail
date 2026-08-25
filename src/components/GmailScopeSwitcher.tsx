@@ -2,6 +2,7 @@ import { AtSign, Check, ChevronDown, Inbox, Settings2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { GmailAccount } from '../lib/api'
 import { t } from '../lib/i18n'
+import '../styles/icloud-scope-switcher.css'
 
 const SCOPE_EXIT_MS = 120
 
