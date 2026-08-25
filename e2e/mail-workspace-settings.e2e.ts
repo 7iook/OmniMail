@@ -14,7 +14,7 @@ async function mockWorkspaceSettings(page: Page) {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     if (path === '/api/config') return json(route, {
@@ -56,13 +56,13 @@ test('system settings control optional mailbox workspace entries', async ({ page
   await expect(linuxDoSwitch).toBeChecked()
   await iCloudSwitch.uncheck()
   await expect.poll(() => state.iCloudWorkspaceEnabled).toBe(false)
-  await expect(page.getByRole('button', { name: 'iCloud 隐藏邮箱' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toHaveCount(0)
   await linuxDoSwitch.uncheck()
   await expect.poll(() => state.linuxDoMailWorkspaceEnabled).toBe(false)
   await expect(page.getByRole('button', { name: 'Linux DO 邮箱' })).toHaveCount(0)
 
   await page.goto('/settings/account')
-  await expect(page.getByRole('button', { name: 'iCloud 隐藏邮箱' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toHaveCount(0)
   await page.goto('/icloud')
   await expect(page).toHaveURL(/\/mail\/inbox$/)
   await page.goto('/linux-do-mail')
@@ -71,6 +71,6 @@ test('system settings control optional mailbox workspace entries', async ({ page
   await page.goto('/admin/settings')
   await settings.getByRole('checkbox', { name: 'iCloud 隐藏邮箱入口' }).check()
   await settings.getByRole('checkbox', { name: 'Linux DO 邮箱入口' }).check()
-  await expect(page.getByRole('button', { name: 'iCloud 隐藏邮箱' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Linux DO 邮箱' })).toBeVisible()
 })

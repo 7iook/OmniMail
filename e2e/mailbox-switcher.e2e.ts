@@ -15,7 +15,7 @@ test('mailbox rows copy addresses without changing the current scope', async ({ 
       },
     })
   })
-  await page.route('**/api/**', (route) => {
+  await page.route('**://*/api/**', (route) => {
     const path = new URL(route.request().url()).pathname
     const responses: Record<string, unknown> = {
       '/api/config': {
@@ -134,7 +134,7 @@ test('mailbox management supports custom creation, primary switching, and deleti
     { address: 'inbox@example.com', domain: 'example.com', isPrimary: true, isActive: true },
     { address: 'alias@example.com', domain: 'example.com', isPrimary: false, isActive: true },
   ]
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     const fulfill = (body: unknown, status = 200) => route.fulfill({

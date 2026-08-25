@@ -16,7 +16,7 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -157,7 +157,8 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   await expect(page.getByText('欢迎回来')).toBeVisible()
 
   const accountTrigger = page.getByRole('button', { name: '管理 Linux DO 账号' })
-  await expect(page.locator('.icloud-header-action-buttons > button')).toHaveCount(3)
+  await expect(page.locator('.icloud-header-action-buttons > button')).toHaveCount(4)
+  await expect(page.getByRole('button', { name: '复制邮箱地址：member@linux.do' })).toBeVisible()
   await accountTrigger.click()
   const credentialDialog = page.getByRole('dialog', { name: 'Linux DO 账号管理' })
   const verifyButton = credentialDialog.getByRole('button', { name: '立即验证' })

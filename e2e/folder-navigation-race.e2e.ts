@@ -15,7 +15,7 @@ test('an older folder request is aborted before it can replace the current inbox
   let markStarredStarted = () => {}
   const starredHeld = new Promise<void>((resolve) => { releaseStarred = resolve })
   const starredStarted = new Promise<void>((resolve) => { markStarredStarted = resolve })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     if (url.pathname === '/api/config') return json(route, {

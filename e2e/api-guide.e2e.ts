@@ -9,7 +9,7 @@ async function mockApiGuide(page: Page) {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: true,

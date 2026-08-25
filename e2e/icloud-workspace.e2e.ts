@@ -49,7 +49,7 @@ async function mockICloud(page: Page, options: {
       value: { writeText: async () => undefined },
     })
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -348,7 +348,7 @@ test('rejects an iCloud account without membership access without signing out', 
 
   await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
   const dialog = page.getByRole('dialog', { name: '添加 iCloud 账号' })
-  await expect(dialog).toContainText('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号')
+  await expect(dialog).toContainText('Cookie 仅用于管理隐藏邮箱')
   await dialog.getByRole('textbox', { name: '账号名称' }).fill('Web only')
   await dialog.locator('textarea').fill('session=web-only')
   await dialog.getByRole('button', { name: '验证并添加' }).click()
@@ -368,7 +368,7 @@ test('adds optional IMAP credentials together with an iCloud account', async ({ 
   await page.getByRole('button', { name: '添加 iCloud 账号' }).click()
   const dialog = page.getByRole('dialog', { name: '添加 iCloud 账号' })
   const warning = dialog.locator('.icloud-account-warning')
-  await expect(warning).toContainText('仅网页访问账号无法使用')
+  await expect(warning).toContainText('至少配置一种')
   expect(Number.parseFloat(await warning.evaluate((element) => getComputedStyle(element).fontSize)))
     .toBeGreaterThanOrEqual(13)
   await page.setViewportSize({ width: 375, height: 812 })

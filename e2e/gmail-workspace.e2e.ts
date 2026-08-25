@@ -56,7 +56,7 @@ async function mockGmail(page: Page) {
   const gmailRequests: Array<{ method: string; path: string }> = []
   const syncRequests: string[] = []
   await preparePage(page)
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -162,7 +162,7 @@ async function mockTwoGmailAccounts(page: Page) {
   const listRequests: string[] = []
   const syncRequests: string[] = []
   await preparePage(page)
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -213,7 +213,7 @@ async function mockTwoGmailAccounts(page: Page) {
 
 test('keeps Gmail deployment recovery inside the mail split view', async ({ page }) => {
   await preparePage(page)
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (await mockAppShell(route, path, { gmailEnabled: false })) return
     return route.abort()

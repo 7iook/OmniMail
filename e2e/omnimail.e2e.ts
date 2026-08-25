@@ -45,7 +45,7 @@ async function mockApp(page: Page, state = mockState()) {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -326,7 +326,8 @@ test('users can compose and send a new message', async ({ page }) => {
   await dialog.getByRole('button', { name: '发送邮件' }).click()
   await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'support@other.example',
     to: 'friend@example.net', subject: 'Hello from OmniMail', text: 'This is a new message.' })
-  await expect(page.getByRole('status')).toHaveText('邮件已进入发送队列')
+  await expect(page.getByRole('status').filter({ hasText: '邮件已进入发送队列' }))
+    .toHaveText('邮件已进入发送队列')
 })
 test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {
   const state = mockState()
@@ -596,5 +597,5 @@ test('administrators can enable unassigned mail from system settings', async ({ 
   await page.getByRole('checkbox', { name: '开启无人收件' }).click()
   await expect.poll(() => state.unassignedMailEnabled).toBe(true)
   await expect(page.getByText('无人收件已开启')).toBeVisible()
-  await expect(page.getByText('发现新版本 v0.2.0')).toBeVisible()
+  await expect(page.getByRole('main').getByText('发现新版本 v0.2.0')).toBeVisible()
 })

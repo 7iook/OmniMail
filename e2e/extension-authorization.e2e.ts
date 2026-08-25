@@ -45,7 +45,7 @@ test('website login continues to extension consent and approval', async ({ page 
   let authorizationBody: Record<string, string> | null = null
   await page.addInitScript(() => localStorage.setItem('omnimail-locale', 'zh-CN'))
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     if (path === '/api/config') {
@@ -90,7 +90,7 @@ test('website login continues to extension consent and approval', async ({ page 
 
 test('invalid extension callback is rejected before login', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('omnimail-locale', 'zh-CN'))
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/config') {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(config) })

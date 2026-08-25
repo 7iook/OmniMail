@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('loads the English catalog before rendering localized features', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('omnimail-locale', 'en-US'))
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     const body = path === '/api/config'
       ? {

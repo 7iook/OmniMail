@@ -4,7 +4,7 @@ test('Linux DO-only registration starts OAuth without showing a password form', 
   let authorizationUrl = ''
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.addInitScript(() => localStorage.setItem('omnimail-locale', 'zh-CN'))
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     if (url.pathname === '/api/config') {

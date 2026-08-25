@@ -33,7 +33,7 @@ test('mail search debounces input and aborts the previous request', async ({ pag
       })
     }
   })
-  await page.route('**/api/**', (route) => {
+  await page.route('**://*/api/**', (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,

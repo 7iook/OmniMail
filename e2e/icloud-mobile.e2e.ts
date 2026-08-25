@@ -9,7 +9,7 @@ async function mockEmptyICloud(page: Page) {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', async (route) => {
+  await page.route('**://*/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/config') return json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false, iCloudEnabled: true,
@@ -39,7 +39,7 @@ test('regular users can open iCloud from the mobile navigation', async ({ page }
   await mockEmptyICloud(page)
   await page.goto('/mail/inbox')
 
-  await page.getByRole('button', { name: 'iCloud 隐藏邮箱' }).click()
+  await page.getByRole('button', { name: 'iCloud 邮箱' }).click()
   await expect(page).toHaveURL(/\/icloud$/)
   await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '个人账户' })

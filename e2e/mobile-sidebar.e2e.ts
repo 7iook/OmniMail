@@ -8,7 +8,7 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
   })
-  await page.route('**/api/**', (route) => {
+  await page.route('**://*/api/**', (route) => {
     const path = new URL(route.request().url()).pathname
     const responses: Record<string, unknown> = {
       '/api/config': {
@@ -100,7 +100,7 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
 
   await page.setViewportSize({ width: 1280, height: 520 })
   expect(await sidebar.locator('.folder-nav > button span').allTextContents())
-    .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 隐藏邮箱', 'Linux DO 邮箱'])
+    .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 邮箱', 'Linux DO 邮箱'])
   await expect(sidebar).toHaveCSS('overflow-y', 'hidden')
   await expect(navigation).toHaveCSS('overflow-y', 'scroll')
   expect(await navigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
