@@ -48,6 +48,29 @@
 }
 .linuxdo-status.is-error { background: var(--danger-soft); color: var(--danger); }
 
+.linuxdo-current-account {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  margin: 0 0 4px;
+}
+.linuxdo-current-account span {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1.2;
+}
+.linuxdo-current-account strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .linuxdo-folder-switch {
   display: flex;
   flex: 0 0 auto;

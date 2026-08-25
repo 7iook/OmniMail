@@ -116,7 +116,7 @@
 .icloud-list-context p {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
   margin: 0;
 }
 
@@ -127,8 +127,8 @@
   white-space: nowrap;
 }
 
-.icloud-list-context strong { font-size: 11px; }
-.icloud-list-context small { color: var(--text-tertiary); font-size: 9px; }
+.icloud-list-context strong { font-size: 13px; font-weight: 650; line-height: 1.35; }
+.icloud-list-context small { color: var(--text-secondary); font-size: 11px; line-height: 1.35; }
 
 .icloud-list-context > div > button {
   display: inline-grid;

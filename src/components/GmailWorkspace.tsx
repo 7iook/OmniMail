@@ -2,6 +2,7 @@ import {
   AlertCircle,
   AtSign,
   Check,
+  Copy,
   KeyRound,
   LoaderCircle,
   Mail,
@@ -72,6 +73,9 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
   const messageController = useRef<AbortController | null>(null)
   const syncRequestId = useRef(0)
   const manageButton = useRef<HTMLButtonElement>(null)
+  const currentAccount = accountId
+    ? accounts.find(({ id }) => id === accountId)
+    : accounts.length === 1 ? accounts[0] : undefined
 
   const loadAccounts = useCallback(async () => {
     if (!enabled) {
@@ -265,6 +269,16 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     window.requestAnimationFrame(() => manageButton.current?.focus())
   }
 
+  async function copyAccountAddress() {
+    if (!currentAccount) return
+    try {
+      await navigator.clipboard.writeText(currentAccount.email)
+      setNotice(t('已复制：{address}', { address: currentAccount.email }))
+    } catch {
+      setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
+    }
+  }
+
   return <div className={`icloud-mail-view gmail-workspace gmail-mail-view${selected ? ' has-selection' : ''}`}>
     <section ref={mailListScroll.listPane}
       className="list-pane icloud-list-pane page-content-enter gmail-list-pane">
@@ -281,6 +295,16 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
           <button className="icon-button" type="button"
             onClick={() => setDialogMode('add')} aria-label={t('添加 Gmail 账号')}
             data-tooltip={t('添加 Gmail 账号')}><Plus size={17} /></button>
+          <button className="icon-button" type="button" disabled={!currentAccount}
+            onClick={() => void copyAccountAddress()}
+            aria-label={currentAccount
+              ? t('复制邮箱地址：{address}', { address: currentAccount.email })
+              : t('暂无可复制邮箱')}
+            data-tooltip={currentAccount
+              ? `${t('复制当前邮箱')} ${currentAccount.email}`
+              : t('暂无可复制邮箱')}>
+            <Copy size={17} aria-hidden="true" />
+          </button>
           <button className="icon-button" type="button" disabled={!accounts.length || remoteSyncing}
             aria-busy={remoteSyncing} onClick={() => void syncRemote()}
             aria-label={t(accountId ? '同步当前 Gmail 账号' : '同步全部 Gmail 账号')}

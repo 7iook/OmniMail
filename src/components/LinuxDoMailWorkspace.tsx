@@ -6,6 +6,7 @@ import {
   CircleAlert,
   CircleCheck,
   Clock3,
+  Copy,
   Inbox,
   KeyRound,
   LoaderCircle,
@@ -312,11 +313,23 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
     else void loadMessages()
   }
 
+  async function copyAccountAddress() {
+    if (!account) return
+    try {
+      await navigator.clipboard.writeText(account.username)
+      setNotice(t('已复制：{address}', { address: account.username }))
+    } catch {
+      setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
+    }
+  }
+
   return (
     <div className={`icloud-mail-view linuxdo-mail-view${opened ? ' has-selection' : ''}`}>
       <section ref={mailListScroll.listPane} className="list-pane icloud-list-pane page-content-enter">
         <header className="list-header icloud-list-header">
-          <div><p className="eyebrow">LINUX DO · MAIL</p>
+          <div>{account ? <p className="linuxdo-current-account">
+            <span>{t('当前邮箱')}</span><strong title={account.username}>{account.username}</strong>
+          </p> : <p className="eyebrow">LINUX DO · MAIL</p>}
             <ListScrollTopHeading title="Linux DO" onScrollTop={mailListScroll.scrollToTop} /></div>
           {!loading && enabled && <div className="list-header__actions">
             {account && <span className={`linuxdo-status is-${account.status}`}>
@@ -331,6 +344,12 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
                   aria-label={t('新建 Linux DO 邮件')}
                   data-tooltip={t(canSend ? '新建 Linux DO 邮件' : '当前账户没有发信权限。')}>
                   <SquarePen size={17} />
+                </button>
+                <button className="icon-button" type="button"
+                  onClick={() => void copyAccountAddress()}
+                  aria-label={t('复制邮箱地址：{address}', { address: account.username })}
+                  data-tooltip={`${t('复制当前邮箱')} ${account.username}`}>
+                  <Copy size={17} aria-hidden="true" />
                 </button>
                 <button className="icon-button" type="button" disabled={Boolean(action)}
                   onClick={() => { setAccountError(''); setAccountOpen(true) }}
