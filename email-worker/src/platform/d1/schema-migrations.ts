@@ -4,7 +4,8 @@ const LINUX_DO_MAIL_MIGRATION = '0023_linux_do_mail_accounts.sql'
 const LINUX_DO_MAIL_OUTBOUND_MIGRATION = '0024_linux_do_mail_outbound.sql'
 const GMAIL_MIGRATION = '0025_gmail_imap.sql'
 const GMAIL_UNLIMITED_MIGRATION = '0026_gmail_unlimited_accounts.sql'
-export const REQUIRED_MIGRATION = '0027_microsoft_imap.sql'
+const MICROSOFT_MIGRATION = '0027_microsoft_imap.sql'
+export const REQUIRED_MIGRATION = '0028_microsoft_oauth_combination_password.sql'
 export const WRANGLER_MIGRATION_NAMES = [
   '0001_initial.sql',
   '0002_domains.sql',
@@ -32,6 +33,7 @@ export const WRANGLER_MIGRATION_NAMES = [
   LINUX_DO_MAIL_OUTBOUND_MIGRATION,
   GMAIL_MIGRATION,
   GMAIL_UNLIMITED_MIGRATION,
+  MICROSOFT_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -381,7 +383,7 @@ export const RECOVERABLE_MIGRATIONS = [
     statements: ['DROP TRIGGER IF EXISTS gmail_imap_accounts_limit'],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: MICROSOFT_MIGRATION,
     statements: [
       `CREATE TABLE IF NOT EXISTS microsoft_imap_accounts (
         id TEXT PRIMARY KEY,
@@ -475,6 +477,17 @@ export const RECOVERABLE_MIGRATIONS = [
         attempt_count INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `ALTER TABLE microsoft_imap_accounts
+       ADD COLUMN combination_password_cipher TEXT NOT NULL DEFAULT ''`,
+      `UPDATE microsoft_imap_accounts
+       SET status = 'credential_error', last_error_code = 'password_auth_removed',
+           last_error_at = unixepoch(), next_sync_at = 0, updated_at = unixepoch()
+       WHERE auth_mode = 'password'`,
     ],
   },
 ] as const

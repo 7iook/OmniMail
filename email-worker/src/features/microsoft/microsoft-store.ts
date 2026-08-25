@@ -165,7 +165,7 @@ export class MicrosoftAccountStore {
     return accountFromRow(this.env, row)
   }
 
-  async insert(account: MicrosoftAccount): Promise<void> {
+  async insert(account: MicrosoftAccount, combinationPassword = ''): Promise<void> {
     const refreshCipher = account.refreshToken
       ? await encryptMicrosoftCredential(
         this.env,
@@ -184,16 +184,23 @@ export class MicrosoftAccountStore {
         account.password,
         microsoftCredentialContext(this.userId, account.id, 'password'),
       ) : ''
+    const combinationPasswordCipher = combinationPassword
+      ? await encryptMicrosoftCredential(
+        this.env,
+        combinationPassword,
+        microsoftCredentialContext(this.userId, account.id, 'combination-password'),
+      ) : ''
     try {
       await this.env.DB.prepare(
         `INSERT INTO microsoft_imap_accounts (
           id, user_id, name, provided_email, normalized_email, auth_mode,
           client_id, authority, refresh_token_cipher, access_token_cipher,
-          access_token_expires_at, password_cipher, status, last_synced_at,
+          access_token_expires_at, password_cipher, combination_password_cipher,
+          status, last_synced_at,
           next_sync_at, last_error_code, last_error_at, sync_lease_id,
           sync_lease_until, token_lease_id, token_lease_until,
           last_manual_sync_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         account.id,
         this.userId,
@@ -207,6 +214,7 @@ export class MicrosoftAccountStore {
         accessCipher,
         account.accessTokenExpiresAt,
         passwordCipher,
+        combinationPasswordCipher,
         account.status,
         account.lastSyncedAt,
         account.nextSyncAt,

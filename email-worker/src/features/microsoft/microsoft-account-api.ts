@@ -180,7 +180,7 @@ export async function importMicrosoftAccounts(
           refreshToken: validated.refreshToken,
           accessToken: validated.accessToken,
           accessTokenExpiresAt: validated.accessTokenExpiresAt,
-          password: input.password || '',
+          password: '',
           status: 'active',
           lastSyncedAt: null,
           nextSyncAt: 0,
@@ -194,7 +194,7 @@ export async function importMicrosoftAccounts(
           createdAt: now,
           updatedAt: now,
         }
-        await store.insert(account)
+        await store.insert(account, input.password || '')
         await saveMicrosoftFolders(env, account.id, validated.folders, now)
         await writeAudit(env, user.id, 'microsoft.account.connect', account.id, ip, {
           email: maskedMicrosoftEmail(account.normalizedEmail),
@@ -211,34 +211,6 @@ export async function importMicrosoftAccounts(
     return microsoftPrivateJson({ results }, allAccepted ? 201 : 207)
   } catch (error) {
     return microsoftResponseError(error)
-  }
-}
-
-export async function validateMicrosoftPassword(
-  env: Env,
-  user: SessionUser,
-  request: Request,
-  ip: string,
-): Promise<Response> {
-  try {
-    const body = await microsoftJsonBody(request)
-    if (body.authMode !== 'password') {
-      throw new MicrosoftInputError(
-        'invalid_auth_mode',
-        '一次性验证仅用于 Microsoft 密码兼容模式。',
-      )
-    }
-    const input = microsoftImportAccount(body, { allowUnconfirmedPassword: true })
-    await claimMicrosoftValidationAttempt(env, user.id, ip)
-    await validateImport(input)
-    await writeAudit(env, user.id, 'microsoft.account.validate', null, ip, {
-      email: maskedMicrosoftEmail(input.email),
-      authMode: 'password',
-      persisted: false,
-    })
-    return microsoftPrivateJson({ ok: true, persisted: false })
-  } catch (error) {
-    return microsoftResponseError(error, 'password')
   }
 }
 

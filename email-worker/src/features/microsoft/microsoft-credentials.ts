@@ -35,7 +35,7 @@ export function microsoftMailEnabled(env: Env): boolean {
 export function microsoftCredentialContext(
   userId: string,
   accountId: string,
-  kind: 'refresh-token' | 'access-token' | 'password',
+  kind: 'refresh-token' | 'access-token' | 'password' | 'combination-password',
 ): string {
   return `${userId}:${accountId}:${kind}`
 }

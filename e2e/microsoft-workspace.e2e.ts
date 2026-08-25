@@ -61,7 +61,7 @@ const message = {
   isRead: false, isStarred: false, hasAttachments: true,
 }
 
-test('previews all three Microsoft formats without echoing secrets', async ({ page }) => {
+test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page }) => {
   await prepare(page)
   const imports: unknown[] = []
   let connected = false
@@ -90,40 +90,28 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
   await page.goto('/microsoft')
   await page.getByRole('button', { name: '添加 Microsoft 账号' }).last().click()
   const dialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
-  const authSelect = dialog.getByRole('combobox', { name: '认证方式' })
-  await authSelect.press('ArrowDown')
-  const authOptions = dialog.getByRole('listbox', { name: '认证方式' })
-  await expect(authOptions).toBeVisible()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('Enter')
-  await expect(authSelect).toContainText('密码兼容模式')
-  await authSelect.click()
-  await authSelect.press('Escape')
-  await expect(authOptions).toHaveCount(0)
-  await expect(dialog).toBeVisible()
-  await authSelect.click()
-  await dialog.getByRole('option', { name: 'OAuth2' }).click()
+  await expect(dialog.getByText('仅支持 OAuth2；不再接受仅邮箱密码登录。')).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: '认证方式' })).toHaveCount(0)
   await dialog.getByRole('tab', { name: '批量导入' }).click()
   const formats = dialog.locator('#microsoft-import-formats')
   await expect(formats).toContainText('email----password----refresh_token----client_id')
   await expect(formats).toContainText('email----password----client_id----refresh_token')
-  await expect(formats).toContainText('email----password')
+  expect(await formats.locator('code').allTextContents()).not.toContain('email----password')
   await expect(formats).toContainText('email--------refresh_token----client_id')
   await expect(formats).toContainText('系统按 UUID 自动识别 Client ID')
-  await expect(formats).toContainText('完整组合优先使用 OAuth2')
+  await expect(formats).toContainText('password 会加密保存')
   const clientId = '00000000-0000-4000-8000-000000000000'
   await dialog.getByLabel('每行一个账号').fill([
     `combo@outlook.com----combination-secret----${clientId}----refresh-combo`,
-    'password@outlook.com----password-secret',
+    `reverse@outlook.com----reverse-secret----refresh-reverse----${clientId}`,
     `oauth@outlook.com--------refresh-oauth----${clientId}`,
   ].join('\n'))
 
   const preview = dialog.locator('.microsoft-import-preview')
-  await expect(preview).toContainText('OAuth2 · 组合密码将丢弃')
-  await expect(preview).toContainText('密码兼容 · 确认后加密保存')
+  await expect(preview).toContainText('OAuth2 · 组合密码将加密保存')
   await expect(preview).toContainText('0000••••0000')
   await expect(preview).not.toContainText('combination-secret')
-  await expect(preview).not.toContainText('password-secret')
+  await expect(preview).not.toContainText('reverse-secret')
   await expect(preview).not.toContainText('refresh-combo')
 
   await dialog.getByRole('checkbox').check()
@@ -136,17 +124,20 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
   await expect(progress).toHaveCount(0)
   expect(imports).toEqual([
     expect.objectContaining({ email: 'combo@outlook.com', authMode: 'oauth2',
-      refreshToken: 'refresh-combo', clientId }),
-    expect.objectContaining({ email: 'password@outlook.com', authMode: 'password',
-      password: 'password-secret', persistPasswordConfirmed: true }),
+      refreshToken: 'refresh-combo', clientId, password: 'combination-secret',
+      persistPasswordConfirmed: true }),
+    expect.objectContaining({ email: 'reverse@outlook.com', authMode: 'oauth2',
+      refreshToken: 'refresh-reverse', clientId, password: 'reverse-secret',
+      persistPasswordConfirmed: true }),
     expect.objectContaining({ email: 'oauth@outlook.com', authMode: 'oauth2' }),
   ])
-  expect(Object.prototype.hasOwnProperty.call(imports[0], 'password')).toBe(false)
   expect(Object.prototype.hasOwnProperty.call(imports[2], 'password')).toBe(false)
 })
 
 test('browses a Microsoft folder, refreshes read-only mail, and renders on mobile', async ({ page }) => {
   await prepare(page)
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.addInitScript(() => localStorage.setItem('omnimail-theme', 'dark'))
   const listQueries: string[] = []
   await page.route('**://*/api/**', async (route) => {
     const request = route.request()
@@ -177,10 +168,16 @@ test('browses a Microsoft folder, refreshes read-only mail, and renders on mobil
   })
 
   await page.goto('/microsoft')
-  await expect(page.getByText('INBOX 约每 5 分钟定时收信；当前文件夹可手动刷新，不是秒级推送。')).toBeVisible()
-  await page.getByRole('combobox', { name: 'Microsoft 账号', exact: true }).selectOption('microsoft-1')
-  await expect(page.getByRole('combobox', { name: '文件夹', exact: true })).toHaveValue('INBOX')
-  await page.getByRole('combobox', { name: '每页', exact: true }).selectOption('200')
+  const scopeTrigger = page.getByRole('button', { name: /当前 Microsoft/ })
+  await expect(scopeTrigger).toContainText('全部 Microsoft')
+  await scopeTrigger.click()
+  let scope = page.getByRole('dialog', { name: '选择 Microsoft 邮箱' })
+  await scope.getByRole('button', { name: /工作 Outlook/ }).click()
+  await expect(scopeTrigger).toContainText('工作 Outlook')
+  await scopeTrigger.click()
+  scope = page.getByRole('dialog', { name: '选择 Microsoft 邮箱' })
+  await expect(scope.getByText('INBOX 约每 5 分钟定时收信；其他文件夹可手动刷新。')).toBeVisible()
+  await scope.getByRole('button', { name: '200' }).click()
   await expect.poll(() => listQueries.some((query) => query.includes('limit=200'))).toBe(true)
   await page.getByRole('button', { name: '远程刷新当前文件夹' }).click()
   await expect.poll(() => listQueries.some((query) => query.includes('refresh=1'))).toBe(true)
@@ -191,8 +188,8 @@ test('browses a Microsoft folder, refreshes read-only mail, and renders on mobil
     'href', '/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/0',
   )
 
-  await page.setViewportSize({ width: 375, height: 812 })
   const workspace = page.locator('.microsoft-workspace')
   await expect(workspace).toBeVisible()
+  await expect(page.locator('.microsoft-list-controls')).toHaveCount(0)
   expect(await workspace.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })

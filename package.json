@@ -22,7 +22,7 @@
         "description": "Optional. At least 32 random UTF-8 bytes for encrypting Gmail app passwords."
       },
       "MICROSOFT_CREDENTIALS_KEY": {
-        "description": "Optional. At least 32 random UTF-8 bytes for encrypting Microsoft OAuth tokens or password-compatibility credentials."
+        "description": "Optional. At least 32 random UTF-8 bytes for encrypting Microsoft OAuth tokens and optional combination passwords."
       }
     }
   },

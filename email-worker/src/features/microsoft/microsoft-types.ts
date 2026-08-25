@@ -20,6 +20,7 @@ export interface MicrosoftAccountRow {
   access_token_cipher: string
   access_token_expires_at: number | null
   password_cipher: string
+  combination_password_cipher: string
   status: MicrosoftAccountStatus
   last_synced_at: number | null
   next_sync_at: number

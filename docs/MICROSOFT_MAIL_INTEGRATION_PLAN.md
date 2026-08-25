@@ -12,15 +12,19 @@
 > 第三方边界：Nerver 页面和 API 文档只用于确认输入格式与产品行为，不作为运行时依赖。
 > OmniMail 不调用 `cha.nerver.cc` 的任何接口，也不向该站点发送邮箱、密码、令牌或邮件内容。
 
+> **2026-08-26 实施边界更新：** 下文早期阶段中关于 `email----password`、IMAP LOGIN 和密码
+> 账号的规划已取消。当前实现只接受 OAuth2；完整四字段中的 password 经用户确认后使用独立
+> AAD 加密到 `combination_password_cipher`，但不会用于 LOGIN 或 OAuth2 失败回退。
+
 ## 结论先行
 
-用户展示的页面并不是三套收信协议，而是 **三种凭据输入格式、两种 IMAP 认证方式**。
+用户展示的页面是 **两类 OAuth2 凭据输入、同一种 IMAP XOAUTH2 认证方式**。
 OmniMail 可以实现这些能力，首期主路径应调整为：
 
-1. 兼容页面展示的三种逐行导入格式；
+1. 兼容完整组合与仅 OAuth2 两类逐行导入格式；
 2. 有 `refresh_token + client_id` 时，通过 Microsoft OAuth 端点换取 access token；
 3. 使用 IMAP SASL XOAUTH2 连接 Microsoft 邮箱；
-4. 只有密码时，只有在用户明确选择兼容模式后才尝试 IMAP LOGIN；
+4. 只有密码时直接拒绝，不尝试 IMAP LOGIN；
 5. 通过 IMAP `LIST`、`SELECT`、`UID SEARCH` 和 `UID FETCH` 实现文件夹、邮件列表、正文和附件；
 6. 复用现有 Cron + Queue，每约 5 分钟拉取新邮件，并提供手动刷新；
 7. 不把“实时”描述成秒级推送，首期不实现后台常驻 IMAP IDLE。
@@ -29,7 +33,7 @@ Microsoft Graph 不再作为完成本需求的首期前置条件。它可以作�
 IMAP 或需要 Microsoft 原生能力时的独立扩展，但不能阻塞用户现有 IMAP OAuth2 令牌的导入。
 
 整个功能由 OmniMail 自己实现：前端自行解析导入文本，Worker 自行访问 Microsoft OAuth 官方
-端点、建立到 Microsoft 官方 IMAP 主机的 TLS 连接、执行 XOAUTH2/LOGIN、解析 IMAP 响应与
+端点、建立到 Microsoft 官方 IMAP 主机的 TLS 连接、执行 XOAUTH2、解析 IMAP 响应与
 MIME 邮件，并把必要的账号状态和有限邮件元数据保存到自己的 D1。部署和收信不需要 Nerver
 服务在线，也不使用其 API、Cookie、代码或服务器。
 
@@ -38,21 +42,20 @@ MIME 邮件，并把必要的账号状态和有限邮件元数据保存到自己
 本计划把“导入微软邮箱账号令牌啥的可以收取邮件”解释为：
 
 - 用户可以导入自己有权访问的 Microsoft 邮箱；
-- 单账号和批量粘贴均支持截图中的三种格式；
+- 单账号和批量粘贴均支持完整组合与仅 OAuth2 格式；
 - OAuth2 账号可以自动刷新 access token，持续收信；
-- 密码账号仅作为兼容能力，明确提示 Microsoft 可能拒绝 Basic Auth；
+- 两字段密码账号明确拒绝；
 - 可以列出服务器文件夹、选择文件夹、指定 1～200 封的拉取数量；
 - 可以查看邮件元数据、正文、HTML、CID 图片和附件；
 - 默认同步 Inbox，用户选择的其他文件夹按同一套 UID 规则读取；
 - 首期只读，不包含发信、删除、移动、归档或修改远端已读状态；
 - 首期只支持 Azure Global，不同时扩展中国区、GCC High 或 DoD 云端点。
 
-只有当 OAuth2 和密码兼容模式的能力、限制与错误都被明确展示时，才能声称“三种导入格式均已
-支持”。仅仅把文本解析成功，但不能完成真实登录和收信，不算完成。
+只有完成真实 token 兑换、XOAUTH2 登录与收信，才能声称 OAuth2 导入已支持。
 
-## 三种导入格式
+## OAuth2 导入格式
 
-页面展示的分隔符是四个连字符 `----`，必须支持以下三种格式：
+页面展示的分隔符是四个连字符 `----`，支持以下两类格式：
 
 ### 1. 完整组合
 
@@ -68,22 +71,9 @@ email----password----client_id----refresh_token
 另一段确定为 `refresh_token`。两段都像或都不像 UUID 时拒绝，不猜测。
 
 认证规则：只要 `refresh_token` 和 `client_id` 同时存在，就选择 OAuth2。不得在 OAuth2 验证
-失败后静默降级为密码登录。默认丢弃密码；只有用户另外明确选择“保存密码兼容凭据”，才允许
-保存密码。
+失败后降级为密码登录。用户确认后，组合 password 以独立 AES-GCM 密文保存，但永不参与认证。
 
-### 2. 仅密码
-
-```text
-email----password
-```
-
-用途：尝试账号密码或应用专用密码的 IMAP 登录。
-
-认证规则：导入预览必须标记为“密码兼容模式”，提示现代 Microsoft 账号通常要求 OAuth2，
-服务器可能拒绝 Basic Auth。用户确认持久同步后，密码才可加密上传和保存；否则只允许一次性
-连接验证，不建立后台同步账号。
-
-### 3. 仅 OAuth2
+### 2. 仅 OAuth2
 
 ```text
 email--------refresh_token----client_id
@@ -112,16 +102,16 @@ email----<empty-password>----refresh_token----client_id
 }
 ```
 
-`authMode` 只允许 `oauth2` 或 `password`。不能由服务端根据一次登录失败自动切换认证方式。
+新导入的 `authMode` 只允许 `oauth2`。不能由服务端根据一次登录失败切换认证方式。
 
 ### 解析与校验规则
 
 每一行独立解析、独立报错，规则如下：
 
 1. 去除行首 BOM、首尾空白和空行，不修改 token 或密码内部字符；
-2. 接受恰好两字段的密码格式，或恰好四字段的完整/OAuth2 格式；
+2. 只接受恰好四字段的完整/OAuth2 格式；
 3. `email` 必填且必须通过基础邮箱格式校验；
-4. 两字段格式要求 password 非空；
+4. 两字段 `email----password` 直接拒绝；
 5. 四字段格式的最后两段允许互换，但必须且只能有一段是合法 UUID；
 6. 将 UUID 段确定为 `client_id`，另一非空段确定为 `refresh_token`；
 7. 四字段格式的 password 可以为空；
@@ -134,8 +124,7 @@ email----<empty-password>----refresh_token----client_id
 ```text
 email 必填
 并且满足以下任意一种：
-1. authMode=password 且 password 存在
-2. authMode=oauth2 且 refresh_token、client_id 同时存在
+1. authMode=oauth2 且 refresh_token、client_id 同时存在
 ```
 
 ### 导入预览
@@ -143,7 +132,7 @@ email 必填
 提交前逐行展示：
 
 - 规范化邮箱；
-- 检测到的模式：`OAuth2`、`密码兼容` 或 `OAuth2（组合中含密码）`；
+- 检测到的模式：`OAuth2` 或 `OAuth2（组合中含密码）`；
 - Client ID 的脱敏值；
 - 是否会上传/保存密码；
 - `待导入`、`重复` 或具体格式错误。

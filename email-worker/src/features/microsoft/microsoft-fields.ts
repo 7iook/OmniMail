@@ -20,7 +20,6 @@ function secret(value: unknown, label: string, maximum: number): string {
 
 export function microsoftImportAccount(
   value: MicrosoftImportInput,
-  options: { allowUnconfirmedPassword?: boolean } = {},
 ): ValidMicrosoftImport {
   const email = typeof value.email === 'string' ? value.email.trim().toLowerCase() : ''
   if (!validEmail(email) || /[\r\n\0]/.test(email)) {
@@ -31,25 +30,8 @@ export function microsoftImportAccount(
   if (name.length > 60 || /[\r\n\0]/.test(name)) {
     throw new MicrosoftInputError('invalid_name', '账号名称需要为 1–60 个字符。')
   }
-  if (value.authMode === 'password') {
-    if (value.persistPasswordConfirmed !== true && !options.allowUnconfirmedPassword) {
-      throw new MicrosoftInputError(
-        'password_confirmation_required',
-        '保存密码兼容凭据前必须明确确认。',
-      )
-    }
-    return {
-      name,
-      email,
-      authMode: 'password',
-      password: secret(value.password, 'Microsoft 邮箱密码', 1024),
-      refreshToken: null,
-      clientId: '',
-      authority: 'common',
-    }
-  }
   if (value.authMode !== 'oauth2') {
-    throw new MicrosoftInputError('invalid_auth_mode', 'Microsoft 认证方式无效。')
+    throw new MicrosoftInputError('password_auth_removed', 'Microsoft 仅支持 OAuth2，不能导入仅邮箱密码凭据。')
   }
   const clientId = typeof value.clientId === 'string' ? value.clientId.trim().toLowerCase() : ''
   if (!UUID.test(clientId)) {
@@ -68,7 +50,12 @@ export function microsoftImportAccount(
     name,
     email,
     authMode: 'oauth2',
-    password: null,
+    password: value.password === undefined || value.password === '' ? null
+      : value.persistPasswordConfirmed === true
+        ? secret(value.password, 'Microsoft 组合密码', 1024)
+        : (() => { throw new MicrosoftInputError(
+          'password_confirmation_required', '保存组合密码前必须明确确认。',
+        ) })(),
     refreshToken: secret(value.refreshToken, 'Microsoft refresh token', 16_384),
     clientId,
     authority,

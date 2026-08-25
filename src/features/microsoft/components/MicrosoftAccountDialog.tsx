@@ -3,20 +3,19 @@ import {
   Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { api, type MicrosoftAccount, type MicrosoftAuthMode,
+import { api, type MicrosoftAccount,
   type MicrosoftImportAccount, type MicrosoftImportResult } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
 import { MICROSOFT_IMPORT_ALTERNATE_FORMAT, MICROSOFT_IMPORT_FORMATS,
   parseMicrosoftImportText } from '../model/microsoft-import'
 import type { MicrosoftImportMode } from '../model/microsoft-import'
-import { MicrosoftAuthModeSelect } from './MicrosoftAuthModeSelect'
 import { MicrosoftImportProgress,
   type MicrosoftImportProgressValue } from './MicrosoftImportProgress'
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
-const importFormatLabels = ['完整组合', '仅密码', '仅 OAuth2'] as const
+const importFormatLabels = ['完整组合', '仅 OAuth2'] as const
 const importPlaceholder = [
   MICROSOFT_IMPORT_FORMATS[0], MICROSOFT_IMPORT_ALTERNATE_FORMAT,
   ...MICROSOFT_IMPORT_FORMATS.slice(1),
@@ -37,8 +36,7 @@ function safeResultError(code?: string, message?: string) {
 }
 
 function importModeLabel(mode: MicrosoftImportMode | null) {
-  if (mode === 'password') return t('密码兼容 · 确认后加密保存')
-  if (mode === 'oauth2_combination') return t('OAuth2 · 组合密码将丢弃')
+  if (mode === 'oauth2_combination') return t('OAuth2 · 组合密码将加密保存')
   return mode === 'oauth2' ? 'OAuth2' : ''
 }
 
@@ -50,7 +48,6 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 }) {
   const [view, setView] = useState<View>(accounts.length && !startAdding ? 'accounts' : 'connect')
   const [entryMode, setEntryMode] = useState<EntryMode>('fields')
-  const [authMode, setAuthMode] = useState<MicrosoftAuthMode>('oauth2')
   const [target, setTarget] = useState<MicrosoftAccount | null>(null)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -77,7 +74,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   onCloseRef.current = onClose
   const batchRows = useMemo(() => parseMicrosoftImportText(batchText), [batchText])
   const readyRows = batchRows.filter(({ preview }) => preview.status === 'ready')
-  const batchHasPasswords = readyRows.some(({ input }) => input.authMode === 'password')
+  const batchHasPasswords = readyRows.some(({ input }) => Boolean(input.password))
 
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
 
@@ -162,25 +159,16 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 
   async function connect(event: FormEvent) {
     event.preventDefault()
-    const input: MicrosoftImportAccount = authMode === 'oauth2'
-      ? { name, email, authMode, refreshToken, clientId, authority }
-      : { name, email, authMode, password, persistPasswordConfirmed: passwordConsent }
-    await submitImport([input])
-  }
-
-  async function validatePasswordOnly() {
-    if (!email.trim() || !password) {
-      setError(t('请先填写邮箱地址和密码。'))
+    if (password && !passwordConsent) {
+      setError(t('请先确认允许加密保存 OAuth2 组合密码。'))
       return
     }
-    setBusy('validate-password'); setError(''); setNotice('')
-    try {
-      await api.validateMicrosoftPassword(email, password)
-      setPassword('')
-      setNotice(t('密码兼容登录验证成功；密码未保存，后台同步账号也未创建。'))
-    } catch (validationError) {
-      setError(errorMessage(validationError))
-    } finally { setBusy('') }
+    const input: MicrosoftImportAccount = {
+      name, email, authMode: 'oauth2', refreshToken, clientId, authority,
+      password: password || undefined,
+      persistPasswordConfirmed: password ? true : undefined,
+    }
+    await submitImport([input])
   }
 
   async function importBatch(event: FormEvent) {
@@ -188,10 +176,10 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     if (!readyRows.length) { setError(t('没有可导入的有效账号。')); return }
     if (readyRows.length > 25) { setError(t('每批最多导入 25 个账号。')); return }
     if (batchHasPasswords && !passwordConsent) {
-      setError(t('请先确认允许加密保存密码兼容模式凭据。')); return
+      setError(t('请先确认允许加密保存 OAuth2 组合密码。')); return
     }
     await submitImport(
-      readyRows.map(({ input }) => input.authMode === 'password'
+      readyRows.map(({ input }) => input.password
         ? { ...input, persistPasswordConfirmed: true } : input),
       readyRows.map(({ preview }) => preview.line),
       true,
@@ -224,14 +212,11 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 
   async function updateCredential(event: FormEvent) {
     event.preventDefault(); if (!target) return
-    if (target.authMode === 'password' && !passwordConsent) {
-      setError(t('请先确认允许加密保存密码兼容模式凭据。')); return
-    }
     setBusy('credential'); setError('')
     try {
-      await api.updateMicrosoftCredential(target.id, target.authMode === 'oauth2'
-        ? { authMode: 'oauth2', refreshToken, clientId, authority }
-        : { authMode: 'password', password, persistPasswordConfirmed: true })
+      await api.updateMicrosoftCredential(target.id, {
+        authMode: 'oauth2', refreshToken, clientId, authority,
+      })
       resetSecrets(); await onChanged(); setNotice(t('凭据验证成功并已更新。'))
     } catch (credentialError) { setError(errorMessage(credentialError)); await onChanged() }
     finally { setBusy('') }
@@ -285,31 +270,24 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         </div>
         {entryMode === 'fields' ? <form className="icloud-form gmail-connect-form"
           onSubmit={(event) => void connect(event)}>
-          <div className="icloud-form-field"><span>{t('认证方式')}</span>
-            <MicrosoftAuthModeSelect value={authMode}
-              onChange={(nextMode) => { setAuthMode(nextMode); resetSecrets() }} />
-          </div>
+          <p className="microsoft-oauth-note"><ShieldCheck size={15} />
+            {t('仅支持 OAuth2；不再接受仅邮箱密码登录。')}</p>
           <label><span>{t('账号名称')}</span><input value={name} maxLength={60} required
             autoComplete="off" onChange={(event) => setName(event.target.value)} /></label>
           <label><span>{t('邮箱地址')}</span><input type="email" value={email} maxLength={254}
             required autoComplete="username" onChange={(event) => setEmail(event.target.value)} /></label>
-          {authMode === 'oauth2' ? <>
-            <label><span>Refresh token</span><input type="password" value={refreshToken} required
-              autoComplete="off" onChange={(event) => setRefreshToken(event.target.value)} /></label>
-            <label><span>Client ID</span><input value={clientId} required autoComplete="off"
-              placeholder="00000000-0000-0000-0000-000000000000"
-              onChange={(event) => setClientId(event.target.value)} /></label>
-            <label><span>Authority</span><input value={authority} required autoComplete="off"
-              aria-describedby="microsoft-authority-help"
-              onChange={(event) => setAuthority(event.target.value)} />
-              <small id="microsoft-authority-help">common / organizations / consumers / tenant UUID</small></label>
-          </> : <PasswordFields password={password} consent={passwordConsent}
-            onPassword={setPassword} onConsent={setPasswordConsent} />}
+          <label><span>Refresh token</span><input type="password" value={refreshToken} required
+            autoComplete="off" onChange={(event) => setRefreshToken(event.target.value)} /></label>
+          <label><span>Client ID</span><input value={clientId} required autoComplete="off"
+            placeholder="00000000-0000-0000-0000-000000000000"
+            onChange={(event) => setClientId(event.target.value)} /></label>
+          <label><span>Authority</span><input value={authority} required autoComplete="off"
+            aria-describedby="microsoft-authority-help"
+            onChange={(event) => setAuthority(event.target.value)} />
+            <small id="microsoft-authority-help">common / organizations / consumers / tenant UUID</small></label>
+          <CombinationPasswordFields password={password} consent={passwordConsent}
+            onPassword={setPassword} onConsent={setPasswordConsent} />
           <footer className="gmail-connect-actions">
-            {authMode === 'password' && <button className="button button--secondary" type="button"
-              disabled={Boolean(busy)} onClick={() => void validatePasswordOnly()}>
-              {busy === 'validate-password' ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />}
-              {t('仅验证，不保存')}</button>}
             <button className="button button--primary"
             type="submit" disabled={Boolean(busy)}>
             {busy ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />}
@@ -322,11 +300,11 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
             onChange={(event) => setBatchText(event.target.value)}
             placeholder={importPlaceholder} /></label>
           <div className="microsoft-import-formats" id="microsoft-import-formats">
-            <strong>{t('支持以下三种凭据类型（四字段兼容两种顺序）：')}</strong>
+            <strong>{t('支持以下两种 OAuth2 凭据类型（四字段兼容两种顺序）：')}</strong>
             <ul>{MICROSOFT_IMPORT_FORMATS.map((format, index) => <li key={format}>
               <span>{t(importFormatLabels[index])}</span><code>{format}</code>
             </li>)}<li><span>{t('兼容顺序')}</span><code>{MICROSOFT_IMPORT_ALTERNATE_FORMAT}</code></li></ul>
-            <small>{t('最后两段可互换，系统按 UUID 自动识别 Client ID。完整组合优先使用 OAuth2，password 不上传也不保存；连续 8 个连字符表示 password 为空。')}</small>
+            <small>{t('最后两段可互换，系统按 UUID 自动识别 Client ID。四字段中的 password 会加密保存，但不会用于 LOGIN 或 OAuth2 失败回退；连续 8 个连字符表示 password 为空。')}</small>
           </div>
           {importProgress && <MicrosoftImportProgress progress={importProgress} />}
           {batchRows.length > 0 && <div className="microsoft-import-preview">
@@ -353,7 +331,8 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           key={account.id} onClick={() => openAccount(account)}>
           <span className="gmail-account-card__icon">M</span>
           <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
-            <small>{account.authMode === 'oauth2' ? `OAuth2 · ${account.clientIdMasked}` : t('密码兼容模式')}</small></span>
+            <small>{account.authMode === 'oauth2'
+              ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
           <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
             <span>{t('管理')}<ChevronRight size={14} /></span></span>
         </button>)}
@@ -361,7 +340,8 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 
       {view === 'account' && target && <div className="gmail-account-settings">
         <div className="gmail-account-summary"><span className="gmail-account-summary__icon"><KeyRound size={18} /></span>
-          <span><strong>{target.email}</strong><small>{target.authMode === 'oauth2' ? `OAuth2 · ${target.clientIdMasked}` : t('密码兼容模式')}</small></span>
+          <span><strong>{target.email}</strong><small>{target.authMode === 'oauth2'
+            ? `OAuth2 · ${target.clientIdMasked}` : t('密码模式已停用')}</small></span>
           <em className={`is-${target.status}`}>{statusLabel(target.status)}</em></div>
         {target.lastErrorCode && <p className="gmail-account-detail-error"><AlertCircle size={15} />
           {t('最近错误：{code}', { code: target.lastErrorCode })}</p>}
@@ -384,15 +364,12 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         <form className="icloud-form gmail-account-credential" onSubmit={(event) => void updateCredential(event)}>
           <div className="gmail-account-section-heading"><span className="gmail-account-section-icon"><KeyRound size={16} /></span>
             <span><strong>{t('替换凭据')}</strong><small>{t('只有远程验证成功后才会替换原密文。')}</small></span></div>
-          {target.authMode === 'oauth2' ? <>
-            <label><span>Refresh token</span><input type="password" value={refreshToken} required
-              autoComplete="off" onChange={(event) => setRefreshToken(event.target.value)} /></label>
-            <label><span>Client ID</span><input value={clientId} required autoComplete="off"
-              onChange={(event) => setClientId(event.target.value)} /></label>
-            <label><span>Authority</span><input value={authority} required autoComplete="off"
-              onChange={(event) => setAuthority(event.target.value)} /></label>
-          </> : <PasswordFields password={password} consent={passwordConsent}
-            onPassword={setPassword} onConsent={setPasswordConsent} />}
+          <label><span>Refresh token</span><input type="password" value={refreshToken} required
+            autoComplete="off" onChange={(event) => setRefreshToken(event.target.value)} /></label>
+          <label><span>Client ID</span><input value={clientId} required autoComplete="off"
+            onChange={(event) => setClientId(event.target.value)} /></label>
+          <label><span>Authority</span><input value={authority} required autoComplete="off"
+            onChange={(event) => setAuthority(event.target.value)} /></label>
           <footer><button className="button button--primary" type="submit" disabled={Boolean(busy)}>
             {busy === 'credential' ? <LoaderCircle className="spin" size={16} /> : <KeyRound size={16} />}
             {t('验证并更新')}</button></footer>
@@ -402,7 +379,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <button className="button icloud-danger-button" type="button" disabled={Boolean(busy)}
             onClick={() => setConfirmDelete(true)}><Trash2 size={16} />{t('断开账号')}</button></div>
         {confirmDelete && <div className="gmail-delete-confirm" role="alert"><p>
-          {t(target.authMode === 'oauth2' ? '确认断开？之后还应在 Microsoft 账户中撤销应用授权。' : '确认断开并删除本地加密凭据？')}</p>
+          {t('确认断开？之后还应在 Microsoft 账户中撤销应用授权。')}</p>
           <span><button className="button button--secondary" type="button" onClick={() => setConfirmDelete(false)}>{t('取消')}</button>
             <button className="button icloud-danger-button" type="button" onClick={() => void remove()}>{t('确认断开')}</button></span></div>}
       </div>}
@@ -412,17 +389,18 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 
 function Consent({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
   return <label className="microsoft-password-consent"><input type="checkbox" checked={checked}
-    onChange={(event) => onChange(event.target.checked)} /><span>{t('我确认这是兼容方案，并允许服务端加密保存该密码。')}</span></label>
+    onChange={(event) => onChange(event.target.checked)} /><span>
+      {t('我允许服务端加密保存 OAuth2 组合密码；该密码不会用于登录或认证回退。')}</span></label>
 }
 
-function PasswordFields({ password, consent, onPassword, onConsent }: {
+function CombinationPasswordFields({ password, consent, onPassword, onConsent }: {
   password: string
   consent: boolean
   onPassword: (value: string) => void
   onConsent: (value: boolean) => void
 }) {
-  return <><label><span>{t('邮箱密码')}</span><input type="password" value={password} required
+  return <><label><span>{t('组合密码（可选）')}</span><input type="password" value={password}
     autoComplete="new-password" onChange={(event) => onPassword(event.target.value)} />
-    <small>{t('仅用于兼容仍允许基础认证的租户；优先使用 OAuth2。')}</small></label>
-    <Consent checked={consent} onChange={onConsent} /></>
+    <small>{t('只做加密留存，不参与 Microsoft IMAP 认证。')}</small></label>
+    {password && <Consent checked={consent} onChange={onConsent} />}</>
 }

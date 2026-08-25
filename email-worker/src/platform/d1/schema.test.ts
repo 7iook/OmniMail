@@ -99,6 +99,7 @@ const FINAL_MIGRATIONS = [
   '0025_gmail_imap.sql',
   '0026_gmail_unlimited_accounts.sql',
   '0027_microsoft_imap.sql',
+  '0028_microsoft_oauth_combination_password.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -111,14 +112,14 @@ describe('D1 migration check', () => {
     const checkedMigrations = fixture.prepare.mock.results
       .map(({ value }) => (value as MockStatement).bindings[0])
       .filter(Boolean)
-    expect(checkedMigrations).toEqual(['0027_microsoft_imap.sql'])
+    expect(checkedMigrations).toEqual(['0028_microsoft_oauth_combination_password.sql'])
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 14],
-    ['2026-08-01-p2-translation-permissions', 16, 12],
-    ['2026-08-03-p3-multiple-drafts', 17, 11],
-  ])('recovers legacy schema %s through migration 0027', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 15],
+    ['2026-08-01-p2-translation-permissions', 16, 13],
+    ['2026-08-03-p3-multiple-drafts', 17, 12],
+  ])('recovers legacy schema %s through migration 0028', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -128,7 +129,7 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(27)
+    expect(fixture.applied.size).toBe(28)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
     expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
     expect(fixture.applied.has('0022_consistency_guards.sql')).toBe(true)
@@ -137,6 +138,7 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0025_gmail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0026_gmail_unlimited_accounts.sql')).toBe(true)
     expect(fixture.applied.has('0027_microsoft_imap.sql')).toBe(true)
+    expect(fixture.applied.has('0028_microsoft_oauth_combination_password.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
@@ -162,7 +164,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(27)
+    expect(fixture.applied.size).toBe(28)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -197,7 +199,7 @@ describe('D1 migration check', () => {
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0027_microsoft_imap.sql',
+      concurrentMigration: '0028_microsoft_oauth_combination_password.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
@@ -210,7 +212,7 @@ describe('D1 migration check', () => {
       failBatchOnce: true,
     })
 
-    await expect(ensureSchema(fixture.db)).rejects.toThrow('0027_microsoft_imap.sql')
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0028_microsoft_oauth_combination_password.sql')
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledTimes(2)
   })

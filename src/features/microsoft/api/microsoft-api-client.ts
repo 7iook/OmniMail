@@ -24,12 +24,6 @@ export function createMicrosoftApi(request: Request, jsonBody: (value: unknown) 
     }>('/api/microsoft/accounts/import', {
       method: 'POST', body: jsonBody({ accounts }), timeoutMs: 120_000,
     }),
-    validateMicrosoftPassword: (email: string, password: string) => request<{
-      ok: true
-      persisted: false
-    }>('/api/microsoft/accounts/validate-password', {
-      method: 'POST', body: jsonBody({ email, password, authMode: 'password' }), timeoutMs: 60_000,
-    }),
     renameMicrosoft: (accountId: string, name: string) => request<{
       account: MicrosoftAccount
     }>(`/api/microsoft/accounts/${encodeURIComponent(accountId)}`, {

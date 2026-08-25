@@ -9,7 +9,6 @@ import {
   renameMicrosoftAccount,
   requestMicrosoftSync,
   updateMicrosoftCredential,
-  validateMicrosoftPassword,
   verifyMicrosoftAccount,
 } from './microsoft-account-api'
 import {
@@ -24,12 +23,6 @@ microsoftRoutes.get('/microsoft/accounts', (context) => (
   listMicrosoftAccounts(context.env, context.get('user'))
 ))
 microsoftRoutes.post('/microsoft/accounts/import', (context) => importMicrosoftAccounts(
-  context.env,
-  context.get('user'),
-  context.req.raw,
-  clientIp(context.req.raw.headers),
-))
-microsoftRoutes.post('/microsoft/accounts/validate-password', (context) => validateMicrosoftPassword(
   context.env,
   context.get('user'),
   context.req.raw,

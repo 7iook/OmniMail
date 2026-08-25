@@ -2,7 +2,7 @@
 
 # OmniMail 完整 HTTP API 参考
 
-当前 Worker 共公开 **135** 个 HTTP 端点。本文档由代码中的 API Catalog 自动生成，
+当前 Worker 共公开 **134** 个 HTTP 端点。本文档由代码中的 API Catalog 自动生成，
 与 Webmail `/settings/api` 使用同一份数据源。架构、安全模型、限速和数据生命周期说明见
 [`docs/API.md`](../API.md)。
 
@@ -34,7 +34,7 @@ Webhook 端点按文档示例提交 Svix 签名头。除公开端点外，服务
 | 方法 | 数量 |
 | --- | ---: |
 | `GET` | 51 |
-| `POST` | 42 |
+| `POST` | 41 |
 | `DELETE` | 13 |
 | `PATCH` | 23 |
 | `PUT` | 6 |
@@ -50,7 +50,7 @@ Webhook 端点按文档示例提交 Svix 签名头。除公开端点外，服务
 | [草稿与附件](drafts.md) | 8 | 服务端草稿的创建、保存、附件和幂等发送。 |
 | [iCloud 隐藏邮箱](icloud.md) | 13 | iCloud 账号、凭据、隐藏地址和按需收件箱。 |
 | [Gmail 聚合收件箱](gmail.md) | 10 | 多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。 |
-| [Microsoft 邮箱](microsoft.md) | 12 | OAuth2 或显式密码兼容认证、只读 IMAP 文件夹、同步、正文与附件。 |
+| [Microsoft 邮箱](microsoft.md) | 11 | OAuth2 认证、组合密码加密留存、只读 IMAP 文件夹、同步、正文与附件。 |
 | [Linux DO 邮箱](linux-do-mail.md) | 10 | 加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。 |
 | [管理员：运营与邮件](admin-operations.md) | 12 | 统计、审计、失败邮件、全站邮件和安全清理。 |
 | [管理员：用户与访问](admin-access.md) | 11 | 邀请、用户、用户限速和收件域名管理。 |

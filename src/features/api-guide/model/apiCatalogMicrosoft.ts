@@ -10,18 +10,11 @@ export const microsoftEndpoints: ApiEndpoint[] = [
   {
     method: 'POST', path: '/api/microsoft/accounts/import', group: 'microsoft', auth: 'authenticated',
     title: l('导入 Microsoft 账号', 'Import Microsoft accounts'),
-    description: l('逐项验证 1–25 个结构化 OAuth2 或密码兼容账号；单项失败不会回滚整批。', 'Validate 1–25 structured OAuth2 or password-compatibility accounts independently without rolling back the whole batch.'),
+    description: l('逐项验证 1–25 个结构化 OAuth2 账号；可确认加密保存四字段组合密码，但不用于认证。', 'Validate 1–25 structured OAuth2 accounts; confirmed four-field combination passwords may be stored encrypted but are never used for authentication.'),
     request: 'JSON · accounts[1..25] · { name?, email, authMode, refreshToken?, clientId?, authority?, password?, persistPasswordConfirmed? }',
     response: '201/207 · { results: [{ index, status=accepted|duplicate|error, code?, account? }] }',
     exampleBody: { accounts: [{ name: 'Outlook', email: 'owner@outlook.com', authMode: 'oauth2', refreshToken: 'refresh-token', clientId: '00000000-0000-4000-8000-000000000000', authority: 'common' }] },
     notes: [l('服务端只接受结构化字段；不要把整段逐行文本直接提交到该端点。', 'The server accepts structured fields only; do not submit the raw multiline import text.')],
-  },
-  {
-    method: 'POST', path: '/api/microsoft/accounts/validate-password', group: 'microsoft', auth: 'authenticated',
-    title: l('一次性验证 Microsoft 密码', 'Validate a Microsoft password without saving'),
-    description: l('限速验证密码兼容 LOGIN，不保存密码、不创建账号或后台同步。', 'Rate-limit and validate a password-compatibility LOGIN without saving the password, creating an account, or enabling background sync.'),
-    request: 'JSON · email, authMode=password, password', response: '200 · { ok: true, persisted: false }',
-    exampleBody: { email: 'owner@outlook.com', authMode: 'password', password: 'one-time-password' },
   },
   {
     method: 'PATCH', path: '/api/microsoft/accounts/:id', group: 'microsoft', auth: 'authenticated',
@@ -32,8 +25,8 @@ export const microsoftEndpoints: ApiEndpoint[] = [
   {
     method: 'PUT', path: '/api/microsoft/accounts/:id/credential', group: 'microsoft', auth: 'authenticated',
     title: l('替换 Microsoft 凭据', 'Replace a Microsoft credential'),
-    description: l('验证成功后才替换同一认证模式的加密凭据；不允许静默切换模式。', 'Replace encrypted credentials only after validation and only within the existing authentication mode.'),
-    request: 'Path · id; JSON · authMode and matching OAuth2 or password fields', response: '200 · { ok: true }',
+    description: l('验证成功后才替换 OAuth2 凭据；不允许切换为密码认证。', 'Replace OAuth2 credentials only after validation; password authentication cannot be enabled.'),
+    request: 'Path · id; JSON · authMode=oauth2, refreshToken, clientId, authority?', response: '200 · { ok: true }',
     exampleBody: { authMode: 'oauth2', refreshToken: 'replacement-refresh-token', clientId: '00000000-0000-4000-8000-000000000000', authority: 'common' },
   },
   {

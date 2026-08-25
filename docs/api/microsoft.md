@@ -4,11 +4,11 @@
 
 **Microsoft Mail**
 
-OAuth2 或显式密码兼容认证、只读 IMAP 文件夹、同步、正文与附件。
+OAuth2 认证、组合密码加密留存、只读 IMAP 文件夹、同步、正文与附件。
 
-> OAuth2 or explicit password compatibility, read-only IMAP folders, synchronization, bodies, and attachments.
+> OAuth2 authentication, encrypted combination-password storage, read-only IMAP folders, synchronization, bodies, and attachments.
 
-本分类共 **12** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **11** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/microsoft/accounts catalog:72ad0c21cd5c -->
 ## `GET /api/microsoft/accounts`
@@ -33,14 +33,14 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/microsoft/accounts/import catalog:84379caaca0b -->
+<!-- endpoint:POST /api/microsoft/accounts/import catalog:d2a64060151c -->
 ## `POST /api/microsoft/accounts/import`
 
 **导入 Microsoft 账号 / Import Microsoft accounts**
 
-逐项验证 1–25 个结构化 OAuth2 或密码兼容账号；单项失败不会回滚整批。
+逐项验证 1–25 个结构化 OAuth2 账号；可确认加密保存四字段组合密码，但不用于认证。
 
-> Validate 1–25 structured OAuth2 or password-compatibility accounts independently without rolling back the whole batch.
+> Validate 1–25 structured OAuth2 accounts; confirmed four-field combination passwords may be stored encrypted but are never used for authentication.
 
 | 项目 | 内容 |
 | --- | --- |
@@ -73,35 +73,6 @@ curl --request POST \
 }'
 ```
 
-<!-- endpoint:POST /api/microsoft/accounts/validate-password catalog:990e8a60f3a5 -->
-## `POST /api/microsoft/accounts/validate-password`
-
-**一次性验证 Microsoft 密码 / Validate a Microsoft password without saving**
-
-限速验证密码兼容 LOGIN，不保存密码、不创建账号或后台同步。
-
-> Rate-limit and validate a password-compatibility LOGIN without saving the password, creating an account, or enabling background sync.
-
-| 项目 | 内容 |
-| --- | --- |
-| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | JSON · email, authMode=password, password |
-| 成功响应 | 200 · { ok: true, persisted: false } |
-
-### cURL 示例
-
-```bash
-curl --request POST \
-  --url "https://mail.example.com/api/microsoft/accounts/validate-password" \
-  --header "Authorization: Bearer om_at_..." \
-  --header "Content-Type: application/json" \
-  --data '{
-  "email": "owner@outlook.com",
-  "authMode": "password",
-  "password": "one-time-password"
-}'
-```
-
 <!-- endpoint:PATCH /api/microsoft/accounts/:id catalog:848de51105b0 -->
 ## `PATCH /api/microsoft/accounts/{id}`
 
@@ -129,19 +100,19 @@ curl --request PATCH \
 }'
 ```
 
-<!-- endpoint:PUT /api/microsoft/accounts/:id/credential catalog:971fbdb76f6d -->
+<!-- endpoint:PUT /api/microsoft/accounts/:id/credential catalog:7d512e5f2694 -->
 ## `PUT /api/microsoft/accounts/{id}/credential`
 
 **替换 Microsoft 凭据 / Replace a Microsoft credential**
 
-验证成功后才替换同一认证模式的加密凭据；不允许静默切换模式。
+验证成功后才替换 OAuth2 凭据；不允许切换为密码认证。
 
-> Replace encrypted credentials only after validation and only within the existing authentication mode.
+> Replace OAuth2 credentials only after validation; password authentication cannot be enabled.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Path · id; JSON · authMode and matching OAuth2 or password fields |
+| 请求 | Path · id; JSON · authMode=oauth2, refreshToken, clientId, authority? |
 | 成功响应 | 200 · { ok: true } |
 
 ### cURL 示例

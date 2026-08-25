@@ -1,6 +1,6 @@
 import type { MicrosoftImportAccount } from '../../../shared/api'
 
-export type MicrosoftImportMode = 'oauth2' | 'password' | 'oauth2_combination'
+export type MicrosoftImportMode = 'oauth2' | 'oauth2_combination'
 export type MicrosoftImportPreview = {
   line: number
   email: string
@@ -17,7 +17,6 @@ export type ParsedMicrosoftImport = {
 
 export const MICROSOFT_IMPORT_FORMATS = [
   'email----password----refresh_token----client_id',
-  'email----password',
   'email--------refresh_token----client_id',
 ] as const
 export const MICROSOFT_IMPORT_ALTERNATE_FORMAT =
@@ -53,33 +52,17 @@ export function parseMicrosoftImportText(value: string): ParsedMicrosoftImport[]
     if (!normalizedLine) continue
     const fields = normalizedLine.split('----')
     const email = (fields[0] || '').trim().toLowerCase()
-    if (fields.length !== 2 && fields.length !== 4) {
+    if (fields.length === 2) {
+      rows.push(invalid(line, email,
+        '仅邮箱密码登录已停用；请提供 refresh token 与 Client ID。'))
+      continue
+    }
+    if (fields.length !== 4) {
       rows.push(invalid(line, email, '字段数量无效；若密码包含 ----，请改用分字段输入。'))
       continue
     }
     if (!EMAIL.test(email)) {
       rows.push(invalid(line, email, '邮箱地址格式无效。'))
-      continue
-    }
-    if (fields.length === 2) {
-      const password = fields[1]
-      if (!password) {
-        rows.push(invalid(line, email, '密码兼容格式需要填写密码。'))
-        continue
-      }
-      const duplicate = seen.has(email)
-      seen.add(email)
-      rows.push({
-        preview: {
-          line,
-          email,
-          mode: 'password',
-          clientIdMasked: '',
-          status: duplicate ? 'duplicate' : 'ready',
-          error: '',
-        },
-        input: { email, authMode: 'password', password },
-      })
       continue
     }
     const password = fields[1]
@@ -114,7 +97,8 @@ export function parseMicrosoftImportText(value: string): ParsedMicrosoftImport[]
         refreshToken,
         clientId,
         authority: 'common',
-        password: undefined,
+        password: password || undefined,
+        persistPasswordConfirmed: undefined,
       },
     })
   }

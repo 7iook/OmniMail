@@ -15,15 +15,14 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
     expect(html).toContain('选择一封 Microsoft 邮件')
   })
 
-  it('opens an accessible OAuth2-first connection dialog', () => {
+  it('opens an accessible OAuth2-only connection dialog', () => {
     const html = renderToStaticMarkup(<MicrosoftAccountDialog accounts={[]}
       onClose={() => undefined} onChanged={async () => undefined} />)
     expect(html).toContain('role="dialog"')
     expect(html).toContain('aria-modal="true"')
     expect(html).toContain('OAuth2')
-    expect(html).toContain('class="microsoft-auth-select"')
-    expect(html).toContain('role="combobox"')
-    expect(html).toContain('aria-haspopup="listbox"')
+    expect(html).toContain('仅支持 OAuth2')
+    expect(html).not.toContain('role="combobox"')
     expect(html).toContain('Refresh token')
     expect(html).not.toContain('access_token_cipher')
   })

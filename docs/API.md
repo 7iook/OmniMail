@@ -676,17 +676,16 @@ GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 
 ## Microsoft 只读邮箱
 
-配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY` 后，用户可导入结构化 OAuth2 或显式密码
-兼容凭据。OAuth2 只访问 Microsoft Global 官方 token endpoint；IMAP 固定为
-`outlook.office365.com:993` TLS。请求不能提供任意 URL、主机或端口，也不会在 OAuth2 失败后
-自动改用密码。
+配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY` 后，用户可导入结构化 OAuth2 凭据。
+四字段组合 password 经确认后独立加密留存，但不参与认证。OAuth2 只访问 Microsoft Global
+官方 token endpoint；IMAP 固定为 `outlook.office365.com:993` TLS。请求不能提供任意 URL、
+主机或端口，也不会在 OAuth2 失败后自动改用密码。
 
 账号与文件夹接口：
 
 ```http
 GET /api/microsoft/accounts
 POST /api/microsoft/accounts/import
-POST /api/microsoft/accounts/validate-password
 PATCH /api/microsoft/accounts/{id}
 PUT /api/microsoft/accounts/{id}/credential
 DELETE /api/microsoft/accounts/{id}
@@ -794,10 +793,9 @@ npm run docs:api
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 按需获取 Gmail 正文并同步标记已读 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
 | `GET /api/microsoft/accounts` | 列出当前用户的脱敏 Microsoft 账号与同步状态 |
-| `POST /api/microsoft/accounts/import` | 独立验证并导入一批结构化 OAuth2 或密码兼容账号 |
-| `POST /api/microsoft/accounts/validate-password` | 一次性验证密码 LOGIN，不保存凭据或创建账号 |
+| `POST /api/microsoft/accounts/import` | 独立验证并导入一批结构化 OAuth2 账号；可确认加密保存组合 password |
 | `PATCH/DELETE /api/microsoft/accounts/{id}` | 重命名或断开 Microsoft 账号 |
-| `PUT /api/microsoft/accounts/{id}/credential` | 验证并替换同一认证模式的凭据 |
+| `PUT /api/microsoft/accounts/{id}/credential` | 验证并替换 OAuth2 凭据 |
 | `POST /api/microsoft/accounts/{id}/verify` | 验证已保存的 Microsoft IMAP 凭据与权限 |
 | `POST /api/microsoft/accounts/{id}/sync` | 请求受限的异步 Microsoft INBOX 同步 |
 | `GET /api/microsoft/accounts/{id}/folders` | 读取或受限刷新服务器文件夹列表 |

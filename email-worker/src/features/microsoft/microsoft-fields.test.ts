@@ -5,11 +5,12 @@ import {
 } from './microsoft-fields'
 
 describe('Microsoft account input validation', () => {
-  it('accepts OAuth2 and discards any combination password', () => {
+  it('accepts and retains a confirmed OAuth2 combination password', () => {
     expect(microsoftImportAccount({
       email: ' User@Outlook.com ',
       authMode: 'oauth2',
       password: 'must-not-be-stored',
+      persistPasswordConfirmed: true,
       refreshToken: 'refresh-token',
       clientId: '00000000-0000-4000-8000-000000000000',
       authority: 'common',
@@ -17,7 +18,7 @@ describe('Microsoft account input validation', () => {
     })).toEqual({
       email: 'user@outlook.com',
       authMode: 'oauth2',
-      password: null,
+      password: 'must-not-be-stored',
       refreshToken: 'refresh-token',
       clientId: '00000000-0000-4000-8000-000000000000',
       authority: 'common',
@@ -25,25 +26,21 @@ describe('Microsoft account input validation', () => {
     })
   })
 
-  it('requires explicit persistence confirmation for password mode', () => {
+  it('rejects password-only mode and requires confirmation for combination storage', () => {
     expect(() => microsoftImportAccount({
       email: 'user@outlook.com',
       authMode: 'password',
       password: 'app-password',
-      persistPasswordConfirmed: false,
-    })).toThrow('确认')
-    expect(microsoftImportAccount({
-      email: 'user@outlook.com',
-      authMode: 'password',
-      password: 'app-password',
       persistPasswordConfirmed: true,
-    }).password).toBe('app-password')
-    expect(microsoftImportAccount({
+    })).toThrow('仅支持 OAuth2')
+    expect(() => microsoftImportAccount({
       email: 'user@outlook.com',
-      authMode: 'password',
-      password: 'one-time-password',
+      authMode: 'oauth2',
+      password: 'combination-password',
       persistPasswordConfirmed: false,
-    }, { allowUnconfirmedPassword: true }).password).toBe('one-time-password')
+      refreshToken: 'refresh-token',
+      clientId: '00000000-0000-4000-8000-000000000000',
+    })).toThrow('确认')
   })
 
   it('rejects incomplete OAuth pairs, invalid UUIDs, and message limits outside 1..200', () => {

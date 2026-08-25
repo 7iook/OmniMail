@@ -39,7 +39,7 @@ describe('Microsoft mail API boundaries', () => {
     await expect(response.json()).resolves.toEqual({ enabled: false, accounts: [] })
   })
 
-  it('returns a per-item password confirmation error without remote access', async () => {
+  it('rejects password-only imports without remote access', async () => {
     const env = {
       MICROSOFT_CREDENTIALS_KEY: key,
       DB: { prepare: () => ({ bind: () => ({ all: async () => ({ results: [] }) }) }) },
@@ -47,12 +47,12 @@ describe('Microsoft mail API boundaries', () => {
     const response = await importMicrosoftAccounts(env, user, request({
       accounts: [{
         email: 'user@outlook.com', authMode: 'password', password: 'password',
-        persistPasswordConfirmed: false,
+        persistPasswordConfirmed: true,
       }],
     }), '192.0.2.1')
     expect(response.status).toBe(207)
     await expect(response.json()).resolves.toMatchObject({
-      results: [{ status: 'error', code: 'password_confirmation_required' }],
+      results: [{ status: 'error', code: 'password_auth_removed' }],
     })
   })
 
@@ -73,6 +73,7 @@ describe('Microsoft mail API boundaries', () => {
       email: 'user@outlook.com', authMode: 'oauth2', refreshToken: 'refresh-secret',
       clientId: '00000000-0000-4000-8000-000000000000', authority: 'common',
       password: 'combination-password-must-be-discarded',
+      persistPasswordConfirmed: true,
     }] }), '192.0.2.1')
     const body = await response.json()
     expect(response.status).toBe(207)

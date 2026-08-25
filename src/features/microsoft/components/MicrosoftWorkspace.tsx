@@ -1,6 +1,6 @@
 import {
-  AlertCircle, Check, Copy, Folder, KeyRound, LoaderCircle, Mail, Paperclip,
-  Plus, RefreshCw, Search, Settings2, ShieldCheck,
+  AlertCircle, Check, Copy, KeyRound, LoaderCircle, Mail, Paperclip,
+  Plus, RefreshCw, Search, Settings2, ShieldCheck, X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type MicrosoftAccount, type MicrosoftFolder, type MicrosoftMessageDetail,
@@ -15,10 +15,9 @@ import '../../gmail/styles/gmail-workspace.css'
 import '../styles/microsoft-workspace.css'
 import { MicrosoftAccountDialog } from './MicrosoftAccountDialog'
 import { MicrosoftReader } from './MicrosoftReader'
+import { MicrosoftScopeSwitcher } from './MicrosoftScopeSwitcher'
 
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 50 }
-const limits = [25, 50, 100, 200]
-
 function accountWarning(accounts: MicrosoftAccount[]) {
   const failed = accounts.filter(({ status }) => ['credential_error', 'permission_error', 'error'].includes(status))
   return failed.length ? t('{count} 个 Microsoft 账号需要处理，其他账号仍可继续使用。', {
@@ -178,7 +177,12 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
   return <div className={`icloud-mail-view gmail-workspace gmail-mail-view microsoft-workspace${selected ? ' has-selection' : ''}`}>
     <section ref={mailListScroll.listPane} className="list-pane icloud-list-pane page-content-enter gmail-list-pane microsoft-list-pane">
       <header className="list-header icloud-list-header gmail-list-header">
-        <div><p className="eyebrow">MICROSOFT · IMAP</p>
+        <div>{accounts.length ? <MicrosoftScopeSwitcher accounts={accounts} folders={folders}
+          selectedAccountId={accountId} selectedFolderPath={folderPath} limit={limit}
+          folderRefreshing={folderRefreshing} onAccountChange={chooseAccount}
+          onFolderChange={setFolderPath} onLimitChange={setLimit}
+          onRefreshFolders={() => loadFolders(true)} onManage={() => setDialogMode('manage')} />
+          : <p className="eyebrow">MICROSOFT · IMAP</p>}
           <ListScrollTopHeading title="Microsoft" onScrollTop={mailListScroll.scrollToTop} /></div>
         {enabled && <div className="list-header__actions">
           {accounts.length > 0 && <span className="icloud-mail-status is-imap"><ShieldCheck size={13} />{t('只读同步')}</span>}
@@ -187,39 +191,23 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
               aria-label={t('添加 Microsoft 账号')} data-tooltip={t('添加 Microsoft 账号')}><Plus size={17} /></button>
             <button className="icon-button" type="button" disabled={!currentAccount} onClick={() => void copyAddress()}
               aria-label={t('复制当前邮箱')} data-tooltip={t('复制当前邮箱')}><Copy size={17} /></button>
+            <button ref={manageButton} className="icon-button" type="button" onClick={() => setDialogMode('manage')}
+              aria-label={t('管理 Microsoft 账号')} data-tooltip={t('管理 Microsoft 账号')}><Settings2 size={17} /></button>
             <button className="icon-button" type="button" disabled={!currentAccount || remoteRefreshing}
               onClick={() => void loadMessages(false, true)} aria-label={t('远程刷新当前文件夹')}
               data-tooltip={t(accountId ? '远程刷新当前文件夹' : '请先选择一个账号')}>
               {remoteRefreshing ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}</button>
-            <button ref={manageButton} className="icon-button" type="button" onClick={() => setDialogMode('manage')}
-              aria-label={t('管理 Microsoft 账号')} data-tooltip={t('管理 Microsoft 账号')}><Settings2 size={17} /></button>
           </div>
         </div>}
       </header>
-      {enabled && accounts.length > 0 && <div className="microsoft-list-controls">
-        <label><span className="sr-only">{t('Microsoft 账号')}</span><select value={accountId}
-          aria-label={t('Microsoft 账号')}
-          onChange={(event) => chooseAccount(event.target.value)}><option value="">{t('全部账号 · INBOX')}</option>
-          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.email}</option>)}</select></label>
-        <label><Folder size={14} /><span className="sr-only">{t('文件夹')}</span><select value={folderPath}
-          aria-label={t('文件夹')}
-          disabled={!accountId} onChange={(event) => setFolderPath(event.target.value)}>
-          {!folders.length && <option value="INBOX">INBOX</option>}
-          {folders.map((folder) => <option key={folder.path} value={folder.path}>{folder.displayName || folder.path}</option>)}</select></label>
-        <button className="icon-button icon-button--small" type="button" disabled={!accountId || folderRefreshing}
-          onClick={() => void loadFolders(true)} aria-label={t('刷新文件夹列表')} data-tooltip={t('刷新文件夹列表')}>
-          <RefreshCw className={folderRefreshing ? 'spin' : ''} size={14} /></button>
-        <label className="microsoft-limit"><span>{t('每页')}</span><select value={limit}
-          aria-label={t('每页')}
-          onChange={(event) => setLimit(Number(event.target.value))}>
-          {limits.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-      </div>}
-      {enabled && accounts.length > 0 && <p className="microsoft-schedule-note">
-        {t('INBOX 约每 5 分钟定时收信；当前文件夹可手动刷新，不是秒级推送。')}
-      </p>}
-      {enabled && accounts.length > 0 && <label className="search-field microsoft-search-field"><Search size={17} />
+      {enabled && accounts.length > 0 && <label
+        className="search-field icloud-search-field microsoft-search-field" aria-busy={remoteRefreshing}>
+        {remoteRefreshing ? <LoaderCircle className="spin" size={17} /> : <Search size={17} />}
         <span className="sr-only">{t('搜索 Microsoft 邮件')}</span><input type="search" value={query}
-          placeholder={t('搜索发件人、收件人或主题')} onChange={(event) => setQuery(event.target.value)} /></label>}
+          maxLength={120} autoComplete="off" placeholder={t('搜索发件人、收件人或主题')}
+          onChange={(event) => setQuery(event.target.value)} />
+        {query && <button type="button" onClick={() => setQuery('')} aria-label={t('清除搜索')}>
+          <X size={14} /></button>}</label>}
       {accountWarning(accounts) && <p className="gmail-partial-error" role="status"><AlertCircle size={15} />{accountWarning(accounts)}</p>}
       {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
       <div className="gmail-message-list" aria-busy={loading}>
@@ -228,7 +216,7 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
           <p>{t('配置至少 32 字节的 MICROSOFT_CREDENTIALS_KEY，并启用 MICROSOFT_MAIL_ENABLED 后重新部署。')}</p></div>
           : loading ? <div className="gmail-list-state" role="status"><LoaderCircle className="spin" size={21} />{t('正在读取 Microsoft 邮件索引…')}</div>
             : !accounts.length ? <div className="gmail-list-state gmail-list-state--empty"><span><Mail size={25} /></span>
-              <h2>{t('连接你的第一个 Microsoft 邮箱')}</h2><p>{t('推荐 OAuth2；也可显式选择密码兼容模式。')}</p>
+              <h2>{t('连接你的第一个 Microsoft 邮箱')}</h2><p>{t('仅支持 OAuth2；不再接受仅邮箱密码登录。')}</p>
               <button className="button button--primary" type="button" onClick={() => setDialogMode('add')}><Plus size={16} />{t('添加 Microsoft 账号')}</button></div>
               : !messages.length ? <div className="gmail-list-state gmail-list-state--empty"><span>{searchQuery ? <Search size={25} /> : <Mail size={25} />}</span>
                 <h2>{t(searchQuery ? '未找到相关 Microsoft 邮件' : '当前文件夹还没有索引邮件')}</h2>
