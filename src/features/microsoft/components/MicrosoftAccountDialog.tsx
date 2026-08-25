@@ -7,11 +7,12 @@ import { api, type MicrosoftAccount, type MicrosoftAuthMode,
   type MicrosoftImportAccount } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
-import { parseMicrosoftImportText } from '../model/microsoft-import'
+import { MICROSOFT_IMPORT_FORMATS, parseMicrosoftImportText } from '../model/microsoft-import'
 import type { MicrosoftImportMode } from '../model/microsoft-import'
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
+const importFormatLabels = ['完整组合', '仅密码', '仅 OAuth2'] as const
 
 function statusLabel(status: MicrosoftAccount['status']) {
   if (status === 'syncing') return t('正在同步')
@@ -285,9 +286,16 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         </form> : <form className="icloud-form microsoft-batch-form"
           onSubmit={(event) => void importBatch(event)}>
           <label><span>{t('每行一个账号')}</span><textarea value={batchText} rows={7}
-            spellCheck={false} autoComplete="off" onChange={(event) => setBatchText(event.target.value)}
-            placeholder={'email----password\nemail--------refreshToken----clientId'} />
-            <small>{t('支持 2 字段密码格式与 4 字段 OAuth2 格式；连续 8 个连字符表示空密码。')}</small></label>
+            spellCheck={false} autoComplete="off" aria-describedby="microsoft-import-formats"
+            onChange={(event) => setBatchText(event.target.value)}
+            placeholder={MICROSOFT_IMPORT_FORMATS.join('\n')} /></label>
+          <div className="microsoft-import-formats" id="microsoft-import-formats">
+            <strong>{t('支持以下三种凭据行格式：')}</strong>
+            <ul>{MICROSOFT_IMPORT_FORMATS.map((format, index) => <li key={format}>
+              <span>{t(importFormatLabels[index])}</span><code>{format}</code>
+            </li>)}</ul>
+            <small>{t('完整组合优先使用 OAuth2，组合中的 password 不上传也不保存；连续 8 个连字符表示 password 为空。')}</small>
+          </div>
           {batchRows.length > 0 && <div className="microsoft-import-preview">
             <h3>{t('安全预览')}</h3><p>{t('预览不会显示密码、refresh token 或完整 Client ID。')}</p>
             <ul>{batchRows.map(({ preview }) => <li key={preview.line}

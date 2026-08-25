@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { parseMicrosoftImportText } from './microsoft-import'
+import { MICROSOFT_IMPORT_FORMATS, parseMicrosoftImportText } from './microsoft-import'
 
 const clientId = '00000000-0000-4000-8000-000000000000'
 
 describe('Microsoft line import preview', () => {
   it('recognizes full, password-only, and empty-password OAuth2 formats', () => {
+    expect(MICROSOFT_IMPORT_FORMATS).toEqual([
+      'email----password----refresh_token----client_id',
+      'email----password',
+      'email--------refresh_token----client_id',
+    ])
     const rows = parseMicrosoftImportText([
       `full@outlook.com----password----refresh-one----${clientId}`,
       'password@outlook.com----app-password',

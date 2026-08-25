@@ -90,6 +90,11 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
   await page.getByRole('button', { name: '添加 Microsoft 账号' }).last().click()
   const dialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
   await dialog.getByRole('tab', { name: '批量导入' }).click()
+  const formats = dialog.locator('#microsoft-import-formats')
+  await expect(formats).toContainText('email----password----refresh_token----client_id')
+  await expect(formats).toContainText('email----password')
+  await expect(formats).toContainText('email--------refresh_token----client_id')
+  await expect(formats).toContainText('完整组合优先使用 OAuth2')
   const clientId = '00000000-0000-4000-8000-000000000000'
   await dialog.getByLabel('每行一个账号').fill([
     `combo@outlook.com----combination-secret----refresh-combo----${clientId}`,

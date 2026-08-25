@@ -15,6 +15,12 @@ export type ParsedMicrosoftImport = {
   input: MicrosoftImportAccount
 }
 
+export const MICROSOFT_IMPORT_FORMATS = [
+  'email----password----refresh_token----client_id',
+  'email----password',
+  'email--------refresh_token----client_id',
+] as const
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
