@@ -582,6 +582,18 @@
   animation: toast-in 240ms ease both;
 }
 
+.toast--update {
+  bottom: 80px;
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  animation: toast-in 240ms ease both, toast-out 180ms ease 4.82s forwards;
+}
+
+.toast--update svg { color: var(--warning); }
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(8px); }
 }
+
+@keyframes toast-out { to { opacity: 0; } }

@@ -1,4 +1,4 @@
-import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react'
+import { AlertCircle, Check, LoaderCircle, Search, Sparkles, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { ConnectionError, PageLoader, PublicLanding, SetupPage } from './components/AuthPages'
 import { DelayedScrollbar } from './components/DelayedScrollbar'
@@ -58,6 +58,7 @@ function Mailbox({
   const [scope, setScope] = useState<MailboxScope>({ type: 'all' })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [availableVersion, setAvailableVersion] = useState('')
   const mailListScroll = useMailListScroll()
   const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
@@ -126,6 +127,25 @@ function Mailbox({
     const timer = window.setTimeout(() => setNotice(''), 3000)
     return () => window.clearTimeout(timer)
   }, [notice])
+  useEffect(() => {
+    if (!isAdminRole(user.role)) return
+    let active = true
+    api.systemVersion()
+      .then((version) => {
+        if (active && version.updateAvailable && version.latestVersion) {
+          setAvailableVersion(version.latestVersion)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [user.role])
+  useEffect(() => {
+    if (!availableVersion) return
+    const timer = window.setTimeout(() => setAvailableVersion(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [availableVersion])
   function changeFolder(next: Folder) {
     const shouldQuietRefresh = shouldQuietRefreshFolder(folder, next, query)
     openFolder(next)
@@ -306,6 +326,12 @@ function Mailbox({
         />
       )}
       {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}
+      {availableVersion && (
+        <div className="toast toast--update" role="status" aria-live="polite">
+          <Sparkles size={16} aria-hidden="true" />
+          {t('发现新版本 {version}', { version: `v${availableVersion}` })}
+        </div>
+      )}
       {deploymentWizardOpen && (
         <Suspense fallback={null}>
           <DeploymentWizard open onClose={closeDeploymentWizard} />
