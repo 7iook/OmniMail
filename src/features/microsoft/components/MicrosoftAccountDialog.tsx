@@ -8,12 +8,17 @@ import { api, type MicrosoftAccount, type MicrosoftAuthMode,
   type MicrosoftImportAccount } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
-import { MICROSOFT_IMPORT_FORMATS, parseMicrosoftImportText } from '../model/microsoft-import'
+import { MICROSOFT_IMPORT_ALTERNATE_FORMAT, MICROSOFT_IMPORT_FORMATS,
+  parseMicrosoftImportText } from '../model/microsoft-import'
 import type { MicrosoftImportMode } from '../model/microsoft-import'
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
 const importFormatLabels = ['完整组合', '仅密码', '仅 OAuth2'] as const
+const importPlaceholder = [
+  MICROSOFT_IMPORT_FORMATS[0], MICROSOFT_IMPORT_ALTERNATE_FORMAT,
+  ...MICROSOFT_IMPORT_FORMATS.slice(1),
+].join('\n')
 const authModeOptions = [
   { value: 'oauth2' as const, label: 'OAuth2' },
   { value: 'password' as const, label: '密码兼容模式' },
@@ -368,13 +373,13 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <label><span>{t('每行一个账号')}</span><textarea value={batchText} rows={7}
             spellCheck={false} autoComplete="off" aria-describedby="microsoft-import-formats"
             onChange={(event) => setBatchText(event.target.value)}
-            placeholder={MICROSOFT_IMPORT_FORMATS.join('\n')} /></label>
+            placeholder={importPlaceholder} /></label>
           <div className="microsoft-import-formats" id="microsoft-import-formats">
-            <strong>{t('支持以下三种凭据行格式：')}</strong>
+            <strong>{t('支持以下三种凭据类型（四字段兼容两种顺序）：')}</strong>
             <ul>{MICROSOFT_IMPORT_FORMATS.map((format, index) => <li key={format}>
               <span>{t(importFormatLabels[index])}</span><code>{format}</code>
-            </li>)}</ul>
-            <small>{t('完整组合优先使用 OAuth2，组合中的 password 不上传也不保存；连续 8 个连字符表示 password 为空。')}</small>
+            </li>)}<li><span>{t('兼容顺序')}</span><code>{MICROSOFT_IMPORT_ALTERNATE_FORMAT}</code></li></ul>
+            <small>{t('最后两段可互换，系统按 UUID 自动识别 Client ID。完整组合优先使用 OAuth2，password 不上传也不保存；连续 8 个连字符表示 password 为空。')}</small>
           </div>
           {batchRows.length > 0 && <div className="microsoft-import-preview">
             <h3>{t('安全预览')}</h3><p>{t('预览不会显示密码、refresh token 或完整 Client ID。')}</p>

@@ -56,10 +56,13 @@ scope=https://outlook.office.com/IMAP.AccessAsUser.All offline_access
 
 ```text
 email----password----refresh_token----client_id
+email----password----client_id----refresh_token
 email----password
 email--------refresh_token----client_id
 ```
 
+- 四字段格式的最后两段可以互换；浏览器根据其中唯一的 UUID 自动识别 Client ID。两段都不是
+  UUID 或两段都是 UUID 时会拒绝该行，避免猜测。
 - 四字段中只要 refresh token 与 Client ID 齐全，就使用 OAuth2，组合里的 password 在浏览器中
   丢弃，不上传也不保存。
 - 两字段格式是密码兼容模式；提交前必须确认允许服务端加密保存密码。

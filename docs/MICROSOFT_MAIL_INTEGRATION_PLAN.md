@@ -58,9 +58,14 @@ MIME 邮件，并把必要的账号状态和有限邮件元数据保存到自己
 
 ```text
 email----password----refresh_token----client_id
+或
+email----password----client_id----refresh_token
 ```
 
 用途：兼容同时包含密码和 OAuth2 凭据的账号组合。
+
+兼容规则：最后两段允许互换；其中必须且只能有一段是合法 UUID，并将其确定为 `client_id`，
+另一段确定为 `refresh_token`。两段都像或都不像 UUID 时拒绝，不猜测。
 
 认证规则：只要 `refresh_token` 和 `client_id` 同时存在，就选择 OAuth2。不得在 OAuth2 验证
 失败后静默降级为密码登录。默认丢弃密码；只有用户另外明确选择“保存密码兼容凭据”，才允许
@@ -117,8 +122,8 @@ email----<empty-password>----refresh_token----client_id
 2. 接受恰好两字段的密码格式，或恰好四字段的完整/OAuth2 格式；
 3. `email` 必填且必须通过基础邮箱格式校验；
 4. 两字段格式要求 password 非空；
-5. 四字段格式要求 `refresh_token` 和 `client_id` 同时非空；
-6. `client_id` 必须是合法 UUID；
+5. 四字段格式的最后两段允许互换，但必须且只能有一段是合法 UUID；
+6. 将 UUID 段确定为 `client_id`，另一非空段确定为 `refresh_token`；
 7. 四字段格式的 password 可以为空；
 8. 出现多余字段、缺少 OAuth2 配对字段或无法判断时拒绝该行，不猜测字段位置；
 9. 密码包含字面量 `----` 时逐行格式存在歧义，提示用户改用分字段表单；

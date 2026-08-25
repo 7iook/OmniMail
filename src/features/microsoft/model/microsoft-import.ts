@@ -20,6 +20,8 @@ export const MICROSOFT_IMPORT_FORMATS = [
   'email----password',
   'email--------refresh_token----client_id',
 ] as const
+export const MICROSOFT_IMPORT_ALTERNATE_FORMAT =
+  'email----password----client_id----refresh_token'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -81,14 +83,18 @@ export function parseMicrosoftImportText(value: string): ParsedMicrosoftImport[]
       continue
     }
     const password = fields[1]
-    const refreshToken = fields[2]
-    const clientId = fields[3].trim().toLowerCase()
-    if (!refreshToken) {
-      rows.push(invalid(line, email, 'OAuth2 格式需要 refresh token。'))
+    const oauthFields = fields.slice(2)
+    const clientIdMatches = oauthFields.map((field) => UUID.test(field.trim()))
+    if (clientIdMatches.filter(Boolean).length !== 1) {
+      rows.push(invalid(line, email,
+        '最后两段必须且只能有一个合法 Client ID UUID；两段顺序均可。'))
       continue
     }
-    if (!UUID.test(clientId)) {
-      rows.push(invalid(line, email, 'Client ID 必须是合法 UUID。'))
+    const clientIdIndex = clientIdMatches[0] ? 0 : 1
+    const clientId = oauthFields[clientIdIndex].trim().toLowerCase()
+    const refreshToken = oauthFields[1 - clientIdIndex]
+    if (!refreshToken) {
+      rows.push(invalid(line, email, 'OAuth2 格式需要 refresh token。'))
       continue
     }
     const duplicate = seen.has(email)

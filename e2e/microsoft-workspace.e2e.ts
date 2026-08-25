@@ -105,12 +105,14 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
   await dialog.getByRole('tab', { name: '批量导入' }).click()
   const formats = dialog.locator('#microsoft-import-formats')
   await expect(formats).toContainText('email----password----refresh_token----client_id')
+  await expect(formats).toContainText('email----password----client_id----refresh_token')
   await expect(formats).toContainText('email----password')
   await expect(formats).toContainText('email--------refresh_token----client_id')
+  await expect(formats).toContainText('系统按 UUID 自动识别 Client ID')
   await expect(formats).toContainText('完整组合优先使用 OAuth2')
   const clientId = '00000000-0000-4000-8000-000000000000'
   await dialog.getByLabel('每行一个账号').fill([
-    `combo@outlook.com----combination-secret----refresh-combo----${clientId}`,
+    `combo@outlook.com----combination-secret----${clientId}----refresh-combo`,
     'password@outlook.com----password-secret',
     `oauth@outlook.com--------refresh-oauth----${clientId}`,
   ].join('\n'))
@@ -127,7 +129,8 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
   await dialog.getByRole('button', { name: '验证并导入 3 个账号' }).click()
   await expect.poll(() => imports).toHaveLength(3)
   expect(imports).toEqual([
-    expect.objectContaining({ email: 'combo@outlook.com', authMode: 'oauth2' }),
+    expect.objectContaining({ email: 'combo@outlook.com', authMode: 'oauth2',
+      refreshToken: 'refresh-combo', clientId }),
     expect.objectContaining({ email: 'password@outlook.com', authMode: 'password',
       password: 'password-secret', persistPasswordConfirmed: true }),
     expect.objectContaining({ email: 'oauth@outlook.com', authMode: 'oauth2' }),
