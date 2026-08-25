@@ -8,7 +8,7 @@ import type {
   LinuxDoMailAccountRow,
   PublicLinuxDoMailAccount,
 } from './linux-do-mail-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 export class LinuxDoMailStoreError extends Error {
   constructor(readonly status: number, message: string) {

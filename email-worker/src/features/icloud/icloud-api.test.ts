@@ -5,7 +5,7 @@ import {
   previewICloudAlias,
   updateICloudAccountName,
 } from './icloud-api'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const imap = vi.hoisted(() => ({
   open: vi.fn(async () => undefined),
@@ -20,7 +20,7 @@ vi.mock('./icloud-imap', () => ({
     close = imap.close
   },
 }))
-vi.mock('../../audit', () => ({ writeAudit: vi.fn(async () => undefined) }))
+vi.mock('../../shared/audit/audit', () => ({ writeAudit: vi.fn(async () => undefined) }))
 
 const user = {
   id: 'user-1',

@@ -4,7 +4,7 @@ import {
   encryptGmailCredential,
   gmailCredentialsReady,
 } from './gmail-credentials'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 const env = {
   GMAIL_CREDENTIALS_KEY: 'gmail-test-key-that-is-longer-than-thirty-two-bytes',

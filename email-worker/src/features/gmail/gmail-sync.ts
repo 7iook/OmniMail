@@ -3,7 +3,7 @@ import { gmailImapEnabled } from './gmail-credentials'
 import type { GmailImapClient } from './gmail-imap'
 import { gmailAccountForSync, GmailStoreError } from './gmail-store'
 import type { GmailMessageMetadata } from './gmail-types'
-import type { Env, GmailSyncJob, MailQueueJob } from '../../types'
+import type { Env, GmailSyncJob, MailQueueJob } from '../../app/types'
 
 const INITIAL_MESSAGE_LIMIT = 100
 const INDEX_MESSAGE_LIMIT = 500

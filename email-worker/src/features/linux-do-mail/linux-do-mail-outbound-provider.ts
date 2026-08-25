@@ -4,7 +4,7 @@ import {
   LinuxDoMailSmtpError,
   type LinuxDoMailSmtpAttachment,
 } from './linux-do-mail-smtp'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 export class LinuxDoMailOutboundError extends Error {
   constructor(

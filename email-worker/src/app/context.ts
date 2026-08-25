@@ -1,4 +1,4 @@
-import type { Env, SessionUser } from '../types'
+import type { Env, SessionUser } from './types'
 
 export type AppContext = {
   Bindings: Env

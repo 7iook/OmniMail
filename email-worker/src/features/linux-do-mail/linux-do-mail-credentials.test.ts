@@ -4,7 +4,7 @@ import {
   encryptLinuxDoMailCredential,
   linuxDoMailCredentialsReady,
 } from './linux-do-mail-credentials'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 function environment(key = 'test-key-that-is-longer-than-thirty-two-characters'): Env {
   return { LINUX_DO_MAIL_CREDENTIALS_KEY: key } as Env

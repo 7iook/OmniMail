@@ -2,8 +2,8 @@ import { env } from 'cloudflare:workers'
 import { applyD1Migrations, createExecutionContext } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import worker from '../src/index'
-import { createSessionToken, storeSession } from '../src/auth'
-import type { Env as OmniMailEnv } from '../src/types'
+import { createSessionToken, storeSession } from '../src/features/auth/session/auth'
+import type { Env as OmniMailEnv } from '../src/app/types'
 
 declare global {
   namespace Cloudflare {

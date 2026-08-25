@@ -1,18 +1,18 @@
-import { writeAudit } from '../../audit'
+import { writeAudit } from '../../shared/audit/audit'
 import { safeJsonArray } from '../../shared/http/api-helpers'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { linuxDoMailCredentialsReady } from './linux-do-mail-credentials'
 import type { LinuxDoMailImapClient } from './linux-do-mail-imap'
-import { searchLikePattern } from '../../message-search'
-import { sendOutboundMessage } from '../../outbound-message'
-import { validateNewMessage } from '../../send-message'
+import { searchLikePattern } from '../../shared/mail/message-search'
+import { sendOutboundMessage } from '../outbound/outbound-message'
+import { validateNewMessage } from '../messages/send-message'
 import {
   LinuxDoMailAccountStore,
   LinuxDoMailStoreError,
   publicLinuxDoMailAccount,
 } from './linux-do-mail-store'
 import type { LinuxDoMailAccount } from './linux-do-mail-types'
-import type { Env, MessageRow, SessionUser, StoredBody } from '../../types'
+import type { Env, MessageRow, SessionUser, StoredBody } from '../../app/types'
 
 function responseError(error: unknown): Response {
   if (error instanceof LinuxDoMailStoreError || error instanceof ImapConnectionError) {

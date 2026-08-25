@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sendLinuxDoMailMessage } from './linux-do-mail-api'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(async () => Response.json({ message: { id: 'message-1', status: 'processing' } }, {
@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   })),
 }))
 
-vi.mock('../../outbound-message', () => ({ sendOutboundMessage: mocks.send }))
+vi.mock('../outbound/outbound-message', () => ({ sendOutboundMessage: mocks.send }))
 vi.mock('./linux-do-mail-store', () => {
   class LinuxDoMailStoreError extends Error {
     constructor(readonly status: number, message: string) { super(message) }

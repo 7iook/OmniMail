@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getGmailMessage } from './gmail-api'
 import { encryptGmailCredential } from './gmail-credentials'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const { close, markSeen } = vi.hoisted(() => ({
   close: vi.fn(async () => undefined),

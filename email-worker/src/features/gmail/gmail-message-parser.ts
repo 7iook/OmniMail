@@ -1,5 +1,5 @@
 import PostalMime, { type Address, type Attachment } from 'postal-mime'
-import { normalizeAttachmentFilename } from '../../attachment-policy'
+import { normalizeAttachmentFilename } from '../../shared/mail/attachment-policy'
 import type {
   GmailAttachment,
   GmailMessageDetail,

@@ -1,5 +1,5 @@
 import { attachmentDisposition, safeJsonArray, validEmail } from '../../shared/http/api-helpers'
-import { writeAudit } from '../../audit'
+import { writeAudit } from '../../shared/audit/audit'
 import { gmailImapEnabled } from './gmail-credentials'
 import type { GmailImapClient } from './gmail-imap'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
@@ -7,8 +7,8 @@ import { GmailAccountStore, GmailStoreError, publicGmailAccount } from './gmail-
 import { markRemoteMessageRead } from './gmail-read-state'
 import { gmailSyncErrorCode } from './gmail-sync'
 import type { GmailAccount, PublicGmailAccount } from './gmail-types'
-import { sha256 } from '../../auth'
-import type { Env, GmailSyncJob, SessionUser } from '../../types'
+import { sha256 } from '../auth/session/auth'
+import type { Env, GmailSyncJob, SessionUser } from '../../app/types'
 
 const VALIDATION_WINDOW_SECONDS = 10 * 60
 const VALIDATION_ATTEMPTS = 5

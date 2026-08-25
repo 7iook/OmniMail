@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createLinuxDoMailAccount, getLinuxDoMailAccount } from './linux-do-mail-api'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const user = {
   id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',

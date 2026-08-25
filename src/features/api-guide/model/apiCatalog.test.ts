@@ -8,14 +8,14 @@ import {
 } from './apiCatalog'
 
 const routeFiles = [
-  'email-worker/src/api.ts',
-  'email-worker/src/extension-authorization-routes.ts',
-  'email-worker/src/icloud-routes.ts',
-  'email-worker/src/gmail-routes.ts',
-  'email-worker/src/linux-do-mail-routes.ts',
-  'email-worker/src/mail-feature-routes.ts',
-  'email-worker/src/outbound-rate-limit-routes.ts',
-  'email-worker/src/system-version-routes.ts',
+  'email-worker/src/app/api.ts',
+  'email-worker/src/features/extension-authorization/extension-authorization-routes.ts',
+  'email-worker/src/features/icloud/icloud-routes.ts',
+  'email-worker/src/features/gmail/gmail-routes.ts',
+  'email-worker/src/features/linux-do-mail/linux-do-mail-routes.ts',
+  'email-worker/src/app/routes/mail-feature-routes.ts',
+  'email-worker/src/features/outbound/outbound-rate-limit-routes.ts',
+  'email-worker/src/features/system/system-version-routes.ts',
 ]
 
 const routePattern = /(?:app|iCloudRoutes|gmailRoutes|linuxDoMailRoutes|mailFeatureRoutes|outboundRateLimitRoutes|systemVersionRoutes)\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g

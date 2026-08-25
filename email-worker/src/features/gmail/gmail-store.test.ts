@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GmailAccountStore, publicGmailAccount } from './gmail-store'
 import type { GmailAccount } from './gmail-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 const key = 'gmail-test-key-that-is-longer-than-thirty-two-characters'
 

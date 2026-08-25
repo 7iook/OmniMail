@@ -3,7 +3,7 @@ import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { updateLinuxDoMailCredential } from './linux-do-mail-api'
 import { decryptLinuxDoMailCredential } from './linux-do-mail-credentials'
 import type { LinuxDoMailAccountRow } from './linux-do-mail-types'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const imap = vi.hoisted(() => ({
   open: vi.fn(async () => undefined),
@@ -18,7 +18,7 @@ vi.mock('./linux-do-mail-imap', () => ({
     close = imap.close
   },
 }))
-vi.mock('../../audit', () => ({ writeAudit: vi.fn(async () => undefined) }))
+vi.mock('../../shared/audit/audit', () => ({ writeAudit: vi.fn(async () => undefined) }))
 
 const key = 'test-key-that-is-longer-than-thirty-two-characters'
 const user = {

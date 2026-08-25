@@ -4,17 +4,17 @@ import {
   secretsEqual,
   sessionFromUser,
   storeSession,
-} from '../../auth'
-import { writeAudit } from '../../audit'
+} from './session/auth'
+import { writeAudit } from '../../shared/audit/audit'
 import { isAllowedOrigin } from '../../app/middleware/origin-policy'
-import { createMfaChallenge, mfaEnabled } from '../../mfa'
+import { createMfaChallenge, mfaEnabled } from './mfa/mfa'
 import {
   externalRegistrationEnabled,
   externalRegistrationMethod,
   linuxDoAuthReady,
-} from '../../registration-api'
-import { defaultQuotaBytes } from '../../storage-policy'
-import type { Env, SessionUser, UserRow } from '../../types'
+} from './registration/registration-api'
+import { defaultQuotaBytes } from '../admin/settings/storage-policy'
+import type { Env, SessionUser, UserRow } from '../../app/types'
 
 const PROVIDER = 'linuxdo'
 const AUTHORIZE_URL = 'https://connect.linux.do/oauth2/authorize'

@@ -1,4 +1,4 @@
-import { writeAudit } from '../../audit'
+import { writeAudit } from '../../shared/audit/audit'
 import {
   ICloudClient,
   ICLOUD_CREDENTIAL_ERROR_STATUS,
@@ -11,7 +11,7 @@ import {
   publicICloudAccount,
 } from './icloud-store'
 import type { ICloudAccount, ICloudAlias } from './icloud-types'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 function responseError(error: unknown): Response {
   if (error instanceof ICloudStoreError || error instanceof ICloudRemoteError) {

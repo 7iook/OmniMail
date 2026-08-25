@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { encryptGmailCredential } from './gmail-credentials'
 import { createGmailAccount, updateGmailAppPassword } from './gmail-api'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 vi.mock('./gmail-imap', () => ({
   GmailImapClient: class {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LinuxDoMailAccountStore, publicLinuxDoMailAccount } from './linux-do-mail-store'
 import type { LinuxDoMailAccount } from './linux-do-mail-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 describe('Linux DO Mail storage boundary', () => {
   it('never exposes the password or user ownership', () => {

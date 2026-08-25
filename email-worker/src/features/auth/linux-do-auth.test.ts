@@ -4,7 +4,7 @@ import {
   finishLinuxDoAuth,
   parseLinuxDoProfile,
 } from './linux-do-auth'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 type Statement = {
   sql: string

@@ -1,4 +1,4 @@
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listLinuxDoMailInbox } from './linux-do-mail-api'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const mocks = vi.hoisted(() => ({
   listInbox: vi.fn(async () => [{

@@ -7,10 +7,10 @@ import {
 } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import worker from '../src/index'
-import { sha256 } from '../src/auth'
-import { permanentlyDeleteMessage } from '../src/message-storage'
-import { EXTENSION_DEVICE_SCOPES } from '../src/token-scope'
-import type { Env as OmniMailEnv, MailQueueJob } from '../src/types'
+import { sha256 } from '../src/features/auth/session/auth'
+import { permanentlyDeleteMessage } from '../src/features/messages/message-storage'
+import { EXTENSION_DEVICE_SCOPES } from '../src/features/auth/tokens/token-scope'
+import type { Env as OmniMailEnv, MailQueueJob } from '../src/app/types'
 
 declare global {
   namespace Cloudflare {

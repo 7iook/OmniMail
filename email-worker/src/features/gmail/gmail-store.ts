@@ -8,7 +8,7 @@ import type {
   GmailAccountRow,
   PublicGmailAccount,
 } from './gmail-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 export class GmailStoreError extends Error {
   constructor(readonly status: number, message: string) {

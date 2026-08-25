@@ -1,7 +1,7 @@
 import type { GmailImapClient } from './gmail-imap'
 import { gmailSyncErrorCode } from './gmail-sync'
 import type { GmailAccount } from './gmail-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 async function gmailClient(email: string, password: string): Promise<GmailImapClient> {
   const { GmailImapClient } = await import('./gmail-imap')

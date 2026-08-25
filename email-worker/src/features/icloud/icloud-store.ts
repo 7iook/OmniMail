@@ -8,7 +8,7 @@ import type {
   ICloudAccountRow,
   PublicICloudAccount,
 } from './icloud-types'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 const MAX_COOKIE_COUNT = 64
 const MAX_COOKIE_NAME_LENGTH = 128

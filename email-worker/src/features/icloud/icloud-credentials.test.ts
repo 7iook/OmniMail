@@ -4,7 +4,7 @@ import {
   encryptICloudCredential,
   iCloudCredentialsReady,
 } from './icloud-credentials'
-import type { Env } from '../../types'
+import type { Env } from '../../app/types'
 
 function environment(key = 'test-key-that-is-longer-than-thirty-two-characters'): Env {
   return { ICLOUD_CREDENTIALS_KEY: key } as Env

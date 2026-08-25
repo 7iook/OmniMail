@@ -9,7 +9,7 @@ import {
   listGmailAccounts,
   requestGmailSync,
 } from './gmail-api'
-import type { Env, SessionUser } from '../../types'
+import type { Env, SessionUser } from '../../app/types'
 
 const user = {
   id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
