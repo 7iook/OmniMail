@@ -22,6 +22,7 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
     expect(html).toContain('aria-modal="true"')
     expect(html).toContain('OAuth2')
     expect(html).toContain('密码兼容模式')
+    expect(html).toContain('class="microsoft-auth-select"')
     expect(html).toContain('Refresh token')
     expect(html).not.toContain('access_token_cipher')
   })

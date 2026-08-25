@@ -44,6 +44,45 @@
 
 .microsoft-account-dialog { width: min(690px, 100%); }
 
+.microsoft-auth-select {
+  position: relative;
+  display: block;
+}
+
+.microsoft-auth-select select {
+  width: 100%;
+  height: 44px;
+  padding: 0 42px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  outline: 0;
+  appearance: none;
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.microsoft-auth-select select:hover { border-color: var(--line-strong); }
+.microsoft-auth-select select:focus-visible {
+  border-color: var(--line-strong);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: var(--surface);
+}
+
+.microsoft-auth-select > svg {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
 .microsoft-entry-tabs {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

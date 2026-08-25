@@ -1,5 +1,5 @@
 import {
-  AlertCircle, ArrowLeft, Check, ChevronRight, KeyRound, LoaderCircle, Pencil,
+  AlertCircle, ArrowLeft, Check, ChevronDown, ChevronRight, KeyRound, LoaderCircle, Pencil,
   Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
@@ -251,10 +251,12 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         </div>
         {entryMode === 'fields' ? <form className="icloud-form gmail-connect-form"
           onSubmit={(event) => void connect(event)}>
-          <label><span>{t('认证方式')}</span><select value={authMode}
-            onChange={(event) => { setAuthMode(event.target.value as MicrosoftAuthMode); resetSecrets() }}>
-            <option value="oauth2">OAuth2</option><option value="password">{t('密码兼容模式')}</option>
-          </select></label>
+          <label><span>{t('认证方式')}</span><span className="microsoft-auth-select">
+            <select value={authMode}
+              onChange={(event) => { setAuthMode(event.target.value as MicrosoftAuthMode); resetSecrets() }}>
+              <option value="oauth2">OAuth2</option><option value="password">{t('密码兼容模式')}</option>
+            </select><ChevronDown size={16} aria-hidden="true" />
+          </span></label>
           <label><span>{t('账号名称')}</span><input value={name} maxLength={60} required
             autoComplete="off" onChange={(event) => setName(event.target.value)} /></label>
           <label><span>{t('邮箱地址')}</span><input type="email" value={email} maxLength={254}
