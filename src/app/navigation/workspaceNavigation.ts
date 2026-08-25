@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Folder, UserRole } from '../../shared/api'
 import { isAdminRole } from '../../shared/auth/roles'
 
-export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail'
+export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail' | 'microsoft'
 
 export type WorkspaceFeatures = {
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
   gmailWorkspaceEnabled: boolean
+  microsoftWorkspaceEnabled: boolean
 }
 
 const defaultWorkspaceFeatures: WorkspaceFeatures = {
   iCloudWorkspaceEnabled: true,
   linuxDoMailWorkspaceEnabled: true,
   gmailWorkspaceEnabled: true,
+  microsoftWorkspaceEnabled: true,
 }
 
 export type WorkspaceRoute =
@@ -40,6 +42,7 @@ const adminPaths: Record<AdminView, string> = {
   icloud: '/icloud',
   'linuxdo-mail': '/linux-do-mail',
   gmail: '/gmail',
+  microsoft: '/microsoft',
 }
 
 function canOpenAdminView(
@@ -50,6 +53,7 @@ function canOpenAdminView(
   if (view === 'icloud') return features.iCloudWorkspaceEnabled
   if (view === 'linuxdo-mail') return features.linuxDoMailWorkspaceEnabled
   if (view === 'gmail') return features.gmailWorkspaceEnabled
+  if (view === 'microsoft') return features.microsoftWorkspaceEnabled
   if (view === 'account' || view === 'api') return true
   if (view === 'mail') return role === 'super_admin'
   return isAdminRole(role)
@@ -94,10 +98,12 @@ export function useWorkspaceNavigation(
     iCloudWorkspaceEnabled: features.iCloudWorkspaceEnabled,
     linuxDoMailWorkspaceEnabled: features.linuxDoMailWorkspaceEnabled,
     gmailWorkspaceEnabled: features.gmailWorkspaceEnabled,
+    microsoftWorkspaceEnabled: features.microsoftWorkspaceEnabled,
   }), [
     features.gmailWorkspaceEnabled,
     features.iCloudWorkspaceEnabled,
     features.linuxDoMailWorkspaceEnabled,
+    features.microsoftWorkspaceEnabled,
   ])
   const initial = workspaceRoute(window.location.pathname, role, stableFeatures)
   const [folder, setFolder] = useState<Folder>(

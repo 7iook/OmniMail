@@ -3,6 +3,7 @@ import type { AppContext } from '../context'
 import { gmailRoutes } from '../../features/gmail/gmail-routes'
 import { iCloudRoutes } from '../../features/icloud/icloud-routes'
 import { linuxDoMailRoutes } from '../../features/linux-do-mail/linux-do-mail-routes'
+import { microsoftRoutes } from '../../features/microsoft/microsoft-routes'
 import { addMailbox, deleteMailbox, listMailboxes, updateMailbox } from '../../features/mailboxes/mailbox-api'
 import { bulkUpdateMessages } from '../../features/messages/message-bulk-api'
 import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, previewMessageAttachment, updateMessage } from '../../features/messages/message-detail-api'
@@ -46,6 +47,7 @@ app.delete('/api/mailboxes/:address', (context) => (
 app.get('/api/messages', (context) => listMessages(context.env, context.get('user'), context.req.raw))
 app.route('/api', iCloudRoutes)
 app.route('/api', gmailRoutes)
+app.route('/api', microsoftRoutes)
 app.route('/api', linuxDoMailRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)

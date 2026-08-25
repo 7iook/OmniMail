@@ -8,6 +8,7 @@ export type ApiGroupId =
   | 'drafts'
   | 'icloud'
   | 'gmail'
+  | 'microsoft'
   | 'linuxdoMail'
   | 'adminOperations'
   | 'adminAccess'

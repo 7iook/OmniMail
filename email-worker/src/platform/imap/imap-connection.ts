@@ -1,9 +1,9 @@
 import { connect } from 'cloudflare:sockets'
 import { ImapConnectionError } from './imap-errors'
-import { quoteImapValue } from './imap-values'
+import { encodeXOAuth2, quoteImapValue } from './imap-values'
 
 export { ImapConnectionError } from './imap-errors'
-export { quoteImapValue } from './imap-values'
+export { encodeXOAuth2, quoteImapValue } from './imap-values'
 
 const CONNECT_TIMEOUT_MS = 10_000
 const COMMAND_TIMEOUT_MS = 20_000
@@ -100,29 +100,33 @@ export class ImapConnection {
     if (socket) void socket.close().catch(() => undefined)
   }
 
+  private async connectAndGreet(): Promise<void> {
+    this.socket = connect(
+      { hostname: this.host, port: this.port },
+      { secureTransport: 'on', allowHalfOpen: false },
+    )
+    await withTimeout(
+      this.socket.opened,
+      CONNECT_TIMEOUT_MS,
+      () => this.abort(),
+      `${this.serviceLabel} 连接超时。`,
+    )
+    this.reader = new SocketReader(this.socket.readable.getReader())
+    this.writer = this.socket.writable.getWriter()
+    const greeting = await withTimeout(
+      this.reader.line(),
+      CONNECT_TIMEOUT_MS,
+      () => this.abort(),
+      `${this.serviceLabel} 连接超时。`,
+    )
+    if (!greeting.startsWith('* OK')) {
+      throw new ImapConnectionError(502, `${this.serviceLabel} 服务未就绪。`, true)
+    }
+  }
+
   async open(username: string, password: string): Promise<void> {
     try {
-      this.socket = connect(
-        { hostname: this.host, port: this.port },
-        { secureTransport: 'on', allowHalfOpen: false },
-      )
-      await withTimeout(
-        this.socket.opened,
-        CONNECT_TIMEOUT_MS,
-        () => this.abort(),
-        `${this.serviceLabel} 连接超时。`,
-      )
-      this.reader = new SocketReader(this.socket.readable.getReader())
-      this.writer = this.socket.writable.getWriter()
-      const greeting = await withTimeout(
-        this.reader.line(),
-        CONNECT_TIMEOUT_MS,
-        () => this.abort(),
-        `${this.serviceLabel} 连接超时。`,
-      )
-      if (!greeting.startsWith('* OK')) {
-        throw new ImapConnectionError(502, `${this.serviceLabel} 服务未就绪。`, true)
-      }
+      await this.connectAndGreet()
       await this.command('CAPABILITY')
       let loginCommand = ''
       try {
@@ -145,6 +149,34 @@ export class ImapConnection {
     }
   }
 
+  async openOAuth2(username: string, accessToken: string): Promise<void> {
+    try {
+      await this.connectAndGreet()
+      const capability = await this.command('CAPABILITY')
+      if (!capability.lines.some((line) => /\bAUTH=XOAUTH2\b/i.test(line))) {
+        throw new ImapConnectionError(502, 'IMAP 服务未提供 XOAUTH2 认证。', true)
+      }
+      let response = ''
+      try {
+        response = encodeXOAuth2(username, accessToken)
+      } catch (error) {
+        throw new ImapConnectionError(
+          400,
+          error instanceof Error ? error.message : 'IMAP OAuth2 登录信息包含无效字符。',
+          true,
+        )
+      }
+      await this.command(`AUTHENTICATE XOAUTH2 ${response}`, 401, COMMAND_TIMEOUT_MS, '')
+    } catch (error) {
+      this.abort()
+      if (error instanceof ImapConnectionError && error.status === 401) {
+        throw new ImapConnectionError(400, 'IMAP OAuth2 认证失败。', true)
+      }
+      if (error instanceof ImapConnectionError) throw error
+      throw new ImapConnectionError(502, `连接${this.serviceLabel}失败。`)
+    }
+  }
+
   async close(): Promise<void> {
     const socket = this.socket
     if (!socket) return
@@ -161,6 +193,7 @@ export class ImapConnection {
     command: string,
     failureStatus = 502,
     timeoutMs = COMMAND_TIMEOUT_MS,
+    continuationResponse?: string,
   ): Promise<ImapCommandResult> {
     if (!this.reader || !this.writer) {
       throw new ImapConnectionError(500, 'IMAP 尚未连接。', true)
@@ -171,6 +204,7 @@ export class ImapConnection {
       const result: ImapCommandResult = { lines: [], literals: [] }
       let responseBytes = 0
       let pendingLiteral: number | null = null
+      let continuationSent = false
       for (;;) {
         const line = await this.reader!.line()
         responseBytes += encoder.encode(line).byteLength + 2
@@ -184,6 +218,14 @@ export class ImapConnection {
           if (line) pendingLiteral = null
         }
         result.lines.push(line)
+        if (line.startsWith('+')) {
+          if (continuationResponse === undefined || continuationSent) {
+            throw new ImapConnectionError(502, 'IMAP 服务返回了意外的继续响应。')
+          }
+          continuationSent = true
+          await this.writer!.write(encoder.encode(`${continuationResponse}\r\n`))
+          continue
+        }
         const literal = line.match(/\{(\d+)\}$/)
         if (literal) {
           const length = Number(literal[1])

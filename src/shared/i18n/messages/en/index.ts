@@ -9,6 +9,7 @@ import { enInvites } from './invites'
 import { enLinuxDoMail } from './linux-do-mail'
 import { enMailFeatures } from './mail-features'
 import { enMailWorkspaces } from './mail-workspaces'
+import { enMicrosoft } from './microsoft'
 import { enMailboxSettings } from './mailbox-settings'
 import { enOauth } from './oauth'
 import { enRateLimit } from './rate-limit'
@@ -31,5 +32,6 @@ export const englishTranslations: Record<string, string> = {
   ...enICloud,
   ...enLinuxDoMail,
   ...enGmail,
+  ...enMicrosoft,
   ...enApi,
 }

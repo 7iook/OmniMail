@@ -39,6 +39,10 @@ describe('workspace routes', () => {
       kind: 'admin',
       view: 'gmail',
     })
+    expect(workspaceRoute('/microsoft', 'user')).toMatchObject({
+      kind: 'admin',
+      view: 'microsoft',
+    })
   })
 
   it('falls back to the inbox for unknown or unauthorized paths', () => {
@@ -64,6 +68,7 @@ describe('workspace routes', () => {
       iCloudWorkspaceEnabled: false,
       linuxDoMailWorkspaceEnabled: false,
       gmailWorkspaceEnabled: false,
+      microsoftWorkspaceEnabled: false,
     }
     expect(workspaceRoute('/icloud', 'user', disabled)).toMatchObject({
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
@@ -72,6 +77,9 @@ describe('workspace routes', () => {
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
     })
     expect(workspaceRoute('/gmail', 'user', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
+    })
+    expect(workspaceRoute('/microsoft', 'user', disabled)).toMatchObject({
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
     })
   })

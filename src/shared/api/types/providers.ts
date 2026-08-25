@@ -100,3 +100,96 @@ export interface GmailMessageDetail extends Omit<GmailMessageSummary, 'cc' | 'da
   html: string
   attachments: GmailAttachment[]
 }
+
+export type MicrosoftAuthMode = 'oauth2' | 'password'
+export type MicrosoftAccountStatus =
+  | 'pending_validation'
+  | 'active'
+  | 'syncing'
+  | 'credential_error'
+  | 'permission_error'
+  | 'error'
+
+export interface MicrosoftAccount {
+  id: string
+  name: string
+  email: string
+  authMode: MicrosoftAuthMode
+  clientIdMasked: string
+  authority: string
+  status: MicrosoftAccountStatus
+  lastSyncedAt: number | null
+  nextSyncAt: number
+  lastErrorCode: string
+  lastErrorAt: number | null
+  createdAt: number
+  hasCredential: true
+}
+
+export interface MicrosoftImportAccount {
+  name?: string
+  email: string
+  authMode: MicrosoftAuthMode
+  password?: string
+  refreshToken?: string
+  clientId?: string
+  authority?: string
+  persistPasswordConfirmed?: boolean
+}
+
+export interface MicrosoftImportResult {
+  index: number
+  status: 'accepted' | 'duplicate' | 'error'
+  code?: string
+  error?: string
+  account?: MicrosoftAccount
+}
+
+export interface MicrosoftFolder {
+  path: string
+  displayName: string
+  flags: string[]
+  specialUse: string
+  uidValidity: number | null
+  lastUid: number
+}
+
+export interface MicrosoftMessageSummary {
+  id: string
+  account: Pick<MicrosoftAccount, 'id' | 'name' | 'email' | 'status'>
+  folderPath: string
+  uidValidity: number
+  uid: number
+  senderName: string
+  senderAddress: string
+  recipients: string[]
+  cc: string[]
+  subject: string
+  preview: string
+  date: number
+  sentAt: number | null
+  sizeBytes: number
+  isRead: boolean
+  isStarred: boolean
+  hasAttachments: boolean
+}
+
+export interface MicrosoftAttachment {
+  partId: string
+  filename: string
+  contentType: string
+  size: number
+  contentId: string | null
+  disposition: string
+}
+
+export interface MicrosoftMessageDetail
+  extends Omit<MicrosoftMessageSummary, 'cc' | 'date'> {
+  from: string
+  to: string
+  cc: string
+  date: string
+  body: string
+  html: string
+  attachments: MicrosoftAttachment[]
+}

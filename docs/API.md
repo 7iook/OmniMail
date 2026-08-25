@@ -674,6 +674,43 @@ GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 5 分钟 Cron 错峰加入 Queue，并使用账号租约、
 `UIDVALIDITY`、UID 与 Gmail 扩展 ID 保持最终一致。
 
+## Microsoft 只读邮箱
+
+配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY` 后，用户可导入结构化 OAuth2 或显式密码
+兼容凭据。OAuth2 只访问 Microsoft Global 官方 token endpoint；IMAP 固定为
+`outlook.office365.com:993` TLS。请求不能提供任意 URL、主机或端口，也不会在 OAuth2 失败后
+自动改用密码。
+
+账号与文件夹接口：
+
+```http
+GET /api/microsoft/accounts
+POST /api/microsoft/accounts/import
+POST /api/microsoft/accounts/validate-password
+PATCH /api/microsoft/accounts/{id}
+PUT /api/microsoft/accounts/{id}/credential
+DELETE /api/microsoft/accounts/{id}
+POST /api/microsoft/accounts/{id}/verify
+POST /api/microsoft/accounts/{id}/sync
+GET /api/microsoft/accounts/{id}/folders?refresh=1
+```
+
+批量导入每次接受 1–25 个已解析对象，每项独立返回 `accepted`、`duplicate` 或稳定错误。查询接口
+仅返回脱敏 Client ID、认证模式与状态，不返回 refresh token、access token、密码或密文。
+
+邮件接口：
+
+```http
+GET /api/microsoft/messages?accountId={id}&folder=INBOX&q={query}&limit=50&cursor={cursor}
+GET /api/microsoft/accounts/{accountId}/messages/{messageId}
+GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId}
+```
+
+元数据身份绑定账号、folder、UIDVALIDITY 与 UID。正文和最大 5 MiB 附件通过 `BODY.PEEK[]`
+按需读取，不持久化且不修改远端已读状态。后台约每 5 分钟只读同步 INBOX；当前文件夹可受限手动
+刷新。这是轮询而非秒级推送。部署与真实账号验收见
+[`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md)，完整字段见 [`api/microsoft.md`](api/microsoft.md)。
+
 ## 版本与更新
 
 管理员打开系统设置时可以查询当前安装版本与 GitHub 最新 Release：
@@ -692,12 +729,12 @@ Workers Builds 根据分支变更重新部署。
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 123 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 135 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
 仓库内的 [完整 Markdown API 参考](api/README.md) 使用同一个 Catalog 数据源，按以下
-11 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
-iCloud 隐藏邮箱、Gmail 聚合收件箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
+12 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
+iCloud 隐藏邮箱、Gmail 聚合收件箱、Microsoft 邮箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
 代码审查或生成外部知识库时应从该索引进入。
 
 修改 `src/features/api-guide/model/apiCatalog*.ts` 后运行：
@@ -756,6 +793,17 @@ npm run docs:api
 | `GET /api/gmail/messages` | 搜索多账号 Gmail 元数据索引并游标分页 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 按需获取 Gmail 正文并同步标记已读 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
+| `GET /api/microsoft/accounts` | 列出当前用户的脱敏 Microsoft 账号与同步状态 |
+| `POST /api/microsoft/accounts/import` | 独立验证并导入一批结构化 OAuth2 或密码兼容账号 |
+| `POST /api/microsoft/accounts/validate-password` | 一次性验证密码 LOGIN，不保存凭据或创建账号 |
+| `PATCH/DELETE /api/microsoft/accounts/{id}` | 重命名或断开 Microsoft 账号 |
+| `PUT /api/microsoft/accounts/{id}/credential` | 验证并替换同一认证模式的凭据 |
+| `POST /api/microsoft/accounts/{id}/verify` | 验证已保存的 Microsoft IMAP 凭据与权限 |
+| `POST /api/microsoft/accounts/{id}/sync` | 请求受限的异步 Microsoft INBOX 同步 |
+| `GET /api/microsoft/accounts/{id}/folders` | 读取或受限刷新服务器文件夹列表 |
+| `GET /api/microsoft/messages` | 按账号和文件夹搜索 Microsoft 元数据并分页 |
+| `GET /api/microsoft/accounts/{accountId}/messages/{messageId}` | 按需只读获取 Microsoft MIME 正文 |
+| `GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Microsoft 附件 |
 | `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |
 | `POST /api/linux-do-mail/account/verify` | 重新验证已保存的 Linux DO Mail 凭据 |
 | `PUT /api/linux-do-mail/account/credential` | 验证并替换 Linux DO Mail 密码或认证令牌 |

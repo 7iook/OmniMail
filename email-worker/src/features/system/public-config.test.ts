@@ -56,10 +56,12 @@ describe('public registration configuration', () => {
     const env = environment({})
     env.ICLOUD_CREDENTIALS_KEY = 'icloud-do-not-return-this-secret-value'
     env.GMAIL_CREDENTIALS_KEY = 'gmail-do-not-return-this-secret-value'
+    env.MICROSOFT_CREDENTIALS_KEY = 'microsoft-do-not-return-this-secret-value'
     const config = await publicConfig(env)
 
     expect(config.iCloudEnabled).toBe(true)
     expect(config.gmailEnabled).toBe(true)
+    expect(config.microsoftEnabled).toBe(true)
     expect(JSON.stringify(config)).not.toContain('do-not-return')
   })
 
@@ -85,14 +87,17 @@ describe('public registration configuration', () => {
       icloud_workspace_enabled: '0',
       linuxdo_mail_workspace_enabled: '0',
       gmail_workspace_enabled: '0',
+      microsoft_workspace_enabled: '0',
     }))
 
     expect(defaults.iCloudWorkspaceEnabled).toBe(true)
     expect(defaults.linuxDoMailWorkspaceEnabled).toBe(true)
     expect(defaults.gmailWorkspaceEnabled).toBe(true)
+    expect(defaults.microsoftWorkspaceEnabled).toBe(true)
     expect(disabled.iCloudWorkspaceEnabled).toBe(false)
     expect(disabled.linuxDoMailWorkspaceEnabled).toBe(false)
     expect(disabled.gmailWorkspaceEnabled).toBe(false)
+    expect(disabled.microsoftWorkspaceEnabled).toBe(false)
   })
 
   it('exposes an empty random mailbox prefix by default', async () => {

@@ -48,6 +48,7 @@ import type { ExtensionAuthorizationRequest } from '../../features/extension-aut
 import { createICloudApi } from '../../features/icloud/api/icloud-api-client'
 import { createLinuxDoMailApi } from '../../features/linux-do-mail/api/linux-do-mail-api-client'
 import { createGmailApi } from '../../features/gmail/api/gmail-api-client'
+import { createMicrosoftApi } from '../../features/microsoft/api/microsoft-api-client'
 import { createMailApi } from '../../features/mailbox/api/mail-api-client'
 
 export class ApiError extends Error {
@@ -166,10 +167,12 @@ export const api = {
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
     gmailWorkspaceEnabled: boolean
+    microsoftWorkspaceEnabled: boolean
   }) => request<{
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
     gmailWorkspaceEnabled: boolean
+    microsoftWorkspaceEnabled: boolean
   }>('/api/admin/settings/mail-workspaces', {
     method: 'PATCH',
     body: jsonBody(settings),
@@ -435,4 +438,5 @@ export const api = {
   ...createICloudApi(request, jsonBody),
   ...createLinuxDoMailApi(request, jsonBody),
   ...createGmailApi(request, jsonBody),
+  ...createMicrosoftApi(request, jsonBody),
 }

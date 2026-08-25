@@ -25,6 +25,7 @@ src/
 │  ├─ gmail/
 │  ├─ icloud/
 │  ├─ linux-do-mail/
+│  ├─ microsoft/
 │  ├─ mailbox/
 │  ├─ messages/
 │  └─ temporary-invites/
@@ -66,6 +67,7 @@ email-worker/src/
 │  ├─ icloud/
 │  ├─ invitations/
 │  ├─ linux-do-mail/
+│  ├─ microsoft/
 │  ├─ mailboxes/
 │  ├─ messages/
 │  ├─ outbound/

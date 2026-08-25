@@ -5,6 +5,7 @@ import { validSetupTokenSecret } from '../auth/setup/setup-security'
 import { iCloudCredentialsReady } from '../icloud/icloud-credentials'
 import { linuxDoMailCredentialsReady } from '../linux-do-mail/linux-do-mail-credentials'
 import { gmailCredentialsReady } from '../gmail/gmail-credentials'
+import { microsoftCredentialsReady } from '../microsoft/microsoft-credentials'
 import type { Env, SessionUser } from '../../app/types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -188,6 +189,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       ready: gmailCredentialsReady(env), required: false, missingState: 'warning',
       detail: 'GMAIL_CREDENTIALS_KEY 仅用于加密 Gmail 应用专用密码。',
       action: '需要 Gmail 聚合收件箱时，配置至少 32 字节的 GMAIL_CREDENTIALS_KEY Secret。',
+    }),
+    check({
+      id: 'microsoft-key', group: 'security', label: 'Microsoft 凭据加密密钥',
+      ready: microsoftCredentialsReady(env), required: false, missingState: 'warning',
+      detail: 'MICROSOFT_CREDENTIALS_KEY 用于加密 Microsoft OAuth2 token 或兼容密码。',
+      action: '需要 Microsoft 聚合收件箱时，配置至少 32 字节的 MICROSOFT_CREDENTIALS_KEY Secret。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,

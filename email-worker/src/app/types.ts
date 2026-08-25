@@ -23,7 +23,18 @@ export interface GmailSyncJob {
   reason: 'connect' | 'manual' | 'scheduled'
 }
 
-export type MailQueueJob = ParseJob | OutboundJob | SearchIndexJob | GmailSyncJob
+export interface MicrosoftSyncJob {
+  kind: 'microsoft-sync'
+  accountId: string
+  reason: 'connect' | 'manual' | 'scheduled'
+}
+
+export type MailQueueJob =
+  | ParseJob
+  | OutboundJob
+  | SearchIndexJob
+  | GmailSyncJob
+  | MicrosoftSyncJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -65,6 +76,8 @@ export interface Env {
   LINUX_DO_MAIL_CREDENTIALS_KEY?: string
   GMAIL_CREDENTIALS_KEY?: string
   GMAIL_IMAP_ENABLED?: string
+  MICROSOFT_CREDENTIALS_KEY?: string
+  MICROSOFT_MAIL_ENABLED?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string

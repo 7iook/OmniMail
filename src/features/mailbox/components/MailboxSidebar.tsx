@@ -70,6 +70,7 @@ export function MailboxSidebar({
   iCloudWorkspaceEnabled,
   linuxDoMailWorkspaceEnabled,
   gmailWorkspaceEnabled,
+  microsoftWorkspaceEnabled,
   notifications,
   onFolderChange,
   onAdminViewChange,
@@ -82,6 +83,7 @@ export function MailboxSidebar({
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
   gmailWorkspaceEnabled: boolean
+  microsoftWorkspaceEnabled: boolean
   notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
@@ -92,6 +94,7 @@ export function MailboxSidebar({
     + Number(Boolean(iCloudWorkspaceEnabled))
     + Number(Boolean(linuxDoMailWorkspaceEnabled))
     + Number(Boolean(gmailWorkspaceEnabled))
+    + Number(Boolean(microsoftWorkspaceEnabled))
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -190,6 +193,17 @@ export function MailboxSidebar({
         >
           <AtSign size={18} />
           <span>{t('Gmail 邮箱')}</span>
+        </button>}
+        {microsoftWorkspaceEnabled && <button
+          className={adminView === 'microsoft' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('microsoft')
+          }}
+        >
+          <Mail size={18} />
+          <span>{t('Microsoft 邮箱')}</span>
         </button>}
       </nav>
 

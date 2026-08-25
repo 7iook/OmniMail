@@ -133,6 +133,7 @@ export type AuditCategory =
   | 'message'
   | 'icloud'
   | 'gmail'
+  | 'microsoft'
   | 'linuxdo-mail'
   | 'system'
 

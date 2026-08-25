@@ -16,6 +16,8 @@ export default defineConfig(async () => {
             SUPER_ADMIN_EMAIL: 'owner@example.com',
             SETUP_TOKEN: 'integration-setup-token-32-bytes',
             ICLOUD_CREDENTIALS_KEY: 'integration-icloud-key-at-least-32-bytes',
+            MICROSOFT_CREDENTIALS_KEY: 'integration-microsoft-key-at-least-32-bytes',
+            MICROSOFT_MAIL_ENABLED: 'true',
           },
           d1Databases: ['DB'],
           r2Buckets: ['MAIL_BUCKET'],

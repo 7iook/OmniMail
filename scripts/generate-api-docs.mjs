@@ -13,6 +13,7 @@ const groupFiles = {
   drafts: 'drafts.md',
   icloud: 'icloud.md',
   gmail: 'gmail.md',
+  microsoft: 'microsoft.md',
   linuxdoMail: 'linux-do-mail.md',
   adminOperations: 'admin-operations.md',
   adminAccess: 'admin-access.md',

@@ -4,6 +4,7 @@ import { permanentlyDeleteMessage, purgePendingObjectDeletions } from '../../fea
 import { enqueueMissingMessageSearch } from '../../shared/mail/message-search'
 import { ensureSchema } from '../d1/schema'
 import { enqueueDueGmailSyncs } from '../../features/gmail/gmail-sync'
+import { enqueueDueMicrosoftSyncs } from '../../features/microsoft/microsoft-sync'
 import { startScheduledBackup } from '../../features/admin/settings/storage-policy'
 import type { Env } from '../../app/types'
 
@@ -181,6 +182,8 @@ export async function cleanup(env: Env): Promise<void> {
       .bind(now - 2 * 24 * 60 * 60),
     env.DB.prepare('DELETE FROM gmail_imap_validation_limits WHERE updated_at < ?')
       .bind(now - 24 * 60 * 60),
+    env.DB.prepare('DELETE FROM microsoft_imap_validation_limits WHERE updated_at < ?')
+      .bind(now - 24 * 60 * 60),
   ])
   try {
     await enqueueMissingMessageSearch(env)
@@ -191,6 +194,11 @@ export async function cleanup(env: Env): Promise<void> {
     await enqueueDueGmailSyncs(env, now)
   } catch (error) {
     console.error('Unable to enqueue Gmail synchronization', error)
+  }
+  try {
+    await enqueueDueMicrosoftSyncs(env, now)
+  } catch (error) {
+    console.error('Unable to enqueue Microsoft synchronization', error)
   }
   await purgePendingObjectDeletions(env)
   await startScheduledBackup(env, now)

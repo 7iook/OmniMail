@@ -9,6 +9,8 @@ export interface AppConfig {
   linuxDoMailWorkspaceEnabled: boolean
   gmailEnabled: boolean
   gmailWorkspaceEnabled: boolean
+  microsoftEnabled: boolean
+  microsoftWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod

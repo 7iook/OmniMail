@@ -240,6 +240,7 @@ export function AdminWorkspace({
           iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled}
           linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
           gmailWorkspaceEnabled={config.gmailWorkspaceEnabled}
+          microsoftWorkspaceEnabled={config.microsoftWorkspaceEnabled}
           onChange={(settings) => onConfigChange({ ...config, ...settings })}
         />
 

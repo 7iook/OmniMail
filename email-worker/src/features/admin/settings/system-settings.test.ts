@@ -69,6 +69,7 @@ describe('mail workspace entry settings', () => {
           iCloudWorkspaceEnabled: false,
           linuxDoMailWorkspaceEnabled: false,
           gmailWorkspaceEnabled: false,
+          microsoftWorkspaceEnabled: false,
         }),
       }),
       '127.0.0.1',
@@ -99,6 +100,7 @@ describe('mail workspace entry settings', () => {
           iCloudWorkspaceEnabled: false,
           linuxDoMailWorkspaceEnabled: true,
           gmailWorkspaceEnabled: true,
+          microsoftWorkspaceEnabled: true,
         }),
       }),
       '127.0.0.1',
@@ -109,6 +111,7 @@ describe('mail workspace entry settings', () => {
       iCloudWorkspaceEnabled: false,
       linuxDoMailWorkspaceEnabled: true,
       gmailWorkspaceEnabled: true,
+      microsoftWorkspaceEnabled: true,
     })
     expect(db.batch).toHaveBeenCalledOnce()
     expect(statements.some(({ bindings }) => (
@@ -119,6 +122,9 @@ describe('mail workspace entry settings', () => {
     ))).toBe(true)
     expect(statements.some(({ bindings }) => (
       bindings[0] === 'gmail_workspace_enabled' && bindings[1] === '1'
+    ))).toBe(true)
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'microsoft_workspace_enabled' && bindings[1] === '1'
     ))).toBe(true)
   })
 })

@@ -27,3 +27,7 @@ TOTP_ENCRYPTION_KEY=
 
 # At least 32 UTF-8 bytes. Encrypts iCloud cookies and app-specific passwords in D1.
 ICLOUD_CREDENTIALS_KEY=
+
+# At least 32 UTF-8 bytes. Encrypts Microsoft refresh/access tokens or compatibility passwords.
+MICROSOFT_CREDENTIALS_KEY=
+MICROSOFT_MAIL_ENABLED=true

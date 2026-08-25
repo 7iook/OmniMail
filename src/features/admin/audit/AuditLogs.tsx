@@ -36,6 +36,7 @@ const categories: Array<{ id: AuditCategory; label: string }> = [
   { id: 'message', label: '邮件' },
   { id: 'icloud', label: 'iCloud' },
   { id: 'gmail', label: 'Gmail' },
+  { id: 'microsoft', label: 'Microsoft' },
   { id: 'linuxdo-mail', label: 'Linux DO Mail' },
   { id: 'system', label: '系统' },
 ]
@@ -105,6 +106,12 @@ const actionLabels: Record<string, string> = {
   'gmail.account.credential_update': '已更新 Gmail 应用专用密码',
   'gmail.account.verify': '已验证 Gmail 账号',
   'gmail.account.disconnect': '已断开 Gmail 账号',
+  'microsoft.account.connect': '已连接 Microsoft 账号',
+  'microsoft.account.validate': '已一次性验证 Microsoft 密码',
+  'microsoft.account.rename': '已重命名 Microsoft 账号',
+  'microsoft.account.credential_update': '已更新 Microsoft 凭据',
+  'microsoft.account.verify': '已验证 Microsoft 账号',
+  'microsoft.account.disconnect': '已断开 Microsoft 账号',
   'linuxdo_mail.account.connect': '已连接 Linux DO 邮箱',
   'linuxdo_mail.account.disconnect': '已断开 Linux DO 邮箱',
   'linuxdo_mail.account.verify': '已验证 Linux DO 邮箱',
@@ -134,6 +141,7 @@ const categoryLabels: Record<string, string> = {
   message: '邮件',
   icloud: 'iCloud',
   gmail: 'Gmail',
+  microsoft: 'Microsoft',
   linuxdo_mail: 'Linux DO Mail',
   system: '系统',
 }

@@ -9,6 +9,7 @@ import {
 } from '../../features/outbound/outbound-message'
 import { ensureSchema } from '../../platform/d1/schema'
 import { consumeGmailSyncJob } from '../../features/gmail/gmail-sync'
+import { consumeMicrosoftSyncJob } from '../../features/microsoft/microsoft-sync'
 import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from '../types'
 
 type ParsedAddress = {
@@ -418,6 +419,10 @@ export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: 
   for (const message of batch.messages) {
     if (message.body.kind === 'gmail-sync') {
       await consumeGmailSyncJob(message, env)
+      continue
+    }
+    if (message.body.kind === 'microsoft-sync') {
+      await consumeMicrosoftSyncJob(message, env)
       continue
     }
     if (message.body.kind === 'outbound') {

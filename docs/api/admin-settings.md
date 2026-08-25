@@ -95,7 +95,7 @@ curl --request PATCH \
 }'
 ```
 
-<!-- endpoint:PATCH /api/admin/settings/mail-workspaces catalog:19515eacd123 -->
+<!-- endpoint:PATCH /api/admin/settings/mail-workspaces catalog:54d6a68508d5 -->
 ## `PATCH /api/admin/settings/mail-workspaces`
 
 **设置邮箱功能入口 / Configure mailbox workspace entries**
@@ -107,8 +107,8 @@ curl --request PATCH \
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 管理员或主管理员 |
-| 请求 | JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled |
-| 成功响应 | 200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled } |
+| 请求 | JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled |
+| 成功响应 | 200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled } |
 
 ### cURL 示例
 
@@ -120,7 +120,8 @@ curl --request PATCH \
   --data '{
   "iCloudWorkspaceEnabled": true,
   "linuxDoMailWorkspaceEnabled": true,
-  "gmailWorkspaceEnabled": true
+  "gmailWorkspaceEnabled": true,
+  "microsoftWorkspaceEnabled": true
 }'
 ```
 

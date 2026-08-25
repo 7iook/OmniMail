@@ -1,0 +1,150 @@
+.microsoft-list-controls {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.25fr) minmax(110px, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px 9px;
+}
+
+.microsoft-list-controls label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.microsoft-list-controls select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 28px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.microsoft-list-controls select:focus-visible,
+.microsoft-entry-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.microsoft-limit { color: var(--text-tertiary); font-size: 10px; white-space: nowrap; }
+.microsoft-limit select { width: 65px; }
+.microsoft-search-field { margin-top: 0; }
+.microsoft-schedule-note {
+  margin: -2px 14px 8px;
+  color: var(--text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.microsoft-account-dialog { width: min(690px, 100%); }
+
+.microsoft-entry-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  margin-bottom: 14px;
+  padding: 4px;
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.microsoft-entry-tabs button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.microsoft-entry-tabs button[aria-selected="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-weight: 680;
+}
+
+.microsoft-batch-form { display: grid; gap: 14px; }
+.microsoft-batch-form textarea {
+  min-height: 138px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.microsoft-batch-form footer { display: flex; justify-content: flex-end; }
+
+.microsoft-import-preview {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.microsoft-import-preview h3,
+.microsoft-import-preview p { margin: 0; }
+.microsoft-import-preview h3 { color: var(--text); font-size: 12px; }
+.microsoft-import-preview p { color: var(--text-tertiary); font-size: 10px; }
+.microsoft-import-preview ul {
+  display: grid;
+  max-height: 200px;
+  gap: 5px;
+  margin: 4px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.microsoft-import-preview li {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 2px 7px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.microsoft-import-preview li > span { grid-row: span 2; color: var(--text-tertiary); font-size: 9px; }
+.microsoft-import-preview li strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.microsoft-import-preview li small { color: var(--text-tertiary); font-size: 9px; }
+.microsoft-import-preview li.is-error small,
+.microsoft-import-preview li.is-duplicate small { color: var(--danger); }
+
+.microsoft-password-consent {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.microsoft-password-consent input { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; }
+.gmail-account-card__side em.is-permission_error,
+.gmail-account-summary em.is-permission_error,
+.gmail-account-card__side em.is-pending_validation,
+.gmail-account-summary em.is-pending_validation { background: var(--warning-soft); color: var(--warning); }
+
+@media (max-width: 760px) {
+  .microsoft-list-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .microsoft-limit { grid-column: 1 / -1; justify-self: end; }
+  .microsoft-dialog-backdrop { align-items: end; padding: 0; }
+  .microsoft-account-dialog { width: 100%; max-height: 92dvh; border-radius: 22px 22px 0 0; }
+}
+
+@media (max-width: 390px) {
+  .microsoft-list-controls { grid-template-columns: minmax(0, 1fr) auto; }
+  .microsoft-list-controls > label:nth-child(2) { grid-column: 1; }
+  .microsoft-list-controls > button { grid-column: 2; grid-row: 2; }
+}

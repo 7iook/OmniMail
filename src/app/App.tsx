@@ -33,6 +33,7 @@ const DeploymentWizard = lazy(async () => ({ default: (await import('../features
 const ICloudWorkspace = lazy(async () => ({ default: (await import('../features/icloud/components/ICloudWorkspace')).ICloudWorkspace }))
 const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('../features/linux-do-mail/components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
 const GmailWorkspace = lazy(async () => ({ default: (await import('../features/gmail/components/GmailWorkspace')).GmailWorkspace }))
+const MicrosoftWorkspace = lazy(async () => ({ default: (await import('../features/microsoft/components/MicrosoftWorkspace')).MicrosoftWorkspace }))
 const ExtensionAuthorizationPage = lazy(async () => ({ default: (await import('../features/extension-authorization/components/ExtensionAuthorizationPage')).ExtensionAuthorizationPage }))
 const TemporaryInvitePage = lazy(async () => ({ default: (await import('../features/temporary-invites/components/TemporaryInvitePage')).TemporaryInvitePage }))
 function Mailbox({
@@ -48,7 +49,7 @@ function Mailbox({
   onUserChange: (user: User) => void
   onLogout: () => Promise<void>
 }) {
-  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled: config.gmailWorkspaceEnabled }
+  const workspaceFeatures = { iCloudWorkspaceEnabled: config.iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled: config.linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled: config.gmailWorkspaceEnabled, microsoftWorkspaceEnabled: config.microsoftWorkspaceEnabled }
   const { folder, adminView, openFolder, openAdminView } = useWorkspaceNavigation(user.role, workspaceFeatures)
   const [query, setQuery] = useState('')
   const [searchQuery, nextMessageSignal] = useMessageSearch(query)
@@ -166,7 +167,7 @@ function Mailbox({
   }
 
   function changeAdminView(next: AdminView) {
-    if (next !== 'account' && next !== 'api' && next !== 'icloud' && next !== 'linuxdo-mail' && next !== 'gmail' && !isAdminRole(user.role)) return
+    if (next !== 'account' && next !== 'api' && next !== 'icloud' && next !== 'linuxdo-mail' && next !== 'gmail' && next !== 'microsoft' && !isAdminRole(user.role)) return
     openAdminView(next)
     setScope({ type: 'all' })
     clearSelectedMessage()
@@ -177,11 +178,12 @@ function Mailbox({
     <div className={`mail-layout ${selectedId || draftEditorInline ? 'has-selection' : ''} ${adminView ? 'has-admin-view' : ''}`}>
       <MailboxSidebar user={user} folder={folder}
         counts={counts} adminView={adminView} notifications={mailNotifications}
-        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled} linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled} gmailWorkspaceEnabled={config.gmailWorkspaceEnabled} onFolderChange={changeFolder}
+        iCloudWorkspaceEnabled={config.iCloudWorkspaceEnabled} linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled} gmailWorkspaceEnabled={config.gmailWorkspaceEnabled} microsoftWorkspaceEnabled={config.microsoftWorkspaceEnabled} onFolderChange={changeFolder}
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}
       />
-      {adminView === 'gmail' ? <Suspense fallback={null}><GmailWorkspace enabled={config.gmailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
+      {adminView === 'microsoft' ? <Suspense fallback={null}><MicrosoftWorkspace enabled={config.microsoftEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
+        : adminView === 'gmail' ? <Suspense fallback={null}><GmailWorkspace enabled={config.gmailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
         : adminView === 'linuxdo-mail' ? <Suspense fallback={null}><LinuxDoMailWorkspace remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
         : adminView === 'icloud' ? (
         <Suspense fallback={(

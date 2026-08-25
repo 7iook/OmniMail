@@ -7,3 +7,7 @@ ICLOUD_CREDENTIALS_KEY=
 
 # Optional. At least 32 UTF-8 bytes; enables Gmail with controlled IMAP access.
 GMAIL_CREDENTIALS_KEY=
+
+# Optional. At least 32 UTF-8 bytes; enables read-only Microsoft IMAP access.
+MICROSOFT_CREDENTIALS_KEY=
+MICROSOFT_MAIL_ENABLED=true

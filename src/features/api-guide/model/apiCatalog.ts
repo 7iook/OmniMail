@@ -1,6 +1,7 @@
 import { adminAccessEndpoints, adminSettingsEndpoints } from './apiCatalogAdmin'
 import { gmailEndpoints, iCloudEndpoints, linuxDoMailEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
 import { mailboxEndpoints, messageEndpoints, draftEndpoints } from './apiCatalogMail'
+import { microsoftEndpoints } from './apiCatalogMicrosoft'
 import { systemEndpoints, authEndpoints } from './apiCatalogPublic'
 import { localized, type ApiAuth, type ApiEndpoint, type ApiGroupId } from './apiCatalogTypes'
 
@@ -25,6 +26,8 @@ export const apiGroups: Array<{
     description: localized('iCloud 账号、凭据、隐藏地址和按需收件箱。', 'iCloud accounts, credentials, aliases, and on-demand inbox access.') },
   { id: 'gmail', title: localized('Gmail 聚合收件箱', 'Gmail unified inbox'),
     description: localized('多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, controlled IMAP synchronization, unified indexing, message bodies, and attachments.') },
+  { id: 'microsoft', title: localized('Microsoft 邮箱', 'Microsoft Mail'),
+    description: localized('OAuth2 或显式密码兼容认证、只读 IMAP 文件夹、同步、正文与附件。', 'OAuth2 or explicit password compatibility, read-only IMAP folders, synchronization, bodies, and attachments.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),
@@ -43,6 +46,7 @@ export const apiEndpoints: ApiEndpoint[] = [
   ...draftEndpoints,
   ...iCloudEndpoints,
   ...gmailEndpoints,
+  ...microsoftEndpoints,
   ...linuxDoMailEndpoints,
   ...adminOperationEndpoints,
   ...adminAccessEndpoints,
