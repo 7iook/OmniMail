@@ -49,38 +49,99 @@
   display: block;
 }
 
-.microsoft-auth-select select {
+.microsoft-auth-select__trigger {
+  display: grid;
   width: 100%;
   height: 44px;
-  padding: 0 42px 0 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  outline: 0;
-  appearance: none;
   background: var(--surface-muted);
   color: var(--text);
   cursor: pointer;
-  font-family: inherit;
+  font: inherit;
   font-size: 14px;
   font-weight: 500;
-  transition: border-color 150ms ease, background 150ms ease;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
 
-.microsoft-auth-select select:hover { border-color: var(--line-strong); }
-.microsoft-auth-select select:focus-visible {
+.microsoft-auth-select__trigger:hover,
+.microsoft-auth-select__trigger:focus-visible,
+.microsoft-auth-select.is-open .microsoft-auth-select__trigger {
   border-color: var(--line-strong);
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
   background: var(--surface);
 }
 
-.microsoft-auth-select > svg {
-  position: absolute;
-  top: 50%;
-  right: 13px;
+.microsoft-auth-select__trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.microsoft-auth-select__trigger > svg {
   color: var(--text-tertiary);
-  pointer-events: none;
-  transform: translateY(-50%);
+  transition: transform 180ms ease;
+}
+
+.microsoft-auth-select.is-open .microsoft-auth-select__trigger > svg { transform: rotate(180deg); }
+
+.microsoft-auth-select__menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: microsoft-auth-menu-in 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.microsoft-auth-select__menu > button {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 560;
+  text-align: left;
+}
+
+.microsoft-auth-select__menu > button:hover,
+.microsoft-auth-select__menu > button:focus-visible {
+  outline: 0;
+  background: var(--surface-muted);
+}
+
+.microsoft-auth-select__menu > button:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.microsoft-auth-select__menu > button.is-selected {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+.microsoft-auth-select__menu > button > svg { justify-self: end; color: var(--accent); }
+
+@keyframes microsoft-auth-menu-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .microsoft-entry-tabs {

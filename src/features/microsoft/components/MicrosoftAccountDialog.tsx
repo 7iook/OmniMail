@@ -2,7 +2,8 @@ import {
   AlertCircle, ArrowLeft, Check, ChevronDown, ChevronRight, KeyRound, LoaderCircle, Pencil,
   Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState,
+  type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { api, type MicrosoftAccount, type MicrosoftAuthMode,
   type MicrosoftImportAccount } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
@@ -13,6 +14,87 @@ import type { MicrosoftImportMode } from '../model/microsoft-import'
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
 const importFormatLabels = ['完整组合', '仅密码', '仅 OAuth2'] as const
+const authModeOptions = [
+  { value: 'oauth2' as const, label: 'OAuth2' },
+  { value: 'password' as const, label: '密码兼容模式' },
+]
+
+function MicrosoftAuthModeSelect({ value, onChange }: {
+  value: MicrosoftAuthMode
+  onChange: (value: MicrosoftAuthMode) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const menuId = useId()
+  const selectedIndex = Math.max(0, authModeOptions.findIndex((option) => option.value === value))
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [open])
+
+  function showMenu(index = selectedIndex) {
+    setOpen(true)
+    requestAnimationFrame(() => optionRefs.current[index]?.focus())
+  }
+
+  function closeMenu(focusTrigger = false) {
+    setOpen(false)
+    if (focusTrigger) requestAnimationFrame(() => trigger.current?.focus())
+  }
+
+  function handleTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Escape' && open) {
+      event.preventDefault(); event.stopPropagation(); closeMenu()
+      return
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    showMenu(event.key === 'ArrowUp' ? authModeOptions.length - 1 : selectedIndex)
+  }
+
+  function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const current = optionRefs.current.findIndex((option) => option === document.activeElement)
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation(); closeMenu(true)
+      return
+    }
+    if (event.key === 'Tab') { setOpen(false); return }
+    let next = current
+    if (event.key === 'ArrowDown') next = Math.min(authModeOptions.length - 1, current + 1)
+    else if (event.key === 'ArrowUp') next = Math.max(0, current - 1)
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = authModeOptions.length - 1
+    else return
+    event.preventDefault()
+    optionRefs.current[next]?.focus()
+  }
+
+  return <div className={`microsoft-auth-select${open ? ' is-open' : ''}`} ref={root}>
+    <button ref={trigger} className="microsoft-auth-select__trigger" type="button" role="combobox"
+      aria-label={t('认证方式')} aria-haspopup="listbox" aria-expanded={open} aria-controls={menuId}
+      onClick={() => open ? closeMenu() : showMenu()} onKeyDown={handleTriggerKeyDown}>
+      <span>{t(authModeOptions[selectedIndex].label)}</span>
+      <ChevronDown size={16} aria-hidden="true" />
+    </button>
+    {open && <div className="microsoft-auth-select__menu" id={menuId} role="listbox"
+      aria-label={t('认证方式')} onKeyDown={handleMenuKeyDown}>
+      {authModeOptions.map((option, index) => <button type="button" role="option"
+        ref={(node) => { optionRefs.current[index] = node }} key={option.value}
+        className={option.value === value ? 'is-selected' : ''}
+        aria-selected={option.value === value} tabIndex={option.value === value ? 0 : -1}
+        onClick={() => { onChange(option.value); closeMenu(true) }}>
+        <span>{t(option.label)}</span>{option.value === value && <Check size={16} aria-hidden="true" />}
+      </button>)}
+    </div>}
+  </div>
+}
 
 function statusLabel(status: MicrosoftAccount['status']) {
   if (status === 'syncing') return t('正在同步')
@@ -252,12 +334,10 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         </div>
         {entryMode === 'fields' ? <form className="icloud-form gmail-connect-form"
           onSubmit={(event) => void connect(event)}>
-          <label><span>{t('认证方式')}</span><span className="microsoft-auth-select">
-            <select value={authMode}
-              onChange={(event) => { setAuthMode(event.target.value as MicrosoftAuthMode); resetSecrets() }}>
-              <option value="oauth2">OAuth2</option><option value="password">{t('密码兼容模式')}</option>
-            </select><ChevronDown size={16} aria-hidden="true" />
-          </span></label>
+          <div className="icloud-form-field"><span>{t('认证方式')}</span>
+            <MicrosoftAuthModeSelect value={authMode}
+              onChange={(nextMode) => { setAuthMode(nextMode); resetSecrets() }} />
+          </div>
           <label><span>{t('账号名称')}</span><input value={name} maxLength={60} required
             autoComplete="off" onChange={(event) => setName(event.target.value)} /></label>
           <label><span>{t('邮箱地址')}</span><input type="email" value={email} maxLength={254}
