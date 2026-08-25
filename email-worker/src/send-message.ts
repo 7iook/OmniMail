@@ -1,4 +1,4 @@
-import { normalizeEmail, validEmail } from './api-helpers'
+import { normalizeEmail, validEmail } from './shared/http/api-helpers'
 import { sendOutboundMessage } from './outbound-message'
 import { outboundProviderConfigError, outboundProviderForAddress } from './outbound-provider-config'
 import type { Env, SessionUser } from './types'

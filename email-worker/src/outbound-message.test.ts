@@ -11,7 +11,7 @@ const linuxDoDelivery = vi.hoisted(() => ({
   deliver: vi.fn(async () => 'smtp:message-id@linux.do'),
 }))
 
-vi.mock('./linux-do-mail-outbound-provider', () => {
+vi.mock('./features/linux-do-mail/linux-do-mail-outbound-provider', () => {
   class LinuxDoMailOutboundError extends Error {
     constructor(
       message: string,

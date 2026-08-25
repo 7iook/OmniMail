@@ -4,7 +4,7 @@ import {
   sha256,
   validatePassword,
 } from './auth'
-import { normalizeEmail, validEmail } from './api-helpers'
+import { normalizeEmail, validEmail } from './shared/http/api-helpers'
 import { pageResult, parsePageRequest } from './pagination'
 import {
   consumeTemporaryInviteRateLimit,

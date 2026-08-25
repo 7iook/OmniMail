@@ -1,4 +1,4 @@
-import { safeJsonArray, validEmail } from './api-helpers'
+import { safeJsonArray, validEmail } from './shared/http/api-helpers'
 import { attachmentFilesError, normalizeAttachmentFilename } from './attachment-policy'
 import { replySubject } from './mail'
 import { sendOutboundMessage, type OutboundAttachmentUpload } from './outbound-message'

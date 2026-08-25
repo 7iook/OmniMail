@@ -3,7 +3,7 @@ import { purgeUserDraft } from './draft-api'
 import { permanentlyDeleteMessage, purgePendingObjectDeletions } from './message-storage'
 import { enqueueMissingMessageSearch } from './message-search'
 import { ensureSchema } from './schema'
-import { enqueueDueGmailSyncs } from './gmail-sync'
+import { enqueueDueGmailSyncs } from './features/gmail/gmail-sync'
 import { startScheduledBackup } from './storage-policy'
 import type { Env } from './types'
 

@@ -3,7 +3,7 @@ import {
   inlineDisposition,
   normalizeEmail,
   safeJsonArray,
-} from './api-helpers'
+} from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import { messageSummary } from './message-list-api'
 import { permanentlyDeleteMessage } from './message-storage'

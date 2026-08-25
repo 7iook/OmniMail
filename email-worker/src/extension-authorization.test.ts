@@ -9,7 +9,7 @@ import { sha256 } from './auth'
 import {
   OFFICIAL_CHROME_EXTENSION_ID,
   OFFICIAL_CHROME_EXTENSION_ORIGIN,
-} from './origin-policy'
+} from './app/middleware/origin-policy'
 import { EXTENSION_DEVICE_SCOPES } from './token-scope'
 import type { Env } from './types'
 

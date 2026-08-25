@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AppContext } from './api'
+import type { AppContext } from './app/context'
 import { systemVersion } from './system-version'
 
 export const systemVersionRoutes = new Hono<AppContext>()

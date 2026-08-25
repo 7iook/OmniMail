@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { clientIp } from './api-helpers'
-import type { AppContext } from './api'
+import { clientIp } from './shared/http/api-helpers'
+import type { AppContext } from './app/context'
 import {
   downloadBackupObject,
   listBackupObjects,

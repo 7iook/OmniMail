@@ -1,5 +1,5 @@
 import { sha256 } from './auth'
-import { allowedTurnstileHostnames } from './origin-policy'
+import { allowedTurnstileHostnames } from './app/middleware/origin-policy'
 import type { Env } from './types'
 
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'

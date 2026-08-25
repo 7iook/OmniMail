@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { quoteICloudImapValue } from '../src/icloud-imap'
+import { quoteICloudImapValue } from '../src/features/icloud/icloud-imap'
 
 describe('iCloud IMAP commands in workerd', () => {
   it('quotes credentials and rejects command injection', () => {

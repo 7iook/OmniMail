@@ -12,8 +12,8 @@ import {
 } from './system-settings'
 import { hasOutboundProviderConfig } from './outbound-provider-config'
 import type { Env } from './types'
-import { iCloudCredentialsReady } from './icloud-credentials'
-import { gmailCredentialsReady } from './gmail-credentials'
+import { iCloudCredentialsReady } from './features/icloud/icloud-credentials'
+import { gmailCredentialsReady } from './features/gmail/gmail-credentials'
 
 type Setting = { key: string; value: string }
 

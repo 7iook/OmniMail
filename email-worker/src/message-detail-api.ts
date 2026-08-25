@@ -1,4 +1,4 @@
-import { attachmentDisposition, inlineDisposition, safeJsonArray } from './api-helpers'
+import { attachmentDisposition, inlineDisposition, safeJsonArray } from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import { messageSummary } from './message-list-api'
 import { listMessageThread } from './message-thread'

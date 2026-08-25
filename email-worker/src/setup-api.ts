@@ -5,7 +5,7 @@ import {
   storeSession,
   validatePassword,
 } from './auth'
-import { normalizeEmail, validEmail } from './api-helpers'
+import { normalizeEmail, validEmail } from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import { consumeSetupRateLimit, validSetupTokenSecret } from './setup-security'
 import type { Env } from './types'

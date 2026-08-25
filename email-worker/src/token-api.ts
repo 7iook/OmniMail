@@ -5,7 +5,7 @@ import {
   sessionFromUser,
   sha256,
 } from './auth'
-import { clientIp } from './api-helpers'
+import { clientIp } from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import { authenticatePassword } from './password-login'
 import { mfaEnabled, verifyMfaForLogin } from './mfa'

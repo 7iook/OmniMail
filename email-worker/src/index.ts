@@ -1,4 +1,4 @@
-import { fetchApi } from './api'
+import { fetchApi } from './app/api'
 import { cleanup } from './cleanup'
 import { consumeEmailQueue, receiveEmail } from './mail'
 import type { Env, MailQueueJob } from './types'

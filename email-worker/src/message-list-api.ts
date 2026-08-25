@@ -1,4 +1,4 @@
-import { normalizeEmail, safeJsonArray, validEmail } from './api-helpers'
+import { normalizeEmail, safeJsonArray, validEmail } from './shared/http/api-helpers'
 import { searchLikePattern } from './message-search'
 import { pageResult, parsePageRequest } from './pagination'
 import type { Env, MessageRow, SessionUser } from './types'

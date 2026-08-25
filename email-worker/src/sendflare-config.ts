@@ -1,4 +1,4 @@
-import { validEmail } from './api-helpers'
+import { validEmail } from './shared/http/api-helpers'
 import type { Env } from './types'
 
 export type SendflareConfig = {

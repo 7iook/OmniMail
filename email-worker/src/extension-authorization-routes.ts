@@ -3,7 +3,7 @@ import {
   exchangeExtensionAuthorization,
   issueExtensionAuthorization,
 } from './extension-authorization'
-import type { AppContext } from './api'
+import type { AppContext } from './app/context'
 
 export function extensionAuthorizationRoutes(app: Hono<AppContext>): void {
   app.post('/api/auth/extension/authorize', async (context) => {

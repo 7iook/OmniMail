@@ -1,10 +1,10 @@
 import { activeUser, createSessionToken, secretsEqual, sha256 } from './auth'
-import { clientIp } from './api-helpers'
+import { clientIp } from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import {
   OFFICIAL_CHROME_EXTENSION_ID,
   isAllowedExtensionClient,
-} from './origin-policy'
+} from './app/middleware/origin-policy'
 import { officialExtensionEnabled } from './system-settings'
 import { createDeviceSession, type DeviceUserRow } from './token-api'
 import { EXTENSION_DEVICE_SCOPES } from './token-scope'

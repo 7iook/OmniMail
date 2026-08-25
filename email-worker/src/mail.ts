@@ -8,7 +8,7 @@ import {
   OutboundProviderAcceptedError,
 } from './outbound-message'
 import { ensureSchema } from './schema'
-import { consumeGmailSyncJob } from './gmail-sync'
+import { consumeGmailSyncJob } from './features/gmail/gmail-sync'
 import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from './types'
 
 type ParsedAddress = {

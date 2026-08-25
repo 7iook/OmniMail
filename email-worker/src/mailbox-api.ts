@@ -1,4 +1,4 @@
-import { normalizeEmail, validEmail } from './api-helpers'
+import { normalizeEmail, validEmail } from './shared/http/api-helpers'
 import type { Env, SessionUser } from './types'
 
 interface MailboxRow {

@@ -1,4 +1,4 @@
-import { attachmentDisposition } from './api-helpers'
+import { attachmentDisposition } from './shared/http/api-helpers'
 import { writeAudit } from './audit'
 import { backupIdentity, backupScope, scopedBackupKey } from './backup-scope'
 import type { Env, SessionUser } from './types'

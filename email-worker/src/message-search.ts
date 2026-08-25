@@ -1,4 +1,4 @@
-import { safeJsonArray } from './api-helpers'
+import { safeJsonArray } from './shared/http/api-helpers'
 import type { Env, StoredBody } from './types'
 
 const MAX_SEARCH_CONTENT_CHARS = 200_000

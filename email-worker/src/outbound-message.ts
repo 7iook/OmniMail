@@ -450,7 +450,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       throw new OutboundDeliveryError('Linux DO Mail requires exactly one recipient', false)
     }
     const { deliverWithLinuxDoMail, LinuxDoMailOutboundError } = await import(
-      './linux-do-mail-outbound-provider'
+      './features/linux-do-mail/linux-do-mail-outbound-provider'
     )
     try {
       providerId = await deliverWithLinuxDoMail(env, {

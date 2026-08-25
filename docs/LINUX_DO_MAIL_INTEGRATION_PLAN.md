@@ -23,7 +23,7 @@ Linux DO Mail 可以通过标准 IMAP/SMTP 协议接入 OmniMail，但应被建�
   `50/day`，但该额度可能调整，实现时必须重新确认。
 - Cloudflare Workers 支持通过 `cloudflare:sockets` 建立出站 TCP 和直接 TLS 连接；平台
   禁止的 SMTP 端口是 25，Linux DO Mail 使用的 465 不在该限制内。
-- 仓库现有 `email-worker/src/icloud-imap.ts` 已经在 Worker 中连接 IMAP 993，并具备有限的
+- 仓库现有 `email-worker/src/features/icloud/icloud-imap.ts` 已经在 Worker 中连接 IMAP 993，并具备有限的
   INBOX 搜索、邮件读取和 MIME 解析能力，可作为实现参考。
 - 仓库现有 Linux DO Connect 集成只用于 OmniMail 身份认证，不提供邮箱访问授权，也不能
   替代 Linux DO Mail 地址和认证令牌。
@@ -36,7 +36,7 @@ Linux DO Mail 可以通过标准 IMAP/SMTP 协议接入 OmniMail，但应被建�
 - <https://wiki.linux.do/Community/LinuxDoWebMail>
 - <https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/>
 - [`../README.md`](../README.md)
-- [`../email-worker/src/icloud-imap.ts`](../email-worker/src/icloud-imap.ts)
+- [`../email-worker/src/features/icloud/icloud-imap.ts`](../email-worker/src/features/icloud/icloud-imap.ts)
 - [`API.md`](API.md)
 
 ## 实施前提（已满足）

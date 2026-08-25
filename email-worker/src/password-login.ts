@@ -4,7 +4,7 @@ import {
   sha256,
   verifyPassword,
 } from './auth'
-import { normalizeEmail, validEmail } from './api-helpers'
+import { normalizeEmail, validEmail } from './shared/http/api-helpers'
 import type { UserRow } from './types'
 
 const LOGIN_WINDOW_SECONDS = 15 * 60
