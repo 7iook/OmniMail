@@ -173,15 +173,20 @@ export async function createICloudAccount(
     if (hasAppPassword && (!validICloudEmail(icloudEmail) || !appPassword || appPassword.length > 128)) {
       throw new ICloudStoreError(400, '请填写有效的 iCloud 邮箱和应用专用密码。')
     }
+    const cookies = body.cookies ? parseICloudCookies(body.cookies) : {}
+    const hasCookies = Object.keys(cookies).length > 0
+    if (!hasCookies && !hasAppPassword) {
+      throw new ICloudStoreError(400, '请至少配置 iCloud Cookie，或填写主邮箱和应用专用密码。')
+    }
     const store = new ICloudAccountStore(env, user.id)
     const now = new Date().toISOString()
     const account: ICloudAccount = {
       id: `icloud_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`,
       userId: user.id,
       name,
-      realEmail: '',
+      realEmail: hasAppPassword ? icloudEmail : '',
       icloudEmail,
-      cookies: parseICloudCookies(body.cookies),
+      cookies,
       host: body.host === 'icloud.com.cn' ? 'icloud.com.cn' : 'icloud.com',
       appPassword,
       status: 'pending',
@@ -191,9 +196,15 @@ export async function createICloudAccount(
       lastError: '',
       createdAt: now,
     }
-    const validationError = await validateAccount(account)
-    if (validationError) throw validationError
+    if (hasCookies) {
+      const validationError = await validateAccount(account)
+      if (validationError) throw validationError
+    }
     if (hasAppPassword) await validateAppPassword(icloudEmail, appPassword)
+    if (!hasCookies) {
+      account.status = 'active'
+      account.lastValidated = now
+    }
     await store.insert(account)
     await writeAudit(env, user.id, 'icloud.account.create', account.id, ip, iCloudAuditDetail(account, {
       host: account.host,

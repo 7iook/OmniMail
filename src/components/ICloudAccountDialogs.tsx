@@ -118,14 +118,17 @@ export function AddICloudAccountDialog({ onClose, onCreated }: {
     } finally { setSaving(false) }
   }
   return (
-    <ICloudModal title={t('添加 iCloud 账号')} description={t('导入 iCloud.com Cookie，用于管理隐藏邮箱。')} onClose={onClose}>
+    <ICloudModal title={t('添加 iCloud 账号')} description={t('配置主邮箱收信、隐藏邮箱管理，或同时启用。')} onClose={onClose}>
       {(close) => <form className="icloud-form" onSubmit={(event) => void submit(event, close)}>
-        <p className="icloud-account-warning"><AlertCircle size={17} aria-hidden="true" />{t('仅支持已开通 iCloud+ 且具有 Hide My Email 权限的账号；仅网页访问账号无法使用。')}</p>
+        <p className="icloud-account-warning"><AlertCircle size={17} aria-hidden="true" />{t('至少配置一种：主邮箱与应用专用密码用于收信；Cookie 仅用于管理隐藏邮箱。')}</p>
         <label><span>{t('账号名称')}</span><input value={name} maxLength={80} required autoFocus data-modal-autofocus onChange={(event) => setName(event.target.value)} placeholder={t('例如：个人 iCloud')} /></label>
         <div className="icloud-form-field"><span>{t('iCloud 区域')}</span><ICloudRegionSelect value={host} onChange={setHost} /></div>
-        <label><span>Cookie</span><textarea value={cookies} rows={7} required onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
+        <label><span>Cookie · {t('可选')}</span><textarea value={cookies} rows={7}
+          required={!icloudEmail.trim() && !appPassword.trim()}
+          onChange={(event) => setCookies(event.target.value)} placeholder="X-APPLE-WEBAUTH-TOKEN=...; X-APPLE-ID-SESSION-ID=..." /></label>
+        <p className="icloud-form-note"><EyeOff size={15} aria-hidden="true" />{t('Cookie 仅在同步、创建或管理隐藏邮箱时需要。')}</p>
         <fieldset className="icloud-optional-credentials">
-          <legend><KeyRound size={16} aria-hidden="true" />{t('应用专用密码')}<small>{t('可选')}</small></legend>
+          <legend><KeyRound size={16} aria-hidden="true" />{t('主邮箱收信')}<small>{t('可选')}</small></legend>
           <div className="icloud-app-password-fields">
             <label><span>{t('iCloud 邮箱')}</span><input type="email" value={icloudEmail}
               maxLength={254} required={Boolean(appPassword)} autoComplete="username"
@@ -134,7 +137,7 @@ export function AddICloudAccountDialog({ onClose, onCreated }: {
               maxLength={128} required={Boolean(icloudEmail)} autoComplete="new-password"
               onChange={(event) => setAppPassword(event.target.value)} /></label>
           </div>
-          <p className="icloud-form-note"><KeyRound size={15} aria-hidden="true" />{t('可选；填写后会在添加账号时同时验证 IMAP 完整邮件权限。')}</p>
+          <p className="icloud-form-note"><KeyRound size={15} aria-hidden="true" />{t('只使用 iCloud 主邮箱时，只需填写邮箱和应用专用密码，无需 Cookie。')}</p>
         </fieldset>
         <p className="icloud-form-note"><ShieldCheck size={15} />{t('凭据会在 Worker 内加密，保存后不会回传到浏览器。')}</p>
         {error && <p className="inline-error" role="alert"><AlertCircle size={15} />{t(error)}</p>}
@@ -198,13 +201,14 @@ export function ICloudAccountSettingsDialog({ account, onClose, onChanged, onDel
         <form className="icloud-form" onSubmit={saveCookies}>
           <h3><EyeOff size={17} />iCloud Cookie <small>{t(account.hasCookies ? '已配置' : '未配置')}</small></h3>
           <label><span>{t('新 Cookie')}</span><textarea value={cookies} rows={5} required onChange={(event) => setCookies(event.target.value)} /></label>
+          <p className="icloud-form-note"><EyeOff size={15} aria-hidden="true" />{t('仅管理隐藏邮箱时需要；主邮箱收信无需 Cookie。')}</p>
           <button className="button button--secondary" disabled={Boolean(saving)}>{saving === 'cookies' ? <Spinner /> : <ShieldCheck size={16} />}{t('验证并覆盖')}</button>
         </form>
         <form className="icloud-form" onSubmit={savePassword}>
           <h3><KeyRound size={17} />{t('应用专用密码')} <small>{t(account.hasAppPassword ? '已配置' : '未配置')}</small></h3>
           <label><span>{t('iCloud 邮箱')}</span><input type="email" value={icloudEmail} required onChange={(event) => setICloudEmail(event.target.value)} placeholder="name@icloud.com" /></label>
           <label><span>{t('新应用专用密码')}</span><input type="password" value={appPassword} required autoComplete="new-password" onChange={(event) => setAppPassword(event.target.value)} /></label>
-          <p className="icloud-form-note"><KeyRound size={15} />{t('应用专用密码仅绑定当前 iCloud 账号，不会与其他账号共用。')}</p>
+          <p className="icloud-form-note"><KeyRound size={15} />{t('该邮箱会作为当前账号的主邮箱，并显示在收件地址列表中。')}</p>
           <button className="button button--secondary" disabled={Boolean(saving)}>{saving === 'password' ? <Spinner /> : <ShieldCheck size={16} />}{t('测试并覆盖')}</button>
         </form>
       </div>

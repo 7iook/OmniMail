@@ -167,7 +167,7 @@ export function MailboxSidebar({
           }}
         >
           <Cloud size={18} />
-          <span>{t('iCloud 隐藏邮箱')}</span>
+          <span>{t('iCloud 邮箱')}</span>
         </button>}
         {linuxDoMailWorkspaceEnabled && <button
           className={adminView === 'linuxdo-mail' ? 'is-active' : ''}

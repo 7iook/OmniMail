@@ -43,6 +43,8 @@ export const enICloud: Record<string, string> = {
   'iCloud 账号': 'iCloud accounts',
   '添加第一个账号': 'Add your first account',
   '还没有 iCloud 账号': 'No iCloud accounts yet',
+  '使用应用专用密码即可收取主邮箱；如需管理隐藏邮箱，再添加 Cookie。':
+    'Use an app-specific password for primary mail. Add cookies only if you want to manage Hide My Email addresses.',
   '添加 Cookie 后即可同步隐藏邮箱；应用专用密码用于按地址筛选和读取完整正文。':
     'Add cookies to sync aliases. An app-specific password enables recipient filtering and full messages.',
   '正在读取 iCloud 账号…': 'Loading iCloud accounts…',
@@ -64,10 +66,12 @@ export const enICloud: Record<string, string> = {
   '选择快捷标签后仍可修改；留空时使用 OmniMail 和创建时间。':
     'You can edit a quick label after selecting it. When left empty, OmniMail uses its name and the creation time.',
   '创建隐藏邮箱': 'Create alias',
+  '配置 Cookie 后可创建隐藏邮箱': 'Configure cookies to create Hide My Email addresses',
   '创建': 'Create',
   '同步': 'Sync',
   '全部邮件': 'All messages',
   '所有收件地址': 'All recipient addresses',
+  '主邮箱': 'Primary mailbox',
   '收件地址排序': 'Sort recipient addresses',
   '名称': 'Name',
   '最新创建': 'Newest',
@@ -112,6 +116,10 @@ export const enICloud: Record<string, string> = {
   '这封邮件没有可显示的文本内容。': 'This message has no displayable text.',
   '导入 iCloud.com Cookie，用于管理隐藏邮箱。':
     'Import iCloud.com cookies to manage Hide My Email.',
+  '配置主邮箱收信、隐藏邮箱管理，或同时启用。':
+    'Configure primary mail, Hide My Email management, or both.',
+  '至少配置一种：主邮箱与应用专用密码用于收信；Cookie 仅用于管理隐藏邮箱。':
+    'Configure at least one method: use the primary address and app-specific password for mail, or cookies for Hide My Email management.',
   '账号名称': 'Account name',
   '例如：个人 iCloud': 'For example: Personal iCloud',
   'iCloud 区域': 'iCloud region',
@@ -119,6 +127,11 @@ export const enICloud: Record<string, string> = {
   '中国大陆': 'Mainland China',
   '凭据会在 Worker 内加密，保存后不会回传到浏览器。':
     'Credentials are encrypted in the Worker and are not returned after saving.',
+  'Cookie 仅在同步、创建或管理隐藏邮箱时需要。':
+    'Cookies are only required to sync, create, or manage Hide My Email addresses.',
+  '主邮箱收信': 'Primary mailbox',
+  '只使用 iCloud 主邮箱时，只需填写邮箱和应用专用密码，无需 Cookie。':
+    'For primary iCloud mail only, enter the email address and app-specific password; cookies are not required.',
   '可选；填写后会在添加账号时同时验证 IMAP 完整邮件权限。':
     'Optional. When provided, IMAP full-message access is verified while adding the account.',
   '验证并添加': 'Verify and add',
@@ -132,6 +145,8 @@ export const enICloud: Record<string, string> = {
   'Cookie 已更新': 'Cookies updated',
   '应用专用密码已更新': 'App-specific password updated',
   '新 Cookie': 'New cookies',
+  '仅管理隐藏邮箱时需要；主邮箱收信无需 Cookie。':
+    'Cookies are only needed for Hide My Email management; primary mail does not require them.',
   '已配置': 'Configured',
   '未配置': 'Not configured',
   '验证并覆盖': 'Verify and replace',
@@ -140,6 +155,8 @@ export const enICloud: Record<string, string> = {
   '新应用专用密码': 'New app-specific password',
   '应用专用密码仅绑定当前 iCloud 账号，不会与其他账号共用。':
     'The app-specific password belongs only to this iCloud account and is never shared with other accounts.',
+  '该邮箱会作为当前账号的主邮箱，并显示在收件地址列表中。':
+    'This address is the account’s primary mailbox and appears in the recipient-address list.',
   '测试并覆盖': 'Test and replace',
   '删除账号会同时删除两项密文。': 'Deleting the account also deletes both encrypted credentials.',
   '删除这个 iCloud 账号': 'Delete this iCloud account',

@@ -1,4 +1,4 @@
-import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Settings2, X } from 'lucide-react'
+import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Mail, Settings2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ICloudAccount, ICloudAlias } from '../lib/api'
 import { t } from '../lib/i18n'
@@ -220,6 +220,21 @@ export function ICloudScopeSwitcher({
                 <span><strong>{t('全部邮件')}</strong><small>{t('所有收件地址')}</small></span>
                 {!selectedAlias && <Check size={15} />}
               </button>
+              {account?.hasAppPassword && account.icloudEmail && <div
+                className={`icloud-scope-alias${account.icloudEmail === selectedAlias ? ' is-selected' : ''}`}>
+                <button className="icloud-scope-option" type="button"
+                  onClick={() => close(() => onAliasChange(account.icloudEmail))}>
+                  <span className="icloud-scope-icon"><Mail size={16} aria-hidden="true" /></span>
+                  <span><strong>{t('主邮箱')}</strong><small>{account.icloudEmail}</small></span>
+                  {account.icloudEmail === selectedAlias && <Check size={15} />}
+                </button>
+                <button className="icloud-scope-copy" type="button"
+                  onClick={() => void onAliasCopy(account.icloudEmail)}
+                  aria-label={t('复制邮箱地址：{address}', { address: account.icloudEmail })}
+                  data-tooltip={t('复制')}>
+                  <Copy size={15} aria-hidden="true" />
+                </button>
+              </div>}
               {sortedAliases.map((alias) => (
                 <div className={`icloud-scope-alias${alias.email === selectedAlias ? ' is-selected' : ''}`}
                   key={alias.anonymousId || alias.email}>

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createICloudAccount,
   createICloudAlias,
@@ -6,6 +6,21 @@ import {
   updateICloudAccountName,
 } from './icloud-api'
 import type { Env, SessionUser } from './types'
+
+const imap = vi.hoisted(() => ({
+  open: vi.fn(async () => undefined),
+  test: vi.fn(async () => undefined),
+  close: vi.fn(async () => undefined),
+}))
+
+vi.mock('./icloud-imap', () => ({
+  ICloudImapClient: class {
+    open = imap.open
+    test = imap.test
+    close = imap.close
+  },
+}))
+vi.mock('./audit', () => ({ writeAudit: vi.fn(async () => undefined) }))
 
 const user = {
   id: 'user-1',
@@ -30,6 +45,13 @@ function request(body: unknown): Request {
 }
 
 describe('iCloud account API validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    imap.open.mockResolvedValue(undefined)
+    imap.test.mockResolvedValue(undefined)
+    imap.close.mockResolvedValue(undefined)
+  })
+
   it('rejects malformed inputs before making an Apple request', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     const response = await createICloudAccount(
@@ -77,6 +99,68 @@ describe('iCloud account API validation', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
       error: '请填写有效的 iCloud 邮箱和应用专用密码。',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a primary-mail-only account without requiring cookies', async () => {
+    const statements: Array<{ sql: string; values: unknown[] }> = []
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const env = {
+      ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters',
+      DB: {
+        prepare: vi.fn((sql: string) => ({
+          bind: (...values: unknown[]) => ({
+            run: async () => {
+              statements.push({ sql, values })
+              return { meta: { changes: 1 } }
+            },
+          }),
+        })),
+      },
+    } as unknown as Env
+
+    const response = await createICloudAccount(
+      env,
+      user,
+      request({
+        name: 'Primary mail',
+        cookies: '',
+        icloudEmail: 'owner@icloud.com',
+        appPassword: 'xxxx-xxxx-xxxx-xxxx',
+      }),
+      '192.0.2.1',
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({
+      account: {
+        name: 'Primary mail',
+        realEmail: 'owner@icloud.com',
+        icloudEmail: 'owner@icloud.com',
+        status: 'active',
+        hasCookies: false,
+        hasAppPassword: true,
+      },
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(imap.test).toHaveBeenCalledOnce()
+    expect(imap.close).toHaveBeenCalledOnce()
+    expect(statements.some(({ sql }) => sql.includes('INSERT INTO icloud_accounts'))).toBe(true)
+  })
+
+  it('requires either cookies or complete primary-mail credentials', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const response = await createICloudAccount(
+      { ICLOUD_CREDENTIALS_KEY: 'key-that-is-at-least-thirty-two-characters' } as Env,
+      user,
+      request({ name: 'Personal', cookies: '', icloudEmail: '', appPassword: '' }),
+      '192.0.2.1',
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: '请至少配置 iCloud Cookie，或填写主邮箱和应用专用密码。',
     })
     expect(fetchMock).not.toHaveBeenCalled()
   })

@@ -10,8 +10,8 @@ export const iCloudEndpoints: ApiEndpoint[] = [
   {
     method: 'POST', path: '/api/icloud/accounts', group: 'icloud', auth: 'authenticated',
     title: l('连接 iCloud 账户', 'Connect an iCloud account'),
-    description: l('保存加密 Cookie、选择区域并验证 Apple 账户和隐藏地址。', 'Encrypt cookies, select the region, and validate the Apple account and aliases.'),
-    request: 'JSON · name, cookies, host=icloud.com|icloud.com.cn', response: '201 · { account }',
+    description: l('通过应用专用密码连接主邮箱，或通过 Cookie 管理隐藏邮箱；两种方式可单独或同时配置。', 'Connect primary mail with an app-specific password, manage aliases with cookies, or configure both.'),
+    request: 'JSON · name, cookies?, host=icloud.com|icloud.com.cn, icloudEmail?, appPassword?', response: '201 · { account }',
     exampleBody: { name: 'My iCloud', cookies: { X_APPLE_WEB_KB: 'cookie-value' }, host: 'icloud.com' },
     notes: [l('Cookie 属于高敏感凭据，只应提交给自己的 OmniMail 实例。', 'Cookies are highly sensitive credentials and should only be sent to your own OmniMail instance.')],
   },

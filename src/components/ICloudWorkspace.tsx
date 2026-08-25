@@ -106,6 +106,9 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
   const messageController = useRef<AbortController | null>(null)
   const selected = accounts.find((account) => account.id === selectedId)
   const activeAlias = aliases.find((alias) => alias.email === selectedAlias)
+  const activeMainAddress = selected?.hasAppPassword && selected.icloudEmail === selectedAlias
+    ? selected.icloudEmail
+    : ''
 
   const loadAccounts = useCallback(async () => {
     if (!enabled) { setLoading(false); return }
@@ -143,9 +146,13 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
     const inboxCurrent = ++inboxRequestId.current
     setSyncing(true); setError('')
     try {
-      const aliasResult = await api.iCloudAliases(id, aliasAbort.signal)
-      if (aliasCurrent !== aliasRequestId.current) return
-      setAliases(aliasResult.aliases)
+      if (selected?.hasCookies) {
+        const aliasResult = await api.iCloudAliases(id, aliasAbort.signal)
+        if (aliasCurrent !== aliasRequestId.current) return
+        setAliases(aliasResult.aliases)
+      } else {
+        setAliases([])
+      }
       await loadAccounts()
       if (aliasCurrent !== aliasRequestId.current || inboxCurrent !== inboxRequestId.current) return
       if (!forceInbox && cached?.fresh) return
@@ -176,7 +183,7 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
     } finally {
       if (aliasCurrent === aliasRequestId.current && inboxCurrent === inboxRequestId.current) setSyncing(false)
     }
-  }, [loadAccounts, searchQuery, selectedAlias, selectedId, userId])
+  }, [loadAccounts, searchQuery, selected?.hasCookies, selectedAlias, selectedId, userId])
 
   const loadInbox = useCallback(async (force = false) => {
     const id = selectedId
@@ -336,8 +343,9 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
                 onClick={() => setAddOpen(true)} aria-label={t('添加 iCloud 账号')}
                 data-tooltip={t('添加 iCloud 账号')}><Plus size={17} /></button>
               <button className="icon-button" type="button" disabled={!selected?.hasCookies}
-                onClick={() => setCreateOpen(true)} aria-label={t('创建隐藏邮箱')}
-                data-tooltip={t('创建隐藏邮箱')}><AtSign size={17} /></button>
+                onClick={() => setCreateOpen(true)}
+                aria-label={t(selected?.hasCookies ? '创建隐藏邮箱' : '配置 Cookie 后可创建隐藏邮箱')}
+                data-tooltip={t(selected?.hasCookies ? '创建隐藏邮箱' : '配置 Cookie 后可创建隐藏邮箱')}><AtSign size={17} /></button>
               <button className="icon-button" type="button" disabled={!selected}
                 onClick={() => selected && setCredentials(selected)} aria-label={t('账号设置')}
                 data-tooltip={t('账号设置')}><Settings2 size={17} /></button>
@@ -361,10 +369,16 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
             <button className="is-danger" type="button" onClick={() => void aliasAction(activeAlias, 'delete')} aria-label={t('删除')} data-tooltip={t('删除')}><Trash2 size={14} /></button>
           </div>
         </div>}
+        {activeMainAddress && <div className="icloud-list-context">
+          <span><AtSign size={16} aria-hidden="true" /></span>
+          <p><strong>{t('主邮箱')}</strong><small>{activeMainAddress}</small></p>
+          <div><button type="button" onClick={() => void copyAlias(activeMainAddress)}
+            aria-label={t('复制')} data-tooltip={t('复制')}><Copy size={14} /></button></div>
+        </div>}
 
         {!enabled ? <Empty icon={<KeyRound size={24} />} title={t('iCloud 功能尚未启用')} description={t('在 Worker Variables & Secrets 中配置至少 32 字节的 ICLOUD_CREDENTIALS_KEY，然后重新部署。')} />
           : loading ? <div className="icloud-loading"><Spinner size={22} />{t('正在读取 iCloud 账号…')}</div>
-          : !accounts.length ? <Empty icon={<Cloud size={24} />} title={t('还没有 iCloud 账号')} description={t('添加 Cookie 后即可同步隐藏邮箱；应用专用密码用于按地址筛选和读取完整正文。')} action={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}><Plus size={16} />{t('添加第一个账号')}</button>} />
+          : !accounts.length ? <Empty icon={<Cloud size={24} />} title={t('还没有 iCloud 账号')} description={t('使用应用专用密码即可收取主邮箱；如需管理隐藏邮箱，再添加 Cookie。')} action={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}><Plus size={16} />{t('添加第一个账号')}</button>} />
           : selectedAlias && !selected?.hasAppPassword ? <Empty icon={<KeyRound size={24} />} title={t('需要应用专用密码')} description={t('配置后才能准确筛选这个隐藏邮箱收到的邮件。')} action={<button className="button button--secondary button--small" type="button" onClick={() => selected && setCredentials(selected)}>{t('配置应用密码')}</button>} />
           : syncing && !messages.length ? <div className="icloud-loading"><Spinner />{t('正在读取收件箱…')}</div>
           : messages.length ? <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('iCloud 邮件列表')}>

@@ -33,19 +33,19 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/icloud/accounts catalog:325790b70704 -->
+<!-- endpoint:POST /api/icloud/accounts catalog:a09af8fb6337 -->
 ## `POST /api/icloud/accounts`
 
 **连接 iCloud 账户 / Connect an iCloud account**
 
-保存加密 Cookie、选择区域并验证 Apple 账户和隐藏地址。
+通过应用专用密码连接主邮箱，或通过 Cookie 管理隐藏邮箱；两种方式可单独或同时配置。
 
-> Encrypt cookies, select the region, and validate the Apple account and aliases.
+> Connect primary mail with an app-specific password, manage aliases with cookies, or configure both.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | JSON · name, cookies, host=icloud.com\|icloud.com.cn |
+| 请求 | JSON · name, cookies?, host=icloud.com\|icloud.com.cn, icloudEmail?, appPassword? |
 | 成功响应 | 201 · { account } |
 
 > 注意：Cookie 属于高敏感凭据，只应提交给自己的 OmniMail 实例。
