@@ -30,9 +30,9 @@ import { useNewMailNotifications } from './lib/useNewMailNotifications'
 import { type AdminView, useWorkspaceNavigation } from './lib/workspaceNavigation'
 const AdminWorkspace = lazy(async () => ({ default: (await import('./components/AdminWorkspace')).AdminWorkspace }))
 const DeploymentWizard = lazy(async () => ({ default: (await import('./components/DeploymentWizard')).DeploymentWizard }))
-const ICloudWorkspace = lazy(async () => ({ default: (await import('./components/ICloudWorkspace')).ICloudWorkspace }))
-const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('./components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
-const GmailWorkspace = lazy(async () => ({ default: (await import('./components/GmailWorkspace')).GmailWorkspace }))
+const ICloudWorkspace = lazy(async () => ({ default: (await import('./features/icloud/components/ICloudWorkspace')).ICloudWorkspace }))
+const LinuxDoMailWorkspace = lazy(async () => ({ default: (await import('./features/linux-do-mail/components/LinuxDoMailWorkspace')).LinuxDoMailWorkspace }))
+const GmailWorkspace = lazy(async () => ({ default: (await import('./features/gmail/components/GmailWorkspace')).GmailWorkspace }))
 const ExtensionAuthorizationPage = lazy(async () => ({ default: (await import('./components/ExtensionAuthorizationPage')).ExtensionAuthorizationPage }))
 const TemporaryInvitePage = lazy(async () => ({ default: (await import('./components/TemporaryInvitePage')).TemporaryInvitePage }))
 function Mailbox({

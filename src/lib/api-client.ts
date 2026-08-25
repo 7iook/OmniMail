@@ -45,9 +45,9 @@ import type {
   User,
 } from './api-types'
 import type { ExtensionAuthorizationRequest } from './extensionAuthorization'
-import { createICloudApi } from './icloud-api-client'
-import { createLinuxDoMailApi } from './linux-do-mail-api-client'
-import { createGmailApi } from './gmail-api-client'
+import { createICloudApi } from '../features/icloud/api/icloud-api-client'
+import { createLinuxDoMailApi } from '../features/linux-do-mail/api/linux-do-mail-api-client'
+import { createGmailApi } from '../features/gmail/api/gmail-api-client'
 import { createMailApi } from './mail-api-client'
 
 export class ApiError extends Error {
