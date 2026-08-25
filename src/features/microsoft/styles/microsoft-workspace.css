@@ -227,6 +227,54 @@
   line-height: 1.55;
 }
 
+.microsoft-import-progress {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.microsoft-import-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.microsoft-import-progress > div > span { display: inline-flex; align-items: center; gap: 7px; }
+.microsoft-import-progress > div > strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.microsoft-import-progress progress {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+}
+
+.microsoft-import-progress progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.microsoft-import-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 220ms ease;
+}
+
+.microsoft-import-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 220ms ease;
+}
+
+.microsoft-import-progress > small { color: var(--text-tertiary); font-size: 10px; }
+
 .microsoft-batch-form footer { display: flex; justify-content: flex-end; }
 
 .microsoft-import-preview {
@@ -294,4 +342,9 @@
   .microsoft-list-controls > label:nth-child(2) { grid-column: 1; }
   .microsoft-list-controls > button { grid-column: 2; grid-row: 2; }
   .microsoft-import-formats li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .microsoft-import-progress progress::-webkit-progress-value,
+  .microsoft-import-progress progress::-moz-progress-bar { transition: none; }
 }

@@ -19,7 +19,7 @@ const messages: Record<string, string> = {
   imap_scope_missing: 'Microsoft token 缺少 Outlook IMAP 权限，请重新授权。',
   imap_access_rejected: 'Microsoft 拒绝 IMAP OAuth2 登录；请检查权限或租户是否启用 IMAP。',
   xoauth2_unavailable: 'Microsoft IMAP 未提供 XOAUTH2 认证。',
-  basic_auth_rejected: 'Microsoft 拒绝密码登录；现代账号通常需要 OAuth2。',
+  basic_auth_rejected: 'Microsoft 拒绝密码 LOGIN；这不是导入格式错误。请改用包含 refresh token 与 Client ID 的 OAuth2 四字段凭据。',
   timeout: '连接 Microsoft 邮箱超时，请稍后重试。',
   response_too_large: 'Microsoft 邮箱响应超过安全读取上限。',
   connection_failed: '暂时无法连接 Microsoft 邮箱，请稍后重试。',

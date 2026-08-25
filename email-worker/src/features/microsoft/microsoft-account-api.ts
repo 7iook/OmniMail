@@ -27,9 +27,9 @@ import type {
 } from './microsoft-types'
 
 const VALIDATION_WINDOW_SECONDS = 10 * 60
-const VALIDATION_ATTEMPTS = 10
 const MANUAL_SYNC_INTERVAL_SECONDS = 60
 const MAX_IMPORT_ACCOUNTS = 25
+export const MICROSOFT_VALIDATION_ATTEMPTS = MAX_IMPORT_ACCOUNTS * 2
 
 async function microsoftClient(
   email: string,
@@ -40,7 +40,7 @@ async function microsoftClient(
   return new MicrosoftImapClient(email, authMode, credential)
 }
 
-async function claimValidationAttempt(
+export async function claimMicrosoftValidationAttempt(
   env: Env,
   userId: string,
   ip: string,
@@ -62,7 +62,7 @@ async function claimValidationAttempt(
        updated_at = excluded.updated_at
      WHERE microsoft_imap_validation_limits.window_started_at != excluded.window_started_at
         OR microsoft_imap_validation_limits.attempt_count < ?`,
-  ).bind(identity, windowStartedAt, now, VALIDATION_ATTEMPTS).run()
+  ).bind(identity, windowStartedAt, now, MICROSOFT_VALIDATION_ATTEMPTS).run()
   if (!result.meta.changes) {
     throw new MicrosoftStoreError(
       429,
@@ -165,7 +165,7 @@ export async function importMicrosoftAccounts(
           continue
         }
         seen.add(input.email)
-        await claimValidationAttempt(env, user.id, ip)
+        await claimMicrosoftValidationAttempt(env, user.id, ip)
         const validated = await validateImport(input)
         const now = Math.floor(Date.now() / 1000)
         const account: MicrosoftAccount = {
@@ -229,7 +229,7 @@ export async function validateMicrosoftPassword(
       )
     }
     const input = microsoftImportAccount(body, { allowUnconfirmedPassword: true })
-    await claimValidationAttempt(env, user.id, ip)
+    await claimMicrosoftValidationAttempt(env, user.id, ip)
     await validateImport(input)
     await writeAudit(env, user.id, 'microsoft.account.validate', null, ip, {
       email: maskedMicrosoftEmail(input.email),
@@ -280,7 +280,7 @@ export async function updateMicrosoftCredential(
       email: account.normalizedEmail,
       authMode,
     })
-    await claimValidationAttempt(env, user.id, ip)
+    await claimMicrosoftValidationAttempt(env, user.id, ip)
     const validated = await validateImport(input)
     const now = Math.floor(Date.now() / 1000)
     if (authMode === 'oauth2') {
@@ -340,7 +340,7 @@ export async function verifyMicrosoftAccount(
   let client: MicrosoftImapClient | undefined
   try {
     account = await new MicrosoftAccountStore(env, user.id).get(accountId)
-    await claimValidationAttempt(env, user.id, ip)
+    await claimMicrosoftValidationAttempt(env, user.id, ip)
     client = await openMicrosoftClient(env, account)
     const folders = await client.listFolders()
     const inbox = folders.find(({ path }) => path.toUpperCase() === 'INBOX')
@@ -428,7 +428,7 @@ export async function listMicrosoftFolders(
     const store = new MicrosoftAccountStore(env, user.id)
     account = await store.get(accountId)
     if (new URL(request.url).searchParams.get('refresh') === '1') {
-      await claimValidationAttempt(env, user.id, ip)
+      await claimMicrosoftValidationAttempt(env, user.id, ip)
       await refreshMicrosoftFolders(env, account)
     }
     return microsoftPrivateJson({ folders: await store.folders(accountId) })

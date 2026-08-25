@@ -1,16 +1,18 @@
 import {
-  AlertCircle, ArrowLeft, Check, ChevronDown, ChevronRight, KeyRound, LoaderCircle, Pencil,
+  AlertCircle, ArrowLeft, Check, ChevronRight, KeyRound, LoaderCircle, Pencil,
   Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState,
-  type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { api, type MicrosoftAccount, type MicrosoftAuthMode,
-  type MicrosoftImportAccount } from '../../../shared/api'
+  type MicrosoftImportAccount, type MicrosoftImportResult } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
 import { MICROSOFT_IMPORT_ALTERNATE_FORMAT, MICROSOFT_IMPORT_FORMATS,
   parseMicrosoftImportText } from '../model/microsoft-import'
 import type { MicrosoftImportMode } from '../model/microsoft-import'
+import { MicrosoftAuthModeSelect } from './MicrosoftAuthModeSelect'
+import { MicrosoftImportProgress,
+  type MicrosoftImportProgressValue } from './MicrosoftImportProgress'
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
@@ -19,88 +21,6 @@ const importPlaceholder = [
   MICROSOFT_IMPORT_FORMATS[0], MICROSOFT_IMPORT_ALTERNATE_FORMAT,
   ...MICROSOFT_IMPORT_FORMATS.slice(1),
 ].join('\n')
-const authModeOptions = [
-  { value: 'oauth2' as const, label: 'OAuth2' },
-  { value: 'password' as const, label: '密码兼容模式' },
-]
-
-function MicrosoftAuthModeSelect({ value, onChange }: {
-  value: MicrosoftAuthMode
-  onChange: (value: MicrosoftAuthMode) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const menuId = useId()
-  const selectedIndex = Math.max(0, authModeOptions.findIndex((option) => option.value === value))
-
-  useEffect(() => {
-    if (!open) return
-    const closeOutside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', closeOutside)
-    return () => document.removeEventListener('pointerdown', closeOutside)
-  }, [open])
-
-  function showMenu(index = selectedIndex) {
-    setOpen(true)
-    requestAnimationFrame(() => optionRefs.current[index]?.focus())
-  }
-
-  function closeMenu(focusTrigger = false) {
-    setOpen(false)
-    if (focusTrigger) requestAnimationFrame(() => trigger.current?.focus())
-  }
-
-  function handleTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    if (event.key === 'Escape' && open) {
-      event.preventDefault(); event.stopPropagation(); closeMenu()
-      return
-    }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-    event.preventDefault()
-    showMenu(event.key === 'ArrowUp' ? authModeOptions.length - 1 : selectedIndex)
-  }
-
-  function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const current = optionRefs.current.findIndex((option) => option === document.activeElement)
-    if (event.key === 'Escape') {
-      event.preventDefault(); event.stopPropagation(); closeMenu(true)
-      return
-    }
-    if (event.key === 'Tab') { setOpen(false); return }
-    let next = current
-    if (event.key === 'ArrowDown') next = Math.min(authModeOptions.length - 1, current + 1)
-    else if (event.key === 'ArrowUp') next = Math.max(0, current - 1)
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = authModeOptions.length - 1
-    else return
-    event.preventDefault()
-    optionRefs.current[next]?.focus()
-  }
-
-  return <div className={`microsoft-auth-select${open ? ' is-open' : ''}`} ref={root}>
-    <button ref={trigger} className="microsoft-auth-select__trigger" type="button" role="combobox"
-      aria-label={t('认证方式')} aria-haspopup="listbox" aria-expanded={open} aria-controls={menuId}
-      onClick={() => open ? closeMenu() : showMenu()} onKeyDown={handleTriggerKeyDown}>
-      <span>{t(authModeOptions[selectedIndex].label)}</span>
-      <ChevronDown size={16} aria-hidden="true" />
-    </button>
-    {open && <div className="microsoft-auth-select__menu" id={menuId} role="listbox"
-      aria-label={t('认证方式')} onKeyDown={handleMenuKeyDown}>
-      {authModeOptions.map((option, index) => <button type="button" role="option"
-        ref={(node) => { optionRefs.current[index] = node }} key={option.value}
-        className={option.value === value ? 'is-selected' : ''}
-        aria-selected={option.value === value} tabIndex={option.value === value ? 0 : -1}
-        onClick={() => { onChange(option.value); closeMenu(true) }}>
-        <span>{t(option.label)}</span>{option.value === value && <Check size={16} aria-hidden="true" />}
-      </button>)}
-    </div>}
-  </div>
-}
-
 function statusLabel(status: MicrosoftAccount['status']) {
   if (status === 'syncing') return t('正在同步')
   if (status === 'credential_error') return t('凭据失效')
@@ -143,6 +63,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   const [renameValue, setRenameValue] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState('')
+  const [importProgress, setImportProgress] = useState<MicrosoftImportProgressValue | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const titleId = useId()
@@ -194,10 +115,32 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     resetSecrets(); setError(''); setNotice(''); setConfirmDelete(false); setView('account')
   }
 
-  async function submitImport(inputs: MicrosoftImportAccount[], sourceLines?: number[]) {
+  async function importInputs(
+    inputs: MicrosoftImportAccount[],
+    reportProgress: boolean,
+  ): Promise<MicrosoftImportResult[]> {
+    if (!reportProgress) return (await api.importMicrosoftAccounts(inputs)).results
+    const results: MicrosoftImportResult[] = []
+    setImportProgress({ completed: 0, total: inputs.length })
+    for (let index = 0; index < inputs.length; index += 1) {
+      const response = await api.importMicrosoftAccounts([inputs[index]])
+      const item = response.results[0] || {
+        index: 0, status: 'error' as const, error: t('Microsoft 未返回账号验证结果。'),
+      }
+      results.push({ ...item, index })
+      setImportProgress({ completed: index + 1, total: inputs.length })
+    }
+    return results
+  }
+
+  async function submitImport(
+    inputs: MicrosoftImportAccount[],
+    sourceLines?: number[],
+    reportProgress = false,
+  ) {
     setBusy('import'); setError(''); setNotice('')
     try {
-      const { results } = await api.importMicrosoftAccounts(inputs)
+      const results = await importInputs(inputs, reportProgress)
       const accepted = results.filter(({ status }) => status === 'accepted').length
       const failed = results.filter(({ status }) => status !== 'accepted')
       await onChanged()
@@ -213,7 +156,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     } catch (submitError) {
       setError(errorMessage(submitError))
     } finally {
-      setBusy('')
+      setImportProgress(null); setBusy('')
     }
   }
 
@@ -251,6 +194,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       readyRows.map(({ input }) => input.authMode === 'password'
         ? { ...input, persistPasswordConfirmed: true } : input),
       readyRows.map(({ preview }) => preview.line),
+      true,
     )
   }
 
@@ -333,8 +277,10 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       {view === 'connect' && <>
         <div className="microsoft-entry-tabs" role="tablist" aria-label={t('录入方式')}>
           <button type="button" role="tab" aria-selected={entryMode === 'fields'}
+            disabled={Boolean(busy)}
             onClick={() => setEntryMode('fields')}>{t('分字段录入')}</button>
           <button type="button" role="tab" aria-selected={entryMode === 'batch'}
+            disabled={Boolean(busy)}
             onClick={() => setEntryMode('batch')}>{t('批量导入')}</button>
         </div>
         {entryMode === 'fields' ? <form className="icloud-form gmail-connect-form"
@@ -371,7 +317,8 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         </form> : <form className="icloud-form microsoft-batch-form"
           onSubmit={(event) => void importBatch(event)}>
           <label><span>{t('每行一个账号')}</span><textarea value={batchText} rows={7}
-            spellCheck={false} autoComplete="off" aria-describedby="microsoft-import-formats"
+            disabled={Boolean(busy)} spellCheck={false} autoComplete="off"
+            aria-describedby="microsoft-import-formats"
             onChange={(event) => setBatchText(event.target.value)}
             placeholder={importPlaceholder} /></label>
           <div className="microsoft-import-formats" id="microsoft-import-formats">
@@ -381,6 +328,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
             </li>)}<li><span>{t('兼容顺序')}</span><code>{MICROSOFT_IMPORT_ALTERNATE_FORMAT}</code></li></ul>
             <small>{t('最后两段可互换，系统按 UUID 自动识别 Client ID。完整组合优先使用 OAuth2，password 不上传也不保存；连续 8 个连字符表示 password 为空。')}</small>
           </div>
+          {importProgress && <MicrosoftImportProgress progress={importProgress} />}
           {batchRows.length > 0 && <div className="microsoft-import-preview">
             <h3>{t('安全预览')}</h3><p>{t('预览不会显示密码、refresh token 或完整 Client ID。')}</p>
             <ul>{batchRows.map(({ preview }) => <li key={preview.line}
@@ -391,7 +339,9 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <footer><button className="button button--primary" type="submit"
             disabled={Boolean(busy) || !readyRows.length}>
             {busy ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />}
-            {t('验证并导入 {count} 个账号', { count: readyRows.length })}</button></footer>
+            {importProgress
+              ? t('正在验证 {completed}/{total}', importProgress)
+              : t('验证并导入 {count} 个账号', { count: readyRows.length })}</button></footer>
         </form>}
       </>}
 

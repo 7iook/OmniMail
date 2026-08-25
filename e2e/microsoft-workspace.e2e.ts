@@ -77,6 +77,7 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
     }
     if (path === '/api/microsoft/accounts/import' && request.method() === 'POST') {
       const body = request.postDataJSON() as { accounts: unknown[] }
+      await new Promise((resolve) => setTimeout(resolve, 80))
       imports.push(...body.accounts)
       connected = true
       return json(route, { results: body.accounts.map((_item, index) => ({
@@ -127,7 +128,12 @@ test('previews all three Microsoft formats without echoing secrets', async ({ pa
 
   await dialog.getByRole('checkbox').check()
   await dialog.getByRole('button', { name: '验证并导入 3 个账号' }).click()
+  const progress = dialog.locator('.microsoft-import-progress')
+  await expect(progress).toBeVisible()
+  await expect(progress).toContainText('正在逐项验证 Microsoft 账号')
+  await expect(progress.getByRole('progressbar')).toBeVisible()
   await expect.poll(() => imports).toHaveLength(3)
+  await expect(progress).toHaveCount(0)
   expect(imports).toEqual([
     expect.objectContaining({ email: 'combo@outlook.com', authMode: 'oauth2',
       refreshToken: 'refresh-combo', clientId }),

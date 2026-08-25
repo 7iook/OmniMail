@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Env, SessionUser } from '../../app/types'
 import {
+  claimMicrosoftValidationAttempt,
   importMicrosoftAccounts,
   listMicrosoftAccounts,
+  MICROSOFT_VALIDATION_ATTEMPTS,
 } from './microsoft-account-api'
+import { microsoftResponseError } from './microsoft-api-shared'
+import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import {
   getMicrosoftMessage,
   listMicrosoftMessages,
@@ -76,6 +80,36 @@ describe('Microsoft mail API boundaries', () => {
     expect(JSON.stringify(body)).not.toContain('refresh-secret')
     expect(JSON.stringify(body)).not.toContain('combination-password')
     expect(statements.some((sql) => /INSERT INTO microsoft_imap_accounts/i.test(sql))).toBe(false)
+  })
+
+  it('allows two complete 25-account validation batches before rate limiting', async () => {
+    let attempts = 0
+    const env = { DB: { prepare: () => ({ bind: (...bindings: unknown[]) => ({
+      run: async () => {
+        const maximum = Number(bindings.at(-1))
+        if (attempts >= maximum) return { meta: { changes: 0 } }
+        attempts += 1
+        return { meta: { changes: 1 } }
+      },
+    }) }) } } as unknown as Env
+    expect(MICROSOFT_VALIDATION_ATTEMPTS).toBe(50)
+    for (let index = 0; index < 50; index += 1) {
+      await claimMicrosoftValidationAttempt(env, user.id, '192.0.2.1', 1_787_500_000)
+    }
+    await expect(claimMicrosoftValidationAttempt(
+      env, user.id, '192.0.2.1', 1_787_500_000,
+    )).rejects.toMatchObject({ status: 429, code: 'validation_rate_limited' })
+  })
+
+  it('keeps OAuth2 and password IMAP rejection messages distinct', async () => {
+    const error = new ImapConnectionError(400, 'IMAP authentication failed', true)
+    const oauth = await microsoftResponseError(error, 'oauth2').json<Record<string, string>>()
+    const password = await microsoftResponseError(error, 'password').json<Record<string, string>>()
+    expect(oauth).toMatchObject({ code: 'imap_access_rejected' })
+    expect(oauth.error).toContain('OAuth2')
+    expect(oauth.error).not.toContain('密码 LOGIN')
+    expect(password).toMatchObject({ code: 'basic_auth_rejected' })
+    expect(password.error).toContain('OAuth2 四字段凭据')
   })
 
   it('scopes local list and detail queries by the authenticated user', async () => {
