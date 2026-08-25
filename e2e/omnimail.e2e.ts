@@ -326,8 +326,7 @@ test('users can compose and send a new message', async ({ page }) => {
   await dialog.getByRole('button', { name: '发送邮件' }).click()
   await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'support@other.example',
     to: 'friend@example.net', subject: 'Hello from OmniMail', text: 'This is a new message.' })
-  await expect(page.getByRole('status').filter({ hasText: '邮件已进入发送队列' }))
-    .toHaveText('邮件已进入发送队列')
+  await expect(page.getByRole('status').filter({ hasText: '邮件已进入发送队列' })).toHaveText('邮件已进入发送队列')
 })
 test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {
   const state = mockState()
