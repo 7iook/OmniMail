@@ -28,8 +28,8 @@ import {
   type ICloudAccount,
   type ICloudAlias,
   type ICloudMessage,
-} from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
+} from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
 import '../styles/icloud-region-select.css'
 import '../../../shared/ui/mail-workspace/styles/scope-switcher.css'
 import '../../../shared/ui/mail-workspace/styles/workspace.css'
@@ -43,8 +43,8 @@ import {
   type ICloudInboxScope,
 } from '../model/icloudMailCache'
 import { parseICloudSender } from '../../../shared/mail/sender'
-import { t } from '../../../lib/i18n'
-import { useMailListScroll } from '../../../hooks/useMailListScroll'
+import { t } from '../../../shared/i18n'
+import { useMailListScroll } from '../../../shared/ui/mail-workspace/hooks/useMailListScroll'
 import {
   AddICloudAccountDialog,
   ICloudModal,
@@ -54,7 +54,7 @@ import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 import { ICloudReader } from './ICloudReader'
 import { ICloudSearchField } from './ICloudSearchField'
 import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
-import { ListScrollTopHeading } from '../../../components/ListScrollTopHeading'
+import { ListScrollTopHeading } from '../../../shared/ui/mail-workspace/ListScrollTopHeading'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />

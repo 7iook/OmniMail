@@ -10,7 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import type { ICloudAccount, ICloudAlias } from '../../src/lib/api-types'
+import type { ICloudAccount, ICloudAlias } from '../../src/shared/api/api-types'
 import { PanelSelect } from './PanelSelect'
 
 interface Props {

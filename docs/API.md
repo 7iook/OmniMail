@@ -700,7 +700,7 @@ Workers Builds 根据分支变更重新部署。
 iCloud 隐藏邮箱、Gmail 聚合收件箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
 代码审查或生成外部知识库时应从该索引进入。
 
-修改 `src/lib/apiCatalog*.ts` 后运行：
+修改 `src/features/api-guide/model/apiCatalog*.ts` 后运行：
 
 ```bash
 npm run docs:api
@@ -708,7 +708,7 @@ npm run docs:api
 
 生成器会重建 `docs/api/*.md`，请不要直接编辑生成文件。
 
-测试 `src/lib/apiCatalog.test.ts` 会直接从 `api.ts`、扩展授权路由及各子路由文件提取
+测试 `src/features/api-guide/model/apiCatalog.test.ts` 会直接从 `api.ts`、扩展授权路由及各子路由文件提取
 真实端点，与页面目录及 Markdown 中的隐藏端点标记逐项比较。新增、删除或更改路由而
 未同步 Catalog 或未重新生成文档时，测试都会失败。
 

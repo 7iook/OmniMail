@@ -1,4 +1,4 @@
-import type { ICloudMessage } from '../../../lib/api-types'
+import type { ICloudMessage } from '../../../shared/api/api-types'
 
 export const ICLOUD_INBOX_CACHE_MS = 60_000
 export const ICLOUD_MESSAGE_CACHE_MS = 10 * 60_000

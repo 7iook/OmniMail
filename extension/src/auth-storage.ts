@@ -1,4 +1,4 @@
-import type { User } from '../../src/lib/api-types'
+import type { User } from '../../src/shared/api/api-types'
 
 const DATABASE_NAME = 'omnimail-float'
 const DATABASE_VERSION = 1

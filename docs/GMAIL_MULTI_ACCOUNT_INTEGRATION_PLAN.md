@@ -329,9 +329,9 @@ D1 保存账号状态、加密凭据和最多 500 封列表元数据。不会保
 - [`../email-worker/src/gmail-sync.ts`](../email-worker/src/gmail-sync.ts)
 - [`../email-worker/src/gmail-read-state.ts`](../email-worker/src/gmail-read-state.ts)
 - [`../email-worker/src/gmail-message-parser.ts`](../email-worker/src/gmail-message-parser.ts)
-- [`../src/components/GmailWorkspace.tsx`](../src/components/GmailWorkspace.tsx)
-- [`../src/components/GmailAccountDialog.tsx`](../src/components/GmailAccountDialog.tsx)
-- [`../src/components/GmailSearchField.tsx`](../src/components/GmailSearchField.tsx)
+- [`../src/features/gmail/components/GmailWorkspace.tsx`](../src/features/gmail/components/GmailWorkspace.tsx)
+- [`../src/features/gmail/components/GmailAccountDialog.tsx`](../src/features/gmail/components/GmailAccountDialog.tsx)
+- [`../src/features/gmail/components/GmailSearchField.tsx`](../src/features/gmail/components/GmailSearchField.tsx)
 - [`GMAIL_SETUP.md`](GMAIL_SETUP.md)
 - [`API.md`](API.md)
 

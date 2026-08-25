@@ -1,11 +1,11 @@
 import { ArrowLeft, ArrowUp, KeyRound, LoaderCircle, Mail } from 'lucide-react'
 import { useRef } from 'react'
-import { useMessageReaderScroll } from '../../../hooks/useMessageReaderScroll'
-import type { ICloudMessage } from '../../../lib/api'
+import { useMessageReaderScroll } from '../../../shared/ui/mail-workspace/hooks/useMessageReaderScroll'
+import type { ICloudMessage } from '../../../shared/api'
 import { parseICloudSender } from '../../../shared/mail/sender'
-import { t } from '../../../lib/i18n'
+import { t } from '../../../shared/i18n'
 import { ICloudMessageBody } from '../../../shared/ui/mail-workspace/ICloudMessageBody'
-import { MessageReaderToolbarTitle } from '../../../components/MessageReaderToolbarTitle'
+import { MessageReaderToolbarTitle } from '../../../shared/ui/mail-workspace/MessageReaderToolbarTitle'
 
 export function ICloudReader({ message, loading, method, remoteImagesEnabled, onBack }: {
   message: ICloudMessage | null

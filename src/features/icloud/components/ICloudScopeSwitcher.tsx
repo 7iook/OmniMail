@@ -1,7 +1,7 @@
 import { ArrowUpDown, AtSign, Check, ChevronDown, Cloud, Copy, Inbox, Mail, Settings2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
-import type { ICloudAccount, ICloudAlias } from '../../../lib/api'
-import { t } from '../../../lib/i18n'
+import type { ICloudAccount, ICloudAlias } from '../../../shared/api'
+import { t } from '../../../shared/i18n'
 
 export type ICloudAliasSort = 'label' | 'newest' | 'email'
 

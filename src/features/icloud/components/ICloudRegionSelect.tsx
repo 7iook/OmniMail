@@ -1,6 +1,6 @@
 import { Globe2 } from 'lucide-react'
-import type { ICloudHost } from '../../../lib/api'
-import { t } from '../../../lib/i18n'
+import type { ICloudHost } from '../../../shared/api'
+import { t } from '../../../shared/i18n'
 
 const regions: Array<{ value: ICloudHost; label: string; domain: string }> = [
   { value: 'icloud.com', label: '全球', domain: 'icloud.com' },

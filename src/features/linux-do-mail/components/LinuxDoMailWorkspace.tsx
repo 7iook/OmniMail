@@ -21,15 +21,15 @@ import {
   Unplug,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useMailListScroll } from '../../../hooks/useMailListScroll'
-import { useMessageReaderScroll } from '../../../hooks/useMessageReaderScroll'
-import { api, type LinuxDoMailAccount, type LinuxDoMailMessage } from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
+import { useMailListScroll } from '../../../shared/ui/mail-workspace/hooks/useMailListScroll'
+import { useMessageReaderScroll } from '../../../shared/ui/mail-workspace/hooks/useMessageReaderScroll'
+import { api, type LinuxDoMailAccount, type LinuxDoMailMessage } from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
 import { parseICloudSender } from '../../../shared/mail/sender'
-import { t } from '../../../lib/i18n'
+import { t } from '../../../shared/i18n'
 import '../../../shared/ui/mail-workspace/styles/workspace.css'
 import '../styles/linux-do-mail.css'
-import { DangerConfirmDialog } from '../../../components/DangerConfirmDialog'
+import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
 import { ICloudMessageBody } from '../../../shared/ui/mail-workspace/ICloudMessageBody'
 import { LinuxDoMailAccountDialog } from './LinuxDoMailAccountDialog'
 import {
@@ -38,8 +38,8 @@ import {
 } from './LinuxDoMailComposeDialog'
 import { LinuxDoMailConnectDialog } from './LinuxDoMailConnectDialog'
 import { LinuxDoMailSearchField } from './LinuxDoMailSearchField'
-import { ListScrollTopHeading } from '../../../components/ListScrollTopHeading'
-import { MessageReaderToolbarTitle } from '../../../components/MessageReaderToolbarTitle'
+import { ListScrollTopHeading } from '../../../shared/ui/mail-workspace/ListScrollTopHeading'
+import { MessageReaderToolbarTitle } from '../../../shared/ui/mail-workspace/MessageReaderToolbarTitle'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />

@@ -1,6 +1,6 @@
 import { AlertCircle, ExternalLink, LoaderCircle, LogOut } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { OmniLogo } from '../../src/components/OmniLogo'
+import { OmniLogo } from '../../src/shared/ui/brand/OmniLogo'
 import { PanelThemeSettings } from './PanelThemeSettings'
 import type { AuthStatus, ExtensionSettings, ThemePreference } from './protocol'
 

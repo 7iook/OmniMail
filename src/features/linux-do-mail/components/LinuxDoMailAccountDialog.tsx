@@ -10,8 +10,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import type { LinuxDoMailAccount } from '../../../lib/api'
-import { t } from '../../../lib/i18n'
+import type { LinuxDoMailAccount } from '../../../shared/api'
+import { t } from '../../../shared/i18n'
 
 type AccountAction = 'verify' | 'update' | ''
 

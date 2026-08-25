@@ -1,5 +1,5 @@
 import { LoaderCircle, Search, X } from 'lucide-react'
-import { t } from '../../../lib/i18n'
+import { t } from '../../../shared/i18n'
 
 export function ICloudSearchField({
   value,

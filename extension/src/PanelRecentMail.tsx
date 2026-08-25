@@ -1,5 +1,5 @@
 import { Inbox, LoaderCircle, RefreshCw } from 'lucide-react'
-import type { MessageSummary } from '../../src/lib/api-types'
+import type { MessageSummary } from '../../src/shared/api/api-types'
 
 interface Props {
   loading: boolean

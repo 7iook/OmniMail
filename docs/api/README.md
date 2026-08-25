@@ -1,4 +1,4 @@
-<!-- 此文件由 npm run docs:api 自动生成，请修改 src/lib/apiCatalog*.ts 后重新生成。 -->
+<!-- 此文件由 npm run docs:api 自动生成，请修改 src/features/api-guide/model/apiCatalog*.ts 后重新生成。 -->
 
 # OmniMail 完整 HTTP API 参考
 

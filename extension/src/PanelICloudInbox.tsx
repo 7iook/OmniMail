@@ -1,6 +1,6 @@
 import { ArrowLeft, Cloud, Inbox, KeyRound, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ICloudAccount, ICloudAlias, ICloudMessage } from '../../src/lib/api-types'
+import type { ICloudAccount, ICloudAlias, ICloudMessage } from '../../src/shared/api/api-types'
 import { safeEmailDocument } from './email-document'
 import { PanelSelect } from './PanelSelect'
 import { sendExtensionMessage } from './protocol'

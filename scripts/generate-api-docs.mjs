@@ -31,7 +31,7 @@ const authLabels = {
 
 function generatedNotice() {
   return [
-    '<!-- 此文件由 npm run docs:api 自动生成，请修改 src/lib/apiCatalog*.ts 后重新生成。 -->',
+    '<!-- 此文件由 npm run docs:api 自动生成，请修改 src/features/api-guide/model/apiCatalog*.ts 后重新生成。 -->',
     '',
   ]
 }
@@ -169,7 +169,7 @@ const vite = await createServer({
 })
 
 try {
-  const catalog = await vite.ssrLoadModule('/src/lib/apiCatalog.ts')
+  const catalog = await vite.ssrLoadModule('/src/features/api-guide/model/apiCatalog.ts')
   const helpers = {
     apiEndpointCurl: catalog.apiEndpointCurl,
     apiEndpointKey: catalog.apiEndpointKey,

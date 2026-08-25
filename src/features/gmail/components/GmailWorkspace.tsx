@@ -20,10 +20,10 @@ import {
   type GmailMessageDetail,
   type GmailMessageSummary,
   type PageInfo,
-} from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
-import { t } from '../../../lib/i18n'
-import { useMailListScroll } from '../../../hooks/useMailListScroll'
+} from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
+import { t } from '../../../shared/i18n'
+import { useMailListScroll } from '../../../shared/ui/mail-workspace/hooks/useMailListScroll'
 import '../../../shared/ui/mail-workspace/styles/workspace.css'
 import '../styles/gmail-dialog.css'
 import '../styles/gmail-workspace.css'
@@ -31,7 +31,7 @@ import { GmailAccountDialog } from './GmailAccountDialog'
 import { GmailReader } from './GmailReader'
 import { GmailSearchField } from './GmailSearchField'
 import { GmailScopeSwitcher } from './GmailScopeSwitcher'
-import { ListScrollTopHeading } from '../../../components/ListScrollTopHeading'
+import { ListScrollTopHeading } from '../../../shared/ui/mail-workspace/ListScrollTopHeading'
 
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 const SYNC_POLL_ATTEMPTS = 15

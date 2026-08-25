@@ -3,7 +3,7 @@ import type {
   GmailMessageDetail,
   GmailMessageSummary,
   PageInfo,
-} from '../../../lib/api-types'
+} from '../../../shared/api/api-types'
 
 type Request = <T>(
   path: string,

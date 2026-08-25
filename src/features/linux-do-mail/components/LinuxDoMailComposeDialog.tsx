@@ -1,7 +1,7 @@
 import { AlertCircle, AtSign, LoaderCircle, Send, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { t } from '../../../lib/i18n'
+import { t } from '../../../shared/i18n'
 
 export type LinuxDoMailComposeInput = {
   to: string

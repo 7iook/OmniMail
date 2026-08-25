@@ -1,4 +1,4 @@
-import type { User } from '../../src/lib/api-types'
+import type { User } from '../../src/shared/api/api-types'
 import {
   authorizationCode,
   extensionAuthorizationUrl,

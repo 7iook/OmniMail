@@ -1,9 +1,9 @@
 import { AlertCircle, Check, LoaderCircle, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { flushSync } from 'react-dom'
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react'
-import { api, type ICloudAccount, type ICloudAlias } from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
-import { t } from '../../../lib/i18n'
+import { api, type ICloudAccount, type ICloudAlias } from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
+import { t } from '../../../shared/i18n'
 
 const MAX_ALIASES = 5
 const SUCCESS_HOLD_MS = 320

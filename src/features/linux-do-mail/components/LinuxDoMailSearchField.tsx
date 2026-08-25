@@ -1,6 +1,6 @@
 import { LoaderCircle, Search, X } from 'lucide-react'
 import { useId, type FormEvent } from 'react'
-import { t } from '../../../lib/i18n'
+import { t } from '../../../shared/i18n'
 
 export function LinuxDoMailSearchField({
   value,

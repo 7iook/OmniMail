@@ -1,4 +1,4 @@
-import type { LinuxDoMailAccount, LinuxDoMailMessage } from '../../../lib/api-types'
+import type { LinuxDoMailAccount, LinuxDoMailMessage } from '../../../shared/api/api-types'
 
 type Request = <T>(path: string, init?: RequestInit & { timeoutMs?: number }) => Promise<T>
 

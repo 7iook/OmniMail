@@ -11,10 +11,10 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { api, type ICloudAccount, type ICloudHost } from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
-import { t } from '../../../lib/i18n'
-import { DangerConfirmDialog } from '../../../components/DangerConfirmDialog'
+import { api, type ICloudAccount, type ICloudHost } from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
+import { t } from '../../../shared/i18n'
+import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
 import { ICloudRegionSelect } from './ICloudRegionSelect'
 
 function Spinner() {

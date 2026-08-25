@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ICloudAccount, ICloudAlias } from '../../src/lib/api-types'
+import type { ICloudAccount, ICloudAlias } from '../../src/shared/api/api-types'
 import { sendExtensionMessage } from './protocol'
 
 interface Options {

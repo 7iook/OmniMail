@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { api, type ICloudMessage } from '../../../lib/api'
+import { api, type ICloudMessage } from '../../api'
 import {
   forceLightEmailDocument,
   loadDeferredRemoteImages,
   normalizeRemoteImageSource,
-} from '../../../lib/emailContent'
-import { EMAIL_FRAME_SANDBOX, fitEmailDocument } from '../../../hooks/useSmoothEmailFrame'
-import { t } from '../../../lib/i18n'
+} from '../../mail/emailContent'
+import { EMAIL_FRAME_SANDBOX, fitEmailDocument } from './hooks/useSmoothEmailFrame'
+import { t } from '../../i18n'
 import './styles/message-body.css'
-import { ExternalLinkDialog } from '../../../components/ExternalLinkDialog'
+import { ExternalLinkDialog } from '../dialogs/ExternalLinkDialog'
 
 function safeHttpHref(value: string): string | null {
   try {

@@ -6,19 +6,19 @@ import {
   Settings,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { OmniLogo } from '../../src/components/OmniLogo'
+import { OmniLogo } from '../../src/shared/ui/brand/OmniLogo'
 import type {
   AppConfig,
   ManagedDomain,
   MailboxAddress,
   MessageDetail,
   MessageSummary,
-} from '../../src/lib/api-types'
-import { useAutoRefresh } from '../../src/lib/useAutoRefresh'
+} from '../../src/shared/api/api-types'
+import { useAutoRefresh } from '../../src/shared/hooks/useAutoRefresh'
 import {
   randomMailboxLocalPart,
   validMailboxLocalPart,
-} from '../../src/lib/mailboxAddress'
+} from '../../src/features/mailbox/model/mailboxAddress'
 import { GenerateView } from './PanelGenerate'
 import { InboxView } from './PanelInbox'
 import type { MailSource } from './PanelMailSourceTabs'

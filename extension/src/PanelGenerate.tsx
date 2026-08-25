@@ -1,5 +1,5 @@
 import { Copy, LoaderCircle, MailPlus, SendToBack } from 'lucide-react'
-import type { ICloudAccount, ICloudAlias, ManagedDomain, MessageSummary } from '../../src/lib/api-types'
+import type { ICloudAccount, ICloudAlias, ManagedDomain, MessageSummary } from '../../src/shared/api/api-types'
 import { PanelICloudGenerate } from './PanelICloudGenerate'
 import { PanelMailSourceTabs, type MailSource } from './PanelMailSourceTabs'
 import { PanelRecentMail } from './PanelRecentMail'

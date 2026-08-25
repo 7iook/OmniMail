@@ -5,7 +5,7 @@ import type {
   MailboxAddress,
   MessageDetail,
   MessageSummary,
-} from '../../src/lib/api-types'
+} from '../../src/shared/api/api-types'
 import { safeEmailDocument } from './email-document'
 import { PanelICloudInbox } from './PanelICloudInbox'
 import { PanelMailSourceTabs, type MailSource } from './PanelMailSourceTabs'

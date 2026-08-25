@@ -1,10 +1,10 @@
 import { AlertCircle, ArrowLeft, ArrowUp, LoaderCircle, Mail, Paperclip, RefreshCw } from 'lucide-react'
 import { useEffect, useRef } from 'react'
-import { useMessageReaderScroll } from '../../../hooks/useMessageReaderScroll'
-import { api, type GmailMessageDetail, type GmailMessageSummary } from '../../../lib/api'
-import { t } from '../../../lib/i18n'
+import { useMessageReaderScroll } from '../../../shared/ui/mail-workspace/hooks/useMessageReaderScroll'
+import { api, type GmailMessageDetail, type GmailMessageSummary } from '../../../shared/api'
+import { t } from '../../../shared/i18n'
 import { ICloudMessageBody } from '../../../shared/ui/mail-workspace/ICloudMessageBody'
-import { MessageReaderToolbarTitle } from '../../../components/MessageReaderToolbarTitle'
+import { MessageReaderToolbarTitle } from '../../../shared/ui/mail-workspace/MessageReaderToolbarTitle'
 
 function senderLabel(message: Pick<GmailMessageSummary, 'senderName' | 'senderAddress'>): string {
   return message.senderName || message.senderAddress || t('未知发件人')

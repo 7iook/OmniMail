@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ICloudMessage } from '../../../lib/api-types'
+import type { ICloudMessage } from '../../../shared/api/api-types'
 import {
   activateICloudMailCacheUser,
   clearICloudAccountCache,

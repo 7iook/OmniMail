@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ICloudAlias } from '../../../lib/api'
+import type { ICloudAlias } from '../../../shared/api'
 import { sortICloudAliases } from './ICloudScopeSwitcher'
 
 function alias(email: string, label: string, createdAt?: string, active = true): ICloudAlias {

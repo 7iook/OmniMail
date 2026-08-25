@@ -1,4 +1,4 @@
-import type { ICloudAccount, ICloudAlias, ICloudHost, ICloudMessage } from '../../../lib/api-types'
+import type { ICloudAccount, ICloudAlias, ICloudHost, ICloudMessage } from '../../../shared/api/api-types'
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>
 

@@ -16,9 +16,9 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { api, type GmailAccount } from '../../../lib/api'
-import { errorMessage } from '../../../lib/errorMessage'
-import { t } from '../../../lib/i18n'
+import { api, type GmailAccount } from '../../../shared/api'
+import { errorMessage } from '../../../shared/api/errorMessage'
+import { t } from '../../../shared/i18n'
 
 type View = 'accounts' | 'account' | 'connect'
 const DIALOG_EXIT_MS = 170

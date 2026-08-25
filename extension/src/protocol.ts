@@ -10,7 +10,7 @@ import type {
   MessageSummary,
   PageInfo,
   User,
-} from '../../src/lib/api-types'
+} from '../../src/shared/api/api-types'
 
 export interface AuthStatus {
   apiOrigin: string
