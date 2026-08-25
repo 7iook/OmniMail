@@ -86,4 +86,3 @@ export interface User {
   canTranslate: boolean
   temporaryExpiresAt: number | null
 }
-

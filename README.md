@@ -187,15 +187,27 @@ flowchart LR
 ```text
 .
 ├── src/                       # React Webmail
+│   ├── app/                   # 应用装配、导航与全局样式
+│   ├── features/              # 邮箱、消息、认证、管理等业务功能
+│   ├── shared/                # API、i18n、通用邮件与 UI 能力
+│   └── main.tsx               # Web 稳定入口
 ├── public/                    # Worker Static Assets 与安全响应头
 ├── email-worker/
-│   ├── src/                   # API、收件、队列与定时任务
+│   └── src/
+│       ├── app/               # Hono 装配、中间件与路由
+│       ├── features/          # Provider 与 Worker 业务功能
+│       ├── platform/          # D1、IMAP 与调度适配
+│       ├── shared/            # Worker 跨功能基础能力
+│       └── index.ts           # Worker 稳定入口
 ├── migrations/                # 可审阅的 D1 迁移
 ├── docs/API.md                # HTTP API 文档
+├── docs/ARCHITECTURE.md       # 代码目录和依赖边界约定
 ├── scripts/                   # 仓库质量检查脚本
 ├── wrangler.jsonc             # Worker、静态前端与 Cloudflare 资源配置
 └── .github/workflows/ci.yml   # GitHub Actions
 ```
+
+详细的文件归属和新增功能约定见 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
 
 ## 快速部署
 

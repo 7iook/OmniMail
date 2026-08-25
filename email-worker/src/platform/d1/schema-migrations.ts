@@ -379,4 +379,3 @@ export const RECOVERABLE_MIGRATIONS = [
     statements: ['DROP TRIGGER IF EXISTS gmail_imap_accounts_limit'],
   },
 ] as const
-

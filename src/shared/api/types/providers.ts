@@ -100,4 +100,3 @@ export interface GmailMessageDetail extends Omit<GmailMessageSummary, 'cc' | 'da
   html: string
   attachments: GmailAttachment[]
 }
-

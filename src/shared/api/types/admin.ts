@@ -42,7 +42,6 @@ export interface ManagedUserPolicy {
   canReply: boolean
   canTranslate: boolean
 }
-
 export interface CreateManagedUser extends ManagedUserPolicy {
   email: string
   displayName: string

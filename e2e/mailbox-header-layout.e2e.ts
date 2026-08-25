@@ -28,11 +28,13 @@ async function renderMailboxHeader(page: Page, paneWidth: number) {
       </header>
     </section>
   `)
-  await page.addStyleTag({ path: 'src/styles.css' })
-  await page.addStyleTag({ path: 'src/styles/mailbox.css' })
-  await page.addStyleTag({ path: 'src/styles/mailbox-header.css' })
-  await page.addStyleTag({ path: 'src/styles/mailbox-switcher.css' })
-  await page.addStyleTag({ path: 'src/styles/responsive.css' })
+  await page.addStyleTag({ path: 'src/app/styles/base.css' })
+  await page.addStyleTag({ path: 'src/features/mailbox/styles/mailbox.css' })
+  await page.addStyleTag({ path: 'src/features/messages/styles/message-list.css' })
+  await page.addStyleTag({ path: 'src/features/mailbox/styles/mailbox-header.css' })
+  await page.addStyleTag({ path: 'src/features/mailbox/styles/mailbox-switcher.css' })
+  await page.addStyleTag({ path: 'src/features/mailbox/styles/mailbox-switcher-responsive.css' })
+  await page.addStyleTag({ path: 'src/app/styles/responsive.css' })
 }
 
 test('mailbox header actions stay inside narrow desktop list panes', async ({ page }) => {
@@ -93,8 +95,11 @@ test('notification control stays available across desktop and mobile layouts', a
       </div>
     </header></section>
   `)
-  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/mailbox-header.css',
-    'src/styles/mailbox-switcher.css', 'src/styles/language.css', 'src/styles/responsive.css']) {
+  for (const path of ['src/app/styles/base.css', 'src/features/mailbox/styles/mailbox.css',
+    'src/features/messages/styles/message-list.css', 'src/features/mailbox/styles/mailbox-header.css',
+    'src/features/mailbox/styles/mailbox-switcher.css',
+    'src/features/mailbox/styles/mailbox-switcher-responsive.css',
+    'src/shared/ui/language/language.css', 'src/app/styles/responsive.css']) {
     await page.addStyleTag({ path })
   }
 
@@ -127,8 +132,9 @@ test('external mail headers keep their single-row layout', async ({ page }) => {
       </header>
     </section>
   `)
-  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/mailbox-header.css',
-    'src/styles/icloud-workspace.css', 'src/styles/responsive.css']) {
+  for (const path of ['src/app/styles/base.css', 'src/features/mailbox/styles/mailbox.css',
+    'src/features/messages/styles/message-list.css', 'src/features/mailbox/styles/mailbox-header.css',
+    'src/shared/ui/mail-workspace/styles/workspace.css', 'src/app/styles/responsive.css']) {
     await page.addStyleTag({ path })
   }
   const layout = await page.locator('.icloud-list-header').evaluate((header) => {
@@ -156,7 +162,8 @@ test('iCloud workspace loading state does not use an admin card', async ({ page 
       </div>
     </section>
   `)
-  for (const path of ['src/styles.css', 'src/styles/mailbox.css', 'src/styles/icloud-workspace.css']) {
+  for (const path of ['src/app/styles/base.css', 'src/features/mailbox/styles/mailbox.css',
+    'src/features/messages/styles/message-list.css', 'src/shared/ui/mail-workspace/styles/workspace.css']) {
     await page.addStyleTag({ path })
   }
   const loading = page.getByRole('status')
