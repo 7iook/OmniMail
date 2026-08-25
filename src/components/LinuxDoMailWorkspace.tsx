@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUp,
   Check,
   CircleAlert,
   CircleCheck,
@@ -19,10 +20,13 @@ import {
   Unplug,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useMailListScroll } from '../hooks/useMailListScroll'
+import { useMessageReaderScroll } from '../hooks/useMessageReaderScroll'
 import { api, type LinuxDoMailAccount, type LinuxDoMailMessage } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
+import '../styles/icloud-workspace.css'
 import '../styles/linux-do-mail.css'
 import { DangerConfirmDialog } from './DangerConfirmDialog'
 import { ICloudMessageBody } from './ICloudMessageBody'
@@ -33,6 +37,8 @@ import {
 } from './LinuxDoMailComposeDialog'
 import { LinuxDoMailConnectDialog } from './LinuxDoMailConnectDialog'
 import { LinuxDoMailSearchField } from './LinuxDoMailSearchField'
+import { ListScrollTopHeading } from './ListScrollTopHeading'
+import { MessageReaderToolbarTitle } from './MessageReaderToolbarTitle'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -63,6 +69,8 @@ function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }
   remoteImagesEnabled: boolean
   onBack: () => void
 }) {
+  const readerRoot = useRef<HTMLDivElement>(null)
+  const readerScroll = useMessageReaderScroll(loading ? '' : message?.id || '', readerRoot)
   const outgoing = folder === 'sent' || message?.direction === 'outgoing'
   if (loading) {
     return <div className="reader-state reader-state--loading" role="status">
@@ -79,18 +87,22 @@ function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }
   const senderLabel = outgoing
     ? message.to || t('未知收件人')
     : sender.name || sender.address || t('未知发件人')
+  const subject = message.subject || t('无主题')
   return (
     <article className="icloud-reader">
       <header className="reader-toolbar">
         <button className="icon-button mobile-back" type="button" onClick={onBack}
           aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
-        <h2 className="reader-toolbar__title">{t(outgoing ? '已发送邮件' : 'Linux DO 邮件')}</h2>
+        <MessageReaderToolbarTitle key={message.id}
+          detailsLabel={t(outgoing ? '已发送邮件' : 'Linux DO 邮件')}
+          scrollTopLabel={t('回到顶部')} subject={subject}
+          subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
         {outgoing ? <DeliveryStatus message={message} />
           : <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>}
       </header>
-      <div className="reader-content icloud-reader-content">
+      <div ref={readerRoot} className="reader-content icloud-reader-content">
         <div className="icloud-reader-heading">
-          <h1>{message.subject || t('无主题')}</h1>
+          <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
           <div className="icloud-reader-sender">
             <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
             <p><strong>{senderLabel}</strong>
@@ -112,6 +124,12 @@ function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }
           <ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} />
         </div>
       </div>
+      <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}
+        type="button" onClick={readerScroll.scrollToTop} aria-label={t('回到顶部')}
+        aria-hidden={!readerScroll.subjectPinned} data-tooltip={t('回到顶部')}
+        tabIndex={readerScroll.subjectPinned ? 0 : -1}>
+        <ArrowUp size={19} aria-hidden="true" />
+      </button>
     </article>
   )
 }
@@ -120,6 +138,7 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
   remoteImagesEnabled: boolean
   canSend: boolean
 }) {
+  const mailListScroll = useMailListScroll()
   const [enabled, setEnabled] = useState(true)
   const [account, setAccount] = useState<LinuxDoMailAccount | null>(null)
   const [folder, setFolder] = useState<'inbox' | 'sent'>('inbox')
@@ -295,9 +314,10 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
 
   return (
     <div className={`icloud-mail-view linuxdo-mail-view${opened ? ' has-selection' : ''}`}>
-      <section className="list-pane icloud-list-pane page-content-enter">
+      <section ref={mailListScroll.listPane} className="list-pane icloud-list-pane page-content-enter">
         <header className="list-header icloud-list-header">
-          <div><p className="eyebrow">LINUX DO · MAIL</p><h1>Linux DO</h1></div>
+          <div><p className="eyebrow">LINUX DO · MAIL</p>
+            <ListScrollTopHeading title="Linux DO" onScrollTop={mailListScroll.scrollToTop} /></div>
           {!loading && enabled && <div className="list-header__actions">
             {account && <span className={`linuxdo-status is-${account.status}`}>
               {account.status === 'active' ? <ShieldCheck size={13} /> : <AlertCircle size={13} />}

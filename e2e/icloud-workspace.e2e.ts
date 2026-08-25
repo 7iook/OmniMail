@@ -159,7 +159,7 @@ async function mockICloud(page: Page, options: {
       id: '42', from: 'GitHub <noreply_at_github_com_22h56q5td86002_47bfb5aa@icloud.com>', to: 'shop@icloud.com',
       subject: 'Your receipt', date: '2026-08-13T00:00:00.000Z',
       preview: 'Thanks for your order.', body: 'Full receipt body.',
-      html: '<html><body><img src="https://github.com/logo.png" alt="GitHub"><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p><script>document.body.textContent="unsafe"</script></body></html>',
+      html: `<html><body><img src="https://github.com/logo.png" alt="GitHub"><h1>Full receipt body.</h1><p><a href="https://github.com/account_verifications">Open receipt</a></p>${'<p>Receipt details</p>'.repeat(80)}<script>document.body.textContent="unsafe"</script></body></html>`,
       } })
     }
     return route.abort()
@@ -176,6 +176,7 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   const state = await mockICloud(page)
   await page.goto('/icloud')
 
+  await expect(page.getByRole('button', { name: '回到列表顶部：iCloud' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'iCloud', exact: true })).toBeVisible()
   await expect(page.getByText('Personal')).toBeVisible()
   await expect(page.getByText('Your receipt')).toBeVisible()
@@ -287,6 +288,18 @@ test('iCloud workspace is available to a regular user and reads a message', asyn
   await expect(messageFrame.getByRole('heading', { name: 'Full receipt body.' })).toBeVisible()
   await expect(messageFrame.getByRole('img', { name: 'GitHub' })).toHaveJSProperty('naturalWidth', 120)
   await expect(messageFrame.getByText('unsafe')).toHaveCount(0)
+  const readerContent = page.locator('.icloud-reader .reader-content')
+  await readerContent.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  const toolbarSubject = page.getByRole('button', { name: '回到顶部：Your receipt' })
+  const readerScrollTop = page.locator('.icloud-reader .reader-scroll-top')
+  await expect(toolbarSubject).toBeVisible()
+  await expect(readerScrollTop).toHaveClass(/is-visible/)
+  await toolbarSubject.click()
+  await expect.poll(() => readerContent.evaluate((element) => element.scrollTop)).toBe(0)
+  await readerContent.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await expect(readerScrollTop).toHaveClass(/is-visible/)
+  await readerScrollTop.click()
+  await expect.poll(() => readerContent.evaluate((element) => element.scrollTop)).toBe(0)
   await messageFrame.getByRole('link', { name: 'Open receipt' }).click()
   const externalLink = page.getByRole('alertdialog')
   await expect(externalLink).toContainText('github.com')

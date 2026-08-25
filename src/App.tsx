@@ -8,8 +8,10 @@ import { folderLabel, MailboxSidebar } from './components/MailboxSidebar'
 import { MailboxSwitcher } from './components/MailboxSwitcher'
 import { MailboxHeaderActions, MailboxHeaderUtilities } from './components/MailboxHeaderActions'
 import { MailDeleteDialog } from './components/MailDeleteDialog'
+import { ListScrollTopHeading } from './components/ListScrollTopHeading'
 import { MessageList } from './components/MessageList'
 import { MessageReader } from './components/MessageReader'
+import { useMailListScroll } from './hooks/useMailListScroll'
 import {
   api, ApiError,
   type AppConfig, type Folder, type ManagedDomain, type MailboxAddress,
@@ -56,6 +58,7 @@ function Mailbox({
   const [scope, setScope] = useState<MailboxScope>({ type: 'all' })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const mailListScroll = useMailListScroll()
   const draftEditor = useDraftEditor()
   const [deploymentWizardOpen, setDeploymentWizardOpen] = useState(() => deploymentGuideUnseen(user))
   const mailNotifications = useNewMailNotifications(user.id, setNotice, setError)
@@ -197,6 +200,7 @@ function Mailbox({
       ) : (
         <>
           <section
+            ref={mailListScroll.listPane}
             className="list-pane page-content-enter"
             key={`${folder}:${scope.type}:${scope.type === 'all' ? '' : scope.value}`}
           >
@@ -211,7 +215,8 @@ function Mailbox({
             <MailboxHeaderUtilities notifications={mailNotifications} />
           </div>
           <div className="list-header__title-row">
-            <h1>{folderLabel(folder)}</h1>
+            <ListScrollTopHeading title={folderLabel(folder)}
+              onScrollTop={mailListScroll.scrollToTop} />
             <MailboxHeaderActions
               mailboxes={mailboxes} domains={domains} scope={scope}
               canGenerate={isAdminRole(user.role) || user.canCreateMailboxes} randomMailboxPrefix={config.randomMailboxPrefix || ''}

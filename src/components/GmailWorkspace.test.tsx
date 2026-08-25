@@ -11,6 +11,10 @@ describe('Gmail workspace accessibility boundaries', () => {
     )
     expect(html).toContain('GMAIL_CREDENTIALS_KEY')
     expect(html).toContain('Gmail 功能尚未启用')
+    expect(html).toContain('gmail-mail-view')
+    expect(html).toContain('gmail-list-pane')
+    expect(html).toContain('gmail-reader-pane')
+    expect(html).toContain('选择一封 Gmail 邮件')
   })
 
   it('opens the connection form directly with an app-password recovery link', () => {
@@ -65,5 +69,27 @@ describe('Gmail workspace accessibility boundaries', () => {
       onBack={() => undefined} onRetry={() => undefined} />)
 
     expect(html).toContain('打开邮件后会尝试同步 Gmail 已读状态。')
+  })
+
+  it('renders the shared animated subject and reader scroll controls', () => {
+    const account = {
+      id: 'gmail-1', name: 'Personal', email: 'user@gmail.com', status: 'active' as const,
+    }
+    const selected = {
+      id: 'message-1', account, senderName: 'Sender', senderAddress: 'sender@example.com',
+      recipients: ['user@gmail.com'], cc: [], subject: '安全提醒', preview: '', date: 1,
+      sizeBytes: 10, isRead: true, isStarred: false, hasAttachments: false,
+    }
+    const html = renderToStaticMarkup(<GmailReader
+      selected={selected}
+      message={{ ...selected, from: 'Sender <sender@example.com>', to: 'user@gmail.com',
+        cc: '', date: '2026-08-25T00:00:00.000Z', body: 'Body', html: '', attachments: [] }}
+      loading={false} error="" remoteImagesEnabled={false}
+      onBack={() => undefined} onRetry={() => undefined} />)
+
+    expect(html).toContain('reader-toolbar__typewriter')
+    expect(html).toContain('reader-scroll-top')
+    expect(html).toContain('Gmail 邮件')
+    expect(html).toContain('安全提醒')
   })
 })

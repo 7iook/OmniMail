@@ -319,6 +319,7 @@ export const enCore: Record<string, string> = {
   '{count} 个邮箱地址': '{count} mailboxes',
   '主邮箱': 'Primary',
   '回到顶部': 'Back to top',
+  '回到列表顶部：{title}': 'Back to top of {title}',
   '主管理员': 'Owner',
   '管理员': 'Administrator',
   '普通用户': 'User',

@@ -11,7 +11,8 @@ async function preparePage(page: Page) {
   })
 }
 
-async function mockAppShell(route: Route, path: string): Promise<boolean> {
+async function mockAppShell(route: Route, path: string,
+  config: Record<string, unknown> = {}): Promise<boolean> {
   if (path === '/api/config') {
     await json(route, {
       appName: 'OmniMail', setupComplete: true, replyEnabled: false,
@@ -25,6 +26,7 @@ async function mockAppShell(route: Route, path: string): Promise<boolean> {
       officialExtensionEnabled: false, randomMailboxPrefix: '', superAdminEmail: '',
       setupRequirements: { databaseReady: true, storageReady: true, queueReady: true,
         superAdminReady: true, setupTokenReady: false },
+      ...config,
     })
     return true
   }
@@ -119,7 +121,8 @@ async function mockGmail(page: Page) {
                   style="position:absolute;left:820px;top:0;width:80px">右侧内容</span>
               </div>
             </div></td></tr>
-          </table>`, attachments: [{
+          </table>
+          ${'<p>Gmail message details</p>'.repeat(80)}`, attachments: [{
           partId: '0', filename: 'notice.txt', contentType: 'text/plain', size: 12,
           contentId: null, disposition: 'attachment',
         }],
@@ -208,10 +211,40 @@ async function mockTwoGmailAccounts(page: Page) {
   return { listRequests, syncRequests }
 }
 
+test('keeps Gmail deployment recovery inside the mail split view', async ({ page }) => {
+  await preparePage(page)
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (await mockAppShell(route, path, { gmailEnabled: false })) return
+    return route.abort()
+  })
+
+  await page.goto('/gmail')
+
+  const view = page.locator('.gmail-mail-view')
+  const list = view.locator('.gmail-list-pane')
+  const reader = view.locator('.gmail-reader-pane')
+  await expect(view).toHaveCSS('display', 'grid')
+  await expect(list.getByRole('heading', { name: 'Gmail', exact: true })).toBeVisible()
+  await expect(list.getByRole('heading', { name: 'Gmail 功能尚未启用' })).toBeVisible()
+  await expect(reader.getByRole('heading', { name: '选择一封 Gmail 邮件' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '添加 Gmail 账号' })).toHaveCount(0)
+
+  const [viewBox, listBox, readerBox] = await Promise.all([
+    view.boundingBox(), list.boundingBox(), reader.boundingBox(),
+  ])
+  expect(viewBox).not.toBeNull()
+  expect(listBox).not.toBeNull()
+  expect(readerBox).not.toBeNull()
+  expect(listBox!.width).toBeLessThan(viewBox!.width / 2)
+  expect(readerBox!.x).toBeGreaterThanOrEqual(listBox!.x + listBox!.width - 1)
+})
+
 test('connects Gmail, marks opened mail read, and preserves controlled IMAP behavior', async ({ page }) => {
   const state = await mockGmail(page)
   await page.goto('/gmail')
 
+  await expect(page.getByRole('button', { name: '回到列表顶部：Gmail' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Gmail 邮箱' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '连接你的第一个 Gmail' })).toBeVisible()
   await page.locator('.gmail-list-state--empty')
@@ -316,6 +349,9 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   await page.locator('.gmail-message-list .message-list')
     .evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
   await expect(loadMore).toBeInViewport()
+  await page.getByRole('button', { name: '回到列表顶部：Gmail' }).click()
+  await expect.poll(() => page.locator('.gmail-message-list .message-list')
+    .evaluate((element) => element.scrollTop)).toBe(0)
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('abcd')
 
   const unreadRow = page.locator('.gmail-message-list .message-row').filter({ hasText: '安全提醒' })
@@ -328,6 +364,17 @@ test('connects Gmail, marks opened mail read, and preserves controlled IMAP beha
   const emailDocument = page.frameLocator('.gmail-reader-pane iframe')
   await expect(emailFrame).toBeVisible()
   await expect(emailDocument.getByText(/这是一封 Gmail 测试邮件/)).toBeVisible()
+  const readerContent = page.locator('.gmail-reader-pane .reader-content')
+  await readerContent.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  const toolbarSubject = page.getByRole('button', { name: '回到顶部：安全提醒' })
+  const readerScrollTop = page.locator('.gmail-reader-pane .reader-scroll-top')
+  await expect(toolbarSubject).toBeVisible()
+  await expect(readerScrollTop).toHaveClass(/is-visible/)
+  await toolbarSubject.click()
+  await expect.poll(() => readerContent.evaluate((element) => element.scrollTop)).toBe(0)
+  await readerContent.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await readerScrollTop.click()
+  await expect.poll(() => readerContent.evaluate((element) => element.scrollTop)).toBe(0)
   expect(await emailDocument.locator('html').evaluate((element) => (
     element.scrollWidth <= element.clientWidth
   ))).toBe(true)

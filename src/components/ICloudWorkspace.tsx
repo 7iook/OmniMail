@@ -44,6 +44,7 @@ import {
 } from '../lib/icloudMailCache'
 import { parseICloudSender } from '../lib/icloudSender'
 import { t } from '../lib/i18n'
+import { useMailListScroll } from '../hooks/useMailListScroll'
 import {
   AddICloudAccountDialog,
   ICloudModal,
@@ -53,6 +54,7 @@ import { ICloudScopeSwitcher } from './ICloudScopeSwitcher'
 import { ICloudReader } from './ICloudReader'
 import { ICloudSearchField } from './ICloudSearchField'
 import { ICloudAliasBatchForm } from './ICloudAliasBatchForm'
+import { ListScrollTopHeading } from './ListScrollTopHeading'
 
 function Spinner({ size = 17 }: { size?: number }) {
   return <LoaderCircle className="spin" size={size} aria-hidden="true" />
@@ -76,6 +78,7 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
   enabled: boolean
   remoteImagesEnabled: boolean
 }) {
+  const mailListScroll = useMailListScroll()
   const [accounts, setAccounts] = useState<ICloudAccount[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [aliases, setAliases] = useState<ICloudAlias[]>([])
@@ -311,7 +314,7 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
 
   return (
     <div className={`icloud-mail-view${opened ? ' has-selection' : ''}`}>
-      <section className="list-pane icloud-list-pane page-content-enter">
+      <section ref={mailListScroll.listPane} className="list-pane icloud-list-pane page-content-enter">
         <header className="list-header icloud-list-header">
           <div>
             {accounts.length ? <ICloudScopeSwitcher accounts={accounts} aliases={aliases}
@@ -319,7 +322,7 @@ export function ICloudWorkspace({ userId, enabled, remoteImagesEnabled }: {
               onAccountChange={setSelectedId} onAliasChange={setSelectedAlias}
               onAliasCopy={copyAlias} onAccountSettings={setCredentials} />
               : <p className="eyebrow">ICLOUD · HIDE MY EMAIL</p>}
-            <h1>iCloud</h1>
+            <ListScrollTopHeading title="iCloud" onScrollTop={mailListScroll.scrollToTop} />
           </div>
           <div className="list-header__actions">
             {selected && <span className={`icloud-mail-status ${selected.hasAppPassword ? 'is-imap' : 'is-cookie'}`}>

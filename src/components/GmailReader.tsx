@@ -1,8 +1,10 @@
-import { AlertCircle, ArrowLeft, LoaderCircle, Mail, Paperclip, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowUp, LoaderCircle, Mail, Paperclip, RefreshCw } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { useMessageReaderScroll } from '../hooks/useMessageReaderScroll'
 import { api, type GmailMessageDetail, type GmailMessageSummary } from '../lib/api'
 import { t } from '../lib/i18n'
 import { ICloudMessageBody } from './ICloudMessageBody'
+import { MessageReaderToolbarTitle } from './MessageReaderToolbarTitle'
 
 function senderLabel(message: Pick<GmailMessageSummary, 'senderName' | 'senderAddress'>): string {
   return message.senderName || message.senderAddress || t('未知发件人')
@@ -26,6 +28,8 @@ export function GmailReader({
   onRetry: () => void
 }) {
   const errorRef = useRef<HTMLDivElement>(null)
+  const readerRoot = useRef<HTMLDivElement>(null)
+  const readerScroll = useMessageReaderScroll(loading ? '' : message?.id || '', readerRoot)
   useEffect(() => {
     if (error) errorRef.current?.focus()
   }, [error])
@@ -54,16 +58,19 @@ export function GmailReader({
     </div>
   }
 
+  const subject = message.subject || t('无主题')
   return <article className="icloud-reader gmail-reader">
     <header className="reader-toolbar">
       <button className="icon-button mobile-back" type="button" onClick={onBack}
         aria-label={t('返回邮件列表')}><ArrowLeft size={18} /></button>
-      <h2 className="reader-toolbar__title">{t('Gmail 邮件')}</h2>
+      <MessageReaderToolbarTitle key={message.id} detailsLabel={t('Gmail 邮件')}
+        scrollTopLabel={t('回到顶部')} subject={subject}
+        subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
       <span className="icloud-source-badge is-imap">IMAP</span>
     </header>
-    <div className="reader-content icloud-reader-content">
+    <div ref={readerRoot} className="reader-content icloud-reader-content">
       <div className="icloud-reader-heading">
-        <h1>{message.subject || t('无主题')}</h1>
+        <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
         <div className="icloud-reader-sender">
           <span>{senderLabel(message).slice(0, 1).toUpperCase()}</span>
           <p><strong>{senderLabel(message)}</strong>
@@ -85,5 +92,11 @@ export function GmailReader({
         </a>)}</div>
       </section>}
     </div>
+    <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}
+      type="button" onClick={readerScroll.scrollToTop} aria-label={t('回到顶部')}
+      aria-hidden={!readerScroll.subjectPinned} data-tooltip={t('回到顶部')}
+      tabIndex={readerScroll.subjectPinned ? 0 : -1}>
+      <ArrowUp size={19} aria-hidden="true" />
+    </button>
   </article>
 }

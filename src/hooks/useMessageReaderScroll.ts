@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { scrollElementToTop } from '../lib/scrollToTop'
 
 export function subjectPassedReaderTop(
   subjectBottom: number,
@@ -40,11 +41,7 @@ export function useMessageReaderScroll(
   }, [messageId, readerRoot])
 
   const scrollToTop = useCallback(() => {
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    readerRoot.current?.scrollTo({
-      top: 0,
-      behavior: reducedMotion ? 'auto' : 'smooth',
-    })
+    scrollElementToTop(readerRoot.current)
   }, [readerRoot])
 
   return {

@@ -43,8 +43,7 @@
 
 .gmail-list-state--empty { flex-direction: column; }
 
-.gmail-list-state--empty > span,
-.gmail-disabled > span {
+.gmail-list-state--empty > span {
   display: grid;
   width: 54px;
   height: 54px;
@@ -55,15 +54,13 @@
   color: var(--text-secondary);
 }
 
-.gmail-list-state h2,
-.gmail-disabled h1 {
+.gmail-list-state h2 {
   margin: 4px 0 0;
   color: var(--text);
   font-size: 19px;
 }
 
-.gmail-list-state p,
-.gmail-disabled p {
+.gmail-list-state p {
   max-width: 360px;
   margin: 0 0 12px;
   line-height: 1.65;
@@ -139,14 +136,6 @@
 .gmail-attachments a span { display: grid; min-width: 0; gap: 2px; }
 .gmail-attachments a strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .gmail-attachments a small { color: var(--text-tertiary); font-size: 10px; }
-
-.gmail-disabled {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  padding: 40px;
-  text-align: center;
-}
 
 @media (max-width: 760px) {
   .gmail-dialog-backdrop { align-items: end; padding: 0; }

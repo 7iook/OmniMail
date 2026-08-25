@@ -277,7 +277,7 @@ test('reselecting the inbox quietly refreshes without hiding the list', async ({
   await expect(panel).toHaveCount(0)
   await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
   const requestsBeforeReselect = state.messageRequests
-  await page.getByRole('button', { name: '收件箱' }).click()
+  await page.getByRole('button', { name: '收件箱', exact: true }).click()
   await expect.poll(() => state.messageRequests).toBeGreaterThan(requestsBeforeReselect)
   await expect(page.getByText('Welcome to OmniMail')).toBeVisible()
   await expect(page.getByText('正在读取邮件')).toHaveCount(0)
@@ -400,8 +400,8 @@ test('bulk controls remain usable at common responsive widths', async ({ page })
   await list.hover(); expect(await list.evaluate((element) => element.clientWidth)).toBe(layout.width)
   await expect.poll(() => list.evaluate((element) => getComputedStyle(element).scrollbarColor)).not.toBe(layout.scrollbar)
   await page.locator('.list-header').hover(); await list.evaluate((element) => { element.scrollTop = 80 })
-  await expect(list).toHaveClass(/is-scrollbar-active/)
-  const [idleHeight, requestsBefore] = [await toolbar.evaluate((element) => element.getBoundingClientRect().height), state.messageRequests]
+  await expect(list).toHaveClass(/is-scrollbar-active/); await page.getByRole('button', { name: '回到列表顶部：收件箱' }).click()
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(0); const [idleHeight, requestsBefore] = [await toolbar.evaluate((element) => element.getBoundingClientRect().height), state.messageRequests]
   await expect(page.locator('.message-row__check')).toHaveCount(12)
   await page.getByRole('button', { name: '批量操作' }).click()
   await expect.poll(() => toolbar.evaluate((element) => element.getBoundingClientRect().height)).toBe(idleHeight)

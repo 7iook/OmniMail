@@ -2,6 +2,7 @@ import {
   AlertCircle,
   AtSign,
   Check,
+  KeyRound,
   LoaderCircle,
   Mail,
   Paperclip,
@@ -21,12 +22,15 @@ import {
 } from '../lib/api'
 import { errorMessage } from '../lib/errorMessage'
 import { t } from '../lib/i18n'
+import { useMailListScroll } from '../hooks/useMailListScroll'
+import '../styles/icloud-workspace.css'
 import '../styles/gmail-dialog.css'
 import '../styles/gmail-workspace.css'
 import { GmailAccountDialog } from './GmailAccountDialog'
 import { GmailReader } from './GmailReader'
 import { GmailSearchField } from './GmailSearchField'
 import { GmailScopeSwitcher } from './GmailScopeSwitcher'
+import { ListScrollTopHeading } from './ListScrollTopHeading'
 
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 30 }
 const SYNC_POLL_ATTEMPTS = 15
@@ -46,6 +50,7 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
   enabled: boolean
   remoteImagesEnabled: boolean
 }) {
+  const mailListScroll = useMailListScroll()
   const [accounts, setAccounts] = useState<GmailAccount[]>([])
   const [accountId, setAccountId] = useState('')
   const [query, setQuery] = useState('')
@@ -260,21 +265,16 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
     window.requestAnimationFrame(() => manageButton.current?.focus())
   }
 
-  if (!enabled) {
-    return <main className="gmail-disabled"><span><AtSign size={26} /></span>
-      <h1>{t('Gmail 功能尚未启用')}</h1>
-      <p>{t('在 Worker Variables & Secrets 中配置至少 32 字节的 GMAIL_CREDENTIALS_KEY，然后重新部署。')}</p>
-    </main>
-  }
-
   return <div className={`icloud-mail-view gmail-workspace gmail-mail-view${selected ? ' has-selection' : ''}`}>
-    <section className="list-pane icloud-list-pane page-content-enter gmail-list-pane">
+    <section ref={mailListScroll.listPane}
+      className="list-pane icloud-list-pane page-content-enter gmail-list-pane">
       <header className="list-header icloud-list-header gmail-list-header">
-        <div>{accounts.length ? <GmailScopeSwitcher accounts={accounts}
+        <div>{enabled && accounts.length ? <GmailScopeSwitcher accounts={accounts}
           selectedAccountId={accountId} onChange={chooseAccount}
           onManage={() => setDialogMode('manage')} />
-          : <p className="eyebrow">GMAIL · IMAP</p>}<h1>Gmail</h1></div>
-        <div className="list-header__actions">
+          : <p className="eyebrow">GMAIL · IMAP</p>}
+          <ListScrollTopHeading title="Gmail" onScrollTop={mailListScroll.scrollToTop} /></div>
+        {enabled && <div className="list-header__actions">
           {accounts.length > 0 && <span className="icloud-mail-status is-imap">
             <ShieldCheck size={13} aria-hidden="true" />{t('IMAP 同步')}</span>}
           <div className="icloud-header-action-buttons">
@@ -291,16 +291,19 @@ export function GmailWorkspace({ enabled, remoteImagesEnabled }: {
             aria-label={t('管理 Gmail 账号')} data-tooltip={t('管理 Gmail 账号')}>
             <Settings2 size={17} /></button>
           </div>
-        </div>
+        </div>}
       </header>
-      {accounts.length > 0 && <GmailSearchField value={query} loading={loading}
+      {enabled && accounts.length > 0 && <GmailSearchField value={query} loading={loading}
         onChange={setQuery} />}
-      {accountError(accounts) && <p className="gmail-partial-error" role="status">
+      {enabled && accountError(accounts) && <p className="gmail-partial-error" role="status">
         <AlertCircle size={15} />{accountError(accounts)}
       </p>}
       {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
       <div className="gmail-message-list" aria-busy={loading}>
-        {loading ? <div className="gmail-list-state" role="status">
+        {!enabled ? <div className="icloud-empty">
+          <span><KeyRound size={24} /></span><h3>{t('Gmail 功能尚未启用')}</h3>
+          <p>{t('在 Worker Variables & Secrets 中配置至少 32 字节的 GMAIL_CREDENTIALS_KEY，然后重新部署。')}</p>
+        </div> : loading ? <div className="gmail-list-state" role="status">
           <LoaderCircle className="spin" size={21} />{t('正在读取 Gmail 索引…')}
         </div> : !accounts.length ? <div className="gmail-list-state gmail-list-state--empty">
           <span><AtSign size={25} /></span><h2>{t('连接你的第一个 Gmail')}</h2>
