@@ -22,6 +22,7 @@ import {
 } from '../../../shared/api'
 import { t } from '../../../shared/i18n'
 import '../styles/deployment-wizard.css'
+import '../styles/deployment-wizard-responsive.css'
 
 const steps = [
   { id: 'core' as const, label: '核心资源', description: 'Worker、D1、R2 与队列', Icon: Database },

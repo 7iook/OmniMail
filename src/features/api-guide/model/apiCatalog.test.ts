@@ -8,7 +8,10 @@ import {
 } from './apiCatalog'
 
 const routeFiles = [
-  'email-worker/src/app/api.ts',
+  'email-worker/src/app/routes/public-routes.ts',
+  'email-worker/src/app/routes/account-routes.ts',
+  'email-worker/src/app/routes/admin-routes.ts',
+  'email-worker/src/app/routes/mail-routes.ts',
   'email-worker/src/features/extension-authorization/extension-authorization-routes.ts',
   'email-worker/src/features/icloud/icloud-routes.ts',
   'email-worker/src/features/gmail/gmail-routes.ts',
