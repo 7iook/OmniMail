@@ -259,4 +259,3 @@ export interface CreateTemporaryInvite {
   canReply: boolean
   canTranslate: boolean
 }
-
