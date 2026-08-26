@@ -87,7 +87,7 @@ describe('Gmail IMAP controlled command boundary', () => {
     await client.close()
 
     const commands = fixture.commands()
-    expect(commands).toContain('ID ("name" "OmniMail" "version" "0.5.3"')
+    expect(commands).toContain('ID ("name" "OmniMail" "version" "0.6.0"')
     expect(commands).toContain('EXAMINE INBOX')
     expect(commands).toContain('UID FETCH 42 (UID BODY.PEEK[])')
     expect(commands).toContain('SELECT INBOX')

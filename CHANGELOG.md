@@ -5,6 +5,58 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.6.0] - 2026-08-26
+
+### 新增
+
+- 新增独立 Microsoft 邮箱工作区，可连接多个 Outlook.com、Hotmail、Live，以及租户允许
+  IMAP 的 Microsoft 365 委托式账号。
+- 支持分字段录入和两步批量导入；浏览器识别完整组合与仅 OAuth2 两类格式，安全预览不会
+  回显 refresh token、组合密码或完整 Client ID。
+- 支持全部账号 INBOX 聚合、单账号文件夹浏览、25/50/100/200 条分页、本地元数据搜索、
+  手动同步、当前文件夹刷新、正文读取和最大 5 MiB 附件下载。
+- 支持打开未读邮件后精确同步 Microsoft `\Seen` 状态；同步失败不会阻断正文显示。
+- 账号管理支持重命名、验证、替换 OAuth2 凭据、单个断开与批量断开；范围面板支持复制
+  任意账号邮箱，全部范围默认复制第一个邮箱并可同步所有账号。
+
+### 安全与可靠性
+
+- Microsoft 认证只允许 OAuth2 + IMAP XOAUTH2，固定访问 Microsoft Global 官方 token
+  endpoint 与 `outlook.office365.com:993`；仅邮箱密码、IMAP LOGIN 和认证降级均已停用。
+- refresh token、短期 access token 与经确认留存的组合 password 使用独立
+  `MICROSOFT_CREDENTIALS_KEY` 和绑定用户、账号、凭据类型的 AES-GCM 上下文加密。
+- 同步使用 Queue、五分钟调度、六分钟账号租约和账号级 token 刷新租约；消息身份绑定
+  account、folder、UIDVALIDITY 与 UID，所有 API 都校验当前用户归属。
+- 正文和附件只按需读取且不持久化；唯一新增远端写入是对已校验 UID 添加 `\Seen`。
+
+### 改进
+
+- Microsoft 连接、批量导入与账号管理共用响应式固定高度弹窗，内容只在内部滚动，避免不同
+  页面和逐项导入过程导致外框与操作按钮跳动。
+- 增加带减少动态效果兼容的弹窗开关动画、逐项导入状态动画、延迟显示滚动条、稳定安全预览
+  和完整的键盘焦点管理。
+- Microsoft 实施说明、部署指南、API Catalog、生成式 API 文档和 README 已全部按当前实现
+  重写，移除密码兼容与待实现阶段等过时描述。
+
+### 升级说明
+
+- 新增 D1 迁移 `0027_microsoft_imap.sql` 与
+  `0028_microsoft_oauth_combination_password.sql`；现有部署在升级时会按顺序自动应用。
+- 使用 Microsoft 邮箱前必须配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY`。可选设置
+  `MICROSOFT_MAIL_ENABLED=false` 紧急停用入口和定时入队；不配置密钥时该功能保持关闭。
+- 需要由部署者自行准备与用户配套的 refresh token、Client ID、authority，并确保令牌包含
+  Outlook IMAP 委托权限和 `offline_access`。
+
+### 测试
+
+- 507 项 Web/Node 单元测试、10 项 Worker 池测试与 72 项 Playwright E2E 全部通过。
+- 全新隔离 D1 从 `0001` 到 `0028` 应用成功，第二次执行确认幂等；TypeScript、Oxlint、
+  生产构建、API 文档生成与 Wrangler dry-run 通过。
+
+### 发布
+
+- Web 版本升级为 `0.6.0`；OmniMail Float 与 Android 保持各自独立版本。
+
 ## [0.5.3] - 2026-08-25
 
 ### 新增
