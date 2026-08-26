@@ -225,6 +225,16 @@ test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }
   let dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
   await expect(dialog.getByText('已连接 3 个账号')).toBeVisible()
   await expect(dialog).toHaveCSS('transform', 'none')
+  await dialog.locator('.gmail-account-card').first().click()
+  const accountSettings = page.getByRole('dialog', { name: '设置 工作 Outlook' })
+  await accountSettings.getByRole('button', { name: '断开账号' }).click()
+  const disconnectConfirm = page.getByRole('alertdialog', { name: '确认断开并删除本地加密凭据？' })
+  await expect(disconnectConfirm).toBeVisible()
+  await expect(accountSettings.locator('.gmail-delete-confirm')).toHaveCount(0)
+  await disconnectConfirm.getByRole('button', { name: '取消' }).click()
+  await expect(disconnectConfirm).toHaveCount(0)
+  await accountSettings.getByRole('button', { name: '返回' }).click()
+  dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
   const managementDialogHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height)
   await dialog.getByRole('button', { name: '添加账号' }).click()
   const connectDialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
@@ -253,6 +263,48 @@ test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }
   await expect(dialog.getByText('已连接 1 个账号')).toBeVisible()
   await expect(dialog.getByText('已批量断开 2 个 Microsoft 账号；请同时撤销应用授权。')).toBeVisible()
   await expect(dialog.getByRole('button', { name: '批量管理' })).toBeVisible()
+})
+
+test('keeps Microsoft account actions fixed while the account cards scroll', async ({ page }) => {
+  await prepare(page)
+  const accounts = Array.from({ length: 12 }, (_value, index) => ({
+    ...account,
+    id: `microsoft-${index + 1}`,
+    name: `Outlook ${index + 1}`,
+    email: `user${index + 1}@outlook.com`,
+  }))
+  await page.route('**://*/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (await shell(route, path)) return
+    if (path === '/api/microsoft/accounts') return json(route, { enabled: true, accounts })
+    if (path === '/api/microsoft/messages') {
+      return json(route, { messages: [], page: { hasMore: false, nextCursor: null, limit: 50 }, folderPath: 'INBOX' })
+    }
+    return route.abort()
+  })
+
+  await page.goto('/microsoft')
+  await page.getByRole('button', { name: '管理 Microsoft 账号' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
+  await expect(dialog).toHaveCSS('transform', 'none')
+  const body = dialog.locator('.microsoft-dialog-body')
+  const summary = dialog.locator('.gmail-account-list__summary')
+  const cards = dialog.locator('.microsoft-account-card-list')
+  const addAccount = dialog.getByRole('button', { name: '添加账号' })
+  const firstCard = cards.locator('.gmail-account-card').first()
+
+  await expect(body).toHaveCSS('overflow-y', 'hidden')
+  await expect(cards).toHaveCSS('overflow-y', 'auto')
+  expect(await body.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true)
+  expect(await cards.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  const summaryTop = await summary.evaluate((element) => element.getBoundingClientRect().top)
+  const actionTop = await addAccount.evaluate((element) => element.getBoundingClientRect().top)
+  await cards.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await expect.poll(() => cards.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  expect(await summary.evaluate((element) => element.getBoundingClientRect().top)).toBe(summaryTop)
+  expect(await addAccount.evaluate((element) => element.getBoundingClientRect().top)).toBe(actionTop)
+  expect(await firstCard.evaluate((element) => element.getBoundingClientRect().bottom))
+    .toBeLessThan(await cards.evaluate((element) => element.getBoundingClientRect().top))
 })
 
 test('browses Microsoft mail, reflects Seen updates, and renders on mobile', async ({ page }) => {
@@ -350,5 +402,6 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
     noHorizontalOverflow: element.scrollWidth <= element.clientWidth,
   }))).toEqual({ fitsViewport: true, noHorizontalOverflow: true })
   await expect(mobileDialog).toHaveCSS('overflow-y', 'hidden')
-  await expect(mobileDialog.locator('.microsoft-dialog-body')).toHaveCSS('overflow-y', 'auto')
+  await expect(mobileDialog.locator('.microsoft-dialog-body')).toHaveCSS('overflow-y', 'hidden')
+  await expect(mobileDialog.locator('.microsoft-account-card-list')).toHaveCSS('overflow-y', 'auto')
 })

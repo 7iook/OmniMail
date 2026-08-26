@@ -54,26 +54,28 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
       <span className="icloud-source-badge is-imap">IMAP</span>
     </header>
     <div ref={readerRoot} className="reader-content icloud-reader-content">
-      <div className="icloud-reader-heading">
-        <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
-        <div className="icloud-reader-sender">
-          <span>{senderLabel(message).slice(0, 1).toUpperCase()}</span>
-          <p><strong>{senderLabel(message)}</strong>
-            {message.senderAddress && <small>&lt;{message.senderAddress}&gt;</small>}
-            {message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
-          {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+      <div className="icloud-reader-inner">
+        <div className="icloud-reader-heading">
+          <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
+          <div className="icloud-reader-sender">
+            <span>{senderLabel(message).slice(0, 1).toUpperCase()}</span>
+            <p><strong>{senderLabel(message)}</strong>
+              {message.senderAddress && <small>&lt;{message.senderAddress}&gt;</small>}
+              {message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
+            {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+          </div>
         </div>
+        <div className="icloud-reader-body"><ICloudMessageBody message={message}
+          remoteImagesEnabled={remoteImagesEnabled} /></div>
+        {message.attachments.length > 0 && <section className="gmail-attachments">
+          <h2><Paperclip size={16} />{t('附件')}</h2>
+          <div>{message.attachments.map((attachment) => <a key={attachment.partId}
+            href={api.microsoftAttachmentUrl(message.account.id, message.id, attachment.partId)} download>
+            <span><strong>{attachment.filename}</strong>
+              <small>{attachment.contentType} · {Math.ceil(attachment.size / 1024)} KiB</small></span>
+          </a>)}</div>
+        </section>}
       </div>
-      <div className="icloud-reader-body"><ICloudMessageBody message={message}
-        remoteImagesEnabled={remoteImagesEnabled} /></div>
-      {message.attachments.length > 0 && <section className="gmail-attachments">
-        <h2><Paperclip size={16} />{t('附件')}</h2>
-        <div>{message.attachments.map((attachment) => <a key={attachment.partId}
-          href={api.microsoftAttachmentUrl(message.account.id, message.id, attachment.partId)} download>
-          <span><strong>{attachment.filename}</strong>
-            <small>{attachment.contentType} · {Math.ceil(attachment.size / 1024)} KiB</small></span>
-        </a>)}</div>
-      </section>}
     </div>
     <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}
       type="button" onClick={readerScroll.scrollToTop} aria-label={t('回到顶部')}

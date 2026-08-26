@@ -56,6 +56,7 @@ export const enMicrosoft: Record<string, string> = {
   '已批量断开 {count} 个 Microsoft 账号。': 'Disconnected {count} Microsoft account(s).',
   '已批量断开 {count} 个 Microsoft 账号；请同时撤销应用授权。': 'Disconnected {count} Microsoft account(s); revoke the app authorization as well.',
   'MICROSOFT · 批量管理': 'MICROSOFT · BATCH MANAGEMENT',
+  'MICROSOFT · 账号管理': 'MICROSOFT · ACCOUNT MANAGEMENT',
   '确认批量断开 {count} 个账号？': 'Disconnect {count} account(s)?',
   '将断开所选 Microsoft 账号，并删除 OmniMail 中保存的本地凭据与邮件索引。': 'The selected Microsoft accounts will be disconnected, and locally stored credentials and mail indexes will be deleted from OmniMail.',
   '服务器邮件不会被删除': 'Server mail will not be deleted',

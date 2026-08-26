@@ -234,7 +234,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       setNotice(result.remoteRevocationRequired
         ? t('账号已断开；请同时在 Microsoft 账户中撤销应用授权。')
         : t('账号和本地索引已删除。'))
-    } catch (removeError) { setError(errorMessage(removeError)) } finally { setBusy('') }
+    } catch (removeError) { setConfirmDelete(false); setError(errorMessage(removeError)) } finally { setBusy('') }
   }
 
   function enterBatchMode() {
@@ -323,7 +323,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           onClick={requestClose} aria-label={t('关闭')}><X size={17} /></button>
       </header>
 
-      <div className={`microsoft-dialog-body microsoft-scrollbar${batchView ? ' is-batch' : ''}${bodyScrollbar.visible ? ' is-scrollbar-visible' : ''}`}
+      <div className={`microsoft-dialog-body microsoft-scrollbar${view === 'accounts' ? ' is-accounts' : ''}${batchView ? ' is-batch' : ''}${bodyScrollbar.visible ? ' is-scrollbar-visible' : ''}`}
         {...bodyScrollbar.handlers}>
       {(notice || error) && <div className="gmail-dialog-feedback">
         {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
@@ -397,26 +397,28 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
               ? batchDeleteProgress.total : batchDeleteProgress.completed + 1,
             total: batchDeleteProgress.total,
           })}</p>}
-        {accounts.map((account) => batchMode ? <label
-          className={`gmail-account-card microsoft-account-batch-card${selectedAccountIds.has(account.id) ? ' is-selected' : ''}`}
-          key={account.id}>
-          <input className="selection-checkbox" type="checkbox" checked={selectedAccountIds.has(account.id)}
-            onChange={() => toggleAccountSelection(account.id)} aria-label={t('选择 Microsoft 账号：{email}', { email: account.email })} />
-          <span className="gmail-account-card__icon">M</span>
-          <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
-            <small>{account.authMode === 'oauth2'
-              ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
-          <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
-            <span>{selectedAccountIds.has(account.id) ? t('已选择') : t('点击选择')}</span></span>
-        </label> : <button className="gmail-account-card" type="button"
-          key={account.id} onClick={() => openAccount(account)}>
-          <span className="gmail-account-card__icon">M</span>
-          <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
-            <small>{account.authMode === 'oauth2'
-              ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
-          <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
-            <span>{t('管理')}<ChevronRight size={14} /></span></span>
-        </button>)}
+        <div className={`microsoft-account-card-list microsoft-scrollbar${bodyScrollbar.visible ? ' is-scrollbar-visible' : ''}`} {...bodyScrollbar.handlers}>
+          {accounts.map((account) => batchMode ? <label
+            className={`gmail-account-card microsoft-account-batch-card${selectedAccountIds.has(account.id) ? ' is-selected' : ''}`}
+            key={account.id}>
+            <input className="selection-checkbox" type="checkbox" checked={selectedAccountIds.has(account.id)}
+              onChange={() => toggleAccountSelection(account.id)} aria-label={t('选择 Microsoft 账号：{email}', { email: account.email })} />
+            <span className="gmail-account-card__icon">M</span>
+            <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
+              <small>{account.authMode === 'oauth2'
+                ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
+            <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
+              <span>{selectedAccountIds.has(account.id) ? t('已选择') : t('点击选择')}</span></span>
+          </label> : <button className="gmail-account-card" type="button"
+            key={account.id} onClick={() => openAccount(account)}>
+            <span className="gmail-account-card__icon">M</span>
+            <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
+              <small>{account.authMode === 'oauth2'
+                ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
+            <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
+              <span>{t('管理')}<ChevronRight size={14} /></span></span>
+          </button>)}
+        </div>
         {batchDeleteConfirm && <DangerConfirmDialog icon={Trash2}
           eyebrow={t('MICROSOFT · 批量管理')}
           title={t('确认批量断开 {count} 个账号？', { count: selectedAccountIds.size })}
@@ -468,10 +470,10 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <small>{t('删除本地密文与索引，不会删除服务器邮件。')}</small></span>
           <button className="button icloud-danger-button" type="button" disabled={Boolean(busy)}
             onClick={() => setConfirmDelete(true)}><Trash2 size={16} />{t('断开账号')}</button></div>
-        {confirmDelete && <div className="gmail-delete-confirm" role="alert"><p>
-          {t('确认断开？之后还应在 Microsoft 账户中撤销应用授权。')}</p>
-          <span><button className="button button--secondary" type="button" onClick={() => setConfirmDelete(false)}>{t('取消')}</button>
-            <button className="button icloud-danger-button" type="button" onClick={() => void remove()}>{t('确认断开')}</button></span></div>}
+        {confirmDelete && <DangerConfirmDialog icon={Trash2} eyebrow={t('MICROSOFT · 账号管理')} title={t('确认断开并删除本地加密凭据？')}
+          description={t('删除本地密文与索引，不会删除服务器邮件。')} impactTitle={t('服务器邮件不会被删除')}
+          impactDescription={t('OAuth2 应用授权仍需在 Microsoft 账户中单独撤销。')} confirmLabel={t('确认断开')}
+          busy={busy === 'delete'} onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />}
       </div>}
       </div>
     </section>

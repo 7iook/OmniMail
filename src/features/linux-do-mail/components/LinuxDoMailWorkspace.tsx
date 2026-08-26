@@ -102,27 +102,29 @@ function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }
           : <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>}
       </header>
       <div ref={readerRoot} className="reader-content icloud-reader-content">
-        <div className="icloud-reader-heading">
-          <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
-          <div className="icloud-reader-sender">
-            <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
-            <p><strong>{senderLabel}</strong>
-              {!outgoing && sender.name && sender.address
-                && <small title={sender.address}>{`<${sender.address}>`}</small>}
-              {outgoing
-                ? <small>{t('发件：{address}', { address: message.from })}</small>
-                : message.to && <small>{t('收件：{address}', { address: message.to })}</small>}
-            </p>
-            {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+        <div className="icloud-reader-inner">
+          <div className="icloud-reader-heading">
+            <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
+            <div className="icloud-reader-sender">
+              <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
+              <p><strong>{senderLabel}</strong>
+                {!outgoing && sender.name && sender.address
+                  && <small title={sender.address}>{`<${sender.address}>`}</small>}
+                {outgoing
+                  ? <small>{t('发件：{address}', { address: message.from })}</small>
+                  : message.to && <small>{t('收件：{address}', { address: message.to })}</small>}
+              </p>
+              {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+            </div>
           </div>
-        </div>
-        {outgoing && message.status === 'failed' && message.processingError
-          && <p className="linuxdo-sent-error" role="status">
-            <CircleAlert size={16} aria-hidden="true" />
-            <span><strong>{t('发送失败')}</strong><small>{message.processingError}</small></span>
-          </p>}
-        <div className="icloud-reader-body">
-          <ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} />
+          {outgoing && message.status === 'failed' && message.processingError
+            && <p className="linuxdo-sent-error" role="status">
+              <CircleAlert size={16} aria-hidden="true" />
+              <span><strong>{t('发送失败')}</strong><small>{message.processingError}</small></span>
+            </p>}
+          <div className="icloud-reader-body">
+            <ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} />
+          </div>
         </div>
       </div>
       <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}

@@ -233,6 +233,12 @@
 
 .icloud-reader-content {
   width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.icloud-reader-inner {
+  width: 100%;
   max-width: 980px;
   margin-inline: auto;
 }

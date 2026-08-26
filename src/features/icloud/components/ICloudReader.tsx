@@ -35,16 +35,18 @@ export function ICloudReader({ message, loading, method, remoteImagesEnabled, on
         {method && <span className={`icloud-source-badge is-${method}`}>{t(method === 'imap' ? 'IMAP 完整邮件' : 'Web 摘要')}</span>}
       </header>
       <div ref={readerRoot} className="reader-content icloud-reader-content">
-        <div className="icloud-reader-heading">
-          <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
-          <div className="icloud-reader-sender">
-            <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
-            <p><strong>{senderLabel}</strong>{sender.name && sender.address && <small title={sender.address}>{sender.isHideMyEmailRelay ? t('通过 iCloud 隐藏邮箱转发') : `<${sender.address}>`}</small>}{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
-            {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+        <div className="icloud-reader-inner">
+          <div className="icloud-reader-heading">
+            <h1 ref={readerScroll.subjectHeading}>{subject}</h1>
+            <div className="icloud-reader-sender">
+              <span>{senderLabel.slice(0, 1).toUpperCase()}</span>
+              <p><strong>{senderLabel}</strong>{sender.name && sender.address && <small title={sender.address}>{sender.isHideMyEmailRelay ? t('通过 iCloud 隐藏邮箱转发') : `<${sender.address}>`}</small>}{message.to && <small>{t('收件：{address}', { address: message.to })}</small>}</p>
+              {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
+            </div>
           </div>
+          {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
+          <div className="icloud-reader-body"><ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} /></div>
         </div>
-        {method === 'web' && <div className="icloud-reader-web-note"><KeyRound size={15} /><span><strong>{t('当前显示 iCloud Web 摘要')}</strong>{t('配置当前账号的应用专用密码后，可读取 IMAP 完整正文。')}</span></div>}
-        <div className="icloud-reader-body"><ICloudMessageBody message={message} remoteImagesEnabled={remoteImagesEnabled} /></div>
       </div>
       <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}
         type="button" onClick={readerScroll.scrollToTop} aria-label={t('回到顶部')}
