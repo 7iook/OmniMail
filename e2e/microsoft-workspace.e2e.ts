@@ -230,6 +230,7 @@ test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }
 
 test('browses Microsoft mail, reflects Seen updates, and renders on mobile', async ({ page }) => {
   await prepare(page)
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.setViewportSize({ width: 375, height: 812 })
   await page.addInitScript(() => localStorage.setItem('omnimail-theme', 'dark'))
   const listQueries: string[] = []
@@ -266,6 +267,11 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
   await expect(scopeTrigger).toContainText('全部 Microsoft')
   await scopeTrigger.click()
   let scope = page.getByRole('dialog', { name: '选择 Microsoft 邮箱' })
+  const copyAddress = scope.getByRole('button', { name: '复制邮箱地址：user@outlook.com' })
+  await copyAddress.click()
+  await expect(scope).toBeVisible()
+  await expect(scope.getByRole('button', { name: '已复制：user@outlook.com' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('user@outlook.com')
   await scope.getByRole('button', { name: /工作 Outlook/ }).click()
   await expect(scopeTrigger).toContainText('工作 Outlook')
   await scopeTrigger.click()

@@ -168,10 +168,16 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
     } catch (loadError) { setError(errorMessage(loadError)) } finally { setLoadingMore(false) }
   }
 
-  async function copyAddress() {
-    if (!currentAccount) return
-    try { await navigator.clipboard.writeText(currentAccount.email); setNotice(t('已复制：{address}', { address: currentAccount.email })) }
-    catch { setError(t('无法访问剪贴板，请手动复制邮箱地址。')) }
+  async function copyAddress(address = currentAccount?.email || ''): Promise<boolean> {
+    if (!address) return false
+    try {
+      await navigator.clipboard.writeText(address)
+      setError(''); setNotice(t('已复制：{address}', { address }))
+      return true
+    } catch {
+      setNotice(''); setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
+      return false
+    }
   }
 
   function chooseAccount(next: string) {
@@ -189,7 +195,8 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
           selectedAccountId={accountId} selectedFolderPath={folderPath} limit={limit}
           folderRefreshing={folderRefreshing} onAccountChange={chooseAccount}
           onFolderChange={setFolderPath} onLimitChange={setLimit}
-          onRefreshFolders={() => loadFolders(true)} onManage={() => setDialogMode('manage')} />
+          onRefreshFolders={() => loadFolders(true)} onCopyAddress={copyAddress}
+          onManage={() => setDialogMode('manage')} />
           : <p className="eyebrow">MICROSOFT · IMAP</p>}
           <ListScrollTopHeading title="Microsoft" onScrollTop={mailListScroll.scrollToTop} /></div>
         {enabled && <div className="list-header__actions">

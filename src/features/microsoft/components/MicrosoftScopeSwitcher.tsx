@@ -1,4 +1,4 @@
-import { AtSign, Check, ChevronDown, Folder, Inbox, RefreshCw, Settings2, X } from 'lucide-react'
+import { AtSign, Check, ChevronDown, Copy, Folder, Inbox, RefreshCw, Settings2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { MicrosoftAccount, MicrosoftFolder } from '../../../shared/api'
 import { t } from '../../../shared/i18n'
@@ -17,7 +17,7 @@ function statusLabel(account: MicrosoftAccount): string {
 
 export function MicrosoftScopeSwitcher({
   accounts, folders, selectedAccountId, selectedFolderPath, limit, folderRefreshing,
-  onAccountChange, onFolderChange, onLimitChange, onRefreshFolders, onManage,
+  onAccountChange, onFolderChange, onLimitChange, onRefreshFolders, onCopyAddress, onManage,
 }: {
   accounts: MicrosoftAccount[]
   folders: MicrosoftFolder[]
@@ -29,14 +29,17 @@ export function MicrosoftScopeSwitcher({
   onFolderChange: (folderPath: string) => void
   onLimitChange: (limit: number) => void
   onRefreshFolders: () => Promise<void>
+  onCopyAddress: (address: string) => Promise<boolean>
   onManage: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [copiedAccountId, setCopiedAccountId] = useState('')
   const titleId = useId()
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | null>(null)
+  const copyTimer = useRef<number | null>(null)
   const selected = accounts.find(({ id }) => id === selectedAccountId)
   const visibleFolders = folders.length ? folders : [{
     path: 'INBOX', displayName: 'INBOX', flags: [], specialUse: '\\Inbox',
@@ -81,7 +84,18 @@ export function MicrosoftScopeSwitcher({
 
   useEffect(() => () => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
   }, [])
+
+  async function copyAddress(account: MicrosoftAccount) {
+    if (!await onCopyAddress(account.email)) return
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+    setCopiedAccountId(account.id)
+    copyTimer.current = window.setTimeout(() => {
+      copyTimer.current = null
+      setCopiedAccountId('')
+    }, 1_600)
+  }
 
   return <div className="icloud-scope-switcher microsoft-scope-switcher">
     <button ref={trigger} className="icloud-scope-trigger" type="button"
@@ -118,6 +132,16 @@ export function MicrosoftScopeSwitcher({
                 <span><strong>{account.name}</strong>
                   <small>{account.email} · {statusLabel(account)}</small></span>
                 {account.id === selectedAccountId && <Check size={15} />}
+              </button>
+              <button className="icloud-scope-copy" type="button"
+                onClick={() => void copyAddress(account)}
+                aria-label={copiedAccountId === account.id
+                  ? t('已复制：{address}', { address: account.email })
+                  : t('复制邮箱地址：{address}', { address: account.email })}
+                data-tooltip={copiedAccountId === account.id ? t('已复制') : t('复制')}>
+                {copiedAccountId === account.id
+                  ? <Check size={15} aria-hidden="true" />
+                  : <Copy size={15} aria-hidden="true" />}
               </button>
               <button className="icloud-scope-settings" type="button"
                 onClick={() => close(onManage, false)} aria-label={t('管理 Microsoft 账号')}

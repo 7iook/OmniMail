@@ -67,6 +67,12 @@
 
 .microsoft-scope-note { margin: 0 8px 8px; color: var(--text-tertiary); font-size: 10px; line-height: 1.55; }
 
+.microsoft-scope-panel .icloud-scope-account {
+  grid-template-columns: minmax(0, 1fr) 44px 44px;
+}
+
+.microsoft-scope-panel .icloud-scope-copy:has(.lucide-check) { color: var(--success); }
+
 .microsoft-account-list-actions {
   display: inline-flex;
   align-items: center;
