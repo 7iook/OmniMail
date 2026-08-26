@@ -1,25 +1,18 @@
 import {
-  AlertCircle, ArrowLeft, Check, ChevronRight, KeyRound, LoaderCircle, Pencil,
-  Plus, RefreshCw, ShieldCheck, Trash2, X,
+  AlertCircle, ArrowLeft, Check, ChevronRight, KeyRound, ListChecks, LoaderCircle,
+  Pencil, Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { api, type MicrosoftAccount,
-  type MicrosoftImportAccount, type MicrosoftImportResult } from '../../../shared/api'
+  type MicrosoftImportAccount } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
-import { MICROSOFT_IMPORT_ALTERNATE_FORMAT, MICROSOFT_IMPORT_FORMATS,
-  parseMicrosoftImportText } from '../model/microsoft-import'
-import type { MicrosoftImportMode } from '../model/microsoft-import'
-import { MicrosoftImportProgress,
-  type MicrosoftImportProgressValue } from './MicrosoftImportProgress'
+import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
+import { useDelayedScrollbarVisibility } from '../../../shared/ui/scroll/useDelayedScrollbarVisibility'
+import { MicrosoftBatchImport } from './MicrosoftBatchImport'
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
-const importFormatLabels = ['完整组合', '仅 OAuth2'] as const
-const importPlaceholder = [
-  MICROSOFT_IMPORT_FORMATS[0], MICROSOFT_IMPORT_ALTERNATE_FORMAT,
-  ...MICROSOFT_IMPORT_FORMATS.slice(1),
-].join('\n')
 function statusLabel(status: MicrosoftAccount['status']) {
   if (status === 'syncing') return t('正在同步')
   if (status === 'credential_error') return t('凭据失效')
@@ -33,11 +26,6 @@ function safeResultError(code?: string, message?: string) {
   if (message) return message
   if (code === 'duplicate') return t('账号已存在。')
   return t('账号验证失败，请检查凭据、权限和 IMAP 设置。')
-}
-
-function importModeLabel(mode: MicrosoftImportMode | null) {
-  if (mode === 'oauth2_combination') return t('OAuth2 · 组合密码将加密保存')
-  return mode === 'oauth2' ? 'OAuth2' : ''
 }
 
 export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose, onChanged }: {
@@ -56,11 +44,13 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   const [clientId, setClientId] = useState('')
   const [authority, setAuthority] = useState('common')
   const [passwordConsent, setPasswordConsent] = useState(false)
-  const [batchText, setBatchText] = useState('')
   const [renameValue, setRenameValue] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
+  const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
+  const [batchDeleteProgress, setBatchDeleteProgress] = useState<{ completed: number; total: number } | null>(null)
   const [busy, setBusy] = useState('')
-  const [importProgress, setImportProgress] = useState<MicrosoftImportProgressValue | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const titleId = useId()
@@ -68,15 +58,28 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   const dialogRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const errorRef = useRef<HTMLParagraphElement>(null)
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const dialogScrollbar = useDelayedScrollbarVisibility<HTMLElement>({ showOnFocus: false })
   const busyRef = useRef(busy)
+  const batchDeleteConfirmRef = useRef(batchDeleteConfirm)
   const onCloseRef = useRef(onClose)
   busyRef.current = busy
+  batchDeleteConfirmRef.current = batchDeleteConfirm
   onCloseRef.current = onClose
-  const batchRows = useMemo(() => parseMicrosoftImportText(batchText), [batchText])
-  const readyRows = batchRows.filter(({ preview }) => preview.status === 'ready')
-  const batchHasPasswords = readyRows.some(({ input }) => Boolean(input.password))
-
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
+  useEffect(() => {
+    const accountIds = new Set(accounts.map(({ id }) => id))
+    setSelectedAccountIds((current) => {
+      const next = new Set([...current].filter((id) => accountIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [accounts])
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedAccountIds.size > 0
+        && selectedAccountIds.size < accounts.length
+    }
+  }, [accounts.length, selectedAccountIds])
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -84,6 +87,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     document.body.style.overflow = 'hidden'
     closeRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
+      if (batchDeleteConfirmRef.current) return
       if (event.key === 'Escape' && !busyRef.current) onCloseRef.current()
       if (event.key !== 'Tab') return
       const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
@@ -112,39 +116,17 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     resetSecrets(); setError(''); setNotice(''); setConfirmDelete(false); setView('account')
   }
 
-  async function importInputs(
-    inputs: MicrosoftImportAccount[],
-    reportProgress: boolean,
-  ): Promise<MicrosoftImportResult[]> {
-    if (!reportProgress) return (await api.importMicrosoftAccounts(inputs)).results
-    const results: MicrosoftImportResult[] = []
-    setImportProgress({ completed: 0, total: inputs.length })
-    for (let index = 0; index < inputs.length; index += 1) {
-      const response = await api.importMicrosoftAccounts([inputs[index]])
-      const item = response.results[0] || {
-        index: 0, status: 'error' as const, error: t('Microsoft 未返回账号验证结果。'),
-      }
-      results.push({ ...item, index })
-      setImportProgress({ completed: index + 1, total: inputs.length })
-    }
-    return results
-  }
-
-  async function submitImport(
-    inputs: MicrosoftImportAccount[],
-    sourceLines?: number[],
-    reportProgress = false,
-  ) {
+  async function submitImport(inputs: MicrosoftImportAccount[]) {
     setBusy('import'); setError(''); setNotice('')
     try {
-      const results = await importInputs(inputs, reportProgress)
+      const results = (await api.importMicrosoftAccounts(inputs)).results
       const accepted = results.filter(({ status }) => status === 'accepted').length
       const failed = results.filter(({ status }) => status !== 'accepted')
       await onChanged()
-      resetSecrets(); setBatchText('')
+      resetSecrets()
       if (failed.length) {
         setError(failed.map((item) => t('第 {line} 项：{error}', {
-          line: sourceLines?.[item.index] ?? item.index + 1,
+          line: item.index + 1,
           error: safeResultError(item.code, item.error),
         })).join(' '))
       }
@@ -152,9 +134,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       if (accepted && !failed.length) setView('accounts')
     } catch (submitError) {
       setError(errorMessage(submitError))
-    } finally {
-      setImportProgress(null); setBusy('')
-    }
+    } finally { setBusy('') }
   }
 
   async function connect(event: FormEvent) {
@@ -169,21 +149,6 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       persistPasswordConfirmed: password ? true : undefined,
     }
     await submitImport([input])
-  }
-
-  async function importBatch(event: FormEvent) {
-    event.preventDefault()
-    if (!readyRows.length) { setError(t('没有可导入的有效账号。')); return }
-    if (readyRows.length > 25) { setError(t('每批最多导入 25 个账号。')); return }
-    if (batchHasPasswords && !passwordConsent) {
-      setError(t('请先确认允许加密保存 OAuth2 组合密码。')); return
-    }
-    await submitImport(
-      readyRows.map(({ input }) => input.password
-        ? { ...input, persistPasswordConfirmed: true } : input),
-      readyRows.map(({ preview }) => preview.line),
-      true,
-    )
   }
 
   async function rename(event: FormEvent) {
@@ -234,6 +199,68 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     } catch (removeError) { setError(errorMessage(removeError)) } finally { setBusy('') }
   }
 
+  function enterBatchMode() {
+    setError(''); setNotice(''); setSelectedAccountIds(new Set()); setBatchMode(true)
+  }
+
+  function exitBatchMode() {
+    if (busy) return
+    setBatchDeleteConfirm(false); setSelectedAccountIds(new Set()); setBatchMode(false)
+  }
+
+  function toggleAccountSelection(accountId: string) {
+    setSelectedAccountIds((current) => {
+      const next = new Set(current)
+      if (next.has(accountId)) next.delete(accountId)
+      else next.add(accountId)
+      return next
+    })
+  }
+
+  function toggleAllAccounts() {
+    setSelectedAccountIds((current) => current.size === accounts.length
+      ? new Set() : new Set(accounts.map(({ id }) => id)))
+  }
+
+  async function removeSelected() {
+    const selectedAccounts = accounts.filter(({ id }) => selectedAccountIds.has(id))
+    if (!selectedAccounts.length) {
+      setError(t('请至少选择一个 Microsoft 账号。'))
+      return
+    }
+    setBatchDeleteConfirm(false); setBusy('batch-delete'); setError(''); setNotice('')
+    setBatchDeleteProgress({ completed: 0, total: selectedAccounts.length })
+    const failed: Array<{ account: MicrosoftAccount; message: string }> = []
+    let remoteRevocationRequired = false
+    for (const [index, account] of selectedAccounts.entries()) {
+      try {
+        const result = await api.disconnectMicrosoft(account.id)
+        remoteRevocationRequired ||= result.remoteRevocationRequired
+      } catch (removeError) {
+        failed.push({ account, message: errorMessage(removeError) })
+      }
+      setBatchDeleteProgress({ completed: index + 1, total: selectedAccounts.length })
+    }
+    try {
+      await onChanged()
+      setSelectedAccountIds(new Set(failed.map(({ account }) => account.id)))
+      if (failed.length) {
+        const firstFailure = failed[0]?.message
+        setError(t('已断开 {success} 个账号，{failed} 个失败。{message}', {
+          success: selectedAccounts.length - failed.length,
+          failed: failed.length,
+          message: firstFailure ? ` ${firstFailure}` : '',
+        }))
+      } else {
+        setBatchMode(false)
+        setNotice(remoteRevocationRequired
+          ? t('已批量断开 {count} 个 Microsoft 账号；请同时撤销应用授权。', { count: selectedAccounts.length })
+          : t('已批量断开 {count} 个 Microsoft 账号。', { count: selectedAccounts.length }))
+      }
+    } catch (refreshError) { setError(errorMessage(refreshError)) }
+    finally { setBatchDeleteProgress(null); setBusy('') }
+  }
+
   const title = view === 'accounts' ? t('Microsoft 账号管理')
     : view === 'account' ? t('设置 {name}', { name: target?.name || 'Microsoft' })
       : t('连接 Microsoft 邮箱')
@@ -241,7 +268,9 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 
   return <div className="icloud-modal-backdrop gmail-dialog-backdrop microsoft-dialog-backdrop is-visible"
     role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
-    <section ref={dialogRef} className="icloud-modal gmail-account-dialog microsoft-account-dialog"
+    <section ref={dialogRef}
+      className={`icloud-modal gmail-account-dialog microsoft-account-dialog${view === 'connect' && entryMode === 'batch' ? ' microsoft-batch-dialog' : ''} microsoft-scrollbar${dialogScrollbar.visible ? ' is-scrollbar-visible' : ''}`}
+      {...dialogScrollbar.handlers}
       role="dialog" aria-modal="true" aria-busy={Boolean(busy)} aria-labelledby={titleId}
       aria-describedby={descriptionId}>
       <header className={canGoBack ? 'has-back' : ''}>
@@ -249,7 +278,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           disabled={Boolean(busy)} onClick={() => { setError(''); setNotice(''); setView('accounts') }}
           aria-label={t('返回')}><ArrowLeft size={17} /></button>}
         <div><p className="eyebrow">MICROSOFT · IMAP</p><h2 id={titleId}>{title}</h2>
-          <p id={descriptionId}>{t('只读访问；凭据仅在服务端加密保存。')}</p></div>
+          <p id={descriptionId}>{t('仅允许读取和标记已读；凭据仅在服务端加密保存。')}</p></div>
         <button ref={closeRef} className="icon-button" type="button" disabled={Boolean(busy)}
           onClick={onClose} aria-label={t('关闭')}><X size={17} /></button>
       </header>
@@ -263,10 +292,10 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         <div className="microsoft-entry-tabs" role="tablist" aria-label={t('录入方式')}>
           <button type="button" role="tab" aria-selected={entryMode === 'fields'}
             disabled={Boolean(busy)}
-            onClick={() => setEntryMode('fields')}>{t('分字段录入')}</button>
+            onClick={() => { setError(''); setNotice(''); setEntryMode('fields') }}>{t('分字段录入')}</button>
           <button type="button" role="tab" aria-selected={entryMode === 'batch'}
             disabled={Boolean(busy)}
-            onClick={() => setEntryMode('batch')}>{t('批量导入')}</button>
+            onClick={() => { setError(''); setNotice(''); setEntryMode('batch') }}>{t('批量导入')}</button>
         </div>
         {entryMode === 'fields' ? <form className="icloud-form gmail-connect-form"
           onSubmit={(event) => void connect(event)}>
@@ -292,42 +321,52 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
             type="submit" disabled={Boolean(busy)}>
             {busy ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />}
             {t('验证并连接')}</button></footer>
-        </form> : <form className="icloud-form microsoft-batch-form"
-          onSubmit={(event) => void importBatch(event)}>
-          <label><span>{t('每行一个账号')}</span><textarea value={batchText} rows={7}
-            disabled={Boolean(busy)} spellCheck={false} autoComplete="off"
-            aria-describedby="microsoft-import-formats"
-            onChange={(event) => setBatchText(event.target.value)}
-            placeholder={importPlaceholder} /></label>
-          <div className="microsoft-import-formats" id="microsoft-import-formats">
-            <strong>{t('支持以下两种 OAuth2 凭据类型（四字段兼容两种顺序）：')}</strong>
-            <ul>{MICROSOFT_IMPORT_FORMATS.map((format, index) => <li key={format}>
-              <span>{t(importFormatLabels[index])}</span><code>{format}</code>
-            </li>)}<li><span>{t('兼容顺序')}</span><code>{MICROSOFT_IMPORT_ALTERNATE_FORMAT}</code></li></ul>
-            <small>{t('最后两段可互换，系统按 UUID 自动识别 Client ID。四字段中的 password 会加密保存，但不会用于 LOGIN 或 OAuth2 失败回退；连续 8 个连字符表示 password 为空。')}</small>
-          </div>
-          {importProgress && <MicrosoftImportProgress progress={importProgress} />}
-          {batchRows.length > 0 && <div className="microsoft-import-preview">
-            <h3>{t('安全预览')}</h3><p>{t('预览不会显示密码、refresh token 或完整 Client ID。')}</p>
-            <ul>{batchRows.map(({ preview }) => <li key={preview.line}
-              className={`is-${preview.status}`}><span>{preview.line}</span><strong>{preview.email || t('无效邮箱')}</strong>
-              <small>{preview.error || `${importModeLabel(preview.mode)}${preview.clientIdMasked ? ` · ${preview.clientIdMasked}` : ''}`}</small></li>)}</ul>
-          </div>}
-          {batchHasPasswords && <Consent checked={passwordConsent} onChange={setPasswordConsent} />}
-          <footer><button className="button button--primary" type="submit"
-            disabled={Boolean(busy) || !readyRows.length}>
-            {busy ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />}
-            {importProgress
-              ? t('正在验证 {completed}/{total}', importProgress)
-              : t('验证并导入 {count} 个账号', { count: readyRows.length })}</button></footer>
-        </form>}
+        </form> : <MicrosoftBatchImport onBusyChange={(importing) => setBusy(importing ? 'import' : '')}
+          onChanged={onChanged} onError={setError} onNotice={setNotice} />}
       </>}
 
-      {view === 'accounts' && <div className="gmail-account-list">
-        <div className="gmail-account-list__summary"><span>{t('已连接 {count} 个账号', { count: accounts.length })}</span>
-          <button className="button button--primary button--small" type="button"
-            onClick={() => { setError(''); setNotice(''); setView('connect') }}><Plus size={15} />{t('添加账号')}</button></div>
-        {accounts.map((account) => <button className="gmail-account-card" type="button"
+      {view === 'accounts' && <div className={`gmail-account-list${batchMode ? ' is-batch-mode' : ''}`}>
+        <div className="gmail-account-list__summary">
+          {batchMode ? <label className="microsoft-account-select-all">
+            <input ref={selectAllRef} className="selection-checkbox" type="checkbox"
+              checked={accounts.length > 0 && selectedAccountIds.size === accounts.length}
+              onChange={toggleAllAccounts} aria-label={t('全选 Microsoft 账号')} />
+            <span>{t('已选择 {count} 个账号', { count: selectedAccountIds.size })}</span>
+          </label> : <span>{t('已连接 {count} 个账号', { count: accounts.length })}</span>}
+          <div className="microsoft-account-list-actions">
+            {batchMode ? <>
+              <button className="button button--secondary button--small" type="button" disabled={Boolean(busy)}
+                onClick={exitBatchMode}>{t('完成')}</button>
+              <button className="button icloud-danger-button button--small" type="button"
+                disabled={!selectedAccountIds.size || Boolean(busy)}
+                onClick={() => setBatchDeleteConfirm(true)}><Trash2 size={14} />
+                {t('批量断开 {count} 个账号', { count: selectedAccountIds.size })}</button>
+            </> : <>
+              <button className="button button--secondary button--small" type="button"
+                onClick={enterBatchMode}><ListChecks size={15} />{t('批量管理')}</button>
+              <button className="button button--primary button--small" type="button"
+                onClick={() => { setError(''); setNotice(''); setView('connect') }}><Plus size={15} />{t('添加账号')}</button>
+            </>}
+          </div>
+        </div>
+        {batchDeleteProgress && <p className="microsoft-batch-delete-progress" role="status" aria-live="polite">
+          <LoaderCircle className="spin" size={14} />{t('正在断开第 {current}/{total} 个账号', {
+            current: batchDeleteProgress.completed + 1 > batchDeleteProgress.total
+              ? batchDeleteProgress.total : batchDeleteProgress.completed + 1,
+            total: batchDeleteProgress.total,
+          })}</p>}
+        {accounts.map((account) => batchMode ? <label
+          className={`gmail-account-card microsoft-account-batch-card${selectedAccountIds.has(account.id) ? ' is-selected' : ''}`}
+          key={account.id}>
+          <input className="selection-checkbox" type="checkbox" checked={selectedAccountIds.has(account.id)}
+            onChange={() => toggleAccountSelection(account.id)} aria-label={t('选择 Microsoft 账号：{email}', { email: account.email })} />
+          <span className="gmail-account-card__icon">M</span>
+          <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
+            <small>{account.authMode === 'oauth2'
+              ? `OAuth2 · ${account.clientIdMasked}` : t('密码模式已停用')}</small></span>
+          <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
+            <span>{selectedAccountIds.has(account.id) ? t('已选择') : t('点击选择')}</span></span>
+        </label> : <button className="gmail-account-card" type="button"
           key={account.id} onClick={() => openAccount(account)}>
           <span className="gmail-account-card__icon">M</span>
           <span className="gmail-account-card__content"><strong>{account.name}</strong><small>{account.email}</small>
@@ -336,6 +375,15 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <span className="gmail-account-card__side"><em className={`is-${account.status}`}>{statusLabel(account.status)}</em>
             <span>{t('管理')}<ChevronRight size={14} /></span></span>
         </button>)}
+        {batchDeleteConfirm && <DangerConfirmDialog icon={Trash2}
+          eyebrow={t('MICROSOFT · 批量管理')}
+          title={t('确认批量断开 {count} 个账号？', { count: selectedAccountIds.size })}
+          description={t('将断开所选 Microsoft 账号，并删除 OmniMail 中保存的本地凭据与邮件索引。')}
+          impactTitle={t('服务器邮件不会被删除')}
+          impactDescription={t('OAuth2 应用授权仍需在 Microsoft 账户中单独撤销。')}
+          confirmLabel={t('确认批量断开')}
+          busy={busy === 'batch-delete'} onCancel={() => setBatchDeleteConfirm(false)}
+          onConfirm={() => void removeSelected()} />}
       </div>}
 
       {view === 'account' && target && <div className="gmail-account-settings">
@@ -388,7 +436,8 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
 }
 
 function Consent({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
-  return <label className="microsoft-password-consent"><input type="checkbox" checked={checked}
+  return <label className="microsoft-password-consent"><input className="selection-checkbox"
+    type="checkbox" checked={checked}
     onChange={(event) => onChange(event.target.checked)} /><span>
       {t('我允许服务端加密保存 OAuth2 组合密码；该密码不会用于登录或认证回退。')}</span></label>
 }

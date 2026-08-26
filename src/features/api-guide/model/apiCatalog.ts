@@ -27,7 +27,7 @@ export const apiGroups: Array<{
   { id: 'gmail', title: localized('Gmail 聚合收件箱', 'Gmail unified inbox'),
     description: localized('多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, controlled IMAP synchronization, unified indexing, message bodies, and attachments.') },
   { id: 'microsoft', title: localized('Microsoft 邮箱', 'Microsoft Mail'),
-    description: localized('OAuth2 认证、组合密码加密留存、只读 IMAP 文件夹、同步、正文与附件。', 'OAuth2 authentication, encrypted combination-password storage, read-only IMAP folders, synchronization, bodies, and attachments.') },
+    description: localized('OAuth2 认证、受控 IMAP 同步、正文、附件与精确已读写入。', 'OAuth2 authentication, controlled IMAP synchronization, bodies, attachments, and exact Seen writes.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),

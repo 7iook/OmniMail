@@ -138,7 +138,15 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
     setSelected(message); setDetail(null); setDetailError(''); setDetailLoading(true)
     try {
       const result = await api.microsoftMessage(message.account.id, message.id, controller.signal)
-      if (!controller.signal.aborted) setDetail(result.message)
+      if (!controller.signal.aborted) {
+        setDetail(result.message)
+        setMessages((items) => items.map((item) => item.id === message.id
+          ? { ...item, isRead: result.message.isRead }
+          : item))
+        setSelected((current) => current?.id === message.id
+          ? { ...current, isRead: result.message.isRead }
+          : current)
+      }
     } catch (loadError) {
       if (!controller.signal.aborted) setDetailError(errorMessage(loadError))
     } finally { if (!controller.signal.aborted) setDetailLoading(false) }

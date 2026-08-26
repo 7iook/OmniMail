@@ -77,7 +77,7 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
     }
     if (path === '/api/microsoft/accounts/import' && request.method() === 'POST') {
       const body = request.postDataJSON() as { accounts: unknown[] }
-      await new Promise((resolve) => setTimeout(resolve, 80))
+      await new Promise((resolve) => setTimeout(resolve, 250))
       imports.push(...body.accounts)
       connected = true
       return json(route, { results: body.accounts.map((_item, index) => ({
@@ -93,6 +93,8 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   await expect(dialog.getByText('仅支持 OAuth2；不再接受仅邮箱密码登录。')).toBeVisible()
   await expect(dialog.getByRole('combobox', { name: '认证方式' })).toHaveCount(0)
   await dialog.getByRole('tab', { name: '批量导入' }).click()
+  const initialDialogHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height)
+  await expect(dialog).toHaveCSS('overflow-y', 'hidden')
   const formats = dialog.locator('#microsoft-import-formats')
   await expect(formats).toContainText('email----password----refresh_token----client_id')
   await expect(formats).toContainText('email----password----client_id----refresh_token')
@@ -107,6 +109,22 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
     `oauth@outlook.com--------refresh-oauth----${clientId}`,
   ].join('\n'))
 
+  const batchInput = dialog.getByLabel('每行一个账号')
+  await batchInput.evaluate((element) => element.blur())
+  await expect(batchInput).not.toHaveClass(/is-scrollbar-visible/)
+  await batchInput.dispatchEvent('scroll')
+  await expect(batchInput).toHaveClass(/is-scrollbar-visible/)
+  await expect(batchInput).not.toHaveClass(/is-scrollbar-visible/, { timeout: 2_000 })
+  await batchInput.hover()
+  await expect(batchInput).toHaveClass(/is-scrollbar-visible/)
+  await page.mouse.move(0, 0)
+  await expect(batchInput).not.toHaveClass(/is-scrollbar-visible/)
+  await expect(dialog.locator('.microsoft-import-preview')).toHaveCount(0)
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await expect(dialog.getByLabel('每行一个账号')).toHaveCSS('scrollbar-width', 'thin')
+  await dialog.getByRole('button', { name: '下一步：安全预览' }).click()
+  await expect.poll(() => dialog.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(initialDialogHeight)
   const preview = dialog.locator('.microsoft-import-preview')
   await expect(preview).toContainText('OAuth2 · 组合密码将加密保存')
   await expect(preview).toContainText('0000••••0000')
@@ -114,14 +132,39 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   await expect(preview).not.toContainText('reverse-secret')
   await expect(preview).not.toContainText('refresh-combo')
 
-  await dialog.getByRole('checkbox').check()
-  await dialog.getByRole('button', { name: '验证并导入 3 个账号' }).click()
+  const consent = dialog.getByRole('checkbox')
+  await expect(consent).toHaveCSS('appearance', 'none')
+  await expect(consent).toHaveCSS('width', '18px')
+  await dialog.getByRole('button', { name: '开始导入 3 个账号' }).click()
+  await expect(dialog.getByText('请先确认允许加密保存 OAuth2 组合密码。')).toBeVisible()
+  expect(await dialog.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true)
+  await consent.check()
+  await expect(consent).toBeChecked()
+  await expect(consent).toHaveCSS('background-color', 'rgb(29, 29, 31)')
+  await dialog.getByRole('button', { name: '开始导入 3 个账号' }).click()
+  await expect.poll(() => dialog.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(initialDialogHeight)
   const progress = dialog.locator('.microsoft-import-progress')
   await expect(progress).toBeVisible()
   await expect(progress).toContainText('正在逐项验证 Microsoft 账号')
   await expect(progress.getByRole('progressbar')).toBeVisible()
+  await expect(preview.locator('.microsoft-import-item-status.is-running')).toHaveCount(1)
+  await expect(preview.locator('.microsoft-import-item-status.is-success')).toHaveCount(1)
+  const runningPreviewHeight = await preview.evaluate((element) => element.getBoundingClientRect().height)
+  const runningButtonTop = await dialog.getByRole('button', { name: '正在逐项导入' })
+    .evaluate((element) => element.getBoundingClientRect().top)
+  await expect(preview.locator('li')).toHaveCount(2)
+  await expect.poll(() => preview.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(runningPreviewHeight)
+  await expect.poll(() => dialog.getByRole('button', { name: '正在逐项导入' })
+    .evaluate((element) => element.getBoundingClientRect().top)).toBe(runningButtonTop)
   await expect.poll(() => imports).toHaveLength(3)
   await expect(progress).toHaveCount(0)
+  await expect(dialog.getByText('导入完成', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('成功 3 个，失败 0 个。')).toBeVisible()
+  await expect.poll(() => dialog.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(initialDialogHeight)
+  await expect(preview.locator('li')).toHaveCount(0)
   expect(imports).toEqual([
     expect.objectContaining({ email: 'combo@outlook.com', authMode: 'oauth2',
       refreshToken: 'refresh-combo', clientId, password: 'combination-secret',
@@ -134,7 +177,58 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   expect(Object.prototype.hasOwnProperty.call(imports[2], 'password')).toBe(false)
 })
 
-test('browses a Microsoft folder, refreshes read-only mail, and renders on mobile', async ({ page }) => {
+test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }) => {
+  await prepare(page)
+  const managedAccounts = [account,
+    { ...account, id: 'microsoft-2', name: 'Personal Outlook', email: 'personal@outlook.com' },
+    { ...account, id: 'microsoft-3', name: 'Archive Outlook', email: 'archive@outlook.com' },
+  ]
+  let activeAccounts = [...managedAccounts]
+  const disconnects: string[] = []
+  await page.route('**://*/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (await shell(route, path)) return
+    if (path === '/api/microsoft/accounts' && request.method() === 'GET') {
+      return json(route, { enabled: true, accounts: activeAccounts })
+    }
+    if (path === '/api/microsoft/messages') {
+      return json(route, { messages: [], page: { hasMore: false, nextCursor: null, limit: 50 }, folderPath: 'INBOX' })
+    }
+    const disconnectMatch = path.match(/^\/api\/microsoft\/accounts\/([^/]+)$/)
+    if (disconnectMatch && request.method() === 'DELETE') {
+      const id = decodeURIComponent(disconnectMatch[1])
+      disconnects.push(id)
+      activeAccounts = activeAccounts.filter((candidate) => candidate.id !== id)
+      return json(route, { ok: true, remoteRevocationRequired: true })
+    }
+    return route.abort()
+  })
+
+  await page.goto('/microsoft')
+  await page.getByRole('button', { name: '管理 Microsoft 账号' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
+  await expect(dialog.getByText('已连接 3 个账号')).toBeVisible()
+  await dialog.getByRole('button', { name: '批量管理' }).click()
+  const selectAll = dialog.getByRole('checkbox', { name: '全选 Microsoft 账号' })
+  const first = dialog.getByRole('checkbox', { name: '选择 Microsoft 账号：user@outlook.com' })
+  const second = dialog.getByRole('checkbox', { name: '选择 Microsoft 账号：personal@outlook.com' })
+  await first.check()
+  await expect(dialog.getByText('已选择 1 个账号')).toBeVisible()
+  await expect(selectAll).toHaveJSProperty('indeterminate', true)
+  await second.check()
+  await expect(dialog.getByRole('button', { name: '批量断开 2 个账号' })).toBeEnabled()
+  await dialog.getByRole('button', { name: '批量断开 2 个账号' }).click()
+  const confirm = page.getByRole('alertdialog', { name: '确认批量断开 2 个账号？' })
+  await expect(confirm).toBeVisible()
+  await confirm.getByRole('button', { name: '确认批量断开' }).click()
+  await expect.poll(() => disconnects).toEqual(['microsoft-1', 'microsoft-2'])
+  await expect(dialog.getByText('已连接 1 个账号')).toBeVisible()
+  await expect(dialog.getByText('已批量断开 2 个 Microsoft 账号；请同时撤销应用授权。')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '批量管理' })).toBeVisible()
+})
+
+test('browses Microsoft mail, reflects Seen updates, and renders on mobile', async ({ page }) => {
   await prepare(page)
   await page.setViewportSize({ width: 375, height: 812 })
   await page.addInitScript(() => localStorage.setItem('omnimail-theme', 'dark'))
@@ -158,7 +252,7 @@ test('browses a Microsoft folder, refreshes read-only mail, and renders on mobil
     }
     if (path === '/api/microsoft/accounts/microsoft-1/messages/message-1') {
       return json(route, { message: {
-        ...message, from: 'Microsoft <security@microsoft.com>', to: 'user@outlook.com',
+        ...message, isRead: true, from: 'Microsoft <security@microsoft.com>', to: 'user@outlook.com',
         cc: '', date: '2026-08-25T00:00:00.000Z', body: '只读测试正文', html: '',
         attachments: [{ partId: '0', filename: 'notice.txt', contentType: 'text/plain',
           size: 12, contentId: null, disposition: 'attachment' }],
@@ -183,7 +277,8 @@ test('browses a Microsoft folder, refreshes read-only mail, and renders on mobil
   await expect.poll(() => listQueries.some((query) => query.includes('refresh=1'))).toBe(true)
   await page.getByText('安全提醒').click()
   await expect(page.getByText('只读测试正文')).toBeVisible()
-  await expect(page.getByText(/打开邮件不会标记已读/)).toBeVisible()
+  await expect(page.locator('.microsoft-reader .gmail-readonly-note')).toHaveCount(0)
+  await expect(page.locator('.message-row.is-unread')).toHaveCount(0)
   await expect(page.getByRole('link', { name: /notice.txt/ })).toHaveAttribute(
     'href', '/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/0',
   )

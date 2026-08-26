@@ -229,9 +229,11 @@ async function remoteMessage(
   user: SessionUser,
   accountId: string,
   messageId: string,
+  markRead = false,
 ): Promise<{
   row: MicrosoftMessageRow
   parsed: Awaited<ReturnType<MicrosoftImapClient['getMessage']>>
+  markedRead: boolean
 }> {
   const row = await ownedMessage(env, user.id, accountId, messageId)
   const account = await new MicrosoftAccountStore(env, user.id).get(accountId)
@@ -245,7 +247,41 @@ async function remoteMessage(
         'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
       )
     }
-    return { row, parsed: await client.getMessage(row.folder_path, row.imap_uid) }
+    const parsed = await client.getMessage(row.folder_path, row.imap_uid)
+    let markedRead = false
+    if (markRead && !row.is_read) {
+      try {
+        await client.markSeen(row.folder_path, row.imap_uid, row.uid_validity)
+        markedRead = true
+        try {
+          await env.DB.prepare(
+            `UPDATE microsoft_imap_messages SET is_read = 1, updated_at = ?
+              WHERE id = ? AND account_id = ? AND folder_path = ?
+                AND uid_validity = ? AND imap_uid = ?`,
+          ).bind(
+            Math.floor(Date.now() / 1000),
+            row.id,
+            accountId,
+            row.folder_path,
+            row.uid_validity,
+            row.imap_uid,
+          ).run()
+        } catch (error) {
+          console.error('Unable to persist Microsoft read state', {
+            accountId,
+            messageId,
+            type: error instanceof Error ? error.name : typeof error,
+          })
+        }
+      } catch (error) {
+        console.error('Unable to mark Microsoft message as seen', {
+          accountId,
+          messageId,
+          type: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    }
+    return { row, parsed, markedRead }
   } finally {
     await client.close()
   }
@@ -258,9 +294,16 @@ export async function getMicrosoftMessage(
   messageId: string,
 ): Promise<Response> {
   try {
-    const { row, parsed } = await remoteMessage(env, user, accountId, messageId)
+    const { row, parsed, markedRead } = await remoteMessage(
+      env, user, accountId, messageId, true,
+    )
     return microsoftPrivateJson({
-      message: { ...publicMessage(row), ...parsed.message, id: row.id },
+      message: {
+        ...publicMessage(row),
+        ...parsed.message,
+        id: row.id,
+        isRead: Boolean(row.is_read) || markedRead,
+      },
     })
   } catch (error) {
     return microsoftResponseError(error)

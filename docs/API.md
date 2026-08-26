@@ -674,7 +674,7 @@ GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 5 分钟 Cron 错峰加入 Queue，并使用账号租约、
 `UIDVALIDITY`、UID 与 Gmail 扩展 ID 保持最终一致。
 
-## Microsoft 只读邮箱
+## Microsoft 邮箱（仅已读写入）
 
 配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY` 后，用户可导入结构化 OAuth2 凭据。
 四字段组合 password 经确认后独立加密留存，但不参与认证。OAuth2 只访问 Microsoft Global
@@ -706,8 +706,10 @@ GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId
 ```
 
 元数据身份绑定账号、folder、UIDVALIDITY 与 UID。正文和最大 5 MiB 附件通过 `BODY.PEEK[]`
-按需读取，不持久化且不修改远端已读状态。后台约每 5 分钟只读同步 INBOX；当前文件夹可受限手动
-刷新。这是轮询而非秒级推送。部署与真实账号验收见
+按需读取且不持久化；正文读取成功后，未读邮件会通过固定的
+`UID STORE ... +FLAGS.SILENT (\\Seen)` 同步已读状态。写入失败不会阻断正文响应，也不会错误更新
+本地已读索引。后台约每 5 分钟只读同步 INBOX；当前文件夹可受限手动刷新。这是轮询而非秒级推送。
+除精确标记已读外，不提供移动、删除、归档、星标或其他远端写入。部署与真实账号验收见
 [`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md)，完整字段见 [`api/microsoft.md`](api/microsoft.md)。
 
 ## 版本与更新
@@ -800,7 +802,7 @@ npm run docs:api
 | `POST /api/microsoft/accounts/{id}/sync` | 请求受限的异步 Microsoft INBOX 同步 |
 | `GET /api/microsoft/accounts/{id}/folders` | 读取或受限刷新服务器文件夹列表 |
 | `GET /api/microsoft/messages` | 按账号和文件夹搜索 Microsoft 元数据并分页 |
-| `GET /api/microsoft/accounts/{accountId}/messages/{messageId}` | 按需只读获取 Microsoft MIME 正文 |
+| `GET /api/microsoft/accounts/{accountId}/messages/{messageId}` | 按需获取 Microsoft MIME 正文并同步标记已读 |
 | `GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Microsoft 附件 |
 | `GET/POST/DELETE /api/linux-do-mail/account` | 查询、连接或断开当前用户的 Linux DO Mail 账号 |
 | `POST /api/linux-do-mail/account/verify` | 重新验证已保存的 Linux DO Mail 凭据 |

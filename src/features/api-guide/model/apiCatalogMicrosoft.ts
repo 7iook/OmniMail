@@ -64,8 +64,9 @@ export const microsoftEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/microsoft/accounts/:accountId/messages/:messageId', group: 'microsoft', auth: 'authenticated',
     title: l('读取 Microsoft 正文', 'Read a Microsoft message'),
-    description: l('再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文。', 'Revalidate user, account, folder, and UIDVALIDITY before fetching MIME content on demand with BODY.PEEK[].'),
+    description: l('再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文，并对未读邮件精确写入 \\Seen。', 'Revalidate user, account, folder, and UIDVALIDITY, fetch MIME content on demand with BODY.PEEK[], and write Seen for unread messages only.'),
     request: 'Path · accountId, messageId', response: '200 · { message }',
+    notes: [l('已读写入失败不会阻断正文响应；移动、删除、归档、星标和其他 flags 写入均未开放。', 'A Seen write failure does not block the body response; move, delete, archive, star, and other flag writes are not available.')],
   },
   {
     method: 'GET', path: '/api/microsoft/accounts/:accountId/messages/:messageId/attachments/:partId', group: 'microsoft', auth: 'authenticated',

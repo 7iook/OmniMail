@@ -4,9 +4,9 @@
 
 **Microsoft Mail**
 
-OAuth2 认证、组合密码加密留存、只读 IMAP 文件夹、同步、正文与附件。
+OAuth2 认证、受控 IMAP 同步、正文、附件与精确已读写入。
 
-> OAuth2 authentication, encrypted combination-password storage, read-only IMAP folders, synchronization, bodies, and attachments.
+> OAuth2 authentication, controlled IMAP synchronization, bodies, attachments, and exact Seen writes.
 
 本分类共 **11** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
@@ -245,20 +245,24 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:386148c56819 -->
+<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:40b946b56076 -->
 ## `GET /api/microsoft/accounts/{accountId}/messages/{messageId}`
 
 **读取 Microsoft 正文 / Read a Microsoft message**
 
-再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文。
+再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文，并对未读邮件精确写入 \Seen。
 
-> Revalidate user, account, folder, and UIDVALIDITY before fetching MIME content on demand with BODY.PEEK[].
+> Revalidate user, account, folder, and UIDVALIDITY, fetch MIME content on demand with BODY.PEEK[], and write Seen for unread messages only.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
 | 请求 | Path · accountId, messageId |
 | 成功响应 | 200 · { message } |
+
+> 注意：已读写入失败不会阻断正文响应；移动、删除、归档、星标和其他 flags 写入均未开放。
+>
+> Note: A Seen write failure does not block the body response; move, delete, archive, star, and other flag writes are not available.
 
 ### cURL 示例
 

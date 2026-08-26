@@ -1,7 +1,8 @@
 # Microsoft 邮箱设置指南
 
-OmniMail 通过固定的 `outlook.office365.com:993` TLS 连接，以只读 IMAP 方式访问用户自己有权
-使用的 Microsoft 邮箱。只支持 OAuth2；不再接受仅邮箱密码凭据，也不会使用 IMAP LOGIN。
+OmniMail 通过固定的 `outlook.office365.com:993` TLS 连接，以受控 IMAP 方式访问用户自己有权
+使用的 Microsoft 邮箱。只允许读取与精确标记已读；只支持 OAuth2，不再接受仅邮箱密码凭据，
+也不会使用 IMAP LOGIN。
 
 首期支持 Azure Global 上的 Outlook.com、Hotmail、Live，以及租户管理员允许 IMAP 的
 Microsoft 365 委托式账号。不支持世纪互联、中国区、GCC High 或 DoD 端点。
@@ -84,7 +85,9 @@ email--------refresh_token----client_id
 - 工作区可聚合全部账号 INBOX，或选择单账号与服务器返回的文件夹；
 - 单次读取数量可选 25、50、100 或 200，服务端仍强制限制为 1–200；
 - “远程刷新”通过只读 `EXAMINE`、`UID SEARCH`、`UID FETCH` 更新当前文件夹；
-- 正文和附件在打开时用 `BODY.PEEK[]` 读取，不改变远端已读状态；
+- 正文和附件在打开时先用 `BODY.PEEK[]` 读取；正文读取成功后，未读邮件会以固定的
+  `UID STORE ... +FLAGS.SILENT (\Seen)` 同步已读状态；
+- 已读写入失败不会阻断正文显示，重新打开可重试；移动、删除、归档、星标和其他 flags 写入均未开放；
 - 删除连接只清理 OmniMail 本地密文与索引，不删除远端邮件。OAuth2 用户还应在 Microsoft
   账户或租户应用授权页面撤销不再使用的授权。
 
@@ -97,7 +100,7 @@ email--------refresh_token----client_id
 
 1. OAuth2 导入成功，账号状态为“已连接”；
 2. 文件夹列表可刷新，INBOX 可读取；
-3. 能打开一封纯文本或 HTML 邮件，并确认 Microsoft 端未被标记为已读；
+3. 能打开一封未读的纯文本或 HTML 邮件，并确认 Microsoft 端已标记为已读；
 4. 能下载一个不超过 5 MiB 的测试附件；
 5. 手动同步入队后更新时间变化，下一次 Cron 同步不产生重复记录；
 6. 撤销应用授权后，账号进入凭据或权限错误且不会无限重试；
@@ -111,6 +114,8 @@ OmniMail 不使用 ROPC、密码 LOGIN、网页登录自动化、代理或其他
   主机或端口。
 - 账号、文件夹、邮件和附件查询都同时校验当前用户归属；消息远端身份绑定
   `folder + UIDVALIDITY + UID`。
+- 唯一允许的远端写入是选中已校验文件夹后，对精确 UID 添加 `\Seen`；不接受客户端传入
+  IMAP 命令、flags、主机或端口。
 - API 响应使用 `private, no-store`；审计只记录脱敏邮箱和认证模式。
 - `invalid_grant` 通常表示 refresh token 失效或被撤销；请重新授权并替换凭据。
 - `imap_scope_missing` 表示 token 不含 Outlook IMAP 委托 scope。

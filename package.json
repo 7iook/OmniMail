@@ -53,7 +53,9 @@
     "build:extension": "vite build --config vite.extension.config.ts"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "franc": "^6.2.0",
+    "gsap": "^3.15.0",
     "hono": "4.13.1",
     "lucide-react": "1.27.0",
     "parse5": "^8.0.1",

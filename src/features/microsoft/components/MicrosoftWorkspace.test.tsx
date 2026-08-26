@@ -27,7 +27,7 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
     expect(html).not.toContain('access_token_cipher')
   })
 
-  it('labels the message reader as read-only and exposes attachment downloads', () => {
+  it('renders the message without a persistent permission notice and exposes attachments', () => {
     const account = {
       id: 'microsoft-1', name: 'Work', email: 'user@outlook.com', status: 'active' as const,
     }
@@ -38,14 +38,15 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
       isRead: false, isStarred: false, hasAttachments: true,
     }
     const html = renderToStaticMarkup(<MicrosoftReader selected={summary}
-      message={{ ...summary, from: 'Sender <sender@example.com>', to: 'user@outlook.com',
+      message={{ ...summary, isRead: true, from: 'Sender <sender@example.com>', to: 'user@outlook.com',
         cc: '', date: '2026-08-25T00:00:00.000Z', body: 'Body', html: '', attachments: [{
           partId: '0', filename: 'report.pdf', contentType: 'application/pdf', size: 10,
           contentId: null, disposition: 'attachment',
         }] }} loading={false} error="" remoteImagesEnabled={false}
       onBack={() => undefined} onRetry={() => undefined} />)
-    expect(html).toContain('IMAP · 只读')
-    expect(html).toContain('不会标记已读')
+    expect(html).toContain('IMAP')
+    expect(html).not.toContain('仅允许已读状态写入')
+    expect(html).not.toContain('gmail-readonly-note')
     expect(html).toContain('/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/0')
   })
 })

@@ -112,6 +112,24 @@ export class MicrosoftImapClient {
     return parseMicrosoftMessage(literal.data, String(uid))
   }
 
+  async markSeen(folderPath: string, uid: number, expectedUidValidity: number): Promise<void> {
+    if (!Number.isSafeInteger(uid) || uid < 1) {
+      throw new ImapConnectionError(400, 'Microsoft 邮件 UID 无效。', true)
+    }
+    const selected = await this.connection.command(`SELECT ${quoteImapValue(folderPath)}`)
+    const uidValidity = Number(selected.lines
+      .map((line) => line.match(/\[UIDVALIDITY (\d+)\]/i)?.[1])
+      .find(Boolean))
+    if (uidValidity !== expectedUidValidity) {
+      throw new ImapConnectionError(
+        404,
+        'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
+        true,
+      )
+    }
+    await this.connection.command(`UID STORE ${uid} +FLAGS.SILENT (\\Seen)`)
+  }
+
   async getAttachment(folderPath: string, uid: number, partId: string) {
     const { parsedAttachments } = await this.getMessage(folderPath, uid)
     return microsoftAttachmentContent(parsedAttachments, partId)

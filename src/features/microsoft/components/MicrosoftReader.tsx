@@ -41,7 +41,7 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
   if (!message) return <div className="reader-state reader-state--empty">
     <span className="reader-empty-symbol"><Mail size={29} /></span>
     <h2>{t('选择一封 Microsoft 邮件')}</h2>
-    <p>{t('正文和附件只在打开时读取，不会修改服务器邮件。')}</p>
+    <p>{t('正文和附件只在打开时读取；打开未读邮件后会尝试同步已读状态。')}</p>
   </div>
 
   const subject = message.subject || t('无主题')
@@ -52,7 +52,7 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
       <MessageReaderToolbarTitle key={message.id} detailsLabel={t('Microsoft 邮件')}
         scrollTopLabel={t('回到顶部')} subject={subject}
         subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
-      <span className="icloud-source-badge is-imap">IMAP · {t('只读')}</span>
+      <span className="icloud-source-badge is-imap">IMAP</span>
     </header>
     <div ref={readerRoot} className="reader-content icloud-reader-content">
       <div className="icloud-reader-heading">
@@ -65,8 +65,6 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
           {message.date && <time>{new Date(message.date).toLocaleString()}</time>}
         </div>
       </div>
-      <p className="gmail-readonly-note"><AlertCircle size={14} />
-        {t('Microsoft 工作区为只读模式：打开邮件不会标记已读，也不会移动或删除邮件。')}</p>
       <div className="icloud-reader-body"><ICloudMessageBody message={message}
         remoteImagesEnabled={remoteImagesEnabled} /></div>
       {message.attachments.length > 0 && <section className="gmail-attachments">
