@@ -101,6 +101,54 @@ export interface GmailMessageDetail extends Omit<GmailMessageSummary, 'cc' | 'da
   attachments: GmailAttachment[]
 }
 
+export interface QqMailAccount {
+  id: string
+  name: string
+  email: string
+  status: 'active' | 'syncing' | 'credential_error' | 'error'
+  lastSyncedAt: number | null
+  nextSyncAt: number
+  lastErrorCode: string
+  lastErrorAt: number | null
+  createdAt: number
+  hasAuthorizationCode: true
+}
+
+export interface QqMailMessageSummary {
+  id: string
+  account: Pick<QqMailAccount, 'id' | 'name' | 'email' | 'status'>
+  senderName: string
+  senderAddress: string
+  recipients: string[]
+  cc: string[]
+  subject: string
+  preview: string
+  date: number
+  sizeBytes: number
+  isRead: boolean
+  isStarred: boolean
+  hasAttachments: boolean
+}
+
+export interface QqMailAttachment {
+  partId: string
+  filename: string
+  contentType: string
+  size: number
+  contentId: string | null
+  disposition: string
+}
+
+export interface QqMailMessageDetail extends Omit<QqMailMessageSummary, 'cc' | 'date'> {
+  from: string
+  to: string
+  cc: string
+  date: string
+  body: string
+  html: string
+  attachments: QqMailAttachment[]
+}
+
 export type MicrosoftAuthMode = 'oauth2' | 'password'
 export type MicrosoftAccountStatus =
   | 'pending_validation'

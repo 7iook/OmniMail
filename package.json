@@ -21,6 +21,9 @@
       "GMAIL_CREDENTIALS_KEY": {
         "description": "Optional. At least 32 random UTF-8 bytes for encrypting Gmail app passwords."
       },
+      "QQ_MAIL_CREDENTIALS_KEY": {
+        "description": "Optional. At least 32 random UTF-8 bytes for encrypting QQ Mail authorization codes."
+      },
       "MICROSOFT_CREDENTIALS_KEY": {
         "description": "Optional. At least 32 random UTF-8 bytes for encrypting Microsoft OAuth tokens and optional combination passwords."
       }

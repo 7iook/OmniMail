@@ -713,6 +713,38 @@ GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId
 除精确标记已读外，不提供移动、删除、归档、星标或其他远端写入。部署与真实账号验收见
 [`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md)，完整字段见 [`api/microsoft.md`](api/microsoft.md)。
 
+## QQ 邮箱
+
+配置至少 32 字节的 `QQ_MAIL_CREDENTIALS_KEY` 后，个人 `@qq.com` 用户可使用 QQ 邮箱授权码
+连接固定的 `imap.qq.com:993` TLS 端点。请求不能提供任意 IMAP 主机、端口或命令；授权码在
+远端验证成功后才以 QQ 专用密钥加密保存，API 只返回 `hasAuthorizationCode: true`。
+
+```http
+GET /api/qq-mail/accounts
+POST /api/qq-mail/accounts
+PATCH /api/qq-mail/accounts/{id}
+PUT /api/qq-mail/accounts/{id}/authorization-code
+DELETE /api/qq-mail/accounts/{id}
+POST /api/qq-mail/accounts/{id}/verify
+POST /api/qq-mail/accounts/{id}/sync
+POST /api/qq-mail/accounts/{id}/messages
+GET /api/qq-mail/messages?accountId={id}&q={query}&limit=30&cursor={cursor}
+GET /api/qq-mail/accounts/{accountId}/messages/{messageId}
+GET /api/qq-mail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
+```
+
+列表只搜索 D1 中的发件人、收件人、抄送和主题元数据。正文和最大 5 MiB 附件按需读取且不
+持久化；正文成功返回后，系统使用独立 IMAP 会话尝试精确写入 `\\Seen`。已读写入失败不会把
+已成功读取的正文改成错误响应。
+
+后台约每 5 分钟只读同步 INBOX；浏览器的“同步全部”会对可用账号逐个请求同步。同步是轮询，
+不是秒级推送。发件固定连接 `smtp.qq.com:465` 直接 TLS，只接受单收件人；服务端强制发件地址，
+回复时从本地索引推导收件人和线程头。任务复用现有 Queue、幂等、用户限速和审计；`DATA` 后
+连接结果不确定时禁止自动重发。首轮不支持附件、CC/BCC 或 Sent `APPEND`。除精确标记已读外，
+不提供移动、删除、归档、星标或其他远端 IMAP 写入。
+部署与真实账号验收见 [`QQ_MAIL_SETUP.md`](QQ_MAIL_SETUP.md)，完整字段见
+[`api/qq-mail.md`](api/qq-mail.md)。
+
 ## 版本与更新
 
 管理员打开系统设置时可以查询当前安装版本与 GitHub 最新 Release：
@@ -731,12 +763,12 @@ Workers Builds 根据分支变更重新部署。
 ## 完整接口目录与覆盖检查
 
 登录 Webmail 后打开 `/settings/api` 可以查看当前版本的完整接口目录。该页面按模块
-列出 Worker 暴露的全部 135 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
+列出 Worker 暴露的全部 145 个 HTTP 端点；每个端点都包含认证要求、请求参数、成功
 响应、限制说明和按当前实例地址生成的 cURL 示例，并支持按方法、路径、用途和字段搜索。
 
 仓库内的 [完整 Markdown API 参考](api/README.md) 使用同一个 Catalog 数据源，按以下
-12 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
-iCloud 隐藏邮箱、Gmail 聚合收件箱、Microsoft 邮箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
+13 个分类拆分：系统与公开入口、认证与账户、域名与邮箱地址、邮件、草稿与附件、
+iCloud 隐藏邮箱、Gmail 聚合收件箱、Microsoft 邮箱、QQ 邮箱、Linux DO 邮箱、管理员运营与邮件、管理员用户与访问、管理员设置与备份。离线阅读、
 代码审查或生成外部知识库时应从该索引进入。
 
 修改 `src/features/api-guide/model/apiCatalog*.ts` 后运行：
@@ -795,6 +827,15 @@ npm run docs:api
 | `GET /api/gmail/messages` | 搜索多账号 Gmail 元数据索引并游标分页 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}` | 按需获取 Gmail 正文并同步标记已读 |
 | `GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 Gmail 附件 |
+| `GET/POST /api/qq-mail/accounts` | 列出或验证并连接当前用户的 QQ 邮箱账号 |
+| `PATCH/DELETE /api/qq-mail/accounts/{id}` | 重命名或断开 QQ 邮箱账号 |
+| `PUT /api/qq-mail/accounts/{id}/authorization-code` | 验证并更新 QQ 邮箱授权码 |
+| `POST /api/qq-mail/accounts/{id}/verify` | 验证已保存的 QQ 邮箱授权码与 IMAP 连接 |
+| `POST /api/qq-mail/accounts/{id}/sync` | 请求受限的异步 QQ 邮箱同步 |
+| `POST /api/qq-mail/accounts/{id}/messages` | 从已连接的 QQ 地址异步发送或回复单收件人邮件 |
+| `GET /api/qq-mail/messages` | 搜索多账号 QQ 邮箱元数据索引并游标分页 |
+| `GET /api/qq-mail/accounts/{accountId}/messages/{messageId}` | 按需获取 QQ 邮箱正文并同步标记已读 |
+| `GET /api/qq-mail/accounts/{accountId}/messages/{messageId}/attachments/{partId}` | 下载受限大小的 QQ 邮箱附件 |
 | `GET /api/microsoft/accounts` | 列出当前用户的脱敏 Microsoft 账号与同步状态 |
 | `POST /api/microsoft/accounts/import` | 独立验证并导入一批结构化 OAuth2 账号；可确认加密保存组合 password |
 | `PATCH/DELETE /api/microsoft/accounts/{id}` | 重命名或断开 Microsoft 账号 |

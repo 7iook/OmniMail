@@ -69,6 +69,7 @@ describe('workspace routes', () => {
       linuxDoMailWorkspaceEnabled: false,
       gmailWorkspaceEnabled: false,
       microsoftWorkspaceEnabled: false,
+      qqMailWorkspaceEnabled: false,
     }
     expect(workspaceRoute('/icloud', 'user', disabled)).toMatchObject({
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
@@ -80,6 +81,9 @@ describe('workspace routes', () => {
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
     })
     expect(workspaceRoute('/microsoft', 'user', disabled)).toMatchObject({
+      kind: 'folder', folder: 'inbox', path: '/mail/inbox',
+    })
+    expect(workspaceRoute('/qq-mail', 'user', disabled)).toMatchObject({
       kind: 'folder', folder: 'inbox', path: '/mail/inbox',
     })
   })

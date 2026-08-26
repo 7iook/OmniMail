@@ -2,6 +2,7 @@ import { adminAccessEndpoints, adminSettingsEndpoints } from './apiCatalogAdmin'
 import { gmailEndpoints, iCloudEndpoints, linuxDoMailEndpoints, adminOperationEndpoints } from './apiCatalogOperations'
 import { mailboxEndpoints, messageEndpoints, draftEndpoints } from './apiCatalogMail'
 import { microsoftEndpoints } from './apiCatalogMicrosoft'
+import { qqMailEndpoints } from './apiCatalogQqMail'
 import { systemEndpoints, authEndpoints } from './apiCatalogPublic'
 import { localized, type ApiAuth, type ApiEndpoint, type ApiGroupId } from './apiCatalogTypes'
 
@@ -28,6 +29,8 @@ export const apiGroups: Array<{
     description: localized('多账号凭据、受控 IMAP 同步、聚合索引、正文与附件。', 'Multi-account credentials, controlled IMAP synchronization, unified indexing, message bodies, and attachments.') },
   { id: 'microsoft', title: localized('Microsoft 邮箱', 'Microsoft Mail'),
     description: localized('OAuth2 认证、受控 IMAP 同步、正文、附件与精确已读写入。', 'OAuth2 authentication, controlled IMAP synchronization, bodies, attachments, and exact Seen writes.') },
+  { id: 'qqMail', title: localized('QQ 邮箱', 'QQ Mail'),
+    description: localized('授权码认证、有限 INBOX 索引、按需正文、精确已读与受控 SMTP 发信。', 'Authorization-code authentication, bounded INBOX indexing, on-demand bodies, exact Seen writes, and controlled SMTP sending.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),
@@ -47,6 +50,7 @@ export const apiEndpoints: ApiEndpoint[] = [
   ...iCloudEndpoints,
   ...gmailEndpoints,
   ...microsoftEndpoints,
+  ...qqMailEndpoints,
   ...linuxDoMailEndpoints,
   ...adminOperationEndpoints,
   ...adminAccessEndpoints,

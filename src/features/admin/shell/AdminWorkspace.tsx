@@ -241,6 +241,7 @@ export function AdminWorkspace({
           linuxDoMailWorkspaceEnabled={config.linuxDoMailWorkspaceEnabled}
           gmailWorkspaceEnabled={config.gmailWorkspaceEnabled}
           microsoftWorkspaceEnabled={config.microsoftWorkspaceEnabled}
+          qqMailWorkspaceEnabled={config.qqMailWorkspaceEnabled}
           onChange={(settings) => onConfigChange({ ...config, ...settings })}
         />
 

@@ -14,6 +14,7 @@ const groupFiles = {
   icloud: 'icloud.md',
   gmail: 'gmail.md',
   microsoft: 'microsoft.md',
+  qqMail: 'qq-mail.md',
   linuxdoMail: 'linux-do-mail.md',
   adminOperations: 'admin-operations.md',
   adminAccess: 'admin-access.md',

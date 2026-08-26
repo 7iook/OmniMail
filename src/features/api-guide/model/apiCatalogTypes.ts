@@ -9,6 +9,7 @@ export type ApiGroupId =
   | 'icloud'
   | 'gmail'
   | 'microsoft'
+  | 'qqMail'
   | 'linuxdoMail'
   | 'adminOperations'
   | 'adminAccess'

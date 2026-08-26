@@ -105,9 +105,9 @@ export const adminSettingsEndpoints: ApiEndpoint[] = [
   {
     method: 'PATCH', path: '/api/admin/settings/mail-workspaces', group: 'adminSettings', auth: 'admin',
     title: l('设置邮箱功能入口', 'Configure mailbox workspace entries'),
-    description: l('控制 iCloud 隐藏邮箱和 Linux DO 邮箱是否显示在 OmniMail 导航中。', 'Control whether iCloud Hide My Email and Linux DO Mail appear in OmniMail navigation.'),
-    request: 'JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled', response: '200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled }',
-    exampleBody: { iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true, gmailWorkspaceEnabled: true, microsoftWorkspaceEnabled: true },
+    description: l('控制各可选邮箱工作区是否显示在 OmniMail 导航中。', 'Control whether each optional mailbox workspace appears in OmniMail navigation.'),
+    request: 'JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled', response: '200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled }',
+    exampleBody: { iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true, gmailWorkspaceEnabled: true, microsoftWorkspaceEnabled: true, qqMailWorkspaceEnabled: true },
   },
   {
     method: 'PATCH', path: '/api/admin/settings/remote-images', group: 'adminSettings', auth: 'admin',

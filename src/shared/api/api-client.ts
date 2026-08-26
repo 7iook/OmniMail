@@ -49,6 +49,7 @@ import { createICloudApi } from '../../features/icloud/api/icloud-api-client'
 import { createLinuxDoMailApi } from '../../features/linux-do-mail/api/linux-do-mail-api-client'
 import { createGmailApi } from '../../features/gmail/api/gmail-api-client'
 import { createMicrosoftApi } from '../../features/microsoft/api/microsoft-api-client'
+import { createQqMailApi } from '../../features/qq-mail/api/qq-mail-api-client'
 import { createMailApi } from '../../features/mailbox/api/mail-api-client'
 
 export class ApiError extends Error {
@@ -168,11 +169,13 @@ export const api = {
     linuxDoMailWorkspaceEnabled: boolean
     gmailWorkspaceEnabled: boolean
     microsoftWorkspaceEnabled: boolean
+    qqMailWorkspaceEnabled: boolean
   }) => request<{
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
     gmailWorkspaceEnabled: boolean
     microsoftWorkspaceEnabled: boolean
+    qqMailWorkspaceEnabled: boolean
   }>('/api/admin/settings/mail-workspaces', {
     method: 'PATCH',
     body: jsonBody(settings),
@@ -439,4 +442,5 @@ export const api = {
   ...createLinuxDoMailApi(request, jsonBody),
   ...createGmailApi(request, jsonBody),
   ...createMicrosoftApi(request, jsonBody),
+  ...createQqMailApi(request, jsonBody),
 }

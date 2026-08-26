@@ -1,0 +1,100 @@
+export const enQqMail: Record<string, string> = {
+  'QQ 邮箱': 'QQ Mail',
+  'QQ 邮箱入口': 'QQ Mail entry',
+  'QQ 邮箱凭据加密密钥暂时不可用。': 'The QQ Mail credential encryption key is unavailable.',
+  'QQ 邮箱响应超过安全读取上限。': 'The QQ Mail response exceeded the safe read limit.',
+  'QQ 邮箱授权码': 'QQ Mail authorization code',
+  'QQ 邮箱账号': 'QQ Mail account',
+  'QQ 邮箱账号已连接，首次同步已进入队列。':
+    'The QQ Mail account is connected and its initial sync has been queued.',
+  'QQ 邮箱账号管理': 'Manage QQ Mail accounts',
+  'QQ 邮箱连接验证成功。': 'QQ Mail connection verified.',
+  '例如：个人 QQ 邮箱': 'For example: Personal QQ Mail',
+  '修改备注、验证连接、更新授权码或断开邮箱。':
+    'Edit the label, verify the connection, update the authorization code, or disconnect the mailbox.',
+  '删除 OmniMail 保存的密文和本地索引，不会删除 QQ 邮箱中的邮件。':
+    'Deletes the encrypted credential and local index from OmniMail without deleting mail from QQ Mail.',
+  '已保存的 QQ 邮箱授权码无法解密，请更新授权码。':
+    'The saved QQ Mail authorization code cannot be decrypted. Update the authorization code.',
+  '打开 QQ 邮箱设置': 'Open QQ Mail settings',
+  '授权码失效': 'Authorization code expired',
+  '授权码已更新，旧凭据未在验证前被覆盖。':
+    'The authorization code was updated; the old credential was retained until verification succeeded.',
+  '授权码无效，或 QQ 邮箱尚未开启 IMAP 服务。':
+    'The authorization code is invalid, or IMAP is not enabled in QQ Mail.',
+  '断开这个 QQ 邮箱账号': 'Disconnect this QQ Mail account',
+  '新授权码': 'New authorization code',
+  '新授权码不会显示或保存到浏览器；旧授权码会保留到验证成功。':
+    'The new authorization code is not displayed or stored in the browser; the old one remains until verification succeeds.',
+  '更新授权码': 'Update authorization code',
+  '本地连接和索引已删除；请继续在 QQ 邮箱设置中撤销对应授权码。':
+    'The local connection and index were deleted. Revoke the corresponding authorization code in QQ Mail settings.',
+  '检查当前授权码是否仍可登录 QQ 邮箱 IMAP。':
+    'Check whether the current authorization code can still sign in to QQ Mail over IMAP.',
+  '添加账号后，可在这里分别管理连接与授权码。':
+    'After adding accounts, manage each connection and authorization code here.',
+  'QQ MAIL · 账号管理': 'QQ MAIL · ACCOUNT MANAGEMENT',
+  '断开 QQ 邮箱账号？': 'Disconnect QQ Mail?',
+  '账号“{name}”及其本地索引将从 OmniMail 中移除。':
+    'The account “{name}” and its local index will be removed from OmniMail.',
+  'QQ 邮箱中的邮件不会被删除': 'Messages in QQ Mail will not be deleted',
+  '授权码仍需前往 QQ 邮箱设置手动撤销。':
+    'The authorization code must still be revoked in QQ Mail settings.',
+  '立即将最新 QQ 邮件加入后台同步队列。':
+    'Queue the latest QQ Mail messages for background synchronization now.',
+  '请先在 QQ 邮箱设置中开启 IMAP/SMTP 服务并生成授权码；不要填写 QQ 登录密码。':
+    'Enable IMAP/SMTP and generate an authorization code in QQ Mail settings first. Do not enter your QQ sign-in password.',
+  '还没有 QQ 邮箱账号': 'No QQ Mail accounts yet',
+  '连接 QQ 邮箱账号': 'Connect a QQ Mail account',
+  '连接 QQ 邮箱超时，系统稍后会重试。':
+    'The QQ Mail connection timed out. The system will retry later.',
+  '连接新账号，或选择已有账号管理授权码与状态。':
+    'Connect a new account, or select an existing account to manage its authorization code and status.',
+  '验证 QQ IMAP 后，加密保存授权码。':
+    'Verify QQ Mail IMAP before saving the authorization code encrypted.',
+  'QQ 邮箱功能尚未启用': 'QQ Mail is not enabled',
+  'QQ 邮箱邮件列表': 'QQ Mail message list',
+  '{count} 个 QQ 邮箱账号需要处理，其他账号仍会继续同步。':
+    '{count} QQ Mail accounts need attention; other accounts will continue syncing.',
+  '使用 QQ 邮箱授权码，安全聚合最近的 INBOX 邮件。':
+    'Use a QQ Mail authorization code to securely aggregate recent INBOX messages.',
+  '在 Worker Variables & Secrets 中配置至少 32 字节的 QQ_MAIL_CREDENTIALS_KEY，然后重新部署。':
+    'Configure QQ_MAIL_CREDENTIALS_KEY with at least 32 bytes in Worker Variables & Secrets, then redeploy.',
+  '正在读取 QQ 邮箱索引…': 'Loading the QQ Mail index…',
+  '添加 QQ 邮箱账号': 'Add QQ Mail account',
+  '管理 QQ 邮箱账号': 'Manage QQ Mail accounts',
+  '连接你的第一个 QQ 邮箱': 'Connect your first QQ Mail account',
+  '部分 QQ 邮箱账号同步失败，请在账号管理中查看状态。':
+    'Some QQ Mail accounts failed to sync. Check their status in account management.',
+  'QQ 邮箱同步正在进行，请稍候。': 'QQ Mail synchronization is already running.',
+  '没有可同步的 QQ 邮箱账号，请先更新失效的授权码。':
+    'There are no QQ Mail accounts available to sync. Update expired authorization codes first.',
+  'QQ 邮箱同步任务已加入队列。': 'The QQ Mail sync task was queued.',
+  '已加入 {count} 个 QQ 邮箱同步任务。': '{count} QQ Mail sync tasks were queued.',
+  'QQ 邮箱同步完成。': 'QQ Mail synchronization completed.',
+  '已完成 {count} 个 QQ 邮箱账号同步。': '{count} QQ Mail accounts finished syncing.',
+  '未找到相关 QQ 邮件': 'No matching QQ Mail messages',
+  'QQ 邮箱账号和索引不会删除': 'QQ Mail accounts and indexes are not deleted',
+  '{provider} 邮件': '{provider} message',
+  '打开邮件后会尝试同步 {provider} 已读状态。':
+    'Opening a message will attempt to synchronize its read state with {provider}.',
+  '无法显示这封 {provider} 邮件': 'Unable to display this {provider} message',
+  '正在获取 {provider} 正文…': 'Loading the {provider} message body…',
+  '选择一封 {provider} 邮件': 'Select a {provider} message',
+  '邮件正文已打开，但未能同步 {provider} 已读状态；重新打开可重试。':
+    'The message opened, but its {provider} read state could not be synchronized. Reopen it to retry.',
+  '全部 {provider}': 'All {provider}',
+  '当前 {provider}': 'Current {provider}',
+  '所有已连接 {provider} 账号': 'All connected {provider} accounts',
+  '管理 {provider} 账号': 'Manage {provider} accounts',
+  '选择 {provider} 邮箱': 'Select a {provider} mailbox',
+  '搜索 {provider} 邮件': 'Search {provider} messages',
+  '新建 QQ 邮件': 'Compose QQ message',
+  '回复 QQ 邮件': 'Reply with QQ Mail',
+  'QQ SMTP': 'QQ SMTP',
+  '通过 QQ 邮箱官方 SMTP 安全发送。': 'Sent securely through the official QQ Mail SMTP service.',
+  'QQ 邮件已加入发送队列。': 'The QQ Mail message was added to the send queue.',
+  '请先选择一个 QQ 邮箱账号': 'Select a QQ Mail account first',
+  'QQ SMTP 发信失败，请稍后重试。': 'QQ SMTP delivery failed. Try again later.',
+  '已发送 QQ 邮件': 'Sent a QQ Mail message',
+}

@@ -30,6 +30,7 @@ export type OutboundMessage = {
   attachmentUploads?: OutboundAttachmentUpload[]
   draftId?: string
   auditAction: 'message.reply' | 'message.send' | 'linuxdo_mail.message.send'
+    | 'qq_mail.message.send'
   auditDetail: Record<string, unknown>
   rateLimitMaximums?: { minuteLimit?: number; dayLimit?: number }
 }
@@ -359,6 +360,8 @@ type OutboundRecord = {
   client_request_id: string | null
   domain_is_active: number
   mailbox_is_hidden: number
+  linux_do_mail_account: number
+  qq_mail_account: number
 }
 
 export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promise<void> {
@@ -366,6 +369,14 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     `SELECT id, status, mailbox_address, sender_name, recipients_json, subject,
             body_key, in_reply_to, references_header, client_request_id,
             mb.is_hidden AS mailbox_is_hidden,
+            EXISTS (
+              SELECT 1 FROM linux_do_mail_accounts la
+               WHERE la.username = messages.mailbox_address AND la.user_id = mb.user_id
+            ) AS linux_do_mail_account,
+            EXISTS (
+              SELECT 1 FROM qq_mail_accounts qa
+               WHERE qa.email = messages.mailbox_address AND qa.user_id = mb.user_id
+            ) AS qq_mail_account,
             EXISTS (
               SELECT 1 FROM domains d
                WHERE d.name = LOWER(SUBSTR(messages.mailbox_address,
@@ -377,12 +388,16 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
        WHERE id = ? AND direction = 'outgoing'`,
   ).bind(job.messageId).first<OutboundRecord>()
   if (!record || record.status === 'sent') return
-  const isLinuxDoMail = Boolean(record.mailbox_is_hidden)
-  if (!isLinuxDoMail && !record.domain_is_active) {
+  const isLinuxDoMail = Boolean(record.mailbox_is_hidden && record.linux_do_mail_account)
+  const isQqMail = Boolean(record.mailbox_is_hidden && record.qq_mail_account)
+  if (record.mailbox_is_hidden && !isLinuxDoMail && !isQqMail) {
+    throw new OutboundDeliveryError('External mailbox account is disconnected', false)
+  }
+  if (!record.mailbox_is_hidden && !record.domain_is_active) {
     throw new OutboundDeliveryError('Outbound mailbox domain is disabled', false)
   }
   let provider: OutboundProviderConfig | undefined
-  if (!isLinuxDoMail) {
+  if (!record.mailbox_is_hidden) {
     const configError = outboundProviderConfigError(env)
     if (configError) throw new OutboundDeliveryError(configError, false)
     provider = outboundProviderForAddress(env, record.mailbox_address) || undefined
@@ -445,7 +460,36 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
     idempotencyKey: record.client_request_id, headers, attachments,
   }
   let providerId = ''
-  if (isLinuxDoMail) {
+  if (isQqMail) {
+    if (recipients.length !== 1) {
+      throw new OutboundDeliveryError('QQ Mail requires exactly one recipient', false)
+    }
+    const { deliverWithQqMail, QqMailOutboundError } = await import(
+      '../qq-mail/qq-mail-outbound-provider'
+    )
+    try {
+      providerId = await deliverWithQqMail(env, {
+        userId: job.userId,
+        mailboxAddress: record.mailbox_address,
+        recipient: recipients[0],
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        attachments,
+        inReplyTo: record.in_reply_to || undefined,
+        references: record.references_header || undefined,
+      })
+    } catch (error) {
+      if (error instanceof QqMailOutboundError) {
+        throw new OutboundDeliveryError(
+          error.deliveryUncertain ? `${DELIVERY_UNCERTAIN_PREFIX}${error.message}` : error.message,
+          error.retryable,
+          error.deliveryUncertain,
+        )
+      }
+      throw error
+    }
+  } else if (isLinuxDoMail) {
     if (recipients.length !== 1) {
       throw new OutboundDeliveryError('Linux DO Mail requires exactly one recipient', false)
     }
@@ -487,7 +531,7 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
       WHERE id = ?`,
     ).bind(providerId, record.id).run()
   } catch (error) {
-    if (isLinuxDoMail || provider?.provider === 'sendflare') {
+    if (isLinuxDoMail || isQqMail || provider?.provider === 'sendflare') {
       throw new OutboundProviderAcceptedError(providerId, error)
     }
     throw error

@@ -40,7 +40,7 @@ describe('legacy D1 deployment bootstrap', () => {
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'users'").get()).toEqual({
       name: 'users',
     })
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 28 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 30 })
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
     ).get()).toEqual({ name: 'icloud_accounts' })
@@ -54,6 +54,9 @@ describe('legacy D1 deployment bootstrap', () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'microsoft_imap_accounts'",
     ).get()).toEqual({ name: 'microsoft_imap_accounts' })
     expect(db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'qq_mail_accounts'",
+    ).get()).toEqual({ name: 'qq_mail_accounts' })
+    expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'gmail_imap_accounts_limit'",
     ).get()).toBeUndefined()
   })
@@ -62,7 +65,7 @@ describe('legacy D1 deployment bootstrap', () => {
     [14, '2026-07-29-p5-outbound-rate-limit-admin'],
     [16, '2026-08-01-p2-translation-permissions'],
     [17, '2026-08-03-p3-multiple-drafts'],
-  ])('baselines legacy migration %i and applies through 0028', (position, version) => {
+  ])('baselines legacy migration %i and applies through 0030', (position, version) => {
     const db = legacyDatabase(position, version)
     db.exec(bootstrap)
 
@@ -70,7 +73,7 @@ describe('legacy D1 deployment bootstrap', () => {
       count: position,
     })
     applyMigrations(db, position + 1)
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 28 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 30 })
     expect(db.prepare(
       "SELECT name FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).get()).toEqual({ name: 'scopes' })
@@ -86,6 +89,9 @@ describe('legacy D1 deployment bootstrap', () => {
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'microsoft_imap_accounts'",
     ).get()).toEqual({ name: 'microsoft_imap_accounts' })
+    expect(db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'qq_mail_accounts'",
+    ).get()).toEqual({ name: 'qq_mail_accounts' })
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'gmail_imap_accounts_limit'",
     ).get()).toBeUndefined()

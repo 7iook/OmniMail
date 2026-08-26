@@ -60,6 +60,7 @@ Serverless Webmail：
 | 网页悬浮邮箱 | 可选 Chrome 扩展用于生成邮箱、填入网页、收件与后台通知 |
 | iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
 | Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，搜索聚合的 INBOX 元数据并在打开后同步已读 |
+| QQ 邮箱聚合收件箱 | 使用授权码连接多个个人 QQ 邮箱，有限同步 INBOX，并通过官方 SMTP 新建或回复邮件 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -144,6 +145,20 @@ Serverless Webmail：
 
 详细部署、OAuth scope、导入格式与真实账号验收步骤见
 [Microsoft 邮箱设置指南](docs/MICROSOFT_SETUP.md)。
+
+### QQ 邮箱
+
+- 每个 OmniMail 用户可连接多个个人 `@qq.com` 邮箱；Foxmail、VIP 与腾讯企业邮箱不在首版范围。
+- 用户先在 QQ 邮箱中开启 IMAP/SMTP 服务并生成授权码，OmniMail 固定连接
+  `imap.qq.com:993` TLS；不接受 QQ 登录密码或自定义服务器。
+- 首次只索引最近 100 封、每账号最多保留 500 封 INBOX 元数据；正文与最大 5 MiB 附件按需
+  读取且不持久化。打开正文后仅尝试精确写入 `\\Seen`，不支持移动、删除、归档或星标。
+- 可从所选 QQ 账号向单个收件人新建或回复邮件；发件固定连接 `smtp.qq.com:465` 直接 TLS，
+  强制使用当前账号作为信封发件人和 `From`，并复用 Queue、幂等、限速和审计链路。
+- 授权码由独立的 `QQ_MAIL_CREDENTIALS_KEY` 使用 AES-GCM 加密，API 只返回
+  `hasAuthorizationCode: true`；单账号故障不会阻断其他账号或其他邮件工作区。
+
+部署和真实账号验收步骤见 [QQ 邮箱设置指南](docs/QQ_MAIL_SETUP.md)。
 
 ### 多域名与用户
 
@@ -372,6 +387,8 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `LINUX_DO_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 Linux DO Mail 密码或认证令牌；不使用该功能时可留空 |
 | `GMAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，只用于加密 Gmail 应用专用密码；不使用该功能时可留空 |
 | `GMAIL_IMAP_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 Gmail 接入，默认启用 |
+| `QQ_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，只用于加密 QQ 邮箱授权码；不使用该功能时可留空 |
+| `QQ_MAIL_IMAP_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 QQ 邮箱接入，默认启用 |
 | `MICROSOFT_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 Microsoft OAuth token 与可选组合 password；不使用该功能时可留空 |
 | `MICROSOFT_MAIL_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 Microsoft 接入，默认启用 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
@@ -505,6 +522,11 @@ Google 应用专用密码；连接验证成功后，Worker 会异步建立最近
 连接；不再接受仅邮箱密码登录。四字段组合 password 经确认后独立加密留存，但不参与认证。
 Worker 只访问 Microsoft 官方 OAuth 与 IMAP 端点；批量导入文本会在浏览器中解析为结构化字段，
 不会发送给第三方服务。管理员同样可在 **系统设置 → 邮箱功能入口** 中隐藏入口。
+
+若要启用独立的 **QQ 邮箱聚合收件箱**，配置至少 32 字节的
+`QQ_MAIL_CREDENTIALS_KEY`，部署并应用到 `0030_qq_mail_smtp.sql`。用户需要先在 QQ 邮箱设置中
+开启 IMAP/SMTP 服务并生成授权码，再从左侧 QQ 邮箱入口连接个人 `@qq.com` 邮箱。
+管理员可在 **系统设置 → 邮箱功能入口** 中隐藏入口；隐藏不会删除账号、密文或索引。
 
 ### 备份、保留与配额
 

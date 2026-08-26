@@ -10,6 +10,9 @@ import type { Env, SessionUser } from '../../app/types'
 const linuxDoDelivery = vi.hoisted(() => ({
   deliver: vi.fn(async () => 'smtp:message-id@linux.do'),
 }))
+const qqMailDelivery = vi.hoisted(() => ({
+  deliver: vi.fn(async () => 'smtp:message-id@qq.com'),
+}))
 
 vi.mock('../linux-do-mail/linux-do-mail-outbound-provider', () => {
   class LinuxDoMailOutboundError extends Error {
@@ -20,6 +23,13 @@ vi.mock('../linux-do-mail/linux-do-mail-outbound-provider', () => {
     ) { super(message) }
   }
   return { LinuxDoMailOutboundError, deliverWithLinuxDoMail: linuxDoDelivery.deliver }
+})
+vi.mock('../qq-mail/qq-mail-outbound-provider', () => {
+  class QqMailOutboundError extends Error {
+    constructor(message: string, readonly retryable: boolean,
+      readonly deliveryUncertain = false) { super(message) }
+  }
+  return { QqMailOutboundError, deliverWithQqMail: qqMailDelivery.deliver }
 })
 
 const user: SessionUser = {
@@ -327,6 +337,7 @@ describe('outbound delivery', () => {
       sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Hello',
       body_key: 'bodies/out-linuxdo.json', in_reply_to: null, references_header: null,
       client_request_id: 'request_linuxdo', domain_is_active: 0, mailbox_is_hidden: 1,
+      linux_do_mail_account: 1, qq_mail_account: 0,
     })
     env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
       text: 'Message body', html: '<p>Message body</p>',
@@ -344,6 +355,34 @@ describe('outbound delivery', () => {
     }))
     expect(statements.some(({ sql, bindings }) => (
       sql.includes("SET status = 'sent'") && bindings.includes('smtp:message-id@linux.do')
+    ))).toBe(true)
+  })
+
+  it('uses the connected QQ SMTP provider for a QQ hidden mailbox', async () => {
+    qqMailDelivery.deliver.mockClear()
+    const { env, statements } = environment({
+      id: 'out-qq', status: 'processing', mailbox_address: '123456789@qq.com',
+      sender_name: 'Owner', recipients_json: '["friend@example.net"]', subject: 'Hello',
+      body_key: 'bodies/out-qq.json', in_reply_to: '<original@example.net>',
+      references_header: '<original@example.net>', client_request_id: 'request_qq',
+      domain_is_active: 0, mailbox_is_hidden: 1,
+      linux_do_mail_account: 0, qq_mail_account: 1,
+    })
+    env.MAIL_BUCKET.get = vi.fn(async () => new Response(JSON.stringify({
+      text: 'Message body', html: '<p>Message body</p>',
+    })) as unknown as R2ObjectBody)
+
+    await deliverOutboundMessage(env, {
+      kind: 'outbound', messageId: 'out-qq', userId: user.id, ip: '127.0.0.1',
+      auditAction: 'qq_mail.message.send', auditDetail: { recipient: 'friend@example.net' },
+    })
+
+    expect(qqMailDelivery.deliver).toHaveBeenCalledWith(env, expect.objectContaining({
+      mailboxAddress: '123456789@qq.com', recipient: 'friend@example.net',
+      inReplyTo: '<original@example.net>',
+    }))
+    expect(statements.some(({ sql, bindings }) => (
+      sql.includes("SET status = 'sent'") && bindings.includes('smtp:message-id@qq.com')
     ))).toBe(true)
   })
 

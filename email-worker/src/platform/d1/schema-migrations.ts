@@ -5,7 +5,9 @@ const LINUX_DO_MAIL_OUTBOUND_MIGRATION = '0024_linux_do_mail_outbound.sql'
 const GMAIL_MIGRATION = '0025_gmail_imap.sql'
 const GMAIL_UNLIMITED_MIGRATION = '0026_gmail_unlimited_accounts.sql'
 const MICROSOFT_MIGRATION = '0027_microsoft_imap.sql'
-export const REQUIRED_MIGRATION = '0028_microsoft_oauth_combination_password.sql'
+const MICROSOFT_COMBINATION_PASSWORD_MIGRATION = '0028_microsoft_oauth_combination_password.sql'
+const QQ_MAIL_MIGRATION = '0029_qq_mail_imap.sql'
+export const REQUIRED_MIGRATION = '0030_qq_mail_smtp.sql'
 export const WRANGLER_MIGRATION_NAMES = [
   '0001_initial.sql',
   '0002_domains.sql',
@@ -34,6 +36,8 @@ export const WRANGLER_MIGRATION_NAMES = [
   GMAIL_MIGRATION,
   GMAIL_UNLIMITED_MIGRATION,
   MICROSOFT_MIGRATION,
+  MICROSOFT_COMBINATION_PASSWORD_MIGRATION,
+  QQ_MAIL_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 
@@ -480,7 +484,7 @@ export const RECOVERABLE_MIGRATIONS = [
     ],
   },
   {
-    name: REQUIRED_MIGRATION,
+    name: MICROSOFT_COMBINATION_PASSWORD_MIGRATION,
     statements: [
       `ALTER TABLE microsoft_imap_accounts
        ADD COLUMN combination_password_cipher TEXT NOT NULL DEFAULT ''`,
@@ -488,6 +492,87 @@ export const RECOVERABLE_MIGRATIONS = [
        SET status = 'credential_error', last_error_code = 'password_auth_removed',
            last_error_at = unixepoch(), next_sync_at = 0, updated_at = unixepoch()
        WHERE auth_mode = 'password'`,
+    ],
+  },
+  {
+    name: QQ_MAIL_MIGRATION,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS qq_mail_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL COLLATE NOCASE,
+        authorization_code_cipher TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'syncing', 'credential_error', 'error')),
+        uid_validity INTEGER,
+        uid_next INTEGER,
+        last_seen_uid INTEGER NOT NULL DEFAULT 0 CHECK (last_seen_uid >= 0),
+        last_synced_at INTEGER,
+        next_sync_at INTEGER NOT NULL DEFAULT 0,
+        last_error_code TEXT NOT NULL DEFAULT '',
+        last_error_at INTEGER,
+        sync_lease_id TEXT,
+        sync_lease_until INTEGER,
+        last_manual_sync_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (user_id, email)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_qq_mail_accounts_due
+       ON qq_mail_accounts(next_sync_at, status, id)`,
+      `CREATE INDEX IF NOT EXISTS idx_qq_mail_accounts_user
+       ON qq_mail_accounts(user_id, created_at, id)`,
+      `CREATE TABLE IF NOT EXISTS qq_mail_messages (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES qq_mail_accounts(id) ON DELETE CASCADE,
+        imap_uid INTEGER NOT NULL CHECK (imap_uid > 0),
+        uid_validity INTEGER NOT NULL CHECK (uid_validity > 0),
+        message_id_header TEXT NOT NULL DEFAULT '',
+        sender_name TEXT NOT NULL DEFAULT '',
+        sender_address TEXT NOT NULL DEFAULT '',
+        recipients_json TEXT NOT NULL DEFAULT '[]',
+        cc_json TEXT NOT NULL DEFAULT '[]',
+        subject TEXT NOT NULL DEFAULT '',
+        preview TEXT NOT NULL DEFAULT '',
+        internal_date INTEGER NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+        flags_json TEXT NOT NULL DEFAULT '[]',
+        is_read INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
+        is_starred INTEGER NOT NULL DEFAULT 0 CHECK (is_starred IN (0, 1)),
+        has_attachments INTEGER NOT NULL DEFAULT 0 CHECK (has_attachments IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (account_id, uid_validity, imap_uid)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_qq_mail_messages_account_date
+       ON qq_mail_messages(account_id, internal_date DESC, id DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_qq_mail_messages_date
+       ON qq_mail_messages(internal_date DESC, id DESC, account_id)`,
+      `CREATE TABLE IF NOT EXISTS qq_mail_validation_limits (
+        identity_hash TEXT PRIMARY KEY,
+        window_started_at INTEGER NOT NULL,
+        attempt_count INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )`,
+    ],
+  },
+  {
+    name: REQUIRED_MIGRATION,
+    statements: [
+      `INSERT INTO mailboxes (
+         address, user_id, is_primary, is_active, created_at, is_hidden
+       )
+       SELECT email, user_id, 0, 1, created_at, 1
+       FROM qq_mail_accounts account
+       WHERE account.id = (
+         SELECT owner.id FROM qq_mail_accounts owner
+         WHERE owner.email = account.email COLLATE NOCASE
+         ORDER BY owner.created_at, owner.id LIMIT 1
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM mailboxes WHERE address = account.email
+       )`,
     ],
   },
 ] as const

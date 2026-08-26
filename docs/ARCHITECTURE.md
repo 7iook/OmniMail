@@ -26,6 +26,7 @@ src/
 │  ├─ icloud/
 │  ├─ linux-do-mail/
 │  ├─ microsoft/
+│  ├─ qq-mail/
 │  ├─ mailbox/
 │  ├─ messages/
 │  └─ temporary-invites/
@@ -125,6 +126,9 @@ email-worker/src/features/microsoft/
 ```
 
 Provider 共用的能力应先判断是否已经存在于 `shared/mail`、`shared/ui/mail-workspace` 或 `platform/imap`，不要复制另一 Provider 的内部文件，也不要用 `icloud-*` 等 Provider 专有名称承载公共样式。
+
+Linux DO Mail 与 QQ 邮箱的受控 SMTP 会话和 MIME 序列化位于
+`email-worker/src/shared/mail/smtp-client.ts`；Provider 文件只固定端点、认证方式和错误映射。
 
 ## 验证要求
 

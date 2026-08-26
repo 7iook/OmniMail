@@ -15,6 +15,7 @@ import type { Env } from '../../app/types'
 import { iCloudCredentialsReady } from '../icloud/icloud-credentials'
 import { gmailCredentialsReady } from '../gmail/gmail-credentials'
 import { microsoftCredentialsReady } from '../microsoft/microsoft-credentials'
+import { qqMailCredentialsReady } from '../qq-mail/qq-mail-credentials'
 
 type Setting = { key: string; value: string }
 
@@ -53,7 +54,8 @@ export async function publicConfig(env: Env) {
       'icloud_workspace_enabled',
       'linuxdo_mail_workspace_enabled',
       'gmail_workspace_enabled',
-      'microsoft_workspace_enabled'
+      'microsoft_workspace_enabled',
+      'qq_mail_workspace_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -77,6 +79,9 @@ export async function publicConfig(env: Env) {
       && microsoftCredentialsReady(env),
     microsoftWorkspaceEnabled: env.MICROSOFT_MAIL_ENABLED !== 'false'
       && settings.get('microsoft_workspace_enabled') !== '0',
+    qqMailEnabled: env.QQ_MAIL_IMAP_ENABLED !== 'false' && qqMailCredentialsReady(env),
+    qqMailWorkspaceEnabled: env.QQ_MAIL_IMAP_ENABLED !== 'false'
+      && settings.get('qq_mail_workspace_enabled') !== '0',
     iCloudWorkspaceEnabled: settings.get('icloud_workspace_enabled') !== '0',
     linuxDoMailWorkspaceEnabled: settings.get('linuxdo_mail_workspace_enabled') !== '0',
     registrationEnabled,

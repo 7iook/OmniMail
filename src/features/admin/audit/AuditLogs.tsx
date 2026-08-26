@@ -117,6 +117,7 @@ const actionLabels: Record<string, string> = {
   'linuxdo_mail.account.verify': '已验证 Linux DO 邮箱',
   'linuxdo_mail.account.credential_update': '已更新 Linux DO 邮箱认证令牌',
   'linuxdo_mail.message.send': '已发送 Linux DO 邮件',
+  'qq_mail.message.send': '已发送 QQ 邮件',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
@@ -143,6 +144,7 @@ const categoryLabels: Record<string, string> = {
   gmail: 'Gmail',
   microsoft: 'Microsoft',
   linuxdo_mail: 'Linux DO Mail',
+  qq_mail: 'QQ 邮箱',
   system: '系统',
 }
 

@@ -1,0 +1,99 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sendQqMailMessage } from './qq-mail-send-api'
+import type { Env, SessionUser } from '../../app/types'
+
+const mocks = vi.hoisted(() => ({
+  send: vi.fn(async () => Response.json({ message: { id: 'message-1', status: 'processing' } }, {
+    status: 202,
+  })),
+}))
+
+vi.mock('../outbound/outbound-message', () => ({ sendOutboundMessage: mocks.send }))
+vi.mock('./qq-mail-credentials', () => ({ qqMailImapEnabled: () => true }))
+vi.mock('./qq-mail-store', () => {
+  class QqMailStoreError extends Error {
+    constructor(readonly status: number, message: string) { super(message) }
+  }
+  return {
+    QqMailStoreError,
+    QqMailAccountStore: class {
+      async get() {
+        return {
+          id: 'qq-1', userId: 'user-1', name: 'QQ', email: '123456789@qq.com',
+          authorizationCode: 'authorization-code', status: 'active',
+        }
+      }
+    },
+  }
+})
+
+const user = {
+  id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
+  mailboxLimit: 1, storageQuotaBytes: 1024, storageUsedBytes: 0,
+  canCreateMailboxes: false, canReply: true, canTranslate: false,
+  temporaryExpiresAt: null,
+} satisfies SessionUser
+
+function request(body: unknown) {
+  return new Request('https://mail.example.com/api/qq-mail/accounts/qq-1/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+function environment(reply: Record<string, string> | null = null): Env {
+  return {
+    QQ_MAIL_CREDENTIALS_KEY: 'test-key-that-is-longer-than-thirty-two-characters',
+    DB: {
+      prepare: (sql: string) => ({
+        bind: () => ({
+          first: async () => sql.includes('FROM qq_mail_messages') ? reply : { found: 1 },
+        }),
+      }),
+    },
+  } as unknown as Env
+}
+
+describe('QQ Mail sending API', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('queues a single-recipient message from the connected account', async () => {
+    const env = environment()
+    const response = await sendQqMailMessage(env, user, 'qq-1', request({
+      to: 'recipient@example.com', subject: 'Hello', text: 'Message body',
+      idempotencyKey: 'request_12345678',
+    }), '192.0.2.1')
+
+    expect(response.status).toBe(202)
+    expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
+      mailboxAddress: '123456789@qq.com', recipients: ['recipient@example.com'],
+      rateLimitMaximums: { dayLimit: 50 }, auditAction: 'qq_mail.message.send',
+    }), '192.0.2.1')
+  })
+
+  it('derives reply recipient, subject, and threading headers on the server', async () => {
+    const env = environment({
+      sender_address: 'sender@example.com', subject: 'Original',
+      message_id_header: '<original@example.com>',
+    })
+    const response = await sendQqMailMessage(env, user, 'qq-1', request({
+      to: 'attacker@example.com', subject: 'Fake', text: 'Reply body',
+      idempotencyKey: 'request_12345678', replyToMessageId: 'qq-message-1',
+    }), '192.0.2.1')
+
+    expect(response.status).toBe(202)
+    expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
+      recipients: ['sender@example.com'], subject: 'Re: Original',
+      inReplyTo: '<original@example.com>', references: '<original@example.com>',
+    }), '192.0.2.1')
+  })
+
+  it('respects the existing account send permission', async () => {
+    const response = await sendQqMailMessage(environment(), { ...user, canReply: false },
+      'qq-1', request({ to: 'recipient@example.com', subject: 'Hello', text: 'Body',
+        idempotencyKey: 'request_12345678' }), '192.0.2.1')
+
+    expect(response.status).toBe(403)
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+})

@@ -11,6 +11,8 @@ export interface AppConfig {
   gmailWorkspaceEnabled: boolean
   microsoftEnabled: boolean
   microsoftWorkspaceEnabled: boolean
+  qqMailEnabled: boolean
+  qqMailWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod

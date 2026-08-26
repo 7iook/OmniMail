@@ -2,35 +2,40 @@ import { AlertCircle, AtSign, Cloud, LoaderCircle, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../../../shared/api'
 import { t } from '../../../shared/i18n'
+import { QqMailIcon } from '../../qq-mail/components/QqMailIcon'
 
 export function MailWorkspaceSettings({
   iCloudWorkspaceEnabled,
   linuxDoMailWorkspaceEnabled,
   gmailWorkspaceEnabled,
   microsoftWorkspaceEnabled,
+  qqMailWorkspaceEnabled,
   onChange,
 }: {
   iCloudWorkspaceEnabled: boolean
   linuxDoMailWorkspaceEnabled: boolean
   gmailWorkspaceEnabled: boolean
   microsoftWorkspaceEnabled: boolean
+  qqMailWorkspaceEnabled: boolean
   onChange: (settings: {
     iCloudWorkspaceEnabled: boolean
     linuxDoMailWorkspaceEnabled: boolean
     gmailWorkspaceEnabled: boolean
     microsoftWorkspaceEnabled: boolean
+    qqMailWorkspaceEnabled: boolean
   }) => void
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  async function toggle(target: 'icloud' | 'linuxdo' | 'gmail' | 'microsoft') {
+  async function toggle(target: 'icloud' | 'linuxdo' | 'gmail' | 'microsoft' | 'qq-mail') {
     const previous = {
       iCloudWorkspaceEnabled,
       linuxDoMailWorkspaceEnabled,
       gmailWorkspaceEnabled,
       microsoftWorkspaceEnabled,
+      qqMailWorkspaceEnabled,
     }
     const next = {
       iCloudWorkspaceEnabled: target === 'icloud'
@@ -45,6 +50,9 @@ export function MailWorkspaceSettings({
       microsoftWorkspaceEnabled: target === 'microsoft'
         ? !microsoftWorkspaceEnabled
         : microsoftWorkspaceEnabled,
+      qqMailWorkspaceEnabled: target === 'qq-mail'
+        ? !qqMailWorkspaceEnabled
+        : qqMailWorkspaceEnabled,
     }
     setSaving(true)
     setError('')
@@ -72,6 +80,17 @@ export function MailWorkspaceSettings({
         </div>
       </header>
       <div className="mail-workspace-entry-list" aria-busy={saving}>
+        <label className="policy-toggle">
+          <span><QqMailIcon width={17} height={17} aria-hidden="true" /><span>
+            <strong>{t('QQ 邮箱入口')}</strong>
+            <small>{t(qqMailWorkspaceEnabled
+              ? '所有已登录用户都能从导航进入'
+              : '入口已隐藏，已保存的 QQ 邮箱账号和索引不会删除')}</small>
+          </span></span>
+          <input type="checkbox" checked={qqMailWorkspaceEnabled} disabled={saving}
+            aria-label={t('QQ 邮箱入口')}
+            onChange={() => void toggle('qq-mail')} />
+        </label>
         <label className="policy-toggle">
           <span><Cloud size={17} aria-hidden="true" /><span>
             <strong>{t('iCloud 隐藏邮箱入口')}</strong>

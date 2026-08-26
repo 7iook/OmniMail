@@ -13,6 +13,7 @@ import { enMicrosoft } from './microsoft'
 import { enMailboxSettings } from './mailbox-settings'
 import { enOauth } from './oauth'
 import { enRateLimit } from './rate-limit'
+import { enQqMail } from './qq-mail'
 import { enSecurity } from './security'
 import { enVersion } from './version'
 
@@ -33,5 +34,6 @@ export const englishTranslations: Record<string, string> = {
   ...enLinuxDoMail,
   ...enGmail,
   ...enMicrosoft,
+  ...enQqMail,
   ...enApi,
 }

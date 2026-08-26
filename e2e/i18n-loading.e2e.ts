@@ -22,6 +22,8 @@ test('loads the English catalog before rendering localized features', async ({ p
           iCloudWorkspaceEnabled: false,
           linuxDoMailWorkspaceEnabled: false,
           gmailWorkspaceEnabled: false,
+          microsoftWorkspaceEnabled: false,
+          qqMailWorkspaceEnabled: false,
           superAdminEmail: 'owner@example.com',
           setupRequirements: {
             databaseReady: true,

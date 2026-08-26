@@ -28,6 +28,7 @@ import type { MailNotificationControls } from '../hooks/useNewMailNotifications'
 import type { AdminView } from '../../../app/navigation/workspaceNavigation'
 import { Brand, ThemeToggle } from '../../auth/components/AuthPages'
 import { LanguageQuickToggle } from '../../../shared/ui/language/LanguageToggle'
+import { QqMailIcon } from '../../qq-mail/components/QqMailIcon'
 
 export type { AdminView } from '../../../app/navigation/workspaceNavigation'
 
@@ -71,6 +72,7 @@ export function MailboxSidebar({
   linuxDoMailWorkspaceEnabled,
   gmailWorkspaceEnabled,
   microsoftWorkspaceEnabled,
+  qqMailWorkspaceEnabled,
   notifications,
   onFolderChange,
   onAdminViewChange,
@@ -84,6 +86,7 @@ export function MailboxSidebar({
   linuxDoMailWorkspaceEnabled: boolean
   gmailWorkspaceEnabled: boolean
   microsoftWorkspaceEnabled: boolean
+  qqMailWorkspaceEnabled: boolean
   notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
@@ -95,6 +98,7 @@ export function MailboxSidebar({
     + Number(Boolean(linuxDoMailWorkspaceEnabled))
     + Number(Boolean(gmailWorkspaceEnabled))
     + Number(Boolean(microsoftWorkspaceEnabled))
+    + Number(Boolean(qqMailWorkspaceEnabled))
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -204,6 +208,17 @@ export function MailboxSidebar({
         >
           <Mail size={18} />
           <span>{t('Microsoft 邮箱')}</span>
+        </button>}
+        {qqMailWorkspaceEnabled && <button
+          className={adminView === 'qq-mail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('qq-mail')
+          }}
+        >
+          <QqMailIcon aria-hidden="true" />
+          <span>{t('QQ 邮箱')}</span>
         </button>}
       </nav>
 

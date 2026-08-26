@@ -95,20 +95,20 @@ curl --request PATCH \
 }'
 ```
 
-<!-- endpoint:PATCH /api/admin/settings/mail-workspaces catalog:54d6a68508d5 -->
+<!-- endpoint:PATCH /api/admin/settings/mail-workspaces catalog:045c777a8c34 -->
 ## `PATCH /api/admin/settings/mail-workspaces`
 
 **设置邮箱功能入口 / Configure mailbox workspace entries**
 
-控制 iCloud 隐藏邮箱和 Linux DO 邮箱是否显示在 OmniMail 导航中。
+控制各可选邮箱工作区是否显示在 OmniMail 导航中。
 
-> Control whether iCloud Hide My Email and Linux DO Mail appear in OmniMail navigation.
+> Control whether each optional mailbox workspace appears in OmniMail navigation.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 管理员或主管理员 |
-| 请求 | JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled |
-| 成功响应 | 200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled } |
+| 请求 | JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled |
+| 成功响应 | 200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled } |
 
 ### cURL 示例
 
@@ -121,7 +121,8 @@ curl --request PATCH \
   "iCloudWorkspaceEnabled": true,
   "linuxDoMailWorkspaceEnabled": true,
   "gmailWorkspaceEnabled": true,
-  "microsoftWorkspaceEnabled": true
+  "microsoftWorkspaceEnabled": true,
+  "qqMailWorkspaceEnabled": true
 }'
 ```
 

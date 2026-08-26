@@ -9,6 +9,7 @@ export interface OutboundJob {
   userId: string
   ip: string
   auditAction: 'message.reply' | 'message.send' | 'linuxdo_mail.message.send'
+    | 'qq_mail.message.send'
   auditDetail: Record<string, unknown>
 }
 
@@ -29,12 +30,19 @@ export interface MicrosoftSyncJob {
   reason: 'connect' | 'manual' | 'scheduled'
 }
 
+export interface QqMailSyncJob {
+  kind: 'qq-mail-sync'
+  accountId: string
+  reason: 'connect' | 'manual' | 'scheduled'
+}
+
 export type MailQueueJob =
   | ParseJob
   | OutboundJob
   | SearchIndexJob
   | GmailSyncJob
   | MicrosoftSyncJob
+  | QqMailSyncJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -78,6 +86,8 @@ export interface Env {
   GMAIL_IMAP_ENABLED?: string
   MICROSOFT_CREDENTIALS_KEY?: string
   MICROSOFT_MAIL_ENABLED?: string
+  QQ_MAIL_CREDENTIALS_KEY?: string
+  QQ_MAIL_IMAP_ENABLED?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string
