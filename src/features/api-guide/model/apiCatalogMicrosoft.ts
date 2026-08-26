@@ -11,10 +11,13 @@ export const microsoftEndpoints: ApiEndpoint[] = [
     method: 'POST', path: '/api/microsoft/accounts/import', group: 'microsoft', auth: 'authenticated',
     title: l('导入 Microsoft 账号', 'Import Microsoft accounts'),
     description: l('逐项验证 1–25 个结构化 OAuth2 账号；可确认加密保存四字段组合密码，但不用于认证。', 'Validate 1–25 structured OAuth2 accounts; confirmed four-field combination passwords may be stored encrypted but are never used for authentication.'),
-    request: 'JSON · accounts[1..25] · { name?, email, authMode, refreshToken?, clientId?, authority?, password?, persistPasswordConfirmed? }',
-    response: '201/207 · { results: [{ index, status=accepted|duplicate|error, code?, account? }] }',
+    request: 'JSON · accounts[1..25] · { name?, email, authMode=oauth2, refreshToken, clientId, authority?, password?, persistPasswordConfirmed? }',
+    response: '201/207 · { results: [{ index, status=accepted|duplicate|error, code?, error?, account? }] }',
     exampleBody: { accounts: [{ name: 'Outlook', email: 'owner@outlook.com', authMode: 'oauth2', refreshToken: 'refresh-token', clientId: '00000000-0000-4000-8000-000000000000', authority: 'common' }] },
-    notes: [l('服务端只接受结构化字段；不要把整段逐行文本直接提交到该端点。', 'The server accepts structured fields only; do not submit the raw multiline import text.')],
+    notes: [
+      l('服务端只接受结构化字段；不要把整段逐行文本直接提交到该端点。', 'The server accepts structured fields only; do not submit the raw multiline import text.'),
+      l('password 仅作为可选组合密码留存；提交时 persistPasswordConfirmed 必须为 true，且该密码永不参与认证。', 'password is optional retained combination data only; persistPasswordConfirmed must be true when it is sent, and the password is never used for authentication.'),
+    ],
   },
   {
     method: 'PATCH', path: '/api/microsoft/accounts/:id', group: 'microsoft', auth: 'authenticated',
@@ -66,6 +69,7 @@ export const microsoftEndpoints: ApiEndpoint[] = [
     title: l('读取 Microsoft 正文', 'Read a Microsoft message'),
     description: l('再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文，并对未读邮件精确写入 \\Seen。', 'Revalidate user, account, folder, and UIDVALIDITY, fetch MIME content on demand with BODY.PEEK[], and write Seen for unread messages only.'),
     request: 'Path · accountId, messageId', response: '200 · { message }',
+    examplePath: '/api/microsoft/accounts/microsoft_account_id/messages/message_id',
     notes: [l('已读写入失败不会阻断正文响应；移动、删除、归档、星标和其他 flags 写入均未开放。', 'A Seen write failure does not block the body response; move, delete, archive, star, and other flag writes are not available.')],
   },
   {
@@ -73,6 +77,7 @@ export const microsoftEndpoints: ApiEndpoint[] = [
     title: l('下载 Microsoft 附件', 'Download a Microsoft attachment'),
     description: l('校验归属后按需读取并返回不超过 5 MiB 的附件。', 'Verify ownership, then fetch and return an attachment up to 5 MiB on demand.'),
     request: 'Path · accountId, messageId, partId', response: '200 · attachment bytes',
+    examplePath: '/api/microsoft/accounts/microsoft_account_id/messages/message_id/attachments/0',
     outputFile: 'microsoft-attachment.bin',
   },
 ]

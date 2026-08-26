@@ -33,7 +33,7 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/microsoft/accounts/import catalog:d2a64060151c -->
+<!-- endpoint:POST /api/microsoft/accounts/import catalog:87ad664da722 -->
 ## `POST /api/microsoft/accounts/import`
 
 **导入 Microsoft 账号 / Import Microsoft accounts**
@@ -45,12 +45,16 @@ curl --request GET \
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | JSON · accounts[1..25] · { name?, email, authMode, refreshToken?, clientId?, authority?, password?, persistPasswordConfirmed? } |
-| 成功响应 | 201/207 · { results: [{ index, status=accepted\|duplicate\|error, code?, account? }] } |
+| 请求 | JSON · accounts[1..25] · { name?, email, authMode=oauth2, refreshToken, clientId, authority?, password?, persistPasswordConfirmed? } |
+| 成功响应 | 201/207 · { results: [{ index, status=accepted\|duplicate\|error, code?, error?, account? }] } |
 
 > 注意：服务端只接受结构化字段；不要把整段逐行文本直接提交到该端点。
 >
 > Note: The server accepts structured fields only; do not submit the raw multiline import text.
+
+> 注意：password 仅作为可选组合密码留存；提交时 persistPasswordConfirmed 必须为 true，且该密码永不参与认证。
+>
+> Note: password is optional retained combination data only; persistPasswordConfirmed must be true when it is sent, and the password is never used for authentication.
 
 ### cURL 示例
 
@@ -245,7 +249,7 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:40b946b56076 -->
+<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:4dc4956d492e -->
 ## `GET /api/microsoft/accounts/{accountId}/messages/{messageId}`
 
 **读取 Microsoft 正文 / Read a Microsoft message**
@@ -268,11 +272,11 @@ curl --request GET \
 
 ```bash
 curl --request GET \
-  --url "https://mail.example.com/api/microsoft/accounts/gmail_account_id/messages/message_id" \
+  --url "https://mail.example.com/api/microsoft/accounts/microsoft_account_id/messages/message_id" \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId/attachments/:partId catalog:775690867826 -->
+<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId/attachments/:partId catalog:179628f0435d -->
 ## `GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId}`
 
 **下载 Microsoft 附件 / Download a Microsoft attachment**
@@ -291,7 +295,7 @@ curl --request GET \
 
 ```bash
 curl --request GET \
-  --url "https://mail.example.com/api/microsoft/accounts/gmail_account_id/messages/message_id/attachments/0" \
+  --url "https://mail.example.com/api/microsoft/accounts/microsoft_account_id/messages/message_id/attachments/0" \
   --header "Authorization: Bearer om_at_..." \
   --output "microsoft-attachment.bin"
 ```
