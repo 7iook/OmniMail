@@ -1,3 +1,5 @@
+import { useGSAP } from '@gsap/react'
+import { gsap } from 'gsap'
 import {
   AlertCircle, ArrowLeft, Check, ChevronRight, KeyRound, ListChecks, LoaderCircle,
   Pencil, Plus, RefreshCw, ShieldCheck, Trash2, X,
@@ -10,6 +12,8 @@ import { t } from '../../../shared/i18n'
 import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
 import { useDelayedScrollbarVisibility } from '../../../shared/ui/scroll/useDelayedScrollbarVisibility'
 import { MicrosoftBatchImport } from './MicrosoftBatchImport'
+
+gsap.registerPlugin(useGSAP)
 
 type View = 'accounts' | 'account' | 'connect'
 type EntryMode = 'fields' | 'batch'
@@ -53,19 +57,53 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [closing, setClosing] = useState(false)
   const titleId = useId()
   const descriptionId = useId()
+  const backdropRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const errorRef = useRef<HTMLParagraphElement>(null)
   const selectAllRef = useRef<HTMLInputElement>(null)
-  const dialogScrollbar = useDelayedScrollbarVisibility<HTMLElement>({ showOnFocus: false })
+  const bodyScrollbar = useDelayedScrollbarVisibility<HTMLDivElement>({ showOnFocus: false })
   const busyRef = useRef(busy)
   const batchDeleteConfirmRef = useRef(batchDeleteConfirm)
+  const closingRef = useRef(false)
   const onCloseRef = useRef(onClose)
+  const requestCloseRef = useRef<() => void>(() => undefined)
   busyRef.current = busy
   batchDeleteConfirmRef.current = batchDeleteConfirm
   onCloseRef.current = onClose
+
+  const { contextSafe } = useGSAP(() => {
+    const backdrop = backdropRef.current
+    const dialog = dialogRef.current
+    if (!backdrop || !dialog) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set([backdrop, dialog], { autoAlpha: 1 })
+      return
+    }
+    gsap.fromTo(backdrop, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2,
+      ease: 'power1.out', clearProps: 'opacity,visibility' })
+    gsap.fromTo(dialog, { autoAlpha: 0, y: 18, scale: 0.975 }, {
+      autoAlpha: 1, y: 0, scale: 1, duration: 0.32, ease: 'power3.out',
+      clearProps: 'opacity,visibility,transform' })
+  }, { scope: backdropRef })
+  const requestClose = contextSafe(() => {
+    if (busyRef.current || closingRef.current) return
+    const backdrop = backdropRef.current
+    const dialog = dialogRef.current
+    if (!backdrop || !dialog || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onCloseRef.current()
+      return
+    }
+    closingRef.current = true
+    setClosing(true)
+    gsap.to(backdrop, { autoAlpha: 0, duration: 0.18, ease: 'power1.in', overwrite: 'auto' })
+    gsap.to(dialog, { autoAlpha: 0, y: 10, scale: 0.985, duration: 0.18,
+      ease: 'power2.in', overwrite: 'auto', onComplete: () => onCloseRef.current() })
+  })
+  requestCloseRef.current = requestClose
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
   useEffect(() => {
     const accountIds = new Set(accounts.map(({ id }) => id))
@@ -88,7 +126,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
     closeRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (batchDeleteConfirmRef.current) return
-      if (event.key === 'Escape' && !busyRef.current) onCloseRef.current()
+      if (event.key === 'Escape') requestCloseRef.current()
       if (event.key !== 'Tab') return
       const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
@@ -266,11 +304,13 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
       : t('连接 Microsoft 邮箱')
   const canGoBack = view === 'account' || (view === 'connect' && accounts.length > 0)
 
-  return <div className="icloud-modal-backdrop gmail-dialog-backdrop microsoft-dialog-backdrop is-visible"
-    role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
+  const batchView = view === 'connect' && entryMode === 'batch'
+
+  return <div ref={backdropRef}
+    className={`icloud-modal-backdrop gmail-dialog-backdrop microsoft-dialog-backdrop is-visible${closing ? ' is-closing' : ''}`}
+    role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose() }}>
     <section ref={dialogRef}
-      className={`icloud-modal gmail-account-dialog microsoft-account-dialog${view === 'connect' && entryMode === 'batch' ? ' microsoft-batch-dialog' : ''} microsoft-scrollbar${dialogScrollbar.visible ? ' is-scrollbar-visible' : ''}`}
-      {...dialogScrollbar.handlers}
+      className="icloud-modal gmail-account-dialog microsoft-account-dialog"
       role="dialog" aria-modal="true" aria-busy={Boolean(busy)} aria-labelledby={titleId}
       aria-describedby={descriptionId}>
       <header className={canGoBack ? 'has-back' : ''}>
@@ -280,9 +320,11 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         <div><p className="eyebrow">MICROSOFT · IMAP</p><h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>{t('仅允许读取和标记已读；凭据仅在服务端加密保存。')}</p></div>
         <button ref={closeRef} className="icon-button" type="button" disabled={Boolean(busy)}
-          onClick={onClose} aria-label={t('关闭')}><X size={17} /></button>
+          onClick={requestClose} aria-label={t('关闭')}><X size={17} /></button>
       </header>
 
+      <div className={`microsoft-dialog-body microsoft-scrollbar${batchView ? ' is-batch' : ''}${bodyScrollbar.visible ? ' is-scrollbar-visible' : ''}`}
+        {...bodyScrollbar.handlers}>
       {(notice || error) && <div className="gmail-dialog-feedback">
         {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
         {error && <p ref={errorRef} className="inline-error" role="alert" tabIndex={-1}><AlertCircle size={15} />{error}</p>}
@@ -431,6 +473,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           <span><button className="button button--secondary" type="button" onClick={() => setConfirmDelete(false)}>{t('取消')}</button>
             <button className="button icloud-danger-button" type="button" onClick={() => void remove()}>{t('确认断开')}</button></span></div>}
       </div>}
+      </div>
     </section>
   </div>
 }

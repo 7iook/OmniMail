@@ -92,8 +92,11 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   const dialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
   await expect(dialog.getByText('仅支持 OAuth2；不再接受仅邮箱密码登录。')).toBeVisible()
   await expect(dialog.getByRole('combobox', { name: '认证方式' })).toHaveCount(0)
+  await expect(dialog).toHaveCSS('transform', 'none')
+  const fieldsDialogHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height)
   await dialog.getByRole('tab', { name: '批量导入' }).click()
   const initialDialogHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height)
+  expect(initialDialogHeight).toBe(fieldsDialogHeight)
   await expect(dialog).toHaveCSS('overflow-y', 'hidden')
   const formats = dialog.locator('#microsoft-import-formats')
   await expect(formats).toContainText('email----password----refresh_token----client_id')
@@ -175,6 +178,10 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
     expect.objectContaining({ email: 'oauth@outlook.com', authMode: 'oauth2' }),
   ])
   expect(Object.prototype.hasOwnProperty.call(imports[2], 'password')).toBe(false)
+  const backdrop = page.locator('.microsoft-dialog-backdrop')
+  await dialog.getByRole('button', { name: '关闭' }).click()
+  await expect(backdrop).toHaveClass(/is-closing/)
+  await expect(backdrop).toHaveCount(0)
 })
 
 test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }) => {
@@ -207,8 +214,20 @@ test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }
 
   await page.goto('/microsoft')
   await page.getByRole('button', { name: '管理 Microsoft 账号' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
+  let dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
   await expect(dialog.getByText('已连接 3 个账号')).toBeVisible()
+  await expect(dialog).toHaveCSS('transform', 'none')
+  const managementDialogHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height)
+  await dialog.getByRole('button', { name: '添加账号' }).click()
+  const connectDialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
+  await expect(connectDialog).toBeVisible()
+  expect(await connectDialog.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(managementDialogHeight)
+  await connectDialog.getByRole('button', { name: '返回' }).click()
+  dialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
+  await expect(dialog).toBeVisible()
+  expect(await dialog.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(managementDialogHeight)
   await dialog.getByRole('button', { name: '批量管理' }).click()
   const selectAll = dialog.getByRole('checkbox', { name: '全选 Microsoft 账号' })
   const first = dialog.getByRole('checkbox', { name: '选择 Microsoft 账号：user@outlook.com' })
@@ -293,4 +312,15 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
   await expect(workspace).toBeVisible()
   await expect(page.locator('.microsoft-list-controls')).toHaveCount(0)
   expect(await workspace.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+
+  await page.getByRole('button', { name: '返回邮件列表' }).click()
+  await page.getByRole('button', { name: '管理 Microsoft 账号' }).click()
+  const mobileDialog = page.getByRole('dialog', { name: 'Microsoft 账号管理' })
+  await expect(mobileDialog).toHaveCSS('transform', 'none')
+  expect(await mobileDialog.evaluate((element) => ({
+    fitsViewport: element.getBoundingClientRect().height <= window.innerHeight,
+    noHorizontalOverflow: element.scrollWidth <= element.clientWidth,
+  }))).toEqual({ fitsViewport: true, noHorizontalOverflow: true })
+  await expect(mobileDialog).toHaveCSS('overflow-y', 'hidden')
+  await expect(mobileDialog.locator('.microsoft-dialog-body')).toHaveCSS('overflow-y', 'auto')
 })
