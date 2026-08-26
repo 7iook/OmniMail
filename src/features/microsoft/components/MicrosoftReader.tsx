@@ -41,7 +41,6 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
   if (!message) return <div className="reader-state reader-state--empty">
     <span className="reader-empty-symbol"><Mail size={29} /></span>
     <h2>{t('选择一封 Microsoft 邮件')}</h2>
-    <p>{t('正文和附件只在打开时读取；打开未读邮件后会尝试同步已读状态。')}</p>
   </div>
 
   const subject = message.subject || t('无主题')

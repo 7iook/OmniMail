@@ -202,6 +202,15 @@ body:has(.microsoft-dialog-backdrop) > .mail-delete-backdrop { z-index: 1100; }
 .microsoft-batch-import.is-running { overflow-y: hidden; }
 
 .microsoft-batch-form { min-height: 0; align-content: start; }
+.microsoft-batch-form[data-step="input"] {
+  grid-template-rows: minmax(160px, 1fr) auto auto;
+  height: 100%;
+  overflow: hidden;
+}
+.microsoft-batch-form[data-step="input"] > label:first-child {
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
 .microsoft-batch-form[data-step="review"] {
   grid-template-rows: minmax(0, 1fr) auto auto;
   height: 100%;
@@ -254,8 +263,9 @@ body:has(.microsoft-dialog-backdrop) > .mail-delete-backdrop { z-index: 1100; }
 .microsoft-import-steps > span.is-complete i,
 .microsoft-import-steps > b.is-complete { border-color: var(--success); background: var(--success); color: white; }
 .microsoft-batch-form textarea {
-  min-height: 138px;
-  resize: vertical;
+  height: 100%;
+  min-height: 0;
+  resize: none;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
   line-height: 1.65;

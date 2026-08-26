@@ -13,6 +13,7 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
     expect(html).toContain('MICROSOFT_MAIL_ENABLED')
     expect(html).toContain('microsoft-list-pane')
     expect(html).toContain('选择一封 Microsoft 邮件')
+    expect(html).not.toContain('正文和附件只在打开时读取')
   })
 
   it('opens an accessible OAuth2-only connection dialog', () => {

@@ -55,6 +55,7 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
   const messageController = useRef<AbortController | null>(null)
   const manageButton = useRef<HTMLButtonElement>(null)
   const currentAccount = accounts.find(({ id }) => id === accountId)
+  const copyAccount = currentAccount || accounts[0]
 
   const loadAccounts = useCallback(async () => {
     if (!enabled) { setAccounts([]); return [] }
@@ -168,7 +169,7 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
     } catch (loadError) { setError(errorMessage(loadError)) } finally { setLoadingMore(false) }
   }
 
-  async function copyAddress(address = currentAccount?.email || ''): Promise<boolean> {
+  async function copyAddress(address = copyAccount?.email || ''): Promise<boolean> {
     if (!address) return false
     try {
       await navigator.clipboard.writeText(address)
@@ -178,6 +179,17 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
       setNotice(''); setError(t('无法访问剪贴板，请手动复制邮箱地址。'))
       return false
     }
+  }
+
+  async function syncScope() {
+    if (!accounts.length || remoteRefreshing) return
+    if (currentAccount) { await loadMessages(false, true); return }
+    setRemoteRefreshing(true); setError(''); setNotice('')
+    try {
+      await Promise.all(accounts.map(({ id }) => api.syncMicrosoft(id)))
+      setNotice(t('已将 {count} 个 Microsoft 账号加入同步队列。', { count: accounts.length }))
+    } catch (syncError) { setError(errorMessage(syncError)) }
+    finally { setRemoteRefreshing(false) }
   }
 
   function chooseAccount(next: string) {
@@ -204,13 +216,15 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
           <div className="icloud-header-action-buttons">
             <button className="icon-button" type="button" onClick={() => setDialogMode('add')}
               aria-label={t('添加 Microsoft 账号')} data-tooltip={t('添加 Microsoft 账号')}><Plus size={17} /></button>
-            <button className="icon-button" type="button" disabled={!currentAccount} onClick={() => void copyAddress()}
-              aria-label={t('复制当前邮箱')} data-tooltip={t('复制当前邮箱')}><Copy size={17} /></button>
+            <button className="icon-button" type="button" disabled={!copyAccount} onClick={() => void copyAddress()}
+              aria-label={`${t('复制当前邮箱')} ${copyAccount?.email || ''}`}
+              data-tooltip={`${t('复制当前邮箱')} ${copyAccount?.email || ''}`}><Copy size={17} /></button>
             <button ref={manageButton} className="icon-button" type="button" onClick={() => setDialogMode('manage')}
               aria-label={t('管理 Microsoft 账号')} data-tooltip={t('管理 Microsoft 账号')}><Settings2 size={17} /></button>
-            <button className="icon-button" type="button" disabled={!currentAccount || remoteRefreshing}
-              onClick={() => void loadMessages(false, true)} aria-label={t('远程刷新当前文件夹')}
-              data-tooltip={t(accountId ? '远程刷新当前文件夹' : '请先选择一个账号')}>
+            <button className="icon-button" type="button" disabled={!accounts.length || remoteRefreshing}
+              onClick={() => void syncScope()}
+              aria-label={t(accountId ? '远程刷新当前文件夹' : '同步全部 Microsoft 账号')}
+              data-tooltip={t(accountId ? '远程刷新当前文件夹' : '同步全部 Microsoft 账号')}>
               {remoteRefreshing ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}</button>
           </div>
         </div>}
@@ -235,7 +249,9 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
               <button className="button button--primary" type="button" onClick={() => setDialogMode('add')}><Plus size={16} />{t('添加 Microsoft 账号')}</button></div>
               : !messages.length ? <div className="gmail-list-state gmail-list-state--empty"><span>{searchQuery ? <Search size={25} /> : <Mail size={25} />}</span>
                 <h2>{t(searchQuery ? '未找到相关 Microsoft 邮件' : '当前文件夹还没有索引邮件')}</h2>
-                <p>{t(searchQuery ? '请尝试其他关键词。' : '可远程刷新当前文件夹，或等待后台定时同步 INBOX。')}</p></div>
+                <p>{t(searchQuery ? '请尝试其他关键词。' : accountId
+                  ? '可远程刷新当前文件夹，或等待后台定时同步 INBOX。'
+                  : '可同步全部 Microsoft 账号，或等待后台定时同步 INBOX。')}</p></div>
                 : <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('Microsoft 邮件列表')}>
                   {messages.map((message) => {
                     const active = selected?.id === message.id

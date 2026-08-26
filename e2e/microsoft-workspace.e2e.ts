@@ -106,13 +106,21 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   await expect(formats).toContainText('系统按 UUID 自动识别 Client ID')
   await expect(formats).toContainText('password 会加密保存')
   const clientId = '00000000-0000-4000-8000-000000000000'
-  await dialog.getByLabel('每行一个账号').fill([
+  const batchInput = dialog.getByLabel('每行一个账号')
+  await expect(batchInput).toHaveCSS('resize', 'none')
+  const initialInputHeight = await batchInput.evaluate((element) => element.getBoundingClientRect().height)
+  const initialNextButtonTop = await dialog.getByRole('button', { name: '下一步：安全预览' })
+    .evaluate((element) => element.getBoundingClientRect().top)
+  await batchInput.fill([
     `combo@outlook.com----combination-secret----${clientId}----refresh-combo`,
     `reverse@outlook.com----reverse-secret----refresh-reverse----${clientId}`,
     `oauth@outlook.com--------refresh-oauth----${clientId}`,
   ].join('\n'))
+  expect(await batchInput.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(initialInputHeight)
+  expect(await dialog.getByRole('button', { name: '下一步：安全预览' })
+    .evaluate((element) => element.getBoundingClientRect().top)).toBe(initialNextButtonTop)
 
-  const batchInput = dialog.getByLabel('每行一个账号')
   await batchInput.evaluate((element) => element.blur())
   await expect(batchInput).not.toHaveClass(/is-scrollbar-visible/)
   await batchInput.dispatchEvent('scroll')
@@ -253,12 +261,22 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
   await page.setViewportSize({ width: 375, height: 812 })
   await page.addInitScript(() => localStorage.setItem('omnimail-theme', 'dark'))
   const listQueries: string[] = []
+  const syncedAccounts: string[] = []
+  const secondAccount = { ...account, id: 'microsoft-2', name: 'Personal Outlook',
+    email: 'personal@outlook.com' }
   await page.route('**://*/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
     if (await shell(route, path)) return
-    if (path === '/api/microsoft/accounts') return json(route, { enabled: true, accounts: [account] })
+    if (path === '/api/microsoft/accounts') {
+      return json(route, { enabled: true, accounts: [account, secondAccount] })
+    }
+    const syncMatch = path.match(/^\/api\/microsoft\/accounts\/([^/]+)\/sync$/)
+    if (syncMatch && request.method() === 'POST') {
+      syncedAccounts.push(decodeURIComponent(syncMatch[1]))
+      return json(route, { queued: true }, 202)
+    }
     if (path === '/api/microsoft/accounts/microsoft-1/folders') return json(route, { folders: [
       { path: 'INBOX', displayName: 'Inbox', flags: ['\\Inbox'], specialUse: '\\Inbox', uidValidity: 42, lastUid: 7 },
       { path: 'Sent Items', displayName: 'Sent Items', flags: ['\\Sent'], specialUse: '\\Sent', uidValidity: 43, lastUid: 2 },
@@ -282,6 +300,15 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
   })
 
   await page.goto('/microsoft')
+  const headerCopy = page.getByRole('button', { name: '复制当前邮箱 user@outlook.com' })
+  await expect(headerCopy).toBeEnabled()
+  await headerCopy.click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('user@outlook.com')
+  const syncAll = page.getByRole('button', { name: '同步全部 Microsoft 账号' })
+  await expect(syncAll).toBeEnabled()
+  await syncAll.click()
+  await expect.poll(() => syncedAccounts).toEqual(['microsoft-1', 'microsoft-2'])
+  await expect(page.getByText('已将 2 个 Microsoft 账号加入同步队列。')).toBeVisible()
   const scopeTrigger = page.getByRole('button', { name: /当前 Microsoft/ })
   await expect(scopeTrigger).toContainText('全部 Microsoft')
   await scopeTrigger.click()
@@ -298,6 +325,7 @@ test('browses Microsoft mail, reflects Seen updates, and renders on mobile', asy
   await expect(scope.getByText('INBOX 约每 5 分钟定时收信；其他文件夹可手动刷新。')).toBeVisible()
   await scope.getByRole('button', { name: '200' }).click()
   await expect.poll(() => listQueries.some((query) => query.includes('limit=200'))).toBe(true)
+  await expect(page.getByRole('button', { name: '远程刷新当前文件夹' })).toBeEnabled()
   await page.getByRole('button', { name: '远程刷新当前文件夹' }).click()
   await expect.poll(() => listQueries.some((query) => query.includes('refresh=1'))).toBe(true)
   await page.getByText('安全提醒').click()
