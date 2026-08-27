@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { apiEndpoints } from '../src/features/api-guide/model/apiCatalog'
 
 function json(route: Route, body: unknown) {
   return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
@@ -45,7 +46,7 @@ test('API reference keeps scrolling inside the workspace', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '完整 API 参考' }))
     .toBeVisible({ timeout: 20_000 })
   await expect(page.locator('details.api-endpoint-card'))
-    .toHaveCount(134, { timeout: 20_000 })
+    .toHaveCount(apiEndpoints.length, { timeout: 20_000 })
   const shell = page.locator('.admin-scroll-shell')
   await shell.evaluate((element) => { element.scrollTop = element.scrollHeight })
   await expect(page.getByText('/api/admin/version', { exact: true })).toBeVisible()

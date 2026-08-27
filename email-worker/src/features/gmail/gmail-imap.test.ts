@@ -1,5 +1,6 @@
 import { connect } from 'cloudflare:sockets'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import packageMetadata from '../../../../package.json'
 import { GmailImapClient } from './gmail-imap'
 
 vi.mock('cloudflare:sockets', () => ({ connect: vi.fn() }))
@@ -87,7 +88,7 @@ describe('Gmail IMAP controlled command boundary', () => {
     await client.close()
 
     const commands = fixture.commands()
-    expect(commands).toContain('ID ("name" "OmniMail" "version" "0.6.1"')
+    expect(commands).toContain(`ID ("name" "OmniMail" "version" "${packageMetadata.version}"`)
     expect(commands).toContain('EXAMINE INBOX')
     expect(commands).toContain('UID FETCH 42 (UID BODY.PEEK[])')
     expect(commands).toContain('SELECT INBOX')

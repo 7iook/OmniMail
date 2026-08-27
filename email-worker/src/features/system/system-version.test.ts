@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import packageMetadata from '../../../../package.json'
 import { isNewerVersion, systemVersion } from './system-version'
 import type { Env, SessionUser } from '../../app/types'
 
@@ -36,12 +37,14 @@ describe('system version', () => {
   })
 
   it('checks the configured release repository', async () => {
-    const releaseFetch = vi.fn(async () => Response.json({ tag_name: 'v0.6.1' }))
+    const releaseFetch = vi.fn(async () => Response.json({
+      tag_name: `v${packageMetadata.version}`,
+    }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     const body = await response.json()
     expect(body).toMatchObject({
-      currentVersion: '0.6.1',
-      latestVersion: '0.6.1',
+      currentVersion: packageMetadata.version,
+      latestVersion: packageMetadata.version,
       updateAvailable: false,
       checkFailed: false,
       releaseRepository: 'mibgb65-cloud/OmniMail',
@@ -60,7 +63,7 @@ describe('system version', () => {
     const releaseFetch = vi.fn(async () => new Response(null, { status: 503 }))
     const response = await systemVersion(environment(), administrator, releaseFetch as typeof fetch)
     expect(await response.json()).toMatchObject({
-      currentVersion: '0.6.1',
+      currentVersion: packageMetadata.version,
       latestVersion: null,
       updateAvailable: false,
       checkFailed: true,
