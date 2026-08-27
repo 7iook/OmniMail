@@ -95,10 +95,6 @@ export function ImapMessageReader({
       <MessageReaderToolbarTitle key={message.id} detailsLabel={t('{provider} 邮件', { provider })}
         scrollTopLabel={t('回到顶部')} subject={subject}
         subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
-      {onReply && <button className="icon-button" type="button" onClick={onReply}
-        aria-label={t('回复')} data-tooltip={t('回复')}>
-        <Reply size={17} aria-hidden="true" />
-      </button>}
       <span className="icloud-source-badge is-imap">IMAP</span>
     </header>
     <div ref={readerRoot} className="reader-content icloud-reader-content">
@@ -125,6 +121,11 @@ export function ImapMessageReader({
               <small>{attachment.contentType} · {Math.ceil(attachment.size / 1024)} KiB</small></span>
           </a>)}</div>
         </section>}
+        {onReply && <div className="icloud-reader-actions">
+          <button className="button button--secondary" type="button" onClick={onReply}>
+            <Reply size={16} aria-hidden="true" />{t('回复')}
+          </button>
+        </div>}
       </div>
     </div>
     <button className={`reader-scroll-top${readerScroll.subjectPinned ? ' is-visible' : ''}`}

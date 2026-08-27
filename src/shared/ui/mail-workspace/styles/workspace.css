@@ -302,6 +302,12 @@
   border-radius: 14px;
 }
 
+.icloud-reader-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 32px;
+}
+
 .icloud-modal-backdrop {
   position: fixed;
   z-index: 100;
@@ -476,6 +482,7 @@
   .icloud-reader-pane { position: fixed; z-index: 40; inset: 0 0 68px; display: none; background: var(--surface); }
   .icloud-mail-view.has-selection .icloud-reader-pane { display: block; animation: icloud-mobile-reader-in 280ms cubic-bezier(0.22, 1, 0.36, 1); }
   .icloud-reader-content { padding: 22px 14px 36px; }
+  .icloud-reader-actions .button { width: 100%; }
   .icloud-reader-heading h1 { margin-bottom: 22px; font-size: clamp(24px, 7.5vw, 29px); }
   .icloud-reader-sender { grid-template-columns: auto minmax(0, 1fr); }
   .icloud-reader-sender time { grid-column: 2; margin-top: 2px; }
