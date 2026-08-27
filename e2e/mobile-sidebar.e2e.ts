@@ -99,6 +99,38 @@ test('navigation stays usable on mobile and short desktop viewports', async ({ p
   await expect(adminNav).toHaveCSS('visibility', 'hidden')
 
   await page.setViewportSize({ width: 1280, height: 520 })
+  const brand = sidebar.locator('.sidebar-brand > .brand')
+  await expect(brand).toContainText('OmniMail')
+  expect(await brand.evaluate((element) => element.closest('a'))).toBeNull()
+  const projectLinks = sidebar.getByRole('navigation', { name: 'OmniMail 项目链接' })
+  const repositoryLink = projectLinks.getByRole('link', { name: '打开 OmniMail GitHub 仓库' })
+  const websiteLink = projectLinks.getByRole('link', { name: '打开 OmniMail 官网' })
+  await expect(repositoryLink).toHaveAttribute(
+    'href', 'https://github.com/mibgb65-cloud/OmniMail',
+  )
+  await expect(websiteLink).toHaveAttribute('href', 'https://omnimail.aicnos.com')
+  await expect(repositoryLink).toHaveAttribute('rel', 'noopener noreferrer')
+  await expect(websiteLink).toHaveAttribute('rel', 'noopener noreferrer')
+  await expect(repositoryLink).toBeVisible()
+  await expect(websiteLink).toBeVisible()
+  const [brandBox, projectLinksBox, repositoryBox, websiteBox, sidebarBox] = await Promise.all([
+    brand.boundingBox(),
+    projectLinks.boundingBox(),
+    repositoryLink.boundingBox(),
+    websiteLink.boundingBox(),
+    sidebar.boundingBox(),
+  ])
+  expect(brandBox).not.toBeNull()
+  expect(projectLinksBox).not.toBeNull()
+  expect(repositoryBox).not.toBeNull()
+  expect(websiteBox).not.toBeNull()
+  expect(sidebarBox).not.toBeNull()
+  expect(projectLinksBox!.x).toBeGreaterThanOrEqual(brandBox!.x + brandBox!.width)
+  expect(Math.abs(projectLinksBox!.y + projectLinksBox!.height / 2
+    - brandBox!.y - brandBox!.height / 2)).toBeLessThanOrEqual(2)
+  expect(repositoryBox!.width).toBeGreaterThanOrEqual(24)
+  expect(websiteBox!.x - repositoryBox!.x - repositoryBox!.width).toBeGreaterThanOrEqual(8)
+  expect(websiteBox!.x + websiteBox!.width).toBeLessThanOrEqual(sidebarBox!.x + sidebarBox!.width)
   expect(await sidebar.locator('.folder-nav > button span').allTextContents())
     .toEqual(['收件箱', '星标邮件', '草稿箱', '已发送', '垃圾箱', 'iCloud 邮箱', 'Linux DO 邮箱'])
   await expect(sidebar).toHaveCSS('overflow-y', 'hidden')

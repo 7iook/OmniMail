@@ -19,6 +19,7 @@
   .admin-nav button span,
   .account-nav button span,
   .sidebar-account > div,
+  .sidebar-brand-links,
   .account-avatar {
     display: none;
   }
