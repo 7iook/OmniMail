@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   qqMailAuthorizationCodeField,
   qqMailEmailField,
+  qqMailIdentityEmailField,
   qqMailNameField,
 } from './qq-mail-api-shared'
 
@@ -11,6 +12,14 @@ describe('QQ Mail input validation', () => {
     expect(() => qqMailEmailField('user@foxmail.com')).toThrow('@qq.com')
     expect(() => qqMailEmailField('user@exmail.qq.com')).toThrow('@qq.com')
     expect(() => qqMailEmailField('qq-user')).toThrow('@qq.com')
+  })
+
+  it('accepts only supported QQ Mail sender identities', () => {
+    expect(qqMailIdentityEmailField(' Alias@QQ.COM ')).toBe('alias@qq.com')
+    expect(qqMailIdentityEmailField('work@foxmail.com')).toBe('work@foxmail.com')
+    expect(qqMailIdentityEmailField('member@vip.qq.com')).toBe('member@vip.qq.com')
+    expect(() => qqMailIdentityEmailField('user@exmail.qq.com')).toThrow('发信身份')
+    expect(() => qqMailIdentityEmailField('user@example.com')).toThrow('发信身份')
   })
 
   it('keeps the authorization code opaque while rejecting control characters and oversized input', () => {

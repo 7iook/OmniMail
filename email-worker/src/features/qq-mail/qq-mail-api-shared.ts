@@ -73,6 +73,19 @@ export function qqMailEmailField(value: unknown): string {
   return email
 }
 
+export function qqMailIdentityEmailField(value: unknown): string {
+  const email = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  const domain = email.slice(email.lastIndexOf('@') + 1)
+  if (!validEmail(email) || /[\r\n\0]/.test(email)
+    || !['qq.com', 'foxmail.com', 'vip.qq.com'].includes(domain)) {
+    throw new QqMailStoreError(
+      400,
+      '发信身份必须是 @qq.com、@foxmail.com 或 @vip.qq.com 邮箱地址。',
+    )
+  }
+  return email
+}
+
 export function qqMailAuthorizationCodeField(value: unknown): string {
   const code = typeof value === 'string' ? value.trim() : ''
   const size = new TextEncoder().encode(code).byteLength
@@ -97,6 +110,26 @@ export async function validateQqMailCredentials(email: string, code: string): Pr
   try {
     await client.open()
     await client.examineInbox()
+  } finally {
+    await client.close()
+  }
+}
+
+export async function validateQqMailSenderIdentity(email: string, code: string): Promise<void> {
+  const { QqMailSmtpClient, QqMailSmtpError } = await import('./qq-mail-smtp')
+  const client = new QqMailSmtpClient(email, code)
+  try {
+    await client.open()
+  } catch (error) {
+    if (error instanceof QqMailSmtpError) {
+      throw new QqMailStoreError(
+        error.credentialFailure ? 400 : 502,
+        error.credentialFailure
+          ? 'QQ SMTP 无法验证这个发信身份；请确认该地址已在同一 QQ 邮箱账号中启用。'
+          : error.message || 'QQ SMTP 暂时无法验证这个发信身份。',
+      )
+    }
+    throw error
   } finally {
     await client.close()
   }

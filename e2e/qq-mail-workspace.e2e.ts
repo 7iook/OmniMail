@@ -9,6 +9,8 @@ async function mockQqMail(page: Page) {
   const connections: unknown[] = []
   const sentMessages: unknown[] = []
   const disconnects: string[] = []
+  const identityAdds: unknown[] = []
+  const identityDeletes: string[] = []
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
@@ -46,6 +48,9 @@ async function mockQqMail(page: Page) {
         lastSyncedAt: 1_787_486_400, nextSyncAt: 1_787_486_700,
         lastErrorCode: '', lastErrorAt: null, createdAt: 1_787_486_400,
         hasAuthorizationCode: true,
+        identities: [{ id: 'qq-mail-1', accountId: 'qq-mail-1', name: '个人 QQ 邮箱',
+          email: '123456789@qq.com', isPrimary: true,
+          createdAt: 1_787_486_400, updatedAt: 1_787_486_400 }],
       }
       return json(route, { account }, 201)
     }
@@ -56,6 +61,22 @@ async function mockQqMail(page: Page) {
       disconnects.push(path)
       account = null
       return json(route, { ok: true, remoteRevocationRequired: true })
+    }
+    if (path === '/api/qq-mail/accounts/qq-mail-1/identities'
+      && request.method() === 'POST' && account) {
+      identityAdds.push(request.postDataJSON())
+      const identity = { id: 'identity-foxmail', accountId: 'qq-mail-1', name: 'Foxmail 邮箱',
+        email: 'mimanchi4412@foxmail.com', isPrimary: false,
+        createdAt: 1_787_486_500, updatedAt: 1_787_486_500 }
+      account = { ...account, identities: [...account.identities as unknown[], identity] }
+      return json(route, { account }, 201)
+    }
+    if (path === '/api/qq-mail/accounts/qq-mail-1/identities/identity-foxmail'
+      && request.method() === 'DELETE' && account) {
+      identityDeletes.push(path)
+      account = { ...account, identities: (account.identities as Array<{ id: string }>)
+        .filter(({ id }) => id !== 'identity-foxmail') }
+      return json(route, { account })
     }
     if (path === '/api/qq-mail/accounts/qq-mail-1/messages' && request.method() === 'POST') {
       sentMessages.push(request.postDataJSON())
@@ -91,7 +112,7 @@ async function mockQqMail(page: Page) {
     }
     return route.abort()
   })
-  return { connections, sentMessages, disconnects }
+  return { connections, sentMessages, disconnects, identityAdds, identityDeletes }
 }
 
 test('connects a QQ Mail account and opens an indexed message', async ({ page }) => {
@@ -121,6 +142,27 @@ test('connects a QQ Mail account and opens an indexed message', async ({ page })
     .toContainText('已连接 1 个账号')
   expect(await page.evaluate(() => JSON.stringify(localStorage)))
     .not.toContain('qq-authorization-code')
+  await page.getByRole('dialog', { name: 'QQ 邮箱账号管理' })
+    .getByRole('button', { name: /个人 QQ 邮箱.*管理/s }).click()
+  const settingsMenu = page.getByRole('dialog', { name: '设置 个人 QQ 邮箱' })
+  await expect(settingsMenu.locator('.qq-mail-settings-option')).toHaveCount(6)
+  await expect(settingsMenu.locator('form')).toHaveCount(0)
+  const settingsHeight = (await settingsMenu.boundingBox())!.height
+  await settingsMenu.getByRole('button', { name: /邮箱身份/ }).click()
+  const identityPanel = page.getByRole('dialog', { name: '邮箱身份' })
+  await expect(identityPanel).toBeVisible()
+  await expect(identityPanel.locator('.qq-mail-dialog-pane')).toHaveClass(/is-forward/)
+  await expect(identityPanel.locator('.qq-mail-dialog-pane'))
+    .toHaveCSS('animation-name', 'qq-mail-view-enter')
+  expect(Math.abs((await identityPanel.boundingBox())!.height - settingsHeight)).toBeLessThan(1)
+  const identitySettings = page.getByRole('region', { name: '邮箱身份' })
+  await identitySettings.getByLabel('身份名称').fill('Foxmail 邮箱')
+  await identitySettings.getByLabel('邮箱地址').fill('mimanchi4412@foxmail.com')
+  await identitySettings.getByRole('button', { name: '验证并添加身份' }).click()
+  await expect.poll(() => state.identityAdds).toEqual([{
+    name: 'Foxmail 邮箱', email: 'mimanchi4412@foxmail.com',
+  }])
+  await expect(identitySettings.getByText('mimanchi4412@foxmail.com')).toBeVisible()
   await page.getByRole('button', { name: '关闭' }).click()
 
   const actions = page.locator('.gmail-list-header .icloud-header-action-buttons')
@@ -158,11 +200,13 @@ test('connects a QQ Mail account and opens an indexed message', async ({ page })
   await expect(replyButton).toBeVisible()
   await replyButton.click()
   const reply = page.getByRole('dialog', { name: '回复 QQ 邮件' })
+  await reply.getByRole('combobox', { name: '发件人' }).selectOption('mimanchi4412@foxmail.com')
   await expect(reply.getByLabel('收件人')).toHaveValue('security@qq.com')
   await expect(reply.getByLabel('主题')).toHaveValue('Re: 登录提醒')
   await reply.getByLabel('正文').fill('收到，谢谢。')
   await reply.getByRole('button', { name: '发送邮件' }).click()
   await expect.poll(() => state.sentMessages).toEqual([expect.objectContaining({
+    sender: 'mimanchi4412@foxmail.com',
     to: 'security@qq.com', subject: 'Re: 登录提醒', text: '收到，谢谢。',
     replyToMessageId: 'qq-message-1',
   })])
@@ -172,7 +216,21 @@ test('connects a QQ Mail account and opens an indexed message', async ({ page })
   await page.getByRole('dialog', { name: 'QQ 邮箱账号管理' })
     .getByRole('button', { name: /个人 QQ 邮箱.*管理/s }).click()
   const accountSettings = page.getByRole('dialog', { name: '设置 个人 QQ 邮箱' })
-  const disconnect = accountSettings.getByRole('button', { name: '断开账号' })
+  await accountSettings.getByRole('button', { name: /邮箱身份/ }).click()
+  const identityDialog = page.getByRole('dialog', { name: '邮箱身份' })
+  await identityDialog.getByRole('button', {
+    name: '删除发信身份：mimanchi4412@foxmail.com',
+  }).click()
+  await page.getByRole('alertdialog', { name: '删除发信身份？' })
+    .getByRole('button', { name: '确认删除' }).click()
+  await expect.poll(() => state.identityDeletes).toEqual([
+    '/api/qq-mail/accounts/qq-mail-1/identities/identity-foxmail',
+  ])
+  await expect(identityDialog.getByText('mimanchi4412@foxmail.com')).toHaveCount(0)
+  await identityDialog.getByRole('button', { name: '返回' }).click()
+  await expect(accountSettings.locator('.qq-mail-dialog-pane')).toHaveClass(/is-back/)
+  expect(Math.abs((await accountSettings.boundingBox())!.height - settingsHeight)).toBeLessThan(1)
+  const disconnect = accountSettings.getByRole('button', { name: /断开这个 QQ 邮箱账号/ })
   await disconnect.click()
   const confirmation = page.getByRole('alertdialog', { name: '断开 QQ 邮箱账号？' })
   await expect(confirmation).toBeVisible()

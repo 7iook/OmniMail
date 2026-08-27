@@ -10,13 +10,23 @@ export type SmtpComposeInput = {
   idempotencyKey: string
 }
 
+export type SmtpSenderOption = {
+  value: string
+  label: string
+  address: string
+}
+
 export function SmtpComposeDialog({ sender, title, providerLabel, deliveryNote,
-  senderIcon, initialTo = '', initialSubject = '', busy, error, onCancel, onSubmit }: {
+  senderIcon, senderOptions, senderValue, onSenderChange,
+  initialTo = '', initialSubject = '', busy, error, onCancel, onSubmit }: {
   sender: string
   title: string
   providerLabel: string
   deliveryNote: string
   senderIcon?: ReactNode
+  senderOptions?: SmtpSenderOption[]
+  senderValue?: string
+  onSenderChange?: (value: string) => void
   initialTo?: string
   initialSubject?: string
   busy: boolean
@@ -50,7 +60,7 @@ export function SmtpComposeDialog({ sender, title, providerLabel, deliveryNote,
       if (event.key === 'Escape' && !busyRef.current) cancelRef.current()
       if (event.key !== 'Tab') return
       const controls = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), textarea:not([disabled])',
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
       )
       if (!controls?.length) return
       const first = controls[0]
@@ -97,7 +107,14 @@ export function SmtpComposeDialog({ sender, title, providerLabel, deliveryNote,
           <div className="compose-fields">
             <div className="compose-field"><span>{t('发件人')}</span>
               <span className="linuxdo-compose-sender"><span>{senderIcon
-                || <AtSign size={14} aria-hidden="true" />}</span><strong>{sender}</strong></span>
+                || <AtSign size={14} aria-hidden="true" />}</span>{senderOptions?.length ? (
+                  <select aria-label={t('发件人')} disabled={busy} value={senderValue}
+                    onChange={(event) => onSenderChange?.(event.target.value)}>
+                    {senderOptions.map((option) => <option value={option.value} key={option.value}>
+                      {option.label} · {option.address}
+                    </option>)}
+                  </select>
+                ) : <strong>{sender}</strong>}</span>
             </div>
             <label className="compose-field" htmlFor={`${titleId}-to`}><span>{t('收件人')}</span>
               <input id={`${titleId}-to`} data-modal-autofocus required maxLength={254}

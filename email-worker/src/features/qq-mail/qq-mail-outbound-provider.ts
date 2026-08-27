@@ -38,11 +38,10 @@ export async function deliverWithQqMail(env: Env, input: {
   references?: string
 }): Promise<string> {
   const store = new QqMailAccountStore(env, input.userId)
-  const accounts = await store.list()
-  const publicAccount = accounts.find(({ email }) => email === input.mailboxAddress)
-  if (!publicAccount) throw new QqMailOutboundError('QQ Mail account is disconnected', false)
-  const account = await store.get(publicAccount.id)
-  const client = new QqMailSmtpClient(account.email, account.authorizationCode)
+  const sender = await store.accountForIdentity(input.mailboxAddress)
+  if (!sender) throw new QqMailOutboundError('QQ Mail identity is disconnected', false)
+  const { account, identity } = sender
+  const client = new QqMailSmtpClient(identity.email, account.authorizationCode)
   try {
     await client.open()
     const providerId = await client.send({
@@ -54,11 +53,11 @@ export async function deliverWithQqMail(env: Env, input: {
       inReplyTo: input.inReplyTo,
       references: input.references,
     })
-    await recordSmtpResult(env, account.id)
+    if (identity.isPrimary) await recordSmtpResult(env, account.id)
     return providerId
   } catch (error) {
     if (error instanceof QqMailSmtpError) {
-      await recordSmtpResult(env, account.id, error)
+      if (identity.isPrimary) await recordSmtpResult(env, account.id, error)
       throw new QqMailOutboundError(error.message, error.retryable, error.deliveryUncertain)
     }
     throw error

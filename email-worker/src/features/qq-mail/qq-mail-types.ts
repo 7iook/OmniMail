@@ -51,6 +51,7 @@ export interface QqMailAccount extends Omit<QqMailAccountRow,
   lastManualSyncAt: number | null
   createdAt: number
   updatedAt: number
+  identities: PublicQqMailIdentity[]
 }
 
 export interface PublicQqMailAccount {
@@ -64,6 +65,27 @@ export interface PublicQqMailAccount {
   lastErrorAt: number | null
   createdAt: number
   hasAuthorizationCode: true
+  identities: PublicQqMailIdentity[]
+}
+
+export interface QqMailIdentityRow {
+  id: string
+  account_id: string
+  name: string
+  email: string
+  is_primary: number
+  created_at: number
+  updated_at: number
+}
+
+export interface PublicQqMailIdentity {
+  id: string
+  accountId: string
+  name: string
+  email: string
+  isPrimary: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 export interface QqMailMessageMetadata {

@@ -8,7 +8,7 @@
 
 > Authorization-code authentication, bounded INBOX indexing, on-demand bodies, exact Seen writes, and controlled SMTP sending.
 
-本分类共 **11** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **13** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/qq-mail/accounts catalog:7806ab4f292a -->
 ## `GET /api/qq-mail/accounts`
@@ -189,6 +189,61 @@ curl --request POST \
   --header "Authorization: Bearer om_at_..."
 ```
 
+<!-- endpoint:POST /api/qq-mail/accounts/:id/identities catalog:a3c7fb3f4e48 -->
+## `POST /api/qq-mail/accounts/{id}/identities`
+
+**添加 QQ 邮箱发信身份 / Add a QQ Mail sender identity**
+
+使用账号现有授权码验证候选地址可登录固定 QQ SMTP 后，保存为可选发信身份。
+
+> Use the account’s existing authorization code to verify that the candidate address can sign in to the fixed QQ SMTP service before saving it as an optional sender identity.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | Path · id; JSON · name, email |
+| 成功响应 | 201 · { account } |
+
+> 注意：只接受 @qq.com、@foxmail.com 与 @vip.qq.com；验证过程不会发送测试邮件。
+>
+> Note: Only @qq.com, @foxmail.com, and @vip.qq.com are accepted; verification does not send a test message.
+
+### cURL 示例
+
+```bash
+curl --request POST \
+  --url "https://mail.example.com/api/qq-mail/accounts/resource_id/identities" \
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "name": "Foxmail address",
+  "email": "name@foxmail.com"
+}'
+```
+
+<!-- endpoint:DELETE /api/qq-mail/accounts/:id/identities/:identityId catalog:8bacbf14dd88 -->
+## `DELETE /api/qq-mail/accounts/{id}/identities/{identityId}`
+
+**删除 QQ 邮箱发信身份 / Delete a QQ Mail sender identity**
+
+删除当前账号的非主发信身份，不影响共享 INBOX、远端邮箱或主身份。
+
+> Delete a non-primary sender identity from the current account without affecting the shared INBOX, remote mailbox, or primary identity.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | Path · id, identityId |
+| 成功响应 | 200 · { account } |
+
+### cURL 示例
+
+```bash
+curl --request DELETE \
+  --url "https://mail.example.com/api/qq-mail/accounts/resource_id/identities/:identityId" \
+  --header "Authorization: Bearer om_at_..."
+```
+
 <!-- endpoint:GET /api/qq-mail/messages catalog:28466c6b31b2 -->
 ## `GET /api/qq-mail/messages`
 
@@ -212,7 +267,7 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/qq-mail/accounts/:id/messages catalog:d03a5bb3b05c -->
+<!-- endpoint:POST /api/qq-mail/accounts/:id/messages catalog:a2827b3aa3e1 -->
 ## `POST /api/qq-mail/accounts/{id}/messages`
 
 **发送或回复 QQ 邮件 / Send or reply with QQ Mail**
@@ -224,12 +279,16 @@ curl --request GET \
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Path · id; JSON · to, subject, text, idempotencyKey, replyToMessageId? |
+| 请求 | Path · id; JSON · sender?, to, subject, text, idempotencyKey, replyToMessageId? |
 | 成功响应 | 202 · { message: { id, status=processing } } |
 
 > 注意：replyToMessageId 存在时，服务端从原邮件推导收件人、主题和线程头，忽略客户端伪造值。
 >
 > Note: When replyToMessageId is present, the server derives the recipient, subject, and thread headers from the original message and ignores spoofed client values.
+
+> 注意：sender 必须是该账号中已通过 QQ SMTP 验证的身份；省略时使用主身份。
+>
+> Note: sender must be an identity verified by QQ SMTP for this account; omit it to use the primary identity.
 
 > 注意：DATA 提交后的超时或断连会标记为投递结果不确定，不会自动重发。
 >

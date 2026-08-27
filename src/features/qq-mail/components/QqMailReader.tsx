@@ -15,5 +15,5 @@ export function QqMailReader({ selected, message, loading, error, remoteImagesEn
   return <ImapMessageReader provider="QQ 邮箱" selected={selected} message={message}
     loading={loading} error={error} remoteImagesEnabled={remoteImagesEnabled}
     attachmentUrl={api.qqMailAttachmentUrl} onBack={onBack} onRetry={onRetry}
-    onReply={message ? onReply : undefined} />
+    onReply={message ? onReply : undefined} showEmptyStateDescription={false} />
 }

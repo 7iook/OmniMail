@@ -51,6 +51,7 @@ function accountError(accounts: QqMailAccount[]): string {
 
 type ComposeState = {
   account: QqMailAccount
+  sender: string
   replyToMessageId?: string
   initialTo?: string
   initialSubject?: string
@@ -293,17 +294,26 @@ export function QqMailWorkspace({ enabled, remoteImagesEnabled, canSend }: {
 
   function openNewMessage() {
     if (!currentAccount || !canSend) return
+    const identity = currentAccount.identities.find(({ isPrimary }) => isPrimary)
+      || currentAccount.identities[0]
+    if (!identity) return
     setComposeError('')
-    setCompose({ account: currentAccount })
+    setCompose({ account: currentAccount, sender: identity.email })
   }
 
   function openReply() {
     if (!selected || !canSend) return
     const account = accounts.find(({ id }) => id === selected.account.id)
     if (!account) return
+    const recipients = new Set(selected.recipients.map((address) => address.toLowerCase()))
+    const identity = account.identities.find(({ email }) => recipients.has(email.toLowerCase()))
+      || account.identities.find(({ isPrimary }) => isPrimary)
+      || account.identities[0]
+    if (!identity) return
     setComposeError('')
     setCompose({
       account,
+      sender: identity.email,
       replyToMessageId: selected.id,
       initialTo: selected.senderAddress,
       initialSubject: /^re:/i.test(selected.subject)
@@ -435,7 +445,8 @@ export function QqMailWorkspace({ enabled, remoteImagesEnabled, canSend }: {
     {dialogMode && <QqMailAccountDialog accounts={accounts}
       startAdding={dialogMode === 'add'} onClose={closeDialog} onChanged={refresh} />}
     {compose && <QqMailComposeDialog key={`${compose.account.id}:${compose.replyToMessageId || ''}`}
-      email={compose.account.email} initialTo={compose.initialTo}
+      identities={compose.account.identities} initialSender={compose.sender}
+      initialTo={compose.initialTo}
       initialSubject={compose.initialSubject} busy={sending} error={composeError}
       onCancel={() => { if (!sending) setCompose(null) }} onSubmit={sendMessage} />}
     {notice && <div className="toast" role="status"><Check size={16} />{notice}</div>}

@@ -44,6 +44,7 @@ export function ImapMessageReader({
   onBack,
   onRetry,
   onReply,
+  showEmptyStateDescription = true,
 }: {
   provider: string
   selected: ImapMessageSummary | null
@@ -55,6 +56,7 @@ export function ImapMessageReader({
   onBack: () => void
   onRetry: () => void
   onReply?: () => void
+  showEmptyStateDescription?: boolean
 }) {
   const errorRef = useRef<HTMLDivElement>(null)
   const readerRoot = useRef<HTMLDivElement>(null)
@@ -83,7 +85,8 @@ export function ImapMessageReader({
     return <div className="reader-state reader-state--empty">
       <span className="reader-empty-symbol"><Mail size={29} /></span>
       <h2>{t('选择一封 {provider} 邮件', { provider })}</h2>
-      <p>{t('打开邮件后会尝试同步 {provider} 已读状态。', { provider })}</p>
+      {showEmptyStateDescription
+        && <p>{t('打开邮件后会尝试同步 {provider} 已读状态。', { provider })}</p>}
     </div>
   }
 

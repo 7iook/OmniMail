@@ -40,7 +40,7 @@ describe('legacy D1 deployment bootstrap', () => {
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'users'").get()).toEqual({
       name: 'users',
     })
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 30 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 31 })
     expect(db.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'icloud_accounts'",
     ).get()).toEqual({ name: 'icloud_accounts' })
@@ -73,7 +73,7 @@ describe('legacy D1 deployment bootstrap', () => {
       count: position,
     })
     applyMigrations(db, position + 1)
-    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 30 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 31 })
     expect(db.prepare(
       "SELECT name FROM pragma_table_info('device_sessions') WHERE name = 'scopes'",
     ).get()).toEqual({ name: 'scopes' })

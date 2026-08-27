@@ -44,7 +44,17 @@ export function createQqMailApi(request: Request, jsonBody: (value: unknown) => 
       `/api/qq-mail/accounts/${encodeURIComponent(accountId)}/sync`,
       { method: 'POST', timeoutMs: 30_000 },
     ),
+    addQqMailIdentity: (accountId: string, input: { name: string; email: string }) => request<{
+      account: QqMailAccount
+    }>(`/api/qq-mail/accounts/${encodeURIComponent(accountId)}/identities`, {
+      method: 'POST', body: jsonBody(input), timeoutMs: 30_000,
+    }),
+    deleteQqMailIdentity: (accountId: string, identityId: string) => request<{
+      account: QqMailAccount
+    }>(`/api/qq-mail/accounts/${encodeURIComponent(accountId)}/identities/${
+      encodeURIComponent(identityId)}`, { method: 'DELETE' }),
     sendQqMail: (accountId: string, input: {
+      sender: string
       to: string
       subject: string
       text: string

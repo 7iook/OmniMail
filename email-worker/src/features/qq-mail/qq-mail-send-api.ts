@@ -3,6 +3,7 @@ import { validEmail } from '../../shared/http/api-helpers'
 import { validateNewMessage } from '../messages/send-message'
 import { sendOutboundMessage } from '../outbound/outbound-message'
 import {
+  qqMailIdentityEmailField,
   qqMailJsonBody,
   qqMailResponseError,
   requireQqMailEnabled,
@@ -47,9 +48,16 @@ export async function sendQqMailMessage(env: Env, user: SessionUser,
     if (account.status === 'credential_error') {
       throw new QqMailStoreError(409, '请先更新失效的 QQ 邮箱授权码。')
     }
+    const sender = body.sender === undefined
+      ? account.email
+      : qqMailIdentityEmailField(body.sender)
+    const identity = account.identities.find(({ email }) => email === sender)
+    if (!identity) {
+      throw new QqMailStoreError(400, '请选择这个 QQ 邮箱账号中已验证的发信身份。')
+    }
     const reply = await replyContext(env, user.id, accountId, body.replyToMessageId)
     const validated = validateNewMessage({
-      mailboxAddress: account.email,
+      mailboxAddress: identity.email,
       to: reply?.sender_address || (typeof body.to === 'string' ? body.to : ''),
       subject: reply ? replySubject(reply.subject) : typeof body.subject === 'string' ? body.subject : '',
       text: typeof body.text === 'string' ? body.text : '',
@@ -61,12 +69,12 @@ export async function sendQqMailMessage(env: Env, user: SessionUser,
     const mailbox = await env.DB.prepare(
       `SELECT 1 AS found FROM mailboxes
         WHERE address = ? AND user_id = ? AND is_active = 1 AND is_hidden = 1`,
-    ).bind(account.email, user.id).first<{ found: number }>()
+    ).bind(identity.email, user.id).first<{ found: number }>()
     if (!mailbox) throw new QqMailStoreError(409, 'QQ 邮箱发件通道尚未完成初始化。')
     const header = reply?.message_id_header && !/[\r\n\0]/.test(reply.message_id_header)
       ? reply.message_id_header : undefined
     return sendOutboundMessage(env, user, {
-      mailboxAddress: account.email,
+      mailboxAddress: identity.email,
       recipients: [validated.value.to],
       subject: validated.value.subject,
       text: validated.value.text,
@@ -76,6 +84,7 @@ export async function sendQqMailMessage(env: Env, user: SessionUser,
       auditAction: 'qq_mail.message.send',
       auditDetail: {
         accountId,
+        sender: identity.email,
         recipient: validated.value.to,
         replyToMessageId: reply ? body.replyToMessageId : undefined,
       },

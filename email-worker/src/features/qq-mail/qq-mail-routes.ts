@@ -16,6 +16,7 @@ import {
   listQqMailMessages,
 } from './qq-mail-message-api'
 import { sendQqMailMessage } from './qq-mail-send-api'
+import { createQqMailIdentity, deleteQqMailIdentity } from './qq-mail-identity-api'
 
 export const qqMailRoutes = new Hono<AppContext>()
 
@@ -61,6 +62,22 @@ qqMailRoutes.post('/qq-mail/accounts/:id/sync', (context) => requestQqMailSync(
   context.get('user'),
   context.req.param('id'),
   (task) => context.executionCtx.waitUntil(task),
+))
+qqMailRoutes.post('/qq-mail/accounts/:id/identities', (context) => createQqMailIdentity(
+  context.env,
+  context.get('user'),
+  context.req.param('id'),
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+))
+qqMailRoutes.delete('/qq-mail/accounts/:id/identities/:identityId', (context) => (
+  deleteQqMailIdentity(
+    context.env,
+    context.get('user'),
+    context.req.param('id'),
+    context.req.param('identityId'),
+    clientIp(context.req.raw.headers),
+  )
 ))
 qqMailRoutes.get('/qq-mail/messages', (context) => (
   listQqMailMessages(context.env, context.get('user'), context.req.raw)

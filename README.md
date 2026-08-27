@@ -148,13 +148,14 @@ Serverless Webmail：
 
 ### QQ 邮箱
 
-- 每个 OmniMail 用户可连接多个个人 `@qq.com` 邮箱；Foxmail、VIP 与腾讯企业邮箱不在首版范围。
+- 每个 OmniMail 用户可连接多个个人 `@qq.com` 收件账号；同一账号可添加经过 QQ SMTP 验证的
+  英文 `@qq.com`、`@foxmail.com` 与 `@vip.qq.com` 发信身份，腾讯企业邮箱不在支持范围。
 - 用户先在 QQ 邮箱中开启 IMAP/SMTP 服务并生成授权码，OmniMail 固定连接
   `imap.qq.com:993` TLS；不接受 QQ 登录密码或自定义服务器。
 - 首次只索引最近 100 封、每账号最多保留 500 封 INBOX 元数据；正文与最大 5 MiB 附件按需
   读取且不持久化。打开正文后仅尝试精确写入 `\\Seen`，不支持移动、删除、归档或星标。
-- 可从所选 QQ 账号向单个收件人新建或回复邮件；发件固定连接 `smtp.qq.com:465` 直接 TLS，
-  强制使用当前账号作为信封发件人和 `From`，并复用 Queue、幂等、限速和审计链路。
+- 可从所选 QQ 账号向单个收件人新建或回复邮件；写信时可选择已验证身份，发件固定连接
+  `smtp.qq.com:465` 直接 TLS，并复用 Queue、幂等、限速和审计链路。
 - 授权码由独立的 `QQ_MAIL_CREDENTIALS_KEY` 使用 AES-GCM 加密，API 只返回
   `hasAuthorizationCode: true`；单账号故障不会阻断其他账号或其他邮件工作区。
 
@@ -526,6 +527,8 @@ Worker 只访问 Microsoft 官方 OAuth 与 IMAP 端点；批量导入文本会�
 若要启用独立的 **QQ 邮箱聚合收件箱**，配置至少 32 字节的
 `QQ_MAIL_CREDENTIALS_KEY`，部署并应用到 `0030_qq_mail_smtp.sql`。用户需要先在 QQ 邮箱设置中
 开启 IMAP/SMTP 服务并生成授权码，再从左侧 QQ 邮箱入口连接个人 `@qq.com` 邮箱。
+升级到包含邮箱身份的版本时还会应用 `0031_qq_mail_identities.sql`；账号设置中可添加同一
+QQ 收件箱下的英文、Foxmail 或 VIP 地址，服务端会先验证 QQ SMTP 登录且不会发送测试邮件。
 管理员可在 **系统设置 → 邮箱功能入口** 中隐藏入口；隐藏不会删除账号、密文或索引。
 
 ### 备份、保留与配额

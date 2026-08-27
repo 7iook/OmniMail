@@ -67,7 +67,17 @@ export async function createQqMailAccount(
       lastManualSyncAt: null,
       createdAt: now,
       updatedAt: now,
+      identities: [{
+        id: crypto.randomUUID(),
+        accountId: '',
+        name,
+        email,
+        isPrimary: true,
+        createdAt: now,
+        updatedAt: now,
+      }],
     }
+    account.identities[0].accountId = account.id
     await store.insert(account)
     await writeAudit(env, user.id, 'qq_mail.account.connect', account.id, ip, {
       email: maskedQqMailEmail(email),

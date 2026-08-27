@@ -8,21 +8,23 @@ import {
   EyeOff,
   KeyRound,
   LoaderCircle,
-  Pencil,
   Plus,
-  RefreshCw,
-  ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { api, type QqMailAccount } from '../../../shared/api'
+import { api, type QqMailAccount, type QqMailIdentity } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
 import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
+import {
+  QqMailAccountSettings,
+  type QqMailAccountSettingsView,
+} from './QqMailAccountSettings'
 import '../styles/qq-mail-dialog.css'
 
-type View = 'accounts' | 'account' | 'connect'
+type View = 'accounts' | 'connect' | QqMailAccountSettingsView
+type MotionDirection = 'forward' | 'back'
 const DIALOG_EXIT_MS = 170
 
 function statusLabel(account: QqMailAccount): string {
@@ -42,6 +44,27 @@ function accountErrorLabel(code: string): string {
   return t('暂时无法同步，系统稍后会重试。')
 }
 
+function accountViewCopy(view: QqMailAccountSettingsView, name: string) {
+  if (view === 'account') return {
+    title: t('设置 {name}', { name }), description: t('选择一个项目继续设置。'),
+  }
+  if (view === 'rename') return {
+    title: t('备注名称'), description: t('只用于 OmniMail 内区分账号。'),
+  }
+  if (view === 'identities') return {
+    title: t('邮箱身份'), description: t('这些地址共享同一个 QQ 收件箱，只在发信时选择身份。'),
+  }
+  if (view === 'verify') return {
+    title: t('验证邮箱连接'), description: t('检查当前授权码是否仍可登录 QQ 邮箱 IMAP。'),
+  }
+  if (view === 'sync') return {
+    title: t('同步这个账号'), description: t('立即将最新 QQ 邮件加入后台同步队列。'),
+  }
+  return {
+    title: t('更新授权码'), description: t('验证成功后才会替换已保存的密文。'),
+  }
+}
+
 export function QqMailAccountDialog({ accounts, startAdding = false, onClose, onChanged }: {
   accounts: QqMailAccount[]
   startAdding?: boolean
@@ -56,22 +79,28 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
   const [target, setTarget] = useState<QqMailAccount | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [identityToDelete, setIdentityToDelete] = useState<QqMailIdentity | null>(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [motionDirection, setMotionDirection] = useState<MotionDirection>('forward')
+  const [hasNavigated, setHasNavigated] = useState(false)
   const titleId = useId()
   const descriptionId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const titleRef = useRef<HTMLHeadingElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const feedbackRef = useRef<HTMLParagraphElement>(null)
   const closeTimer = useRef<number | null>(null)
   const busyRef = useRef(busy)
-  const confirmDeleteRef = useRef(confirmDelete)
+  const confirmationOpen = confirmDelete || Boolean(identityToDelete)
+  const confirmDeleteRef = useRef(confirmationOpen)
   const onCloseRef = useRef(onClose)
+  const previousView = useRef(view)
   busyRef.current = busy
-  confirmDeleteRef.current = confirmDelete
+  confirmDeleteRef.current = confirmationOpen
   onCloseRef.current = onClose
 
   function close() {
@@ -136,6 +165,13 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
   }, [error])
 
   useEffect(() => {
+    if (previousView.current === view) return
+    previousView.current = view
+    const frame = window.requestAnimationFrame(() => titleRef.current?.focus({ preventScroll: true }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [view])
+
+  useEffect(() => {
     setTarget((current) => current
       ? accounts.find(({ id }) => id === current.id) ?? current
       : current)
@@ -146,21 +182,40 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
     setNotice('')
   }
 
+  function navigate(next: View, direction: MotionDirection) {
+    setMotionDirection(direction)
+    setHasNavigated(true)
+    setView(next)
+  }
+
   function openAccount(account: QqMailAccount) {
     clearFeedback()
     setTarget(account)
     setRenameValue(account.name)
     setCode('')
     setConfirmDelete(false)
-    setView('account')
+    setIdentityToDelete(null)
+    navigate('account', 'forward')
   }
 
   function goBack() {
     clearFeedback()
     setConfirmDelete(false)
+    setIdentityToDelete(null)
     setCode('')
+    if (view !== 'accounts' && view !== 'connect' && view !== 'account') {
+      navigate('account', 'back')
+      return
+    }
     setTarget(null)
-    setView('accounts')
+    navigate('accounts', 'back')
+  }
+
+  function openSetting(next: Exclude<QqMailAccountSettingsView, 'account'>) {
+    clearFeedback()
+    setCode('')
+    setCodeVisible(false)
+    navigate(next, 'forward')
   }
 
   async function connect(event: FormEvent) {
@@ -172,7 +227,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
       setName(''); setEmail(''); setCode('')
       await onChanged()
       setNotice(t('QQ 邮箱账号已连接，首次同步已进入队列。'))
-      setView('accounts')
+      navigate('accounts', 'back')
     } catch (connectError) {
       setError(errorMessage(connectError))
     } finally {
@@ -215,6 +270,44 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
     }
   }
 
+  async function addIdentity(name: string, email: string): Promise<boolean> {
+    if (!target) return false
+    setBusy(`identity:add:${target.id}`)
+    clearFeedback()
+    try {
+      const result = await api.addQqMailIdentity(target.id, {
+        name,
+        email,
+      })
+      setTarget(result.account)
+      await onChanged()
+      setNotice(t('发信身份已通过 QQ SMTP 验证并添加。'))
+      return true
+    } catch (identityError) {
+      setError(errorMessage(identityError))
+      return false
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function removeIdentity(identity: QqMailIdentity) {
+    if (!target) return
+    setBusy(`identity:delete:${identity.id}`)
+    clearFeedback()
+    try {
+      const result = await api.deleteQqMailIdentity(target.id, identity.id)
+      setTarget(result.account)
+      setIdentityToDelete(null)
+      await onChanged()
+      setNotice(t('发信身份已从 OmniMail 中删除。'))
+    } catch (identityError) {
+      setError(errorMessage(identityError))
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function verify(account: QqMailAccount) {
     setBusy(`verify:${account.id}`)
     clearFeedback()
@@ -252,7 +345,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
       setTarget(null)
       await onChanged()
       setNotice(t('本地连接和索引已删除；请继续在 QQ 邮箱设置中撤销对应授权码。'))
-      setView('accounts')
+      navigate('accounts', 'back')
     } catch (deleteError) {
       setError(errorMessage(deleteError))
     } finally {
@@ -260,36 +353,41 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
     }
   }
 
+  const accountView = view === 'accounts' || view === 'connect' ? null : view
+  const accountCopy = accountView
+    ? accountViewCopy(accountView, target?.name || t('QQ 邮箱账号')) : null
   const title = view === 'accounts' ? t('QQ 邮箱账号管理')
-    : view === 'account' ? t('设置 {name}', { name: target?.name || t('QQ 邮箱账号') })
-      : t('连接 QQ 邮箱账号')
-  const description = view === 'accounts' ? t('连接新账号，或选择已有账号管理授权码与状态。')
-    : view === 'account' ? t('修改备注、验证连接、更新授权码或断开邮箱。')
-      : t('验证 QQ IMAP 后，加密保存授权码。')
-  const canGoBack = view === 'account' || (view === 'connect' && accounts.length > 0)
+    : view === 'connect' ? t('连接 QQ 邮箱账号') : accountCopy!.title
+  const description = view === 'accounts'
+    ? t('连接新账号，或选择已有账号管理授权码、发信身份与状态。')
+    : view === 'connect' ? t('验证 QQ IMAP 后，加密保存授权码。') : accountCopy!.description
+  const canGoBack = view !== 'accounts' && (view !== 'connect' || accounts.length > 0)
+  const motionClass = hasNavigated ? ` qq-mail-view-motion is-${motionDirection}` : ''
 
   return <div className={`icloud-modal-backdrop gmail-dialog-backdrop qq-mail-dialog-backdrop${visible ? ' is-visible' : ''}${closing ? ' is-closing' : ''}`}
     role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
-    <section ref={dialogRef} className="icloud-modal gmail-account-dialog" role="dialog"
+    <section ref={dialogRef} className={`icloud-modal gmail-account-dialog${accountView ? ' qq-mail-account-flow' : ''}`} role="dialog"
       aria-modal="true" aria-busy={Boolean(busy)} aria-labelledby={titleId}
-      aria-describedby={descriptionId} aria-hidden={confirmDelete || undefined}
-      inert={confirmDelete || undefined}>
+      aria-describedby={descriptionId} aria-hidden={confirmationOpen || undefined}
+      inert={confirmationOpen || undefined}>
       <header className={canGoBack ? 'has-back' : ''}>
         {canGoBack && <button className="icon-button gmail-dialog-back" type="button"
           onClick={goBack} disabled={Boolean(busy)} aria-label={t('返回')}>
           <ArrowLeft size={17} aria-hidden="true" />
         </button>}
-        <div><p className="eyebrow">QQ MAIL · IMAP</p><h2 id={titleId}>{title}</h2>
+        <div key={`heading:${view}`} className={motionClass.trim() || undefined}>
+          <p className="eyebrow">QQ MAIL · IMAP</p><h2 ref={titleRef} id={titleId} tabIndex={-1}>{title}</h2>
           <p id={descriptionId}>{description}</p></div>
         <button ref={closeRef} className="icon-button" type="button" onClick={close}
           disabled={Boolean(busy)} aria-label={t('关闭')}><X size={17} aria-hidden="true" /></button>
       </header>
 
-      {(notice || error) && <div className="gmail-dialog-feedback">
+      <div key={`view:${view}`} className={`qq-mail-dialog-pane${motionClass}`}>
+        {(notice || error) && <div className="gmail-dialog-feedback">
         {notice && <p className="gmail-dialog-notice" role="status"><Check size={15} />{notice}</p>}
         {error && <p ref={feedbackRef} className="inline-error" role="alert" tabIndex={-1}>
           <AlertCircle size={15} />{error}</p>}
-      </div>}
+        </div>}
 
       {view === 'connect' && <form className="icloud-form gmail-connect-form" onSubmit={connect}>
         <label htmlFor="qq-mail-account-name"><span>{t('账号名称')}</span>
@@ -325,7 +423,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
         <div className="gmail-account-list__summary"><span>
           {t('已连接 {count} 个账号', { count: accounts.length })}</span>
           <button className="button button--primary button--small" type="button"
-            onClick={() => { clearFeedback(); setView('connect') }}>
+            onClick={() => { clearFeedback(); navigate('connect', 'forward') }}>
             <Plus size={15} aria-hidden="true" />{t('添加账号')}</button></div>
         {!accounts.length && <div className="gmail-account-list__empty">
           <KeyRound size={20} aria-hidden="true" /><strong>{t('还没有 QQ 邮箱账号')}</strong>
@@ -335,6 +433,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
           <span className="gmail-account-card__icon">{account.name.slice(0, 1).toUpperCase()}</span>
           <span className="gmail-account-card__content"><strong>{account.name}</strong>
             <small>{account.email}</small>
+            <small>{t('{count} 个已验证发信身份', { count: account.identities.length })}</small>
             {account.lastSyncedAt && <small>{t('最后同步：{time}', {
               time: new Date(account.lastSyncedAt * 1000).toLocaleString(),
             })}</small>}
@@ -345,79 +444,16 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
         </button>)}
       </div>}
 
-      {view === 'account' && target && <div className="gmail-account-settings">
-        <div className="gmail-account-summary">
-          <span className="gmail-account-summary__icon"><KeyRound size={18} aria-hidden="true" /></span>
-          <span><strong>{target.email}</strong><small>{target.lastSyncedAt
-            ? t('最后同步：{time}', { time: new Date(target.lastSyncedAt * 1000).toLocaleString() })
-            : t('尚未完成首次同步')}</small></span>
-          <em className={`is-${target.status}`}>
-            {target.status === 'active' ? <ShieldCheck size={13} /> : <AlertCircle size={13} />}
-            {statusLabel(target)}</em>
-        </div>
-        {target.lastErrorCode && <p className="gmail-account-detail-error">
-          <AlertCircle size={15} aria-hidden="true" />{accountErrorLabel(target.lastErrorCode)}</p>}
-
-        <form className="icloud-form gmail-account-rename" onSubmit={rename}>
-          <div className="gmail-account-section-heading">
-            <span className="gmail-account-section-icon"><Pencil size={16} aria-hidden="true" /></span>
-            <span><strong>{t('备注名称')}</strong><small>{t('只用于 OmniMail 内区分账号。')}</small></span>
-          </div>
-          <label htmlFor={`qq-mail-rename-${target.id}`}><span>{t('账号名称')}</span>
-            <span className="gmail-account-rename__field">
-              <input id={`qq-mail-rename-${target.id}`} value={renameValue} maxLength={60} required
-                disabled={Boolean(busy)} onChange={(event) => setRenameValue(event.target.value)} />
-              <button className="button button--secondary" type="submit"
-                disabled={Boolean(busy) || renameValue.trim() === target.name}>
-                {busy === `rename:${target.id}` ? <LoaderCircle className="spin" size={15} />
-                  : <Check size={15} />}{t('保存备注')}</button>
-            </span>
-          </label>
-        </form>
-
-        <section className="gmail-account-action"><span><strong>{t('验证邮箱连接')}</strong>
-          <small>{t('检查当前授权码是否仍可登录 QQ 邮箱 IMAP。')}</small></span>
-          <button className="button button--secondary" type="button" disabled={Boolean(busy)}
-            onClick={() => void verify(target)}>
-            {busy === `verify:${target.id}` ? <LoaderCircle className="spin" size={16} />
-              : <ShieldCheck size={16} />}{t('立即验证')}</button></section>
-        <section className="gmail-account-action"><span><strong>{t('同步这个账号')}</strong>
-          <small>{t('立即将最新 QQ 邮件加入后台同步队列。')}</small></span>
-          <button className="button button--secondary" type="button" disabled={Boolean(busy)}
-            onClick={() => void sync(target)}>
-            {busy === `sync:${target.id}` ? <LoaderCircle className="spin" size={16} />
-              : <RefreshCw size={16} />}{t('立即同步')}</button></section>
-
-        <form className="icloud-form gmail-account-credential" onSubmit={updateCode}>
-          <div className="gmail-account-section-heading">
-            <span className="gmail-account-section-icon"><KeyRound size={16} aria-hidden="true" /></span>
-            <span><strong>{t('更新授权码')}</strong><small>{t('验证成功后才会替换已保存的密文。')}</small></span>
-          </div>
-          <label htmlFor={`qq-mail-code-${target.id}`}><span>{t('新授权码')}</span>
-            <span className="gmail-password-input"><input id={`qq-mail-code-${target.id}`}
-              type={codeVisible ? 'text' : 'password'} value={code} required
-              autoComplete="new-password" inputMode="text" disabled={Boolean(busy)}
-              aria-describedby={`qq-mail-code-help-${target.id}`}
-              onChange={(event) => setCode(event.target.value)} />
-              <button type="button" disabled={Boolean(busy)} onClick={() => setCodeVisible((value) => !value)}
-                aria-label={t(codeVisible ? '隐藏授权码' : '显示授权码')}>
-                {codeVisible ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button></span>
-          </label>
-          <p id={`qq-mail-code-help-${target.id}`} className="gmail-account-note">
-            <ShieldCheck size={15} aria-hidden="true" />
-            {t('新授权码不会显示或保存到浏览器；旧授权码会保留到验证成功。')}</p>
-          <footer><button className="button button--primary" type="submit"
-            disabled={Boolean(busy) || !code.trim()}>
-            {busy === `code:${target.id}` ? <LoaderCircle className="spin" size={16} />
-              : <KeyRound size={16} />}{t('验证并更新')}</button></footer>
-        </form>
-
-        <div className="gmail-account-danger"><span><strong>{t('断开这个 QQ 邮箱账号')}</strong>
-          <small>{t('删除 OmniMail 保存的密文和本地索引，不会删除 QQ 邮箱中的邮件。')}</small></span>
-          <button className="button icloud-danger-button" type="button" disabled={Boolean(busy)}
-            onClick={() => setConfirmDelete(true)}><Trash2 size={16} />{t('断开账号')}</button></div>
-      </div>}
+      {accountView && target && <QqMailAccountSettings account={target} view={accountView}
+        status={statusLabel(target)}
+        accountError={target.lastErrorCode ? accountErrorLabel(target.lastErrorCode) : ''}
+        renameValue={renameValue} code={code} codeVisible={codeVisible} busy={busy}
+        onOpen={openSetting} onRenameValueChange={setRenameValue} onRename={rename}
+        onAddIdentity={addIdentity} onDeleteIdentity={setIdentityToDelete}
+        onVerify={() => void verify(target)} onSync={() => void sync(target)}
+        onCodeChange={setCode} onCodeVisibleChange={() => setCodeVisible((value) => !value)}
+        onUpdateCode={updateCode} onDisconnect={() => setConfirmDelete(true)} />}
+      </div>
     </section>
     {confirmDelete && target && <DangerConfirmDialog icon={Trash2}
       eyebrow={t('QQ MAIL · 账号管理')} title={t('断开 QQ 邮箱账号？')}
@@ -429,5 +465,16 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
       confirmLabel={t(busy === `delete:${target.id}` ? '正在断开…' : '确认断开')}
       busy={busy === `delete:${target.id}`} onCancel={() => setConfirmDelete(false)}
       onConfirm={() => void remove(target)} />}
+    {identityToDelete && target && <DangerConfirmDialog icon={Trash2}
+      eyebrow={t('QQ MAIL · 发信身份')} title={t('删除发信身份？')}
+      description={t('地址“{address}”将不再出现在写信的发件人选择中。', {
+        address: identityToDelete.email,
+      })}
+      impactTitle={t('共享收件箱和远端邮箱不受影响')}
+      impactDescription={t('此操作只删除 OmniMail 保存的已验证发信身份。')}
+      confirmLabel={t(busy === `identity:delete:${identityToDelete.id}` ? '正在删除…' : '确认删除')}
+      busy={busy === `identity:delete:${identityToDelete.id}`}
+      onCancel={() => setIdentityToDelete(null)}
+      onConfirm={() => void removeIdentity(identityToDelete)} />}
   </div>
 }

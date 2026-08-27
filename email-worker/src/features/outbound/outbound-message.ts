@@ -374,8 +374,9 @@ export async function deliverOutboundMessage(env: Env, job: OutboundJob): Promis
                WHERE la.username = messages.mailbox_address AND la.user_id = mb.user_id
             ) AS linux_do_mail_account,
             EXISTS (
-              SELECT 1 FROM qq_mail_accounts qa
-               WHERE qa.email = messages.mailbox_address AND qa.user_id = mb.user_id
+              SELECT 1 FROM qq_mail_identities qi
+              JOIN qq_mail_accounts qa ON qa.id = qi.account_id
+               WHERE qi.email = messages.mailbox_address AND qa.user_id = mb.user_id
             ) AS qq_mail_account,
             EXISTS (
               SELECT 1 FROM domains d

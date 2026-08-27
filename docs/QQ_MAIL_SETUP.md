@@ -1,15 +1,16 @@
 # QQ 邮箱设置指南
 
-OmniMail 的 QQ 邮箱首版只支持个人 `@qq.com` 账号，通过固定的
+OmniMail 使用个人 `@qq.com` 地址建立唯一收件连接，通过固定的
 `imap.qq.com:993` TLS 连接读取 INBOX，并通过固定的 `smtp.qq.com:465` 直接 TLS 发信。
 它不会保存远端正文或附件，也不会删除、移动、归档或星标远端邮件；打开正文后只会尝试
-同步已读状态。发件仅支持单收件人的新邮件和回复。
+同步已读状态。发件仅支持单收件人的新邮件和回复；同一 QQ 收件箱下可添加英文
+`@qq.com`、`@foxmail.com` 与 `@vip.qq.com` 作为已验证发信身份。
 
 ## 部署配置
 
 1. 在 Cloudflare Worker 的 **Variables & Secrets** 中创建 Secret
    `QQ_MAIL_CREDENTIALS_KEY`，内容至少 32 个 UTF-8 字节。
-2. 应用 D1 迁移到 `0030_qq_mail_smtp.sql` 并重新部署 Worker。
+2. 应用 D1 迁移到 `0031_qq_mail_identities.sql` 并重新部署 Worker。
 3. 可选配置 `QQ_MAIL_IMAP_ENABLED=false`，用于紧急隐藏入口并停止新的定时同步任务。
 4. 管理员可在 **系统设置 → 邮箱功能入口** 中单独隐藏或恢复 QQ 邮箱入口。
 
@@ -21,7 +22,11 @@ OmniMail 的 QQ 邮箱首版只支持个人 `@qq.com` 账号，通过固定的
 4. 点击 **验证并连接**。只有真实 IMAP 登录和 `EXAMINE INBOX` 成功后，凭据才会加密保存。
 
 连接后，在 QQ 工作区选择单个账号即可新建邮件；打开来信后可使用邮件末尾的回复按钮。
-发件人固定为所选 QQ 地址，授权码不会再次传回浏览器。SMTP 发件复用 OmniMail 用户级限速，
+在账号设置的“邮箱身份”中，可以填写 QQ 网页端已经启用的英文、Foxmail 或 VIP 地址。
+OmniMail 会复用主账号授权码验证候选地址能否登录 QQ SMTP；验证过程不会发送测试邮件，
+验证失败也不会保存身份。写信和回复时可从已验证身份中选择发件人。
+
+授权码不会再次传回浏览器。SMTP 发件复用 OmniMail 用户级限速，
 并额外限制每个用户每天最多 50 封。SMTP `DATA` 后超时或断连会标记为“投递结果不确定”，
 不会自动重发，以避免重复邮件。首轮不支持附件、CC/BCC，也不会额外向 Sent 执行 IMAP `APPEND`。
 

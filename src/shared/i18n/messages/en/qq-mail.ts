@@ -8,10 +8,12 @@ export const enQqMail: Record<string, string> = {
   'QQ 邮箱账号已连接，首次同步已进入队列。':
     'The QQ Mail account is connected and its initial sync has been queued.',
   'QQ 邮箱账号管理': 'Manage QQ Mail accounts',
+  '账号设置选项': 'Account settings options',
+  '选择一个项目继续设置。': 'Choose an item to continue.',
   'QQ 邮箱连接验证成功。': 'QQ Mail connection verified.',
   '例如：个人 QQ 邮箱': 'For example: Personal QQ Mail',
-  '修改备注、验证连接、更新授权码或断开邮箱。':
-    'Edit the label, verify the connection, update the authorization code, or disconnect the mailbox.',
+  '修改备注、管理发信身份、验证连接、更新授权码或断开邮箱。':
+    'Edit the label, manage sender identities, verify the connection, update the authorization code, or disconnect the mailbox.',
   '删除 OmniMail 保存的密文和本地索引，不会删除 QQ 邮箱中的邮件。':
     'Deletes the encrypted credential and local index from OmniMail without deleting mail from QQ Mail.',
   '已保存的 QQ 邮箱授权码无法解密，请更新授权码。':
@@ -48,8 +50,8 @@ export const enQqMail: Record<string, string> = {
   '连接 QQ 邮箱账号': 'Connect a QQ Mail account',
   '连接 QQ 邮箱超时，系统稍后会重试。':
     'The QQ Mail connection timed out. The system will retry later.',
-  '连接新账号，或选择已有账号管理授权码与状态。':
-    'Connect a new account, or select an existing account to manage its authorization code and status.',
+  '连接新账号，或选择已有账号管理授权码、发信身份与状态。':
+    'Connect a new account, or select an existing account to manage its authorization code, sender identities, and status.',
   '验证 QQ IMAP 后，加密保存授权码。':
     'Verify QQ Mail IMAP before saving the authorization code encrypted.',
   'QQ 邮箱功能尚未启用': 'QQ Mail is not enabled',
@@ -97,4 +99,27 @@ export const enQqMail: Record<string, string> = {
   '请先选择一个 QQ 邮箱账号': 'Select a QQ Mail account first',
   'QQ SMTP 发信失败，请稍后重试。': 'QQ SMTP delivery failed. Try again later.',
   '已发送 QQ 邮件': 'Sent a QQ Mail message',
+  '邮箱身份': 'Email identities',
+  '身份名称': 'Identity name',
+  '例如：Foxmail 邮箱': 'For example: Foxmail address',
+  '这些地址共享同一个 QQ 收件箱，只在发信时选择身份。':
+    'These addresses share one QQ inbox and are selected only when sending.',
+  '{count} 个已验证发信身份': '{count} verified sender identities',
+  '主身份': 'Primary identity',
+  '删除发信身份': 'Delete sender identity',
+  '删除发信身份：{address}': 'Delete sender identity: {address}',
+  '验证并添加身份': 'Verify and add identity',
+  '添加前会使用当前授权码验证该地址能否登录 QQ SMTP，不会发送测试邮件。':
+    'The current authorization code verifies that this address can sign in to QQ SMTP. No test message is sent.',
+  '发信身份已通过 QQ SMTP 验证并添加。':
+    'The sender identity was verified by QQ SMTP and added.',
+  '发信身份已从 OmniMail 中删除。': 'The sender identity was removed from OmniMail.',
+  'QQ MAIL · 发信身份': 'QQ MAIL · SENDER IDENTITY',
+  '删除发信身份？': 'Delete sender identity?',
+  '地址“{address}”将不再出现在写信的发件人选择中。':
+    'The address “{address}” will no longer appear in the sender selector.',
+  '共享收件箱和远端邮箱不受影响': 'The shared inbox and remote mailbox are unaffected',
+  '此操作只删除 OmniMail 保存的已验证发信身份。':
+    'This only removes the verified sender identity stored by OmniMail.',
+  '确认删除': 'Delete identity',
 }

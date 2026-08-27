@@ -112,6 +112,17 @@ export interface QqMailAccount {
   lastErrorAt: number | null
   createdAt: number
   hasAuthorizationCode: true
+  identities: QqMailIdentity[]
+}
+
+export interface QqMailIdentity {
+  id: string
+  accountId: string
+  name: string
+  email: string
+  isPrimary: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 export interface QqMailMessageSummary {

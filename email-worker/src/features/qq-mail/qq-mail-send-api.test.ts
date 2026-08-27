@@ -21,6 +21,12 @@ vi.mock('./qq-mail-store', () => {
         return {
           id: 'qq-1', userId: 'user-1', name: 'QQ', email: '123456789@qq.com',
           authorizationCode: 'authorization-code', status: 'active',
+      identities: [
+            { id: 'identity-primary', accountId: 'qq-1', email: '123456789@qq.com',
+              isPrimary: true, createdAt: 1, updatedAt: 1 },
+            { id: 'identity-foxmail', accountId: 'qq-1', email: 'work@foxmail.com',
+              isPrimary: false, createdAt: 2, updatedAt: 2 },
+          ],
         }
       }
     },
@@ -86,6 +92,29 @@ describe('QQ Mail sending API', () => {
       recipients: ['sender@example.com'], subject: 'Re: Original',
       inReplyTo: '<original@example.com>', references: '<original@example.com>',
     }), '192.0.2.1')
+  })
+
+  it('queues mail from a verified sender identity', async () => {
+    const env = environment()
+    const response = await sendQqMailMessage(env, user, 'qq-1', request({
+      sender: 'work@foxmail.com', to: 'recipient@example.com', subject: 'Alias',
+      text: 'Message body', idempotencyKey: 'request_alias_123',
+    }), '192.0.2.1')
+
+    expect(response.status).toBe(202)
+    expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
+      mailboxAddress: 'work@foxmail.com',
+    }), '192.0.2.1')
+  })
+
+  it('rejects a sender that is not a verified identity', async () => {
+    const response = await sendQqMailMessage(environment(), user, 'qq-1', request({
+      sender: 'attacker@qq.com', to: 'recipient@example.com', subject: 'Fake',
+      text: 'Message body', idempotencyKey: 'request_fake_123',
+    }), '192.0.2.1')
+
+    expect(response.status).toBe(400)
+    expect(mocks.send).not.toHaveBeenCalled()
   })
 
   it('respects the existing account send permission', async () => {
