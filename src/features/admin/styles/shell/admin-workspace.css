@@ -440,6 +440,71 @@
   line-height: 1.6;
 }
 
+.deployment-launch {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.deployment-launch:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.deployment-launch:focus-visible {
+  border-color: var(--line-strong);
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--surface) 85%, transparent);
+}
+
+.deployment-launch > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.deployment-launch > span > svg,
+.deployment-launch > svg { flex: none; }
+
+.deployment-launch > span > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.deployment-launch strong,
+.deployment-launch small { display: block; }
+
+.deployment-launch strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.deployment-launch small {
+  overflow-wrap: anywhere;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .role-list,
 .service-status-list {
   display: grid;

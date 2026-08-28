@@ -79,6 +79,11 @@
   .settings-list dd {
     text-align: left;
   }
+
+  .deployment-launch {
+    min-height: 64px;
+    padding: 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -92,6 +97,7 @@
   .admin-workspace__header .eyebrow,
   .admin-workspace__header > div > p:last-child,
   .user-header-actions,
+  .deployment-launch,
   .admin-scroll-top {
     transform: none;
     transition: none;

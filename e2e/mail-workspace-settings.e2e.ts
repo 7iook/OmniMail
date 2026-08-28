@@ -51,6 +51,12 @@ async function mockWorkspaceSettings(page: Page) {
 test('system settings control optional mailbox workspace entries', async ({ page }) => {
   const state = await mockWorkspaceSettings(page)
   await page.goto('/admin/settings')
+  const deploymentLaunch = page.getByRole('button', { name: /部署初始化向导/ })
+  await expect(deploymentLaunch).toHaveCSS('display', 'flex')
+  await expect(deploymentLaunch).toHaveCSS('border-radius', '12px')
+  expect((await deploymentLaunch.boundingBox())!.height).toBeGreaterThanOrEqual(58)
+  expect(await deploymentLaunch.evaluate((element) => element.scrollWidth <= element.clientWidth))
+    .toBe(true)
   const settings = page.locator('.mail-workspace-settings')
   const iCloudSwitch = settings.getByRole('checkbox', { name: 'iCloud 隐藏邮箱入口' })
   const linuxDoSwitch = settings.getByRole('checkbox', { name: 'Linux DO 邮箱入口' })

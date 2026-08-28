@@ -103,7 +103,6 @@
     animation: none;
   }
 
-  .deployment-launch,
   .deployment-steps button {
     transition: none;
   }
