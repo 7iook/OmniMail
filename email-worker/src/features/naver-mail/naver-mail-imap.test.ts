@@ -40,7 +40,7 @@ describe('NAVER Mail controlled IMAP boundary', () => {
       '* ID NIL',
       'A0004 OK ID',
       '* 2 EXISTS',
-      '* OK [UIDVALIDITY 123] UIDs valid',
+      '* OK [UIDVALIDITY 0] UIDs valid',
       '* OK [UIDNEXT 9001] Predicted next UID',
       'A0005 OK EXAMINE',
       '* SEARCH 8998 9000',
@@ -58,6 +58,7 @@ describe('NAVER Mail controlled IMAP boundary', () => {
 
     await client.open()
     const mailbox = await client.examineInbox()
+    expect(mailbox.uidValidity).toBe(2 ** 32)
     await expect(client.searchLatestUids(mailbox.uidNext, 2)).resolves.toEqual([8998, 9000])
     await client.markSeen(9000)
     await client.close()

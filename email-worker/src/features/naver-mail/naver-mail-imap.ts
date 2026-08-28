@@ -12,6 +12,8 @@ const SEARCH_RANGE_SIZE = 500
 const INITIAL_SEARCH_ROUNDS = 20
 const INCREMENTAL_SEARCH_ROUNDS = 10
 const INCREMENTAL_MESSAGE_LIMIT = 500
+// NAVER can return 0; map it outside the RFC 32-bit range to preserve reset detection.
+const ZERO_UID_VALIDITY_SENTINEL = 2 ** 32
 
 export { ImapConnectionError as NaverMailRemoteError }
 
@@ -59,7 +61,7 @@ export class NaverMailImapClient {
 
   async examineInbox(): Promise<{ uidValidity: number; uidNext: number; exists: number }> {
     const result = await this.connection.command('EXAMINE INBOX')
-    const uidValidity = Number(result.lines
+    const remoteUidValidity = Number(result.lines
       .map((line) => line.match(/\[UIDVALIDITY (\d+)\]/i)?.[1])
       .find(Boolean))
     const uidNext = Number(result.lines
@@ -68,13 +70,19 @@ export class NaverMailImapClient {
     const exists = Number(result.lines
       .map((line) => line.match(/^\* (\d+) EXISTS$/i)?.[1])
       .find(Boolean) || 0)
-    if (!Number.isSafeInteger(uidValidity) || uidValidity < 1) {
+    if (!Number.isSafeInteger(remoteUidValidity)
+      || remoteUidValidity < 0
+      || remoteUidValidity >= ZERO_UID_VALIDITY_SENTINEL) {
       throw new ImapConnectionError(502, 'NAVER 邮箱未返回有效的 UIDVALIDITY。', true)
     }
     if (!Number.isSafeInteger(uidNext) || uidNext < 1) {
       throw new ImapConnectionError(502, 'NAVER 邮箱未返回有效的 UIDNEXT。', true)
     }
-    return { uidValidity, uidNext, exists }
+    return {
+      uidValidity: remoteUidValidity || ZERO_UID_VALIDITY_SENTINEL,
+      uidNext,
+      exists,
+    }
   }
 
   async searchLatestUids(uidNext: number, limit = 100): Promise<number[]> {
