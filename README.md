@@ -61,6 +61,7 @@ Serverless Webmail：
 | iCloud 隐藏邮箱 | 可选接入 iCloud+ Hide My Email，管理别名并按需读取最近来信 |
 | Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，搜索聚合的 INBOX 元数据并在打开后同步已读 |
 | QQ 邮箱聚合收件箱 | 使用授权码连接多个个人 QQ 邮箱，有限同步 INBOX，并通过官方 SMTP 新建或回复邮件 |
+| NAVER 邮箱聚合收件箱 | 使用应用专用密码连接个人 NAVER 邮箱，有限同步 INBOX 并按需读取正文与附件 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -160,6 +161,18 @@ Serverless Webmail：
   `hasAuthorizationCode: true`；单账号故障不会阻断其他账号或其他邮件工作区。
 
 部署和真实账号验收步骤见 [QQ 邮箱设置指南](docs/QQ_MAIL_SETUP.md)。
+
+### NAVER 邮箱（灰度、只读）
+
+- 仅支持个人 `@naver.com` 邮箱；用户需先开启 NAVER 两步验证和 IMAP/SMTP，并生成独立的
+  应用专用密码。OmniMail 固定连接 `imap.naver.com:993`，不接受登录主密码或自定义服务器。
+- 首次索引最近 100 封、每账号最多保留 500 封 INBOX 元数据，默认每 15 分钟加入同步 Queue；
+  正文与最大 5 MiB 附件按需读取且不持久化。
+- 打开正文后仅尝试精确写入 `\\Seen`；不支持发信、删除、移动、归档、星标或文件夹管理。
+- 应用专用密码由独立的 `NAVER_MAIL_CREDENTIALS_KEY` 使用 AES-GCM 加密，API 只返回
+  `hasAppPassword: true`。入口默认隐藏，生产开放前必须完成真实 Worker 登录和 24 小时稳定性观察。
+
+部署、灰度闸门和真实账号验收步骤见 [NAVER Mail 设置指南](docs/NAVER_MAIL_SETUP.md)。
 
 ### 多域名与用户
 
@@ -390,6 +403,8 @@ Worker 文件，剩余路径仍会匹配 `*` 并正常部署。Build watch paths
 | `GMAIL_IMAP_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 Gmail 接入，默认启用 |
 | `QQ_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，只用于加密 QQ 邮箱授权码；不使用该功能时可留空 |
 | `QQ_MAIL_IMAP_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 QQ 邮箱接入，默认启用 |
+| `NAVER_MAIL_CREDENTIALS_KEY` | Secret | 至少 32 字节，只用于加密 NAVER 应用专用密码；不使用该功能时可留空 |
+| `NAVER_MAIL_IMAP_ENABLED` | Text | NAVER 功能开关；仅设为 `true` 时启用，完成真实账号验收前保持 `false` |
 | `MICROSOFT_CREDENTIALS_KEY` | Secret | 至少 32 字节，用于加密 Microsoft OAuth token 与可选组合 password；不使用该功能时可留空 |
 | `MICROSOFT_MAIL_ENABLED` | Text | 可选紧急功能开关；设为 `false` 时隐藏并停止 Microsoft 接入，默认启用 |
 | `CLOUDFLARE_ACCOUNT_ID` | Text | 可选备份所需的 Cloudflare Account ID |
@@ -530,6 +545,12 @@ Worker 只访问 Microsoft 官方 OAuth 与 IMAP 端点；批量导入文本会�
 升级到包含邮箱身份的版本时还会应用 `0031_qq_mail_identities.sql`；账号设置中可添加同一
 QQ 收件箱下的英文、Foxmail 或 VIP 地址，服务端会先验证 QQ SMTP 登录且不会发送测试邮件。
 管理员可在 **系统设置 → 邮箱功能入口** 中隐藏入口；隐藏不会删除账号、密文或索引。
+
+若要灰度启用独立的 **NAVER 邮箱聚合收件箱**，配置至少 32 字节的
+`NAVER_MAIL_CREDENTIALS_KEY` 并应用 `0033_naver_mail_imap.sql`。完成实际生产 Worker 登录和
+至少 24 小时低频稳定性观察前，保持 `NAVER_MAIL_IMAP_ENABLED=false`；验收通过后设为 `true`，
+再由管理员从 **系统设置 → 邮箱功能入口** 显式开放 NAVER 入口。用户只能连接个人
+`@naver.com` 邮箱，且必须使用 NAVER 应用专用密码。
 
 ### 备份、保留与配额
 

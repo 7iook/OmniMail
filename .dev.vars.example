@@ -12,6 +12,10 @@ GMAIL_CREDENTIALS_KEY=
 QQ_MAIL_CREDENTIALS_KEY=
 QQ_MAIL_IMAP_ENABLED=true
 
+# Optional. Keep disabled until production Worker validation with a dedicated NAVER account passes.
+NAVER_MAIL_CREDENTIALS_KEY=
+NAVER_MAIL_IMAP_ENABLED=false
+
 # Optional. At least 32 UTF-8 bytes; enables controlled Microsoft IMAP access.
 MICROSOFT_CREDENTIALS_KEY=
 MICROSOFT_MAIL_ENABLED=true

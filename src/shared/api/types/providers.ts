@@ -160,6 +160,55 @@ export interface QqMailMessageDetail extends Omit<QqMailMessageSummary, 'cc' | '
   attachments: QqMailAttachment[]
 }
 
+export interface NaverMailAccount {
+  id: string
+  name: string
+  email: string
+  status: 'active' | 'syncing' | 'credential_error' | 'error'
+  lastSyncedAt: number | null
+  nextSyncAt: number
+  lastErrorCode: string
+  lastErrorAt: number | null
+  createdAt: number
+  hasAppPassword: true
+}
+
+export interface NaverMailMessageSummary {
+  id: string
+  account: Pick<NaverMailAccount, 'id' | 'name' | 'email' | 'status'>
+  senderName: string
+  senderAddress: string
+  recipients: string[]
+  cc: string[]
+  subject: string
+  preview: string
+  date: number
+  sizeBytes: number
+  isRead: boolean
+  isStarred: boolean
+  hasAttachments: boolean
+}
+
+export interface NaverMailAttachment {
+  partId: string
+  filename: string
+  contentType: string
+  size: number
+  contentId: string | null
+  disposition: string
+}
+
+export interface NaverMailMessageDetail
+  extends Omit<NaverMailMessageSummary, 'cc' | 'date'> {
+  from: string
+  to: string
+  cc: string
+  date: string
+  body: string
+  html: string
+  attachments: NaverMailAttachment[]
+}
+
 export type MicrosoftAuthMode = 'oauth2' | 'password'
 export type MicrosoftAccountStatus =
   | 'pending_validation'

@@ -11,6 +11,7 @@ import { ensureSchema } from '../../platform/d1/schema'
 import { consumeGmailSyncJob } from '../../features/gmail/gmail-sync'
 import { consumeMicrosoftSyncJob } from '../../features/microsoft/microsoft-sync'
 import { consumeQqMailSyncJob } from '../../features/qq-mail/qq-mail-sync'
+import { consumeNaverMailSyncJob } from '../../features/naver-mail/naver-mail-sync'
 import type { Env, MailQueueJob, MessageRow, ParseJob, StoredBody } from '../types'
 
 type ParsedAddress = {
@@ -428,6 +429,10 @@ export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: 
     }
     if (message.body.kind === 'qq-mail-sync') {
       await consumeQqMailSyncJob(message, env)
+      continue
+    }
+    if (message.body.kind === 'naver-mail-sync') {
+      await consumeNaverMailSyncJob(message, env)
       continue
     }
     if (message.body.kind === 'outbound') {

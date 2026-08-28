@@ -30,6 +30,7 @@ import type { AdminView } from '../../../app/navigation/workspaceNavigation'
 import { Brand, ThemeToggle } from '../../auth/components/AuthPages'
 import { LanguageQuickToggle } from '../../../shared/ui/language/LanguageToggle'
 import { QqMailIcon } from '../../qq-mail/components/QqMailIcon'
+import { NaverMailIcon } from '../../naver-mail/components/NaverMailIcon'
 
 export type { AdminView } from '../../../app/navigation/workspaceNavigation'
 
@@ -77,6 +78,7 @@ export function MailboxSidebar({
   gmailWorkspaceEnabled,
   microsoftWorkspaceEnabled,
   qqMailWorkspaceEnabled,
+  naverMailWorkspaceEnabled,
   notifications,
   onFolderChange,
   onAdminViewChange,
@@ -91,6 +93,7 @@ export function MailboxSidebar({
   gmailWorkspaceEnabled: boolean
   microsoftWorkspaceEnabled: boolean
   qqMailWorkspaceEnabled: boolean
+  naverMailWorkspaceEnabled: boolean
   notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
@@ -103,6 +106,7 @@ export function MailboxSidebar({
     + Number(Boolean(gmailWorkspaceEnabled))
     + Number(Boolean(microsoftWorkspaceEnabled))
     + Number(Boolean(qqMailWorkspaceEnabled))
+    + Number(Boolean(naverMailWorkspaceEnabled))
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -239,6 +243,17 @@ export function MailboxSidebar({
         >
           <QqMailIcon aria-hidden="true" />
           <span>{t('QQ 邮箱')}</span>
+        </button>}
+        {naverMailWorkspaceEnabled && <button
+          className={adminView === 'naver-mail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('naver-mail')
+          }}
+        >
+          <NaverMailIcon aria-hidden="true" />
+          <span>{t('NAVER 邮箱')}</span>
         </button>}
       </nav>
 

@@ -40,6 +40,12 @@ export interface QqMailSyncJob {
   limit?: MailSyncLimit
 }
 
+export interface NaverMailSyncJob {
+  kind: 'naver-mail-sync'
+  accountId: string
+  reason: 'connect' | 'manual' | 'scheduled'
+}
+
 export type MailQueueJob =
   | ParseJob
   | OutboundJob
@@ -47,6 +53,7 @@ export type MailQueueJob =
   | GmailSyncJob
   | MicrosoftSyncJob
   | QqMailSyncJob
+  | NaverMailSyncJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -92,6 +99,8 @@ export interface Env {
   MICROSOFT_MAIL_ENABLED?: string
   QQ_MAIL_CREDENTIALS_KEY?: string
   QQ_MAIL_IMAP_ENABLED?: string
+  NAVER_MAIL_CREDENTIALS_KEY?: string
+  NAVER_MAIL_IMAP_ENABLED?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string

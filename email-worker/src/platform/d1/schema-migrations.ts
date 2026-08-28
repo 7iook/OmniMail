@@ -1,3 +1,9 @@
+import { NAVER_MAIL_MIGRATION, NAVER_MAIL_RECOVERY } from './schema-migration-naver'
+import {
+  QQ_MAIL_IDENTITIES_MIGRATION,
+  QQ_MAIL_IDENTITIES_RECOVERY,
+} from './schema-migration-qq-identities'
+
 const ICLOUD_MIGRATION = '0021_icloud_accounts.sql'
 const CONSISTENCY_MIGRATION = '0022_consistency_guards.sql'
 const LINUX_DO_MAIL_MIGRATION = '0023_linux_do_mail_accounts.sql'
@@ -8,7 +14,7 @@ const MICROSOFT_MIGRATION = '0027_microsoft_imap.sql'
 const MICROSOFT_COMBINATION_PASSWORD_MIGRATION = '0028_microsoft_oauth_combination_password.sql'
 const QQ_MAIL_MIGRATION = '0029_qq_mail_imap.sql'
 const QQ_MAIL_SMTP_MIGRATION = '0030_qq_mail_smtp.sql'
-export const REQUIRED_MIGRATION = '0031_qq_mail_identities.sql'
+export const REQUIRED_MIGRATION = NAVER_MAIL_MIGRATION
 export const WRANGLER_MIGRATION_NAMES = [
   '0001_initial.sql',
   '0002_domains.sql',
@@ -40,6 +46,7 @@ export const WRANGLER_MIGRATION_NAMES = [
   MICROSOFT_COMBINATION_PASSWORD_MIGRATION,
   QQ_MAIL_MIGRATION,
   QQ_MAIL_SMTP_MIGRATION,
+  QQ_MAIL_IDENTITIES_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 export const LEGACY_BASELINES: Record<string, number> = {
@@ -575,26 +582,6 @@ export const RECOVERABLE_MIGRATIONS = [
        )`,
     ],
   },
-  {
-    name: REQUIRED_MIGRATION,
-    statements: [
-      `CREATE TABLE IF NOT EXISTS qq_mail_identities (
-        id TEXT PRIMARY KEY,
-        account_id TEXT NOT NULL REFERENCES qq_mail_accounts(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL COLLATE NOCASE UNIQUE,
-        is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        UNIQUE (account_id, email)
-      )`,
-      `CREATE INDEX IF NOT EXISTS idx_qq_mail_identities_account
-       ON qq_mail_identities(account_id, is_primary DESC, created_at, id)`,
-      `INSERT OR IGNORE INTO qq_mail_identities (
-         id, account_id, name, email, is_primary, created_at, updated_at
-       )
-       SELECT id, id, name, email, 1, created_at, updated_at
-       FROM qq_mail_accounts`,
-    ],
-  },
+  QQ_MAIL_IDENTITIES_RECOVERY,
+  NAVER_MAIL_RECOVERY,
 ] as const

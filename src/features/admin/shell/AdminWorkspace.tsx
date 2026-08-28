@@ -242,6 +242,7 @@ export function AdminWorkspace({
           gmailWorkspaceEnabled={config.gmailWorkspaceEnabled}
           microsoftWorkspaceEnabled={config.microsoftWorkspaceEnabled}
           qqMailWorkspaceEnabled={config.qqMailWorkspaceEnabled}
+          naverMailWorkspaceEnabled={config.naverMailWorkspaceEnabled}
           onChange={(settings) => onConfigChange({ ...config, ...settings })}
         />
 

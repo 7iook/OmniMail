@@ -6,6 +6,7 @@ import { ensureSchema } from '../d1/schema'
 import { enqueueDueGmailSyncs } from '../../features/gmail/gmail-sync'
 import { enqueueDueMicrosoftSyncs } from '../../features/microsoft/microsoft-sync'
 import { enqueueDueQqMailSyncs } from '../../features/qq-mail/qq-mail-sync'
+import { enqueueDueNaverMailSyncs } from '../../features/naver-mail/naver-mail-sync'
 import { startScheduledBackup } from '../../features/admin/settings/storage-policy'
 import type { Env } from '../../app/types'
 
@@ -187,6 +188,8 @@ export async function cleanup(env: Env): Promise<void> {
       .bind(now - 24 * 60 * 60),
     env.DB.prepare('DELETE FROM qq_mail_validation_limits WHERE updated_at < ?')
       .bind(now - 24 * 60 * 60),
+    env.DB.prepare('DELETE FROM naver_mail_validation_limits WHERE updated_at < ?')
+      .bind(now - 24 * 60 * 60),
   ])
   try {
     await enqueueMissingMessageSearch(env)
@@ -207,6 +210,11 @@ export async function cleanup(env: Env): Promise<void> {
     await enqueueDueQqMailSyncs(env, now)
   } catch (error) {
     console.error('Unable to enqueue QQ Mail synchronization', error)
+  }
+  try {
+    await enqueueDueNaverMailSyncs(env, now)
+  } catch (error) {
+    console.error('Unable to enqueue NAVER Mail synchronization', error)
   }
   await purgePendingObjectDeletions(env)
   await startScheduledBackup(env, now)

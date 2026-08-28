@@ -120,6 +120,11 @@ const actionLabels: Record<string, string> = {
   'qq_mail.message.send': '已发送 QQ 邮件',
   'qq_mail.identity.create': '已添加 QQ 邮箱发信身份',
   'qq_mail.identity.delete': '已删除 QQ 邮箱发信身份',
+  'naver_mail.account.connect': '已连接 NAVER 邮箱',
+  'naver_mail.account.rename': '已重命名 NAVER 邮箱',
+  'naver_mail.account.credential_update': '已更新 NAVER 应用专用密码',
+  'naver_mail.account.verify': '已验证 NAVER 邮箱',
+  'naver_mail.account.disconnect': '已断开 NAVER 邮箱',
   'system.registration.update': '修改外部注册设置',
   'system.registration_domains.update': '修改注册邮箱限制',
   'system.mail_refresh.update': '修改邮件自动刷新',
@@ -147,6 +152,7 @@ const categoryLabels: Record<string, string> = {
   microsoft: 'Microsoft',
   linuxdo_mail: 'Linux DO Mail',
   qq_mail: 'QQ 邮箱',
+  naver_mail: 'NAVER 邮箱',
   system: '系统',
 }
 

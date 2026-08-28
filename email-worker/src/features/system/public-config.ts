@@ -16,6 +16,7 @@ import { iCloudCredentialsReady } from '../icloud/icloud-credentials'
 import { gmailCredentialsReady } from '../gmail/gmail-credentials'
 import { microsoftCredentialsReady } from '../microsoft/microsoft-credentials'
 import { qqMailCredentialsReady } from '../qq-mail/qq-mail-credentials'
+import { naverMailCredentialsReady } from '../naver-mail/naver-mail-credentials'
 
 type Setting = { key: string; value: string }
 
@@ -55,7 +56,8 @@ export async function publicConfig(env: Env) {
       'linuxdo_mail_workspace_enabled',
       'gmail_workspace_enabled',
       'microsoft_workspace_enabled',
-      'qq_mail_workspace_enabled'
+      'qq_mail_workspace_enabled',
+      'naver_mail_workspace_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -82,6 +84,10 @@ export async function publicConfig(env: Env) {
     qqMailEnabled: env.QQ_MAIL_IMAP_ENABLED !== 'false' && qqMailCredentialsReady(env),
     qqMailWorkspaceEnabled: env.QQ_MAIL_IMAP_ENABLED !== 'false'
       && settings.get('qq_mail_workspace_enabled') !== '0',
+    naverMailEnabled: env.NAVER_MAIL_IMAP_ENABLED === 'true'
+      && naverMailCredentialsReady(env),
+    naverMailWorkspaceEnabled: env.NAVER_MAIL_IMAP_ENABLED === 'true'
+      && settings.get('naver_mail_workspace_enabled') === '1',
     iCloudWorkspaceEnabled: settings.get('icloud_workspace_enabled') !== '0',
     linuxDoMailWorkspaceEnabled: settings.get('linuxdo_mail_workspace_enabled') !== '0',
     registrationEnabled,

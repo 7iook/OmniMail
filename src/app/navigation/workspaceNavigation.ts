@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Folder, UserRole } from '../../shared/api'
 import { isAdminRole } from '../../shared/auth/roles'
 
-export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail' | 'microsoft' | 'qq-mail'
+export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail' | 'microsoft' | 'qq-mail' | 'naver-mail'
 
 export type WorkspaceFeatures = {
   iCloudWorkspaceEnabled: boolean
@@ -10,6 +10,7 @@ export type WorkspaceFeatures = {
   gmailWorkspaceEnabled: boolean
   microsoftWorkspaceEnabled: boolean
   qqMailWorkspaceEnabled: boolean
+  naverMailWorkspaceEnabled: boolean
 }
 
 const defaultWorkspaceFeatures: WorkspaceFeatures = {
@@ -18,6 +19,7 @@ const defaultWorkspaceFeatures: WorkspaceFeatures = {
   gmailWorkspaceEnabled: true,
   microsoftWorkspaceEnabled: true,
   qqMailWorkspaceEnabled: true,
+  naverMailWorkspaceEnabled: false,
 }
 
 export type WorkspaceRoute =
@@ -46,6 +48,7 @@ const adminPaths: Record<AdminView, string> = {
   gmail: '/gmail',
   microsoft: '/microsoft',
   'qq-mail': '/qq-mail',
+  'naver-mail': '/naver-mail',
 }
 
 function canOpenAdminView(
@@ -58,6 +61,7 @@ function canOpenAdminView(
   if (view === 'gmail') return features.gmailWorkspaceEnabled
   if (view === 'microsoft') return features.microsoftWorkspaceEnabled
   if (view === 'qq-mail') return features.qqMailWorkspaceEnabled
+  if (view === 'naver-mail') return features.naverMailWorkspaceEnabled
   if (view === 'account' || view === 'api') return true
   if (view === 'mail') return role === 'super_admin'
   return isAdminRole(role)
@@ -104,12 +108,14 @@ export function useWorkspaceNavigation(
     gmailWorkspaceEnabled: features.gmailWorkspaceEnabled,
     microsoftWorkspaceEnabled: features.microsoftWorkspaceEnabled,
     qqMailWorkspaceEnabled: features.qqMailWorkspaceEnabled,
+    naverMailWorkspaceEnabled: features.naverMailWorkspaceEnabled,
   }), [
     features.gmailWorkspaceEnabled,
     features.iCloudWorkspaceEnabled,
     features.linuxDoMailWorkspaceEnabled,
     features.microsoftWorkspaceEnabled,
     features.qqMailWorkspaceEnabled,
+    features.naverMailWorkspaceEnabled,
   ])
   const initial = workspaceRoute(window.location.pathname, role, stableFeatures)
   const [folder, setFolder] = useState<Folder>(

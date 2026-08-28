@@ -13,6 +13,8 @@ export interface AppConfig {
   microsoftWorkspaceEnabled: boolean
   qqMailEnabled: boolean
   qqMailWorkspaceEnabled: boolean
+  naverMailEnabled: boolean
+  naverMailWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod

@@ -5,6 +5,7 @@ import { iCloudRoutes } from '../../features/icloud/icloud-routes'
 import { linuxDoMailRoutes } from '../../features/linux-do-mail/linux-do-mail-routes'
 import { microsoftRoutes } from '../../features/microsoft/microsoft-routes'
 import { qqMailRoutes } from '../../features/qq-mail/qq-mail-routes'
+import { naverMailRoutes } from '../../features/naver-mail/naver-mail-routes'
 import { addMailbox, deleteMailbox, listMailboxes, updateMailbox } from '../../features/mailboxes/mailbox-api'
 import { bulkUpdateMessages } from '../../features/messages/message-bulk-api'
 import { deleteMessage, getMessageAttachment, getMessageDetail, getRawMessage, previewMessageAttachment, updateMessage } from '../../features/messages/message-detail-api'
@@ -50,6 +51,7 @@ app.route('/api', iCloudRoutes)
 app.route('/api', gmailRoutes)
 app.route('/api', microsoftRoutes)
 app.route('/api', qqMailRoutes)
+app.route('/api', naverMailRoutes)
 app.route('/api', linuxDoMailRoutes)
 app.route('/api', mailFeatureRoutes)
 app.route('/api', outboundRateLimitRoutes)

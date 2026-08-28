@@ -106,8 +106,8 @@ export const adminSettingsEndpoints: ApiEndpoint[] = [
     method: 'PATCH', path: '/api/admin/settings/mail-workspaces', group: 'adminSettings', auth: 'admin',
     title: l('设置邮箱功能入口', 'Configure mailbox workspace entries'),
     description: l('控制各可选邮箱工作区是否显示在 OmniMail 导航中。', 'Control whether each optional mailbox workspace appears in OmniMail navigation.'),
-    request: 'JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled', response: '200 · { iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled }',
-    exampleBody: { iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true, gmailWorkspaceEnabled: true, microsoftWorkspaceEnabled: true, qqMailWorkspaceEnabled: true },
+    request: 'JSON · iCloudWorkspaceEnabled, linuxDoMailWorkspaceEnabled, gmailWorkspaceEnabled, microsoftWorkspaceEnabled, qqMailWorkspaceEnabled, naverMailWorkspaceEnabled', response: '200 · all workspace switches',
+    exampleBody: { iCloudWorkspaceEnabled: true, linuxDoMailWorkspaceEnabled: true, gmailWorkspaceEnabled: true, microsoftWorkspaceEnabled: true, qqMailWorkspaceEnabled: true, naverMailWorkspaceEnabled: false },
   },
   {
     method: 'PATCH', path: '/api/admin/settings/remote-images', group: 'adminSettings', auth: 'admin',

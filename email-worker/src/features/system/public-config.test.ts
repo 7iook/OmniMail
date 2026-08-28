@@ -58,12 +58,15 @@ describe('public registration configuration', () => {
     env.GMAIL_CREDENTIALS_KEY = 'gmail-do-not-return-this-secret-value'
     env.MICROSOFT_CREDENTIALS_KEY = 'microsoft-do-not-return-this-secret-value'
     env.QQ_MAIL_CREDENTIALS_KEY = 'qq-mail-do-not-return-this-secret-value'
+    env.NAVER_MAIL_CREDENTIALS_KEY = 'naver-mail-do-not-return-this-secret-value'
+    env.NAVER_MAIL_IMAP_ENABLED = 'true'
     const config = await publicConfig(env)
 
     expect(config.iCloudEnabled).toBe(true)
     expect(config.gmailEnabled).toBe(true)
     expect(config.microsoftEnabled).toBe(true)
     expect(config.qqMailEnabled).toBe(true)
+    expect(config.naverMailEnabled).toBe(true)
     expect(JSON.stringify(config)).not.toContain('do-not-return')
   })
 
@@ -91,6 +94,7 @@ describe('public registration configuration', () => {
       gmail_workspace_enabled: '0',
       microsoft_workspace_enabled: '0',
       qq_mail_workspace_enabled: '0',
+      naver_mail_workspace_enabled: '0',
     }))
 
     expect(defaults.iCloudWorkspaceEnabled).toBe(true)
@@ -98,11 +102,13 @@ describe('public registration configuration', () => {
     expect(defaults.gmailWorkspaceEnabled).toBe(true)
     expect(defaults.microsoftWorkspaceEnabled).toBe(true)
     expect(defaults.qqMailWorkspaceEnabled).toBe(true)
+    expect(defaults.naverMailWorkspaceEnabled).toBe(false)
     expect(disabled.iCloudWorkspaceEnabled).toBe(false)
     expect(disabled.linuxDoMailWorkspaceEnabled).toBe(false)
     expect(disabled.gmailWorkspaceEnabled).toBe(false)
     expect(disabled.microsoftWorkspaceEnabled).toBe(false)
     expect(disabled.qqMailWorkspaceEnabled).toBe(false)
+    expect(disabled.naverMailWorkspaceEnabled).toBe(false)
   })
 
   it('exposes an empty random mailbox prefix by default', async () => {

@@ -10,6 +10,7 @@ export type ApiGroupId =
   | 'gmail'
   | 'microsoft'
   | 'qqMail'
+  | 'naverMail'
   | 'linuxdoMail'
   | 'adminOperations'
   | 'adminAccess'
