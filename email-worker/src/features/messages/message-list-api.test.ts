@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { listMessages, messageSummary, parseSyncVersion } from './message-list-api'
+import {
+  canViewUnassignedMail,
+  listMessages,
+  messageSummary,
+  parseSyncVersion,
+} from './message-list-api'
 import { searchLikePattern } from '../../shared/mail/message-search'
 import type { Env, SessionUser } from '../../app/types'
 
@@ -60,6 +65,12 @@ describe('message sync version', () => {
     expect(summary.mailboxAddress).toBe('unknown@example.com')
   })
 
+  it('allows only the super administrator to view unassigned mail', () => {
+    expect(canViewUnassignedMail(user)).toBe(true)
+    expect(canViewUnassignedMail({ ...user, role: 'admin' })).toBe(false)
+    expect(canViewUnassignedMail({ ...user, role: 'user' })).toBe(false)
+  })
+
   it('batches the message page and folder counts in one D1 call', async () => {
     const statements: Array<{ sql: string; values: unknown[] }> = []
     const batch = vi.fn(async () => [
@@ -104,6 +115,8 @@ describe('message sync version', () => {
     expect(batch).toHaveBeenCalledOnce()
     expect(batch.mock.calls[0][0]).toHaveLength(2)
     expect(statements.some((statement) => statement.sql.includes('ORDER BY m.sort_at'))).toBe(true)
+    expect(statements.filter((statement) => statement.sql.includes('FROM messages'))
+      .every((statement) => statement.sql.includes('mb.address = ?'))).toBe(true)
     expect(result).toMatchObject({
       version: 3,
       messages: [{ id: 'message-1' }],

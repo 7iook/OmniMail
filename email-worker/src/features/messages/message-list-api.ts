@@ -36,6 +36,12 @@ type CountsRow = {
   drafts: number | null
 }
 
+const UNASSIGNED_MAILBOX = '__unassigned__@omnimail.invalid'
+
+export function canViewUnassignedMail(user: SessionUser): boolean {
+  return user.role === 'super_admin'
+}
+
 export function parseSyncVersion(value: string | null): number | null | undefined {
   if (value === null) return null
   const parsed = Number(value)
@@ -89,8 +95,14 @@ export async function listMessages(
   const query = (params.get('q') || '').trim().slice(0, 120)
   const mailbox = normalizeEmail(params.get('mailbox') || '')
   const domain = (params.get('domain') || '').trim().toLowerCase().slice(0, 253)
-  const scopeConditions = ['mb.user_id = ?', 'mb.is_hidden = 0']
+  const scopeConditions = ['mb.user_id = ?']
   const scopeBindings: Array<string | number> = [user.id]
+  if (canViewUnassignedMail(user)) {
+    scopeConditions.push('(mb.is_hidden = 0 OR mb.address = ?)')
+    scopeBindings.push(UNASSIGNED_MAILBOX)
+  } else {
+    scopeConditions.push('mb.is_hidden = 0')
+  }
 
   if (mailbox) {
     if (!validEmail(mailbox)) {
