@@ -73,6 +73,7 @@ export function YandexMailWorkspace({ enabled, remoteImagesEnabled }: {
   const listRequestId = useRef(0)
   const messageController = useRef<AbortController | null>(null)
   const syncRequestId = useRef(0)
+  const locallyReadMessageIds = useRef(new Set<string>())
   const manageButton = useRef<HTMLButtonElement>(null)
   const currentAccount = accountId
     ? accounts.find(({ id }) => id === accountId)
@@ -102,9 +103,12 @@ export function YandexMailWorkspace({ enabled, remoteImagesEnabled }: {
     try {
       const result = await api.yandexMailMessages(accountId, '', searchQuery, controller.signal)
       if (current !== listRequestId.current) return
-      setMessages(result.messages)
+      const nextMessages = result.messages.map((message) => (
+        locallyReadMessageIds.current.has(message.id) ? { ...message, isRead: true } : message
+      ))
+      setMessages(nextMessages)
       setPage(result.page)
-      setSelected((value) => value && result.messages.some(({ id }) => id === value.id)
+      setSelected((value) => value && nextMessages.some(({ id }) => id === value.id)
         ? value : null)
     } catch (loadError) {
       if (current === listRequestId.current) setError(errorMessage(loadError))
@@ -233,6 +237,8 @@ export function YandexMailWorkspace({ enabled, remoteImagesEnabled }: {
   }
 
   async function selectMessage(message: YandexMailMessageSummary) {
+    listController.current?.abort()
+    listRequestId.current += 1
     messageController.current?.abort()
     const controller = new AbortController()
     messageController.current = controller
@@ -244,6 +250,7 @@ export function YandexMailWorkspace({ enabled, remoteImagesEnabled }: {
     try {
       const result = await api.yandexMailMessage(message.account.id, message.id, controller.signal)
       if (!controller.signal.aborted) {
+        if (result.message.isRead) locallyReadMessageIds.current.add(message.id)
         setDetail(result.message)
         setMessages((items) => items.map((item) => item.id === message.id
           ? { ...item, isRead: result.message.isRead }
@@ -285,7 +292,9 @@ export function YandexMailWorkspace({ enabled, remoteImagesEnabled }: {
 
   function closeDialog() {
     setDialogMode(null)
-    void refresh()
+    void Promise.all([loadAccounts(), loadMessages(true)]).catch((refreshError) => {
+      setError(errorMessage(refreshError))
+    })
     window.requestAnimationFrame(() => manageButton.current?.focus())
   }
 
