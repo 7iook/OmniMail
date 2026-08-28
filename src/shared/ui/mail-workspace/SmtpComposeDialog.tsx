@@ -2,6 +2,7 @@ import { AlertCircle, AtSign, LoaderCircle, Send, ShieldCheck, Trash2, X } from 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../../i18n'
+import { ComposeMailboxSelect } from './ComposeMailboxSelect'
 
 export type SmtpComposeInput = {
   to: string
@@ -106,15 +107,11 @@ export function SmtpComposeDialog({ sender, title, providerLabel, deliveryNote,
           })}</p>
           <div className="compose-fields">
             <div className="compose-field"><span>{t('发件人')}</span>
-              <span className="linuxdo-compose-sender"><span>{senderIcon
-                || <AtSign size={14} aria-hidden="true" />}</span>{senderOptions?.length ? (
-                  <select aria-label={t('发件人')} disabled={busy} value={senderValue}
-                    onChange={(event) => onSenderChange?.(event.target.value)}>
-                    {senderOptions.map((option) => <option value={option.value} key={option.value}>
-                      {option.label} · {option.address}
-                    </option>)}
-                  </select>
-                ) : <strong>{sender}</strong>}</span>
+              <div className="linuxdo-compose-sender">{senderOptions?.length ? (
+                  <ComposeMailboxSelect mailboxes={senderOptions} value={senderValue || sender}
+                    disabled={busy} icon={senderIcon} onChange={(value) => onSenderChange?.(value)} />
+                ) : <><span>{senderIcon || <AtSign size={14} aria-hidden="true" />}</span>
+                  <strong>{sender}</strong></>}</div>
             </div>
             <label className="compose-field" htmlFor={`${titleId}-to`}><span>{t('收件人')}</span>
               <input id={`${titleId}-to`} data-modal-autofocus required maxLength={254}

@@ -6,9 +6,10 @@ import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { GmailAccountStore, GmailStoreError, publicGmailAccount } from './gmail-store'
 import { markRemoteMessageRead } from './gmail-read-state'
 import { gmailSyncErrorCode } from './gmail-sync'
+import { requestedMailSyncLimit } from '../../platform/imap/sync-limit'
 import type { GmailAccount, PublicGmailAccount } from './gmail-types'
 import { sha256 } from '../auth/session/auth'
-import type { Env, GmailSyncJob, SessionUser } from '../../app/types'
+import type { Env, GmailSyncJob, MailSyncLimit, SessionUser } from '../../app/types'
 
 const VALIDATION_WINDOW_SECONDS = 10 * 60
 const VALIDATION_ATTEMPTS = 5
@@ -155,8 +156,13 @@ async function claimValidationAttempt(
   }
 }
 
-async function enqueueSync(env: Env, accountId: string, reason: GmailSyncJob['reason']): Promise<void> {
-  const job: GmailSyncJob = { kind: 'gmail-sync', accountId, reason }
+async function enqueueSync(
+  env: Env,
+  accountId: string,
+  reason: GmailSyncJob['reason'],
+  limit?: MailSyncLimit,
+): Promise<void> {
+  const job: GmailSyncJob = { kind: 'gmail-sync', accountId, reason, limit }
   await env.MAIL_QUEUE.send(job)
 }
 
@@ -334,9 +340,13 @@ export async function requestGmailSync(
   env: Env,
   user: SessionUser,
   accountId: string,
+  request: Request,
   defer: (task: Promise<unknown>) => void,
 ): Promise<Response> {
   try {
+    const limit = await requestedMailSyncLimit(request).catch(() => {
+      throw new GmailStoreError(400, '同步数量必须是 10、20 或 50 封邮件。')
+    })
     const store = new GmailAccountStore(env, user.id)
     const account = await store.publicAccount(accountId)
     if (!account) throw new GmailStoreError(404, 'Gmail 账号不存在。')
@@ -353,13 +363,13 @@ export async function requestGmailSync(
     if (!result.meta.changes) {
       throw new GmailStoreError(429, '手动同步过于频繁，请稍后重试。')
     }
-    defer(enqueueSync(env, accountId, 'manual').catch((error) => {
+    defer(enqueueSync(env, accountId, 'manual', limit).catch((error) => {
       console.error('Unable to enqueue manual Gmail synchronization', {
         accountId,
         type: error instanceof Error ? error.name : typeof error,
       })
     }))
-    return privateJson({ queued: true }, 202)
+    return privateJson({ queued: true, limit }, 202)
   } catch (error) {
     return responseError(error)
   }

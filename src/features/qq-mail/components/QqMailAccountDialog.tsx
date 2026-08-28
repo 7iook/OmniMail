@@ -13,7 +13,12 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { api, type QqMailAccount, type QqMailIdentity } from '../../../shared/api'
+import {
+  api,
+  type MailSyncLimit,
+  type QqMailAccount,
+  type QqMailIdentity,
+} from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
 import { DangerConfirmDialog } from '../../../shared/ui/dialogs/DangerConfirmDialog'
@@ -83,6 +88,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [syncLimit, setSyncLimit] = useState<MailSyncLimit>(20)
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
   const [motionDirection, setMotionDirection] = useState<MotionDirection>('forward')
@@ -327,7 +333,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
     setBusy(`sync:${account.id}`)
     clearFeedback()
     try {
-      await api.syncQqMail(account.id)
+      await api.syncQqMail(account.id, syncLimit)
       setNotice(t('同步任务已加入队列。'))
     } catch (syncError) {
       setError(errorMessage(syncError))
@@ -448,6 +454,7 @@ export function QqMailAccountDialog({ accounts, startAdding = false, onClose, on
         status={statusLabel(target)}
         accountError={target.lastErrorCode ? accountErrorLabel(target.lastErrorCode) : ''}
         renameValue={renameValue} code={code} codeVisible={codeVisible} busy={busy}
+        syncLimit={syncLimit} onSyncLimitChange={setSyncLimit}
         onOpen={openSetting} onRenameValueChange={setRenameValue} onRename={rename}
         onAddIdentity={addIdentity} onDeleteIdentity={setIdentityToDelete}
         onVerify={() => void verify(target)} onSync={() => void sync(target)}

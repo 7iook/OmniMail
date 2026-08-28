@@ -1,4 +1,5 @@
 import { writeAudit } from '../../shared/audit/audit'
+import { requestedMailSyncLimit } from '../../platform/imap/sync-limit'
 import { qqMailImapEnabled } from './qq-mail-credentials'
 import {
   claimQqMailValidationAttempt,
@@ -194,9 +195,13 @@ export async function requestQqMailSync(
   env: Env,
   user: SessionUser,
   accountId: string,
+  request: Request,
   defer: (task: Promise<unknown>) => void,
 ): Promise<Response> {
   try {
+    const limit = await requestedMailSyncLimit(request).catch(() => {
+      throw new QqMailStoreError(400, '同步数量必须是 10、20 或 50 封邮件。')
+    })
     const store = new QqMailAccountStore(env, user.id)
     const account = await store.publicAccount(accountId)
     if (!account) throw new QqMailStoreError(404, 'QQ 邮箱账号不存在。')
@@ -213,13 +218,13 @@ export async function requestQqMailSync(
     if (!result.meta.changes) {
       throw new QqMailStoreError(429, '手动同步过于频繁，请稍后重试。')
     }
-    defer(enqueueQqMailSync(env, accountId, 'manual').catch((error) => {
+    defer(enqueueQqMailSync(env, accountId, 'manual', limit).catch((error) => {
       console.error('Unable to enqueue manual QQ Mail synchronization', {
         accountId,
         type: error instanceof Error ? error.name : typeof error,
       })
     }))
-    return privateQqMailJson({ queued: true }, 202)
+    return privateQqMailJson({ queued: true, limit }, 202)
   } catch (error) {
     return qqMailResponseError(error)
   }

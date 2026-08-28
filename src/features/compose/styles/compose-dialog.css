@@ -192,7 +192,7 @@
 .compose-mailbox-select__trigger {
   display: grid;
   width: 100%;
-  height: 38px;
+  height: 44px;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;

@@ -5,7 +5,7 @@ import { qqMailImapEnabled } from './qq-mail-credentials'
 import type { QqMailImapClient } from './qq-mail-imap'
 import { QqMailAccountStore, QqMailStoreError } from './qq-mail-store'
 import { qqMailSyncErrorCode } from './qq-mail-sync'
-import type { Env, QqMailSyncJob } from '../../app/types'
+import type { Env, MailSyncLimit, QqMailSyncJob } from '../../app/types'
 
 const VALIDATION_WINDOW_SECONDS = 10 * 60
 const VALIDATION_ATTEMPTS = 5
@@ -167,8 +167,9 @@ export async function enqueueQqMailSync(
   env: Env,
   accountId: string,
   reason: QqMailSyncJob['reason'],
+  limit?: MailSyncLimit,
 ): Promise<void> {
-  const job: QqMailSyncJob = { kind: 'qq-mail-sync', accountId, reason }
+  const job: QqMailSyncJob = { kind: 'qq-mail-sync', accountId, reason, limit }
   await env.MAIL_QUEUE.send(job)
 }
 

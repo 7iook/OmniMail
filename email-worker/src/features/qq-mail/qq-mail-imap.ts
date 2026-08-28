@@ -11,7 +11,6 @@ const METADATA_BATCH_SIZE = 20
 const SEARCH_RANGE_SIZE = 500
 const INITIAL_SEARCH_ROUNDS = 20
 const INCREMENTAL_SEARCH_ROUNDS = 10
-const INCREMENTAL_MESSAGE_LIMIT = 20
 
 export { ImapConnectionError as QqMailRemoteError }
 
@@ -93,8 +92,13 @@ export class QqMailImapClient {
     return validUids(found).slice(-limit)
   }
 
-  async searchAfter(uid: number, uidNext: number): Promise<{ uids: number[]; scannedThrough: number }> {
-    if (!Number.isSafeInteger(uid) || uid < 0 || !Number.isSafeInteger(uidNext) || uidNext < 1) {
+  async searchAfter(
+    uid: number,
+    uidNext: number,
+    limit = 20,
+  ): Promise<{ uids: number[]; scannedThrough: number }> {
+    if (!Number.isSafeInteger(uid) || uid < 0 || !Number.isSafeInteger(uidNext) || uidNext < 1
+      || !Number.isInteger(limit) || limit < 1 || limit > 50) {
       throw new ImapConnectionError(400, 'QQ 邮箱同步游标无效。', true)
     }
     const target = uidNext - 1
@@ -107,13 +111,13 @@ export class QqMailImapClient {
         `UID SEARCH UID ${lower}:${upper}`,
       )).lines))
       scannedThrough = upper
-      if (validUids(found).length >= INCREMENTAL_MESSAGE_LIMIT) break
+      if (validUids(found).length >= limit) break
       lower = upper + 1
     }
-    const uids = validUids(found).slice(0, INCREMENTAL_MESSAGE_LIMIT)
+    const uids = validUids(found).slice(0, limit)
     return {
       uids,
-      scannedThrough: uids.length === INCREMENTAL_MESSAGE_LIMIT
+      scannedThrough: uids.length === limit
         ? uids[uids.length - 1]
         : scannedThrough,
     }

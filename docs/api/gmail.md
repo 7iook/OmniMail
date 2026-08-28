@@ -166,7 +166,7 @@ curl --request POST \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/gmail/accounts/:id/sync catalog:7c45a3170e0f -->
+<!-- endpoint:POST /api/gmail/accounts/:id/sync catalog:cf8cb9117ecb -->
 ## `POST /api/gmail/accounts/{id}/sync`
 
 **请求 Gmail 同步 / Request Gmail synchronization**
@@ -178,15 +178,19 @@ curl --request POST \
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Path · id |
-| 成功响应 | 202 · { queued: true } |
+| 请求 | Path · id; JSON · limit=10\|20\|50? |
+| 成功响应 | 202 · { queued: true, limit } |
 
 ### cURL 示例
 
 ```bash
 curl --request POST \
   --url "https://mail.example.com/api/gmail/accounts/resource_id/sync" \
-  --header "Authorization: Bearer om_at_..."
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "limit": 20
+}'
 ```
 
 <!-- endpoint:GET /api/gmail/messages catalog:5d0abc8719b4 -->

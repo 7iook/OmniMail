@@ -1,4 +1,5 @@
 import type {
+  MailSyncLimit,
   PageInfo,
   QqMailAccount,
   QqMailMessageDetail,
@@ -40,9 +41,12 @@ export function createQqMailApi(request: Request, jsonBody: (value: unknown) => 
       ok: true
       remoteRevocationRequired: true
     }>(`/api/qq-mail/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
-    syncQqMail: (accountId: string) => request<{ queued: true }>(
+    syncQqMail: (accountId: string, limit: MailSyncLimit = 20) => request<{
+      queued: true
+      limit: MailSyncLimit
+    }>(
       `/api/qq-mail/accounts/${encodeURIComponent(accountId)}/sync`,
-      { method: 'POST', timeoutMs: 30_000 },
+      { method: 'POST', body: jsonBody({ limit }), timeoutMs: 30_000 },
     ),
     addQqMailIdentity: (accountId: string, input: { name: string; email: string }) => request<{
       account: QqMailAccount

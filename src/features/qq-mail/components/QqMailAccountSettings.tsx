@@ -14,8 +14,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { FormEvent } from 'react'
-import type { QqMailAccount, QqMailIdentity } from '../../../shared/api'
+import type { MailSyncLimit, QqMailAccount, QqMailIdentity } from '../../../shared/api'
 import { t } from '../../../shared/i18n'
+import { MailSyncLimitSelect } from '../../../shared/ui/mail-workspace/MailSyncLimitSelect'
 import { QqMailIdentitySettings } from './QqMailIdentitySettings'
 
 export type QqMailAccountSettingsView =
@@ -38,8 +39,8 @@ function SettingsOption({ icon: Icon, title, description, danger = false, onClic
 
 export function QqMailAccountSettings({ account, view, status, accountError, renameValue,
   code, codeVisible, busy, onOpen, onRenameValueChange, onRename, onAddIdentity,
-  onDeleteIdentity, onVerify, onSync, onCodeChange, onCodeVisibleChange, onUpdateCode,
-  onDisconnect }: {
+  onDeleteIdentity, onVerify, onSync, syncLimit, onSyncLimitChange, onCodeChange,
+  onCodeVisibleChange, onUpdateCode, onDisconnect }: {
   account: QqMailAccount
   view: QqMailAccountSettingsView
   status: string
@@ -55,6 +56,8 @@ export function QqMailAccountSettings({ account, view, status, accountError, ren
   onDeleteIdentity: (identity: QqMailIdentity) => void
   onVerify: () => void
   onSync: () => void
+  syncLimit: MailSyncLimit
+  onSyncLimitChange: (value: MailSyncLimit) => void
   onCodeChange: (value: string) => void
   onCodeVisibleChange: () => void
   onUpdateCode: (event: FormEvent) => void
@@ -127,6 +130,8 @@ export function QqMailAccountSettings({ account, view, status, accountError, ren
       <strong>{t(verifying ? '验证邮箱连接' : '同步这个账号')}</strong>
       <p>{t(verifying ? '检查当前授权码是否仍可登录 QQ 邮箱 IMAP。'
         : '立即将最新 QQ 邮件加入后台同步队列。')}</p>
+      {!verifying && <MailSyncLimitSelect id={`qq-mail-sync-limit-${account.id}`}
+        value={syncLimit} disabled={disabled} onChange={onSyncLimitChange} />}
       <button className="button button--primary" type="button" disabled={disabled}
         onClick={verifying ? onVerify : onSync}>
         {busy === `${verifying ? 'verify' : 'sync'}:${account.id}`

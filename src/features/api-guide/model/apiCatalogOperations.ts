@@ -138,7 +138,8 @@ export const gmailEndpoints: ApiEndpoint[] = [
     method: 'POST', path: '/api/gmail/accounts/:id/sync', group: 'gmail', auth: 'authenticated',
     title: l('请求 Gmail 同步', 'Request Gmail synchronization'),
     description: l('在频率限制和账号租约保护下，把只读同步任务加入 Queue。', 'Queue a read-only sync under rate limiting and an account lease.'),
-    request: 'Path · id', response: '202 · { queued: true }',
+    request: 'Path · id; JSON · limit=10|20|50?', response: '202 · { queued: true, limit }',
+    exampleBody: { limit: 20 },
   },
   {
     method: 'GET', path: '/api/gmail/messages', group: 'gmail', auth: 'authenticated',

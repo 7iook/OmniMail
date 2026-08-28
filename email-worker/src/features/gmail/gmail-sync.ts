@@ -1,11 +1,15 @@
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
+import {
+  DEFAULT_MAIL_SYNC_LIMIT,
+  parseMailSyncLimit,
+  RECENT_MESSAGE_REFRESH_LIMIT,
+} from '../../platform/imap/sync-limit'
 import { gmailImapEnabled } from './gmail-credentials'
 import type { GmailImapClient } from './gmail-imap'
 import { gmailAccountForSync, GmailStoreError } from './gmail-store'
 import type { GmailMessageMetadata } from './gmail-types'
-import type { Env, GmailSyncJob, MailQueueJob } from '../../app/types'
+import type { Env, GmailSyncJob, MailQueueJob, MailSyncLimit } from '../../app/types'
 
-const INITIAL_MESSAGE_LIMIT = 100
 const INDEX_MESSAGE_LIMIT = 500
 const SYNC_INTERVAL_SECONDS = 5 * 60
 const LEASE_SECONDS = 6 * 60
@@ -53,8 +57,19 @@ async function localUids(env: Env, accountId: string, uidValidity: number): Prom
     `SELECT imap_uid FROM gmail_imap_messages
       WHERE account_id = ? AND uid_validity = ?
       ORDER BY internal_date DESC, id DESC LIMIT ?`,
-  ).bind(accountId, uidValidity, INDEX_MESSAGE_LIMIT).all<{ imap_uid: number }>()
+  ).bind(accountId, uidValidity, RECENT_MESSAGE_REFRESH_LIMIT).all<{ imap_uid: number }>()
   return results.map(({ imap_uid }) => imap_uid)
+}
+
+export function selectGmailFetchUids(
+  recentUids: number[],
+  discoveredUids: number[],
+  limit: MailSyncLimit = DEFAULT_MAIL_SYNC_LIMIT,
+): number[] {
+  return [...new Set([
+    ...recentUids.slice(0, RECENT_MESSAGE_REFRESH_LIMIT),
+    ...discoveredUids.slice(0, limit),
+  ])].sort((left, right) => left - right)
 }
 
 function messageStatement(
@@ -151,6 +166,7 @@ export async function syncGmailAccount(
   env: Env,
   accountId: string,
   now = Math.floor(Date.now() / 1000),
+  messageLimit: MailSyncLimit = DEFAULT_MAIL_SYNC_LIMIT,
 ): Promise<GmailSyncResult> {
   const leaseId = crypto.randomUUID()
   if (!await claimLease(env, accountId, leaseId, now)) {
@@ -165,19 +181,16 @@ export async function syncGmailAccount(
     const mailbox = await client.examineInbox()
     const reset = account.uidValidity !== mailbox.uidValidity
     const existingUids = reset ? [] : await localUids(env, accountId, mailbox.uidValidity)
-    const discovered = reset
-      ? (await client.searchAllUids()).slice(-INITIAL_MESSAGE_LIMIT)
-      : await client.searchAfter(account.lastSeenUid)
-    const fetchUids = [...new Set([...existingUids, ...discovered])]
-      .sort((left, right) => left - right)
-      .slice(-INDEX_MESSAGE_LIMIT)
+    const discovery = reset
+      ? { uids: await client.searchLatestUids(mailbox.uidNext, messageLimit), scannedThrough: 0 }
+      : await client.searchAfter(account.lastSeenUid, mailbox.uidNext, messageLimit)
+    const fetchUids = selectGmailFetchUids(existingUids, discovery.uids, messageLimit)
     const metadata = await client.fetchMetadata(fetchUids)
     const missing = reset ? [] : missingGmailUids(existingUids, metadata)
     const highestUid = Math.max(
       account.lastSeenUid,
-      0,
-      ...discovered,
-      ...metadata.map(({ imapUid }) => imapUid),
+      discovery.scannedThrough,
+      ...discovery.uids,
     )
     const statements: D1PreparedStatement[] = []
     if (reset) {
@@ -207,7 +220,7 @@ export async function syncGmailAccount(
         WHERE id = ? AND sync_lease_id = ?`,
     ).bind(
       mailbox.uidValidity,
-      reset ? Math.max(0, ...discovered, ...metadata.map(({ imapUid }) => imapUid)) : highestUid,
+      reset ? Math.max(0, ...discovery.uids) : highestUid,
       now,
       now + SYNC_INTERVAL_SECONDS,
       now,
@@ -218,6 +231,7 @@ export async function syncGmailAccount(
     return { status: 'synced', retryable: false }
   } catch (error) {
     const code = await recordFailure(env, accountId, leaseId, error, now)
+    console.error('Gmail synchronization failed', { accountId, code })
     return {
       status: 'skipped',
       retryable: ![
@@ -239,7 +253,13 @@ export async function consumeGmailSyncJob(
   env: Env,
 ): Promise<void> {
   if (message.body.kind !== 'gmail-sync') return
-  const result = await syncGmailAccount(env, message.body.accountId)
+  const limit = parseMailSyncLimit(message.body.limit) ?? DEFAULT_MAIL_SYNC_LIMIT
+  const result = await syncGmailAccount(
+    env,
+    message.body.accountId,
+    Math.floor(Date.now() / 1000),
+    limit,
+  )
   if (result.retryable && message.attempts < 3) {
     message.retry({ delaySeconds: 30 * 2 ** Math.max(0, message.attempts - 1) })
   } else {
@@ -254,16 +274,26 @@ export async function enqueueDueGmailSyncs(
   if (!gmailImapEnabled(env)) return 0
   const { results } = await env.DB.prepare(
     `SELECT id FROM gmail_imap_accounts
-      WHERE status IN ('active', 'error') AND next_sync_at <= ?
+      WHERE ((status IN ('active', 'error') AND next_sync_at <= ?)
+          OR status = 'syncing')
         AND (sync_lease_until IS NULL OR sync_lease_until <= ?)
       ORDER BY next_sync_at, id LIMIT ?`,
   ).bind(now, now, SCHEDULE_BATCH).all<{ id: string }>()
   let queued = 0
   for (const account of results) {
     const claimed = await env.DB.prepare(
-      `UPDATE gmail_imap_accounts SET next_sync_at = ?, updated_at = ?
-        WHERE id = ? AND next_sync_at <= ?`,
-    ).bind(now + SYNC_INTERVAL_SECONDS, now, account.id, now).run()
+      `UPDATE gmail_imap_accounts
+          SET next_sync_at = ?, updated_at = ?,
+              status = CASE WHEN status = 'syncing' THEN 'error' ELSE status END,
+              last_error_code = CASE
+                WHEN status = 'syncing' THEN 'stale_lease' ELSE last_error_code END,
+              last_error_at = CASE WHEN status = 'syncing' THEN ? ELSE last_error_at END,
+              sync_lease_id = CASE WHEN status = 'syncing' THEN NULL ELSE sync_lease_id END,
+              sync_lease_until = CASE WHEN status = 'syncing' THEN NULL ELSE sync_lease_until END
+        WHERE id = ? AND (sync_lease_until IS NULL OR sync_lease_until <= ?)
+          AND ((status IN ('active', 'error') AND next_sync_at <= ?)
+            OR status = 'syncing')`,
+    ).bind(now + SYNC_INTERVAL_SECONDS, now, now, account.id, now, now).run()
     if (!claimed.meta.changes) continue
     try {
       const job: GmailSyncJob = { kind: 'gmail-sync', accountId: account.id, reason: 'scheduled' }

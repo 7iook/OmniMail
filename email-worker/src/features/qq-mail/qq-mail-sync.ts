@@ -1,13 +1,16 @@
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
+import {
+  DEFAULT_MAIL_SYNC_LIMIT,
+  parseMailSyncLimit,
+  RECENT_MESSAGE_REFRESH_LIMIT,
+} from '../../platform/imap/sync-limit'
 import { qqMailImapEnabled } from './qq-mail-credentials'
 import type { QqMailImapClient } from './qq-mail-imap'
 import { qqMailAccountForSync, QqMailStoreError } from './qq-mail-store'
 import type { QqMailMessageMetadata } from './qq-mail-types'
-import type { Env, MailQueueJob, QqMailSyncJob } from '../../app/types'
+import type { Env, MailQueueJob, MailSyncLimit, QqMailSyncJob } from '../../app/types'
 
-const INITIAL_MESSAGE_LIMIT = 20
 const INDEX_MESSAGE_LIMIT = 500
-const RECENT_MESSAGE_REFRESH_LIMIT = 20
 const SYNC_INTERVAL_SECONDS = 5 * 60
 const LEASE_SECONDS = 6 * 60
 const SCHEDULE_BATCH = 50
@@ -63,10 +66,11 @@ async function localUids(env: Env, accountId: string, uidValidity: number): Prom
 export function selectQqMailFetchUids(
   recentUids: number[],
   discoveredUids: number[],
+  limit: MailSyncLimit = DEFAULT_MAIL_SYNC_LIMIT,
 ): number[] {
   return [...new Set([
     ...recentUids.slice(0, RECENT_MESSAGE_REFRESH_LIMIT),
-    ...discoveredUids.slice(0, RECENT_MESSAGE_REFRESH_LIMIT),
+    ...discoveredUids.slice(0, limit),
   ])].sort((left, right) => left - right)
 }
 
@@ -156,6 +160,7 @@ export async function syncQqMailAccount(
   env: Env,
   accountId: string,
   now = Math.floor(Date.now() / 1000),
+  messageLimit: MailSyncLimit = DEFAULT_MAIL_SYNC_LIMIT,
 ): Promise<QqMailSyncResult> {
   const leaseId = crypto.randomUUID()
   if (!await claimLease(env, accountId, leaseId, now)) {
@@ -171,9 +176,9 @@ export async function syncQqMailAccount(
     const reset = account.uidValidity !== mailbox.uidValidity
     const existingUids = reset ? [] : await localUids(env, accountId, mailbox.uidValidity)
     const discovery = reset
-      ? { uids: await client.searchLatestUids(mailbox.uidNext, INITIAL_MESSAGE_LIMIT), scannedThrough: 0 }
-      : await client.searchAfter(account.lastSeenUid, mailbox.uidNext)
-    const fetchUids = selectQqMailFetchUids(existingUids, discovery.uids)
+      ? { uids: await client.searchLatestUids(mailbox.uidNext, messageLimit), scannedThrough: 0 }
+      : await client.searchAfter(account.lastSeenUid, mailbox.uidNext, messageLimit)
+    const fetchUids = selectQqMailFetchUids(existingUids, discovery.uids, messageLimit)
     const metadata = await client.fetchMetadata(fetchUids)
     const missing = reset ? [] : missingQqMailUids(existingUids, metadata)
     const highestUid = reset
@@ -239,7 +244,13 @@ export async function consumeQqMailSyncJob(
   env: Env,
 ): Promise<void> {
   if (message.body.kind !== 'qq-mail-sync') return
-  const result = await syncQqMailAccount(env, message.body.accountId)
+  const limit = parseMailSyncLimit(message.body.limit) ?? DEFAULT_MAIL_SYNC_LIMIT
+  const result = await syncQqMailAccount(
+    env,
+    message.body.accountId,
+    Math.floor(Date.now() / 1000),
+    limit,
+  )
   if (result.retryable && message.attempts < 3) {
     message.retry({ delaySeconds: 30 * 2 ** Math.max(0, message.attempts - 1) })
   } else {

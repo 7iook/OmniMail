@@ -44,6 +44,9 @@ export const enQqMail: Record<string, string> = {
     'The authorization code must still be revoked in QQ Mail settings.',
   '立即将最新 QQ 邮件加入后台同步队列。':
     'Queue the latest QQ Mail messages for background synchronization now.',
+  '本次最多同步': 'Sync up to',
+  '{count} 封邮件': '{count} messages',
+  '只影响这次手动同步；后台同步默认每次最多 20 封。': 'Only this manual sync is affected; background sync defaults to 20 messages per run.',
   '请先在 QQ 邮箱设置中开启 IMAP/SMTP 服务并生成授权码；不要填写 QQ 登录密码。':
     'Enable IMAP/SMTP and generate an authorization code in QQ Mail settings first. Do not enter your QQ sign-in password.',
   '还没有 QQ 邮箱账号': 'No QQ Mail accounts yet',

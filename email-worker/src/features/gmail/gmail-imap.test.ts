@@ -5,11 +5,11 @@ import { GmailImapClient } from './gmail-imap'
 
 vi.mock('cloudflare:sockets', () => ({ connect: vi.fn() }))
 
-function scriptedSocket(replies: Uint8Array) {
+function scriptedSocket(replies: Uint8Array | string) {
   const writes: Uint8Array[] = []
   const readable = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(replies)
+      controller.enqueue(typeof replies === 'string' ? new TextEncoder().encode(replies) : replies)
     },
   })
   const writable = new WritableStream<Uint8Array>({
@@ -94,5 +94,45 @@ describe('Gmail IMAP controlled command boundary', () => {
     expect(commands).toContain('SELECT INBOX')
     expect(commands).toContain('UID STORE 42 +FLAGS.SILENT (\\Seen)')
     expect(commands).not.toMatch(/\bMOVE\b|\bCOPY\b|\bEXPUNGE\b|\bAPPEND\b/)
+  })
+
+  it('uses bounded UID search and parses UIDNEXT for incremental sync', async () => {
+    const fixture = scriptedSocket([
+      '* OK Gmail ready',
+      '* CAPABILITY IMAP4rev1 X-GM-EXT-1',
+      'A0001 OK CAPABILITY',
+      'A0002 OK LOGIN',
+      '* CAPABILITY IMAP4rev1 X-GM-EXT-1',
+      'A0003 OK CAPABILITY',
+      '* ID NIL',
+      'A0004 OK ID',
+      '* 2 EXISTS',
+      '* OK [UIDVALIDITY 123] UIDs valid',
+      '* OK [UIDNEXT 9001] Predicted next UID',
+      'A0005 OK EXAMINE',
+      '* SEARCH 8998 9000',
+      'A0006 OK SEARCH',
+      '* SEARCH 8998 9000',
+      'A0007 OK SEARCH',
+      '* BYE',
+      'A0008 OK LOGOUT',
+      '',
+    ].join('\r\n'))
+    vi.mocked(connect).mockReturnValue(fixture.socket)
+    const client = new GmailImapClient('user@gmail.com', 'app-password')
+
+    await client.open()
+    const mailbox = await client.examineInbox()
+    expect(mailbox.uidNext).toBe(9001)
+    await expect(client.searchLatestUids(mailbox.uidNext, 2)).resolves.toEqual([8998, 9000])
+    await expect(client.searchAfter(8990, mailbox.uidNext, 20)).resolves.toEqual({
+      uids: [8998, 9000], scannedThrough: 9000,
+    })
+    await client.close()
+
+    const commands = fixture.commands()
+    expect(commands).toContain('UID SEARCH UID 8501:9000')
+    expect(commands).toContain('UID SEARCH UID 8991:9000')
+    expect(commands).not.toContain('UID SEARCH ALL')
   })
 })

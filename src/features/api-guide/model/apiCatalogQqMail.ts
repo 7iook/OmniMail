@@ -45,7 +45,8 @@ export const qqMailEndpoints: ApiEndpoint[] = [
     method: 'POST', path: '/api/qq-mail/accounts/:id/sync', group: 'qqMail', auth: 'authenticated',
     title: l('请求 QQ 邮箱同步', 'Request QQ Mail synchronization'),
     description: l('在频率限制和账号租约保护下，把有限 INBOX 同步任务加入 Queue。', 'Queue a bounded INBOX synchronization under rate limiting and an account lease.'),
-    request: 'Path · id', response: '202 · { queued: true }',
+    request: 'Path · id; JSON · limit=10|20|50?', response: '202 · { queued: true, limit }',
+    exampleBody: { limit: 20 },
   },
   {
     method: 'POST', path: '/api/qq-mail/accounts/:id/identities', group: 'qqMail', auth: 'authenticated',

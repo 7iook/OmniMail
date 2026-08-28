@@ -18,10 +18,13 @@ export interface SearchIndexJob {
   messageId: string
 }
 
+export type MailSyncLimit = 10 | 20 | 50
+
 export interface GmailSyncJob {
   kind: 'gmail-sync'
   accountId: string
   reason: 'connect' | 'manual' | 'scheduled'
+  limit?: MailSyncLimit
 }
 
 export interface MicrosoftSyncJob {
@@ -34,6 +37,7 @@ export interface QqMailSyncJob {
   kind: 'qq-mail-sync'
   accountId: string
   reason: 'connect' | 'manual' | 'scheduled'
+  limit?: MailSyncLimit
 }
 
 export type MailQueueJob =

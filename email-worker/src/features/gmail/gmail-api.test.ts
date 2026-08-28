@@ -117,7 +117,9 @@ describe('Gmail account API validation', () => {
     } as unknown as Env
 
     const response = await Promise.race([
-      requestGmailSync(env, user, 'gmail-1', (task) => { deferred = task }),
+      requestGmailSync(env, user, 'gmail-1', new Request('https://example.test', {
+        method: 'POST', body: JSON.stringify({ limit: 20 }),
+      }), (task) => { deferred = task }),
       new Promise<never>((_resolve, reject) => setTimeout(
         () => reject(new Error('request waited for Queue send')),
         100,

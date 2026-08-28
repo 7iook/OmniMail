@@ -16,9 +16,10 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { api, type GmailAccount } from '../../../shared/api'
+import { api, type GmailAccount, type MailSyncLimit } from '../../../shared/api'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
+import { MailSyncLimitSelect } from '../../../shared/ui/mail-workspace/MailSyncLimitSelect'
 
 type View = 'accounts' | 'account' | 'connect'
 const DIALOG_EXIT_MS = 170
@@ -57,6 +58,7 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [syncLimit, setSyncLimit] = useState<MailSyncLimit>(20)
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
   const titleId = useId()
@@ -227,7 +229,7 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
     setBusy(`sync:${account.id}`)
     clearFeedback()
     try {
-      await api.syncGmail(account.id)
+      await api.syncGmail(account.id, syncLimit)
       setNotice(t('同步任务已加入队列。'))
     } catch (syncError) {
       setError(errorMessage(syncError))
@@ -389,13 +391,17 @@ export function GmailAccountDialog({ accounts, startAdding = false, onClose, onC
             {busy === `verify:${target.id}` ? <LoaderCircle className="spin" size={16} />
               : <ShieldCheck size={16} />}{t('立即验证')}</button>
         </section>
-        <section className="gmail-account-action">
+        <section className="gmail-account-action gmail-account-sync-action">
           <span><strong>{t('同步这个账号')}</strong>
             <small>{t('立即将最新 Gmail 邮件加入后台同步队列。')}</small></span>
-          <button className="button button--secondary" type="button" disabled={Boolean(busy)}
-            onClick={() => void sync(target)}>
-            {busy === `sync:${target.id}` ? <LoaderCircle className="spin" size={16} />
-              : <RefreshCw size={16} />}{t('立即同步')}</button>
+          <div className="gmail-account-sync-controls">
+            <MailSyncLimitSelect id={`gmail-sync-limit-${target.id}`} value={syncLimit}
+              disabled={Boolean(busy)} onChange={setSyncLimit} />
+            <button className="button button--secondary" type="button" disabled={Boolean(busy)}
+              onClick={() => void sync(target)}>
+              {busy === `sync:${target.id}` ? <LoaderCircle className="spin" size={16} />
+                : <RefreshCw size={16} />}{t('立即同步')}</button>
+          </div>
         </section>
 
         <form className="icloud-form gmail-account-credential"

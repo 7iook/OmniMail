@@ -2,6 +2,7 @@ import type {
   GmailAccount,
   GmailMessageDetail,
   GmailMessageSummary,
+  MailSyncLimit,
   PageInfo,
 } from '../../../shared/api/api-types'
 
@@ -38,9 +39,12 @@ export function createGmailApi(request: Request, jsonBody: (value: unknown) => s
       ok: true
       remoteRevocationRequired: true
     }>(`/api/gmail/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
-    syncGmail: (accountId: string) => request<{ queued: true }>(
+    syncGmail: (accountId: string, limit: MailSyncLimit = 20) => request<{
+      queued: true
+      limit: MailSyncLimit
+    }>(
       `/api/gmail/accounts/${encodeURIComponent(accountId)}/sync`,
-      { method: 'POST', timeoutMs: 30_000 },
+      { method: 'POST', body: jsonBody({ limit }), timeoutMs: 30_000 },
     ),
     gmailMessages: (accountId = '', cursor = '', query = '', signal?: AbortSignal) => {
       const search = new URLSearchParams({ limit: '30' })

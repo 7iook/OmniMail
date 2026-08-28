@@ -74,6 +74,7 @@ export interface RegistrationDomainPolicy {
 }
 
 export type MailRefreshInterval = 0 | 5 | 10 | 30 | 60 | 120
+export type MailSyncLimit = 10 | 20 | 50
 
 export type UserRole = 'super_admin' | 'admin' | 'user' | 'temporary'
 

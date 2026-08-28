@@ -166,7 +166,7 @@ curl --request POST \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/qq-mail/accounts/:id/sync catalog:106b6444c227 -->
+<!-- endpoint:POST /api/qq-mail/accounts/:id/sync catalog:1dfc39715d28 -->
 ## `POST /api/qq-mail/accounts/{id}/sync`
 
 **请求 QQ 邮箱同步 / Request QQ Mail synchronization**
@@ -178,15 +178,19 @@ curl --request POST \
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
-| 请求 | Path · id |
-| 成功响应 | 202 · { queued: true } |
+| 请求 | Path · id; JSON · limit=10\|20\|50? |
+| 成功响应 | 202 · { queued: true, limit } |
 
 ### cURL 示例
 
 ```bash
 curl --request POST \
   --url "https://mail.example.com/api/qq-mail/accounts/resource_id/sync" \
-  --header "Authorization: Bearer om_at_..."
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "limit": 20
+}'
 ```
 
 <!-- endpoint:POST /api/qq-mail/accounts/:id/identities catalog:a3c7fb3f4e48 -->

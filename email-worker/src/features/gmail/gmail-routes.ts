@@ -55,6 +55,7 @@ gmailRoutes.post('/gmail/accounts/:id/sync', (context) => requestGmailSync(
   context.env,
   context.get('user'),
   context.req.param('id'),
+  context.req.raw,
   (task) => context.executionCtx.waitUntil(task),
 ))
 gmailRoutes.get('/gmail/messages', (context) => (
