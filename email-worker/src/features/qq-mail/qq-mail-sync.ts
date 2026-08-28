@@ -5,8 +5,9 @@ import { qqMailAccountForSync, QqMailStoreError } from './qq-mail-store'
 import type { QqMailMessageMetadata } from './qq-mail-types'
 import type { Env, MailQueueJob, QqMailSyncJob } from '../../app/types'
 
-const INITIAL_MESSAGE_LIMIT = 100
+const INITIAL_MESSAGE_LIMIT = 20
 const INDEX_MESSAGE_LIMIT = 500
+const RECENT_MESSAGE_REFRESH_LIMIT = 20
 const SYNC_INTERVAL_SECONDS = 5 * 60
 const LEASE_SECONDS = 6 * 60
 const SCHEDULE_BATCH = 50
@@ -55,8 +56,18 @@ async function localUids(env: Env, accountId: string, uidValidity: number): Prom
     `SELECT imap_uid FROM qq_mail_messages
       WHERE account_id = ? AND uid_validity = ?
       ORDER BY internal_date DESC, id DESC LIMIT ?`,
-  ).bind(accountId, uidValidity, INDEX_MESSAGE_LIMIT).all<{ imap_uid: number }>()
+  ).bind(accountId, uidValidity, RECENT_MESSAGE_REFRESH_LIMIT).all<{ imap_uid: number }>()
   return results.map(({ imap_uid }) => imap_uid)
+}
+
+export function selectQqMailFetchUids(
+  recentUids: number[],
+  discoveredUids: number[],
+): number[] {
+  return [...new Set([
+    ...recentUids.slice(0, RECENT_MESSAGE_REFRESH_LIMIT),
+    ...discoveredUids.slice(0, RECENT_MESSAGE_REFRESH_LIMIT),
+  ])].sort((left, right) => left - right)
 }
 
 function messageStatement(
@@ -162,9 +173,7 @@ export async function syncQqMailAccount(
     const discovery = reset
       ? { uids: await client.searchLatestUids(mailbox.uidNext, INITIAL_MESSAGE_LIMIT), scannedThrough: 0 }
       : await client.searchAfter(account.lastSeenUid, mailbox.uidNext)
-    const fetchUids = [...new Set([...existingUids, ...discovery.uids])]
-      .sort((left, right) => left - right)
-      .slice(-INDEX_MESSAGE_LIMIT)
+    const fetchUids = selectQqMailFetchUids(existingUids, discovery.uids)
     const metadata = await client.fetchMetadata(fetchUids)
     const missing = reset ? [] : missingQqMailUids(existingUids, metadata)
     const highestUid = reset
@@ -210,6 +219,7 @@ export async function syncQqMailAccount(
     return { status: 'synced', retryable: false }
   } catch (error) {
     const code = await recordFailure(env, accountId, leaseId, error, now)
+    console.error('QQ Mail synchronization failed', { accountId, code })
     return {
       status: 'skipped',
       retryable: ![
@@ -244,16 +254,26 @@ export async function enqueueDueQqMailSyncs(
   if (!qqMailImapEnabled(env)) return 0
   const { results } = await env.DB.prepare(
     `SELECT id FROM qq_mail_accounts
-      WHERE status IN ('active', 'error') AND next_sync_at <= ?
+      WHERE ((status IN ('active', 'error') AND next_sync_at <= ?)
+          OR status = 'syncing')
         AND (sync_lease_until IS NULL OR sync_lease_until <= ?)
       ORDER BY next_sync_at, id LIMIT ?`,
   ).bind(now, now, SCHEDULE_BATCH).all<{ id: string }>()
   let queued = 0
   for (const account of results) {
     const claimed = await env.DB.prepare(
-      `UPDATE qq_mail_accounts SET next_sync_at = ?, updated_at = ?
-        WHERE id = ? AND next_sync_at <= ?`,
-    ).bind(now + SYNC_INTERVAL_SECONDS, now, account.id, now).run()
+      `UPDATE qq_mail_accounts
+          SET next_sync_at = ?, updated_at = ?,
+              status = CASE WHEN status = 'syncing' THEN 'error' ELSE status END,
+              last_error_code = CASE
+                WHEN status = 'syncing' THEN 'stale_lease' ELSE last_error_code END,
+              last_error_at = CASE WHEN status = 'syncing' THEN ? ELSE last_error_at END,
+              sync_lease_id = CASE WHEN status = 'syncing' THEN NULL ELSE sync_lease_id END,
+              sync_lease_until = CASE WHEN status = 'syncing' THEN NULL ELSE sync_lease_until END
+        WHERE id = ? AND (sync_lease_until IS NULL OR sync_lease_until <= ?)
+          AND ((status IN ('active', 'error') AND next_sync_at <= ?)
+            OR status = 'syncing')`,
+    ).bind(now + SYNC_INTERVAL_SECONDS, now, now, account.id, now, now).run()
     if (!claimed.meta.changes) continue
     try {
       const job: QqMailSyncJob = {

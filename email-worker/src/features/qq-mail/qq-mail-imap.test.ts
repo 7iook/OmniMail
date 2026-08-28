@@ -83,10 +83,8 @@ describe('QQ Mail controlled IMAP boundary', () => {
       'A0003 OK CAPABILITY',
       `* SEARCH ${Array.from({ length: 100 }, (_, index) => index + 1).join(' ')}`,
       'A0004 OK SEARCH',
-      `* SEARCH ${Array.from({ length: 500 }, (_, index) => index + 501).join(' ')}`,
-      'A0005 OK SEARCH',
       '* BYE',
-      'A0006 OK LOGOUT',
+      'A0005 OK LOGOUT',
       '',
     ].join('\r\n'))
     vi.mocked(connect).mockReturnValue(fixture.socket)
@@ -96,8 +94,8 @@ describe('QQ Mail controlled IMAP boundary', () => {
     const result = await client.searchAfter(0, 1001)
     await client.close()
 
-    expect(result.uids).toHaveLength(500)
-    expect(result.uids.at(-1)).toBe(900)
-    expect(result.scannedThrough).toBe(900)
+    expect(result.uids).toHaveLength(20)
+    expect(result.uids.at(-1)).toBe(20)
+    expect(result.scannedThrough).toBe(20)
   })
 })
