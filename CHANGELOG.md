@@ -5,7 +5,7 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
-## [未发布]
+## [0.8.1] - 2026-08-28
 
 ### 修复
 
