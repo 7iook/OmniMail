@@ -62,6 +62,7 @@ Serverless Webmail：
 | Gmail 聚合收件箱 | 连接多个 Gmail / Workspace 账号，搜索聚合的 INBOX 元数据并在打开后同步已读 |
 | QQ 邮箱聚合收件箱 | 使用授权码连接多个个人 QQ 邮箱，有限同步 INBOX，并通过官方 SMTP 新建或回复邮件 |
 | NAVER 邮箱聚合收件箱 | 使用应用专用密码连接个人 NAVER 邮箱，有限同步 INBOX 并按需读取正文与附件 |
+| Yandex 邮箱聚合收件箱 | 使用 Mail 应用密码连接个人 Yandex 邮箱，有限同步 INBOX 并按需读取正文与附件 |
 | 管理可观测性 | 收件统计、来源分析、操作日志和部署自检 |
 
 ## 功能概览
@@ -173,6 +174,18 @@ Serverless Webmail：
   `hasAppPassword: true`。入口默认隐藏，生产开放前必须完成真实 Worker 登录和 24 小时稳定性观察。
 
 部署、灰度闸门和真实账号验收步骤见 [NAVER Mail 设置指南](docs/NAVER_MAIL_SETUP.md)。
+
+### Yandex 邮箱（灰度、只读）
+
+- 首版仅支持个人 `@yandex.com` 邮箱，使用 Yandex ID 中为“邮件”创建的应用密码。
+- OmniMail 固定连接 `imap.yandex.com:993`；登录名从邮箱本地部分派生，不接受主密码、自定义
+  服务器、企业自定义域名或共享邮箱技术用户名。
+- 首次索引最近 100 封、每账号最多保留 500 封 INBOX 元数据，默认每 15 分钟加入同步 Queue；
+  正文与最大 5 MiB 附件按需读取且不持久化。
+- 打开正文后仅尝试精确写入 `\Seen`；不支持发信、删除、移动、归档、星标或文件夹管理。
+- 应用密码由独立 `YANDEX_MAIL_CREDENTIALS_KEY` 使用 AES-GCM 加密；入口和部署开关默认关闭。
+
+部署和灰度验收步骤见 [Yandex Mail 设置指南](docs/YANDEX_MAIL_SETUP.md)。
 
 ### 多域名与用户
 
@@ -551,6 +564,12 @@ QQ 收件箱下的英文、Foxmail 或 VIP 地址，服务端会先验证 QQ SMT
 至少 24 小时低频稳定性观察前，保持 `NAVER_MAIL_IMAP_ENABLED=false`；验收通过后设为 `true`，
 再由管理员从 **系统设置 → 邮箱功能入口** 显式开放 NAVER 入口。用户只能连接个人
 `@naver.com` 邮箱，且必须使用 NAVER 应用专用密码。
+
+若要灰度启用独立的 **Yandex 邮箱聚合收件箱**，配置至少 32 字节的
+`YANDEX_MAIL_CREDENTIALS_KEY` 并应用 `0034_yandex_mail_imap.sql`。先保持
+`YANDEX_MAIL_IMAP_ENABLED=false` 完成实际 Worker 验证和至少 24 小时低频稳定性观察；验收后
+设为 `true`，再由管理员从 **系统设置 → 邮箱功能入口** 显式开放入口。首版仅接受个人
+`@yandex.com` 地址和 Yandex Mail 应用密码。
 
 ### 备份、保留与配额
 

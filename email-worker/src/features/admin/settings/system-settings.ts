@@ -14,6 +14,7 @@ const GMAIL_WORKSPACE_SETTING = 'gmail_workspace_enabled'
 const MICROSOFT_WORKSPACE_SETTING = 'microsoft_workspace_enabled'
 const QQ_MAIL_WORKSPACE_SETTING = 'qq_mail_workspace_enabled'
 const NAVER_MAIL_WORKSPACE_SETTING = 'naver_mail_workspace_enabled'
+const YANDEX_MAIL_WORKSPACE_SETTING = 'yandex_mail_workspace_enabled'
 const DEFAULT_REFRESH_INTERVAL: MailRefreshInterval = 30
 const REFRESH_INTERVALS = new Set<MailRefreshInterval>([0, 5, 10, 30, 60, 120])
 
@@ -188,6 +189,7 @@ export async function updateMailWorkspaceSettings(
     microsoftWorkspaceEnabled?: unknown
     qqMailWorkspaceEnabled?: unknown
     naverMailWorkspaceEnabled?: unknown
+    yandexMailWorkspaceEnabled?: unknown
   }>().catch(() => ({} as {
     iCloudWorkspaceEnabled?: unknown
     linuxDoMailWorkspaceEnabled?: unknown
@@ -195,6 +197,7 @@ export async function updateMailWorkspaceSettings(
     microsoftWorkspaceEnabled?: unknown
     qqMailWorkspaceEnabled?: unknown
     naverMailWorkspaceEnabled?: unknown
+    yandexMailWorkspaceEnabled?: unknown
   }))
   const iCloudWorkspaceEnabled = parseMailWorkspaceEnabled(body.iCloudWorkspaceEnabled)
   const linuxDoMailWorkspaceEnabled = parseMailWorkspaceEnabled(
@@ -204,6 +207,7 @@ export async function updateMailWorkspaceSettings(
   const microsoftWorkspaceEnabled = parseMailWorkspaceEnabled(body.microsoftWorkspaceEnabled)
   const qqMailWorkspaceEnabled = parseMailWorkspaceEnabled(body.qqMailWorkspaceEnabled)
   const naverMailWorkspaceEnabled = parseMailWorkspaceEnabled(body.naverMailWorkspaceEnabled)
+  const yandexMailWorkspaceEnabled = parseMailWorkspaceEnabled(body.yandexMailWorkspaceEnabled)
   if (
     iCloudWorkspaceEnabled === null
     || linuxDoMailWorkspaceEnabled === null
@@ -211,6 +215,7 @@ export async function updateMailWorkspaceSettings(
     || microsoftWorkspaceEnabled === null
     || qqMailWorkspaceEnabled === null
     || naverMailWorkspaceEnabled === null
+    || yandexMailWorkspaceEnabled === null
   ) {
     return json({ error: '邮箱功能入口设置无效。' }, 400)
   }
@@ -239,6 +244,10 @@ export async function updateMailWorkspaceSettings(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
     ).bind(NAVER_MAIL_WORKSPACE_SETTING, naverMailWorkspaceEnabled ? '1' : '0'),
+    env.DB.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()`,
+    ).bind(YANDEX_MAIL_WORKSPACE_SETTING, yandexMailWorkspaceEnabled ? '1' : '0'),
   ])
   const settings = {
     iCloudWorkspaceEnabled,
@@ -247,6 +256,7 @@ export async function updateMailWorkspaceSettings(
     microsoftWorkspaceEnabled,
     qqMailWorkspaceEnabled,
     naverMailWorkspaceEnabled,
+    yandexMailWorkspaceEnabled,
   }
   await writeAudit(env, actor.id, 'system.mail_workspaces.update', null, ip, settings)
   return json(settings)

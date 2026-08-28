@@ -16,6 +16,7 @@ const groupFiles = {
   microsoft: 'microsoft.md',
   qqMail: 'qq-mail.md',
   naverMail: 'naver-mail.md',
+  yandexMail: 'yandex-mail.md',
   linuxdoMail: 'linux-do-mail.md',
   adminOperations: 'admin-operations.md',
   adminAccess: 'admin-access.md',

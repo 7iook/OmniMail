@@ -31,6 +31,7 @@ import { Brand, ThemeToggle } from '../../auth/components/AuthPages'
 import { LanguageQuickToggle } from '../../../shared/ui/language/LanguageToggle'
 import { QqMailIcon } from '../../qq-mail/components/QqMailIcon'
 import { NaverMailIcon } from '../../naver-mail/components/NaverMailIcon'
+import { YandexMailIcon } from '../../yandex-mail/components/YandexMailIcon'
 
 export type { AdminView } from '../../../app/navigation/workspaceNavigation'
 
@@ -79,6 +80,7 @@ export function MailboxSidebar({
   microsoftWorkspaceEnabled,
   qqMailWorkspaceEnabled,
   naverMailWorkspaceEnabled,
+  yandexMailWorkspaceEnabled,
   notifications,
   onFolderChange,
   onAdminViewChange,
@@ -94,6 +96,7 @@ export function MailboxSidebar({
   microsoftWorkspaceEnabled: boolean
   qqMailWorkspaceEnabled: boolean
   naverMailWorkspaceEnabled: boolean
+  yandexMailWorkspaceEnabled: boolean
   notifications: MailNotificationControls
   onFolderChange: (folder: Folder) => void
   onAdminViewChange: (view: AdminView) => void
@@ -107,6 +110,7 @@ export function MailboxSidebar({
     + Number(Boolean(microsoftWorkspaceEnabled))
     + Number(Boolean(qqMailWorkspaceEnabled))
     + Number(Boolean(naverMailWorkspaceEnabled))
+    + Number(Boolean(yandexMailWorkspaceEnabled))
   const sidebarRef = useRef<HTMLElement>(null)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [scrollbarActive, setScrollbarActive] = useState(false)
@@ -254,6 +258,17 @@ export function MailboxSidebar({
         >
           <NaverMailIcon aria-hidden="true" />
           <span>{t('NAVER 邮箱')}</span>
+        </button>}
+        {yandexMailWorkspaceEnabled && <button
+          className={adminView === 'yandex-mail' ? 'is-active' : ''}
+          type="button"
+          onClick={() => {
+            setAdminMenuOpen(false)
+            onAdminViewChange('yandex-mail')
+          }}
+        >
+          <YandexMailIcon aria-hidden="true" />
+          <span>{t('Yandex 邮箱')}</span>
         </button>}
       </nav>
 

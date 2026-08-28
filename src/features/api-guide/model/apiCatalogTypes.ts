@@ -11,6 +11,7 @@ export type ApiGroupId =
   | 'microsoft'
   | 'qqMail'
   | 'naverMail'
+  | 'yandexMail'
   | 'linuxdoMail'
   | 'adminOperations'
   | 'adminAccess'

@@ -17,6 +17,7 @@ import { gmailCredentialsReady } from '../gmail/gmail-credentials'
 import { microsoftCredentialsReady } from '../microsoft/microsoft-credentials'
 import { qqMailCredentialsReady } from '../qq-mail/qq-mail-credentials'
 import { naverMailCredentialsReady } from '../naver-mail/naver-mail-credentials'
+import { yandexMailCredentialsReady } from '../yandex-mail/yandex-mail-credentials'
 
 type Setting = { key: string; value: string }
 
@@ -57,7 +58,8 @@ export async function publicConfig(env: Env) {
       'gmail_workspace_enabled',
       'microsoft_workspace_enabled',
       'qq_mail_workspace_enabled',
-      'naver_mail_workspace_enabled'
+      'naver_mail_workspace_enabled',
+      'yandex_mail_workspace_enabled'
     )`,
   ).all<Setting>()
   const settings = new Map(results.map((row) => [row.key, row.value]))
@@ -88,6 +90,10 @@ export async function publicConfig(env: Env) {
       && naverMailCredentialsReady(env),
     naverMailWorkspaceEnabled: env.NAVER_MAIL_IMAP_ENABLED === 'true'
       && settings.get('naver_mail_workspace_enabled') === '1',
+    yandexMailEnabled: env.YANDEX_MAIL_IMAP_ENABLED === 'true'
+      && yandexMailCredentialsReady(env),
+    yandexMailWorkspaceEnabled: env.YANDEX_MAIL_IMAP_ENABLED === 'true'
+      && settings.get('yandex_mail_workspace_enabled') === '1',
     iCloudWorkspaceEnabled: settings.get('icloud_workspace_enabled') !== '0',
     linuxDoMailWorkspaceEnabled: settings.get('linuxdo_mail_workspace_enabled') !== '0',
     registrationEnabled,

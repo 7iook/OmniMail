@@ -15,6 +15,8 @@ export interface AppConfig {
   qqMailWorkspaceEnabled: boolean
   naverMailEnabled: boolean
   naverMailWorkspaceEnabled: boolean
+  yandexMailEnabled: boolean
+  yandexMailWorkspaceEnabled: boolean
   registrationEnabled: boolean
   registrationAvailable: boolean
   registrationMethod: RegistrationMethod

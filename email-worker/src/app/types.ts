@@ -46,6 +46,12 @@ export interface NaverMailSyncJob {
   reason: 'connect' | 'manual' | 'scheduled'
 }
 
+export interface YandexMailSyncJob {
+  kind: 'yandex-mail-sync'
+  accountId: string
+  reason: 'connect' | 'manual' | 'scheduled'
+}
+
 export type MailQueueJob =
   | ParseJob
   | OutboundJob
@@ -54,6 +60,7 @@ export type MailQueueJob =
   | MicrosoftSyncJob
   | QqMailSyncJob
   | NaverMailSyncJob
+  | YandexMailSyncJob
 
 export interface BackupWorkflowParams {
   trigger?: 'scheduled' | 'manual' | 'enable'
@@ -101,6 +108,8 @@ export interface Env {
   QQ_MAIL_IMAP_ENABLED?: string
   NAVER_MAIL_CREDENTIALS_KEY?: string
   NAVER_MAIL_IMAP_ENABLED?: string
+  YANDEX_MAIL_CREDENTIALS_KEY?: string
+  YANDEX_MAIL_IMAP_ENABLED?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   LINUX_DO_CLIENT_ID?: string

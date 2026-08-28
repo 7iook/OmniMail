@@ -29,6 +29,7 @@ function environment(): Env {
     ICLOUD_CREDENTIALS_KEY: 'icloud-do-not-return-this-secret'.repeat(2),
     GMAIL_CREDENTIALS_KEY: 'gmail-do-not-return-this-secret'.repeat(2),
     MICROSOFT_CREDENTIALS_KEY: 'microsoft-do-not-return-this-secret'.repeat(2),
+    YANDEX_MAIL_CREDENTIALS_KEY: 'yandex-do-not-return-this-secret'.repeat(2),
     RESEND_DOMAIN_CONFIGS: JSON.stringify({
       'example.com': { apiKey: 're_do-not-return' },
     }),
@@ -67,6 +68,8 @@ describe('deployment check', () => {
     expect(result.checks.find((item) => item.id === 'gmail-key'))
       .toMatchObject({ state: 'ready' })
     expect(result.checks.find((item) => item.id === 'microsoft-key'))
+      .toMatchObject({ state: 'ready' })
+    expect(result.checks.find((item) => item.id === 'yandex-mail-key'))
       .toMatchObject({ state: 'ready' })
   })
 

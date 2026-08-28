@@ -104,6 +104,7 @@ const FINAL_MIGRATIONS = [
   '0030_qq_mail_smtp.sql',
   '0031_qq_mail_identities.sql',
   '0033_naver_mail_imap.sql',
+  '0034_yandex_mail_imap.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -116,36 +117,47 @@ describe('D1 migration check', () => {
     const checkedMigrations = fixture.prepare.mock.results
       .map(({ value }) => (value as MockStatement).bindings[0])
       .filter(Boolean)
-    expect(checkedMigrations).toEqual(['0033_naver_mail_imap.sql'])
+    expect(checkedMigrations).toEqual(['0034_yandex_mail_imap.sql'])
   })
 
-  it('recovers from 0031 directly to NAVER 0033 with 0032 reserved', async () => {
+  it('applies Yandex 0034 to an existing NAVER installation', async () => {
     const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -1) })
 
     await ensureSchema(fixture.db)
 
     expect(fixture.batch).toHaveBeenCalledOnce()
-    expect(fixture.applied.has('0032_netease_mail.sql')).toBe(false)
-    expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+    expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
   })
 
-  it('applies NAVER 0033 when a test database already recorded NetEase 0032', async () => {
+  it('recovers from 0031 through NAVER 0033 and Yandex 0034 with 0032 reserved', async () => {
+    const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -2) })
+
+    await ensureSchema(fixture.db)
+
+    expect(fixture.batch).toHaveBeenCalledTimes(2)
+    expect(fixture.applied.has('0032_netease_mail.sql')).toBe(false)
+    expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+    expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
+  })
+
+  it('applies NAVER and Yandex when a test database already recorded NetEase 0032', async () => {
     const fixture = database({
-      applied: [...FINAL_MIGRATIONS.slice(0, -1), '0032_netease_mail.sql'],
+      applied: [...FINAL_MIGRATIONS.slice(0, -2), '0032_netease_mail.sql'],
     })
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.batch).toHaveBeenCalledOnce()
+    expect(fixture.batch).toHaveBeenCalledTimes(2)
     expect(fixture.applied.has('0032_netease_mail.sql')).toBe(true)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+    expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 19],
-    ['2026-08-01-p2-translation-permissions', 16, 17],
-    ['2026-08-03-p3-multiple-drafts', 17, 16],
-  ])('recovers legacy schema %s through migration 0033', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 20],
+    ['2026-08-01-p2-translation-permissions', 16, 18],
+    ['2026-08-03-p3-multiple-drafts', 17, 17],
+  ])('recovers legacy schema %s through migration 0034', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -155,7 +167,7 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(32)
+    expect(fixture.applied.size).toBe(33)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
     expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
     expect(fixture.applied.has('0022_consistency_guards.sql')).toBe(true)
@@ -169,6 +181,7 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0030_qq_mail_smtp.sql')).toBe(true)
     expect(fixture.applied.has('0031_qq_mail_identities.sql')).toBe(true)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+    expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
@@ -190,6 +203,9 @@ describe('D1 migration check', () => {
     expect(fixture.prepare.mock.calls.some(([sql]) => (
       String(sql).includes('CREATE TABLE IF NOT EXISTS naver_mail_accounts')
     ))).toBe(true)
+    expect(fixture.prepare.mock.calls.some(([sql]) => (
+      String(sql).includes('CREATE TABLE IF NOT EXISTS yandex_mail_accounts')
+    ))).toBe(true)
   })
 
   it('repairs migration records left empty by an earlier failed Wrangler run', async () => {
@@ -200,7 +216,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(32)
+    expect(fixture.applied.size).toBe(33)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -235,7 +251,7 @@ describe('D1 migration check', () => {
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0033_naver_mail_imap.sql',
+      concurrentMigration: '0034_yandex_mail_imap.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
@@ -248,7 +264,7 @@ describe('D1 migration check', () => {
       failBatchOnce: true,
     })
 
-    await expect(ensureSchema(fixture.db)).rejects.toThrow('0033_naver_mail_imap.sql')
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0034_yandex_mail_imap.sql')
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledTimes(2)
   })

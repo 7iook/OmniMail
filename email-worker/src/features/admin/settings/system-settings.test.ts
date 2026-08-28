@@ -72,6 +72,7 @@ describe('mail workspace entry settings', () => {
           microsoftWorkspaceEnabled: false,
           qqMailWorkspaceEnabled: false,
           naverMailWorkspaceEnabled: false,
+          yandexMailWorkspaceEnabled: false,
         }),
       }),
       '127.0.0.1',
@@ -105,6 +106,7 @@ describe('mail workspace entry settings', () => {
           microsoftWorkspaceEnabled: true,
           qqMailWorkspaceEnabled: true,
           naverMailWorkspaceEnabled: true,
+          yandexMailWorkspaceEnabled: true,
         }),
       }),
       '127.0.0.1',
@@ -118,6 +120,7 @@ describe('mail workspace entry settings', () => {
       microsoftWorkspaceEnabled: true,
       qqMailWorkspaceEnabled: true,
       naverMailWorkspaceEnabled: true,
+      yandexMailWorkspaceEnabled: true,
     })
     expect(db.batch).toHaveBeenCalledOnce()
     expect(statements.some(({ bindings }) => (
@@ -137,6 +140,9 @@ describe('mail workspace entry settings', () => {
     ))).toBe(true)
     expect(statements.some(({ bindings }) => (
       bindings[0] === 'naver_mail_workspace_enabled' && bindings[1] === '1'
+    ))).toBe(true)
+    expect(statements.some(({ bindings }) => (
+      bindings[0] === 'yandex_mail_workspace_enabled' && bindings[1] === '1'
     ))).toBe(true)
   })
 })

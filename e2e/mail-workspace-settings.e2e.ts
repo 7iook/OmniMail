@@ -12,6 +12,8 @@ async function mockWorkspaceSettings(page: Page) {
     gmailWorkspaceEnabled: true,
     microsoftWorkspaceEnabled: true,
     qqMailWorkspaceEnabled: true,
+    naverMailWorkspaceEnabled: true,
+    yandexMailWorkspaceEnabled: true,
   }
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
@@ -62,11 +64,13 @@ test('system settings control optional mailbox workspace entries', async ({ page
   const linuxDoSwitch = settings.getByRole('checkbox', { name: 'Linux DO 邮箱入口' })
   const microsoftSwitch = settings.getByRole('checkbox', { name: 'Microsoft 邮箱入口' })
   const qqMailSwitch = settings.getByRole('checkbox', { name: 'QQ 邮箱入口' })
+  const yandexMailSwitch = settings.getByRole('checkbox', { name: 'Yandex 邮箱入口' })
 
   await expect(iCloudSwitch).toBeChecked()
   await expect(linuxDoSwitch).toBeChecked()
   await expect(microsoftSwitch).toBeChecked()
   await expect(qqMailSwitch).toBeChecked()
+  await expect(yandexMailSwitch).toBeChecked()
   await iCloudSwitch.uncheck()
   await expect.poll(() => state.iCloudWorkspaceEnabled).toBe(false)
   await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toHaveCount(0)
@@ -79,6 +83,9 @@ test('system settings control optional mailbox workspace entries', async ({ page
   await qqMailSwitch.uncheck()
   await expect.poll(() => state.qqMailWorkspaceEnabled).toBe(false)
   await expect(page.getByRole('button', { name: 'QQ 邮箱' })).toHaveCount(0)
+  await yandexMailSwitch.uncheck()
+  await expect.poll(() => state.yandexMailWorkspaceEnabled).toBe(false)
+  await expect(page.getByRole('button', { name: 'Yandex 邮箱' })).toHaveCount(0)
 
   await page.goto('/settings/account')
   await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toHaveCount(0)
@@ -90,14 +97,18 @@ test('system settings control optional mailbox workspace entries', async ({ page
   await expect(page).toHaveURL(/\/mail\/inbox$/)
   await page.goto('/qq-mail')
   await expect(page).toHaveURL(/\/mail\/inbox$/)
+  await page.goto('/yandex-mail')
+  await expect(page).toHaveURL(/\/mail\/inbox$/)
 
   await page.goto('/admin/settings')
   await settings.getByRole('checkbox', { name: 'iCloud 隐藏邮箱入口' }).check()
   await settings.getByRole('checkbox', { name: 'Linux DO 邮箱入口' }).check()
   await settings.getByRole('checkbox', { name: 'Microsoft 邮箱入口' }).check()
   await settings.getByRole('checkbox', { name: 'QQ 邮箱入口' }).check()
+  await settings.getByRole('checkbox', { name: 'Yandex 邮箱入口' }).check()
   await expect(page.getByRole('button', { name: 'iCloud 邮箱' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Linux DO 邮箱' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Microsoft 邮箱' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'QQ 邮箱' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Yandex 邮箱' })).toBeVisible()
 })

@@ -38,4 +38,22 @@ describe('remote D1 migration planning', () => {
       new Set(['0031_qq_mail_identities.sql', '0033_naver_mail_imap.sql']),
     )).toEqual([])
   })
+
+  it('applies Yandex 0034 after NAVER without reusing the reserved number', () => {
+    expect(pendingMigrationNames(
+      ['0031_qq_mail_identities.sql', '0033_naver_mail_imap.sql', '0034_yandex_mail_imap.sql'],
+      new Set(['0031_qq_mail_identities.sql', '0033_naver_mail_imap.sql']),
+    )).toEqual(['0034_yandex_mail_imap.sql'])
+  })
+
+  it('keeps repeat Yandex deployments idempotent', () => {
+    expect(pendingMigrationNames(
+      ['0031_qq_mail_identities.sql', '0033_naver_mail_imap.sql', '0034_yandex_mail_imap.sql'],
+      new Set([
+        '0031_qq_mail_identities.sql',
+        '0033_naver_mail_imap.sql',
+        '0034_yandex_mail_imap.sql',
+      ]),
+    )).toEqual([])
+  })
 })

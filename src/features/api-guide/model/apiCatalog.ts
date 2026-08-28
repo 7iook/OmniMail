@@ -4,6 +4,7 @@ import { mailboxEndpoints, messageEndpoints, draftEndpoints } from './apiCatalog
 import { microsoftEndpoints } from './apiCatalogMicrosoft'
 import { qqMailEndpoints } from './apiCatalogQqMail'
 import { naverMailEndpoints } from './apiCatalogNaverMail'
+import { yandexMailEndpoints } from './apiCatalogYandexMail'
 import { systemEndpoints, authEndpoints } from './apiCatalogPublic'
 import { localized, type ApiAuth, type ApiEndpoint, type ApiGroupId } from './apiCatalogTypes'
 
@@ -34,6 +35,8 @@ export const apiGroups: Array<{
     description: localized('授权码认证、有限 INBOX 索引、按需正文、精确已读与受控 SMTP 发信。', 'Authorization-code authentication, bounded INBOX indexing, on-demand bodies, exact Seen writes, and controlled SMTP sending.') },
   { id: 'naverMail', title: localized('NAVER 邮箱', 'NAVER Mail'),
     description: localized('应用专用密码认证、有限 INBOX 索引、按需正文、附件与精确已读。', 'App-specific-password authentication, bounded INBOX indexing, on-demand bodies, attachments, and exact Seen writes.') },
+  { id: 'yandexMail', title: localized('Yandex 邮箱', 'Yandex Mail'),
+    description: localized('Mail 应用密码认证、有限 INBOX 索引、按需正文、附件与精确已读。', 'Mail app-password authentication, bounded INBOX indexing, on-demand bodies, attachments, and exact Seen writes.') },
   { id: 'linuxdoMail', title: localized('Linux DO 邮箱', 'Linux DO Mail'),
     description: localized('加密连接 Linux DO Mail，按需读取 INBOX 并通过官方 SMTP 发件。', 'Connect Linux DO Mail with encrypted credentials, read INBOX on demand, and send through official SMTP.') },
   { id: 'adminOperations', title: localized('管理员：运营与邮件', 'Admin: operations and mail'),
@@ -55,6 +58,7 @@ export const apiEndpoints: ApiEndpoint[] = [
   ...microsoftEndpoints,
   ...qqMailEndpoints,
   ...naverMailEndpoints,
+  ...yandexMailEndpoints,
   ...linuxDoMailEndpoints,
   ...adminOperationEndpoints,
   ...adminAccessEndpoints,

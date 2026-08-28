@@ -8,6 +8,7 @@ import { gmailCredentialsReady } from '../gmail/gmail-credentials'
 import { microsoftCredentialsReady } from '../microsoft/microsoft-credentials'
 import { qqMailCredentialsReady } from '../qq-mail/qq-mail-credentials'
 import { naverMailCredentialsReady } from '../naver-mail/naver-mail-credentials'
+import { yandexMailCredentialsReady } from '../yandex-mail/yandex-mail-credentials'
 import type { Env, SessionUser } from '../../app/types'
 
 export type DeploymentCheckState = 'ready' | 'missing' | 'warning' | 'manual'
@@ -209,6 +210,12 @@ export async function deploymentCheck(env: Env, user: SessionUser): Promise<Resp
       ready: naverMailCredentialsReady(env), required: false, missingState: 'warning',
       detail: 'NAVER_MAIL_CREDENTIALS_KEY 仅用于加密 NAVER 应用专用密码。',
       action: '需要 NAVER 聚合收件箱时，配置至少 32 字节的 NAVER_MAIL_CREDENTIALS_KEY Secret。',
+    }),
+    check({
+      id: 'yandex-mail-key', group: 'security', label: 'Yandex 邮箱凭据加密密钥',
+      ready: yandexMailCredentialsReady(env), required: false, missingState: 'warning',
+      detail: 'YANDEX_MAIL_CREDENTIALS_KEY 仅用于加密 Yandex Mail 应用专用密码。',
+      action: '需要 Yandex 聚合收件箱时，配置至少 32 字节的 YANDEX_MAIL_CREDENTIALS_KEY Secret。',
     }),
     check({
       id: 'domains', group: 'mail', label: '收件域名', ready: database.domains > 0,
