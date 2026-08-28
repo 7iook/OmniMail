@@ -4,6 +4,7 @@ import {
   enqueueDueNaverMailSyncs,
   missingNaverMailUids,
   naverMailSyncErrorCode,
+  selectNaverMailFetchUids,
 } from './naver-mail-sync'
 import type { NaverMailMessageMetadata } from './naver-mail-types'
 import type { Env, MailQueueJob } from '../../app/types'
@@ -22,6 +23,16 @@ describe('NAVER Mail synchronization policy', () => {
     expect(naverMailSyncErrorCode(new ImapConnectionError(504, 'timeout'))).toBe('timeout')
     expect(naverMailSyncErrorCode(new ImapConnectionError(502, '响应超过读取上限')))
       .toBe('response_too_large')
+  })
+
+  it('fetches at most 20 recent and 20 newly discovered messages per run', () => {
+    const recent = Array.from({ length: 30 }, (_, index) => 30 - index)
+    const discovered = Array.from({ length: 30 }, (_, index) => 101 + index)
+
+    expect(selectNaverMailFetchUids(recent, discovered)).toEqual([
+      ...Array.from({ length: 20 }, (_, index) => 11 + index),
+      ...Array.from({ length: 20 }, (_, index) => 101 + index),
+    ])
   })
 
   it('schedules due accounts at a 15-minute interval', async () => {
@@ -49,8 +60,10 @@ describe('NAVER Mail synchronization policy', () => {
     expect(jobs).toEqual([{
       kind: 'naver-mail-sync', accountId: 'naver-account-1', reason: 'scheduled',
     }])
+    expect(statements[0].sql).toContain("OR status = 'syncing'")
+    expect(statements[1].sql).toContain("THEN 'stale_lease'")
     expect(statements.some(({ sql, bindings }) => (
-      sql.includes('UPDATE naver_mail_accounts SET next_sync_at')
+      sql.includes('UPDATE naver_mail_accounts')
       && bindings[0] === 1_900
     ))).toBe(true)
   })

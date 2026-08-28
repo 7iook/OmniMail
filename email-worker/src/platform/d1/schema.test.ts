@@ -119,6 +119,28 @@ describe('D1 migration check', () => {
     expect(checkedMigrations).toEqual(['0033_naver_mail_imap.sql'])
   })
 
+  it('recovers from 0031 directly to NAVER 0033 with 0032 reserved', async () => {
+    const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -1) })
+
+    await ensureSchema(fixture.db)
+
+    expect(fixture.batch).toHaveBeenCalledOnce()
+    expect(fixture.applied.has('0032_netease_mail.sql')).toBe(false)
+    expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+  })
+
+  it('applies NAVER 0033 when a test database already recorded NetEase 0032', async () => {
+    const fixture = database({
+      applied: [...FINAL_MIGRATIONS.slice(0, -1), '0032_netease_mail.sql'],
+    })
+
+    await ensureSchema(fixture.db)
+
+    expect(fixture.batch).toHaveBeenCalledOnce()
+    expect(fixture.applied.has('0032_netease_mail.sql')).toBe(true)
+    expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
+  })
+
   it.each([
     ['2026-07-29-p5-outbound-rate-limit-admin', 14, 19],
     ['2026-08-01-p2-translation-permissions', 16, 17],

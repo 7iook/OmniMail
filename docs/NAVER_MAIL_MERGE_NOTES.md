@@ -47,6 +47,7 @@ Cloudflare D1 schema 前必须先阅读本文件。
   - `0031 → 0033`；
   - 已有 `0032_netease_mail.sql → 0033`；
   - 已有 `0033` 时重复部署保持幂等。
+- 验证 NAVER 同步单轮边界和过期租约恢复，避免重复引入 QQ/Gmail 已修复的大邮箱同步问题。
 - 运行 Web/Node 全量测试、Worker 测试、TypeScript/Oxlint 和生产构建。
 - 检查主线差异不包含网易邮箱路由、前端入口、Worker 调度或 `0032_netease_mail.sql`。
 - 部署前确认 `NAVER_MAIL_CREDENTIALS_KEY`、环境开关和管理员入口开关符合发布策略。

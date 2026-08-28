@@ -4,3 +4,7 @@ export function needsLegacyBootstrap(appliedMigrations) {
   return appliedMigrations === null
     || !appliedMigrations.has(LEGACY_RECOVERY_BOUNDARY)
 }
+
+export function pendingMigrationNames(availableMigrations, appliedMigrations) {
+  return availableMigrations.filter((name) => !appliedMigrations.has(name))
+}

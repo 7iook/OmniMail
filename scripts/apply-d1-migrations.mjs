@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { needsLegacyBootstrap } from './migration-plan.mjs'
+import { needsLegacyBootstrap, pendingMigrationNames } from './migration-plan.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const wranglerCli = join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
@@ -90,7 +90,7 @@ if (mode === '--local') {
     ])
     applied = appliedMigrationNames()
   }
-  const pending = migrationNames().filter((name) => !applied.has(name))
+  const pending = pendingMigrationNames(migrationNames(), applied)
   if (pending.length === 0) {
     console.log('✅ No migrations to apply!')
   } else {

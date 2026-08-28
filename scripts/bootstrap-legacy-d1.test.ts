@@ -68,7 +68,7 @@ describe('legacy D1 deployment bootstrap', () => {
     [14, '2026-07-29-p5-outbound-rate-limit-admin'],
     [16, '2026-08-01-p2-translation-permissions'],
     [17, '2026-08-03-p3-multiple-drafts'],
-  ])('baselines legacy migration %i and applies through 0032', (position, version) => {
+  ])('baselines legacy migration %i and applies through 0033', (position, version) => {
     const db = legacyDatabase(position, version)
     db.exec(bootstrap)
 

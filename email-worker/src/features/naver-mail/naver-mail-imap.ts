@@ -11,7 +11,7 @@ const METADATA_BATCH_SIZE = 20
 const SEARCH_RANGE_SIZE = 500
 const INITIAL_SEARCH_ROUNDS = 20
 const INCREMENTAL_SEARCH_ROUNDS = 10
-const INCREMENTAL_MESSAGE_LIMIT = 500
+const INCREMENTAL_MESSAGE_LIMIT = 20
 // NAVER can return 0; map it outside the RFC 32-bit range to preserve reset detection.
 const ZERO_UID_VALIDITY_SENTINEL = 2 ** 32
 
