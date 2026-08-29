@@ -4,6 +4,7 @@ import {
   discoverMailSources,
   getIndexedSourceMessage,
   INDEXED_SOURCE_SCOPES,
+  LINUX_DO_SOURCE_SCOPES,
   listIndexedSourceMessages,
 } from './mail-source-background'
 
@@ -92,5 +93,39 @@ describe('Float mail source background adapters', () => {
       '/api/gmail/messages?limit=30&accountId=gmail-1&q=code',
       '/api/gmail/accounts/gmail-1/messages/message-1',
     ])
+  })
+
+  it('discovers and reads Linux DO through its dedicated live adapter', async () => {
+    const account = {
+      id: 'linuxdo-1', username: 'owner@linux.do', status: 'active',
+      lastValidated: '', lastError: '', createdAt: '', hasPassword: true,
+    }
+    const message = {
+      id: '42', from: 'Sender <sender@example.net>', to: 'owner@linux.do',
+      subject: 'Code', date: new Date(123).toISOString(), preview: '246810',
+      body: '246810', html: '<p>246810</p>', isRead: false,
+    }
+    const request = vi.fn(async (path: string) => {
+      if (path === '/api/linux-do-mail/account') return { enabled: true, account }
+      if (path === '/api/linux-do-mail/inbox?q=code') return { messages: [message] }
+      if (path === '/api/linux-do-mail/sent/sent-1') {
+        return { message: { ...message, id: 'sent-1', direction: 'outgoing' } }
+      }
+      throw new Error(`unexpected path ${path}`)
+    })
+    const discovered = await discoverMailSources(request, config({
+      gmailEnabled: false, microsoftEnabled: false, qqMailEnabled: false,
+      naverMailEnabled: false, yandexMailEnabled: false,
+      linuxDoMailWorkspaceEnabled: true,
+    }), [...LINUX_DO_SOURCE_SCOPES])
+    expect(discovered.sources.map(({ id }) => id)).toEqual(['omnimail', 'linuxdo'])
+    const listed = await listIndexedSourceMessages(request, {
+      source: 'linuxdo', query: 'code', folder: 'inbox',
+    })
+    expect(listed.messages[0]).toMatchObject({ id: '42', accountEmail: 'owner@linux.do' })
+    const detail = await getIndexedSourceMessage(request, {
+      source: 'linuxdo', accountId: 'linuxdo-1', id: 'sent-1', folder: 'sent',
+    })
+    expect(detail.message).toMatchObject({ id: 'sent-1', body: '246810' })
   })
 })

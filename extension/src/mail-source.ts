@@ -1,4 +1,4 @@
-export const INDEXED_SOURCE_IDS = ['gmail', 'microsoft', 'qq', 'naver', 'yandex'] as const
+export const INDEXED_SOURCE_IDS = ['gmail', 'microsoft', 'qq', 'naver', 'yandex', 'linuxdo'] as const
 
 export type IndexedMailSourceId = typeof INDEXED_SOURCE_IDS[number]
 export type MailSourceId = 'omnimail' | 'icloud' | IndexedMailSourceId
@@ -46,8 +46,8 @@ export interface IndexedSourceAdapter {
   label: string
   accountsPath: string
   webPath: string
-  messagesPath(input: { accountId?: string; query?: string }): string
-  messagePath(accountId: string, messageId: string): string
+  messagesPath(input: { accountId?: string; query?: string; folder?: 'inbox' | 'sent' }): string
+  messagePath(accountId: string, messageId: string, folder?: 'inbox' | 'sent'): string
 }
 
 function adapter(id: IndexedMailSourceId, label: string, apiRoot: string): IndexedSourceAdapter {
@@ -69,12 +69,31 @@ function adapter(id: IndexedMailSourceId, label: string, apiRoot: string): Index
   }
 }
 
+function linuxDoAdapter(): IndexedSourceAdapter {
+  return {
+    id: 'linuxdo',
+    label: 'Linux DO Mail',
+    accountsPath: '/api/linux-do-mail/account',
+    webPath: '/linuxdo-mail',
+    messagesPath: ({ query, folder = 'inbox' }) => {
+      const value = query?.trim()
+      return value
+        ? `/api/linux-do-mail/${folder}?q=${encodeURIComponent(value)}`
+        : `/api/linux-do-mail/${folder}`
+    },
+    messagePath: (_accountId, messageId, folder = 'inbox') => (
+      `/api/linux-do-mail/${folder}/${encodeURIComponent(messageId)}`
+    ),
+  }
+}
+
 const INDEXED_SOURCE_ADAPTERS: Record<IndexedMailSourceId, IndexedSourceAdapter> = {
   gmail: adapter('gmail', 'Gmail', 'gmail'),
   microsoft: adapter('microsoft', 'Microsoft', 'microsoft'),
   qq: adapter('qq', 'QQ 邮箱', 'qq-mail'),
   naver: adapter('naver', 'NAVER', 'naver-mail'),
   yandex: adapter('yandex', 'Yandex', 'yandex-mail'),
+  linuxdo: linuxDoAdapter(),
 }
 
 export function getIndexedSourceAdapter(value: string): IndexedSourceAdapter | null {
@@ -86,7 +105,8 @@ export function getIndexedSourceAdapter(value: string): IndexedSourceAdapter | n
 interface AccountInput {
   id: string
   name: string
-  email: string
+  email?: string
+  username?: string
   status: string
 }
 
@@ -98,7 +118,7 @@ export function normalizeIndexedAccounts(
   return accounts.map((account) => ({
     id: account.id,
     name: account.name,
-    email: account.email,
+    email: account.email || account.username || '',
     status: account.status === 'syncing'
       ? 'syncing'
       : account.status === 'active' ? 'active' : 'error',

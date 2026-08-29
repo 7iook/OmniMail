@@ -39,6 +39,7 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
   const [accountId, setAccountId] = useState('')
   const [query, setQuery] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [folder, setFolder] = useState<'inbox' | 'sent'>('inbox')
   const [messages, setMessages] = useState<IndexedMessageSummary[]>([])
   const [selected, setSelected] = useState<IndexedMessageDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,7 +47,10 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
   const attention = descriptor.accounts.filter((account) => account.needsAttention)
-  const inboxTitle = descriptor.label.endsWith('邮箱')
+  const folderLabel = folder === 'sent' ? '已发送' : '收件箱'
+  const inboxTitle = source === 'linuxdo'
+    ? `${descriptor.label} ${folderLabel}`
+    : descriptor.label.endsWith('邮箱')
     ? `${descriptor.label}收件箱`
     : `${descriptor.label} 收件箱`
 
@@ -58,6 +62,7 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
       const result = await sendExtensionMessage<IndexedInboxResult>({
         type: 'api:indexed-source-messages', source,
         accountId: accountId || undefined, query: searchQuery || undefined,
+        folder: source === 'linuxdo' ? folder : undefined,
       })
       if (current !== listRequestId.current) return
       setMessages(result.messages)
@@ -71,7 +76,7 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
         setRefreshing(false)
       }
     }
-  }, [accountId, searchQuery, source])
+  }, [accountId, folder, searchQuery, source])
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchQuery(query.trim()), 300)
@@ -91,6 +96,7 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
       const result = await sendExtensionMessage<{ message: IndexedMessageDetail }>({
         type: 'api:indexed-source-message', source,
         accountId: message.accountId, id: message.id,
+        folder: source === 'linuxdo' ? folder : undefined,
       })
       if (current !== detailRequestId.current) return
       setSelected(result.message)
@@ -134,12 +140,16 @@ export function PanelIndexedInbox({ source, descriptor, onOpenWeb }: {
         </button>
       </header>
       <div className="indexed-inbox-filters">
-        <PanelSelect id={`${source}-account`} ariaLabel={`${descriptor.label} 账号`}
-          value={accountId} options={[{ label: '全部账号', value: '' },
-            ...descriptor.accounts.map((account) => ({
-              label: `${account.name} · ${account.email}${account.needsAttention ? ' · 需要修复' : ''}`,
-              value: account.id,
-            }))]} onChange={setAccountId} />
+        {source === 'linuxdo' ? <PanelSelect id="linuxdo-folder" ariaLabel="Linux DO Mail 文件夹"
+          value={folder} options={[{ label: '收件箱', value: 'inbox' }, { label: '已发送', value: 'sent' }]}
+          onChange={(value) => setFolder(value as 'inbox' | 'sent')} /> : (
+          <PanelSelect id={`${source}-account`} ariaLabel={`${descriptor.label} 账号`}
+            value={accountId} options={[{ label: '全部账号', value: '' },
+              ...descriptor.accounts.map((account) => ({
+                label: `${account.name} · ${account.email}${account.needsAttention ? ' · 需要修复' : ''}`,
+                value: account.id,
+              }))]} onChange={setAccountId} />
+        )}
         <label className="indexed-search-field" htmlFor={`${source}-search`}>
           <Search size={14} aria-hidden="true" /><span className="sr-only">搜索邮件</span>
           <input id={`${source}-search`} type="search" value={query}

@@ -14,8 +14,8 @@ by the selected instance is also governed by that instance operator's policy.
 - 用户提供的 OmniMail 站点地址。
 - 获得用户明确授权后，由该实例返回的账户标识、显示名称、邮箱地址、邮件摘要、用户
   主动查看的邮件正文，已连接 iCloud 账号的公开名称、邮箱、状态、隐藏地址和邮件，
-  以及已连接 Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱的账号名称、邮箱、状态、
-  邮件摘要和主动查看的正文。
+  以及已连接 Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱的账号名称、
+  邮箱、状态、邮件摘要和主动查看的正文。
 - 短期访问令牌与可撤销的刷新令牌。密码、MFA 密钥、OmniMail 网页 Cookie，以及
   iCloud Cookie、应用专用密码和 QQ 授权码不会提供给扩展。
 - 本地功能设置，例如主题偏好、悬浮入口开关、面板位置、上次选择的邮箱和用于判断新
@@ -30,7 +30,7 @@ by the selected instance is also governed by that instance operator's policy.
   the public names, email addresses, status, Hide My Email addresses, and mail
   of connected iCloud accounts, plus the account names, email addresses,
   status, message summaries, and user-opened message bodies of connected Gmail,
-  Microsoft, QQ, NAVER, and Yandex Mail accounts, as returned by that instance.
+  Linux DO, Microsoft, QQ, NAVER, and Yandex Mail accounts, as returned by that instance.
 - Short-lived access tokens and revocable refresh tokens. Passwords, MFA
   secrets, OmniMail website cookies, iCloud cookies, app-specific passwords,
   and QQ authorization codes are not provided to the extension.
@@ -46,12 +46,12 @@ by the selected instance is also governed by that instance operator's policy.
 ## 使用目的 / How data is used
 
 这些数据只用于连接用户选择的 OmniMail 实例、创建和填入普通或 iCloud 隐藏邮箱地址、
-显示 OmniMail、iCloud、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱和邮件，以及提醒
-新邮件。数据不会用于广告、用户画像、信用评估或与扩展功能无关的分析。
+显示 OmniMail、iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱和邮件，
+以及提醒新邮件。数据不会用于广告、用户画像、信用评估或与扩展功能无关的分析。
 
 The data is used only to connect to the user's selected OmniMail instance,
 create and fill regular or iCloud Hide My Email addresses, display OmniMail,
-iCloud, Gmail, Microsoft, QQ, NAVER, and Yandex Mail accounts and messages,
+iCloud, Linux DO, Gmail, Microsoft, QQ, NAVER, and Yandex Mail accounts and messages,
 and notify the user of new mail. It is not used for advertising, profiling,
 credit assessment, or analytics unrelated to the extension's functionality.
 

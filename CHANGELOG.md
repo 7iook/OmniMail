@@ -5,6 +5,22 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [0.10.2] - 2026-08-29
+
+### 新增
+
+- OmniMail Float 设备令牌新增 Linux DO Mail 的最小只读 Scope，可读取当前用户已连接
+  账号、INBOX/已发送列表和主动打开的正文。
+- Float 完成 OmniMail、iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER、Yandex 八类
+  Web 邮箱来源的发现与读取基线。
+
+### 安全与升级说明
+
+- Linux DO 连接、凭据更新、验证、发信及其他写操作不向 Float 开放；第三方凭据仍只在
+  Web 端处理。
+- 无需 D1 迁移、新增变量、Secret 或资源绑定；旧 Float `0.4.1` 会话需明确升级授权
+  后才读取 Linux DO。
+
 ## [0.10.1] - 2026-08-29
 
 ### 新增

@@ -62,8 +62,8 @@ export type ExtensionRequest =
   | { type: 'api:icloud-inbox'; accountId: string; alias?: string }
   | { type: 'api:icloud-message'; accountId: string; id: string }
   | { type: 'api:mail-sources' }
-  | { type: 'api:indexed-source-messages'; source: IndexedMailSourceId; accountId?: string; query?: string }
-  | { type: 'api:indexed-source-message'; source: IndexedMailSourceId; accountId: string; id: string }
+  | { type: 'api:indexed-source-messages'; source: IndexedMailSourceId; accountId?: string; query?: string; folder?: 'inbox' | 'sent' }
+  | { type: 'api:indexed-source-message'; source: IndexedMailSourceId; accountId: string; id: string; folder?: 'inbox' | 'sent' }
   | { type: 'page:fill-email'; email: string }
   | { type: 'settings:set-floating'; enabled: boolean }
   | { type: 'settings:set-theme'; theme: ThemePreference }

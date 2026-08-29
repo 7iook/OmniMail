@@ -63,8 +63,8 @@ export const enSecurity: Record<string, string> = {
   '读取收件箱': 'Read inbox',
   '查看邮箱列表、邮件摘要和邮件正文': 'View mailbox lists, message summaries, and message bodies',
   '已连接的第三方邮箱': 'Connected third-party mail accounts',
-  '读取 Gmail、Microsoft、QQ、NAVER、Yandex 账号和邮件':
-    'Read connected Gmail, Microsoft, QQ, NAVER, and Yandex accounts and mail',
+  '读取 Linux DO、Gmail、Microsoft、QQ、NAVER、Yandex 账号和邮件':
+    'Read connected Linux DO, Gmail, Microsoft, QQ, NAVER, and Yandex accounts and mail',
   '新邮件通知': 'New mail notifications',
   '扩展在后台检查并提醒新邮件': 'Let the extension check for and notify you about new mail',
   '换一个账户': 'Use another account',

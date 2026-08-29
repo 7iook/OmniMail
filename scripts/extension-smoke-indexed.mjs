@@ -11,6 +11,9 @@ const sources = [
   id: `${source.id}-account-1`, name: `Personal ${source.label}`,
   email: source.email, status: source.status,
 } }))
+const linuxDoAccount = {
+  id: 'linuxdo-account-1', username: 'owner@linux.do', status: 'active',
+}
 let indexedAccountRequests = 0
 
 function summary(source, account) {
@@ -32,6 +35,36 @@ function detail(source, account) {
 }
 
 export function handleIndexedRequest(url, response) {
+  if (url.pathname === '/api/linux-do-mail/account') {
+    indexedAccountRequests += 1
+    json(response, { enabled: true, account: linuxDoAccount })
+    return true
+  }
+  if (url.pathname === '/api/linux-do-mail/inbox' || url.pathname === '/api/linux-do-mail/sent') {
+    const sent = url.pathname.endsWith('/sent')
+    json(response, { messages: [{
+      id: sent ? 'linuxdo-sent-1' : '42',
+      from: sent ? linuxDoAccount.username : 'Linux DO Test <sender@example.net>',
+      to: sent ? 'recipient@example.net' : linuxDoAccount.username,
+      subject: `Linux DO ${sent ? 'sent' : 'inbox'} verification code`,
+      date: new Date().toISOString(), preview: 'Code 246810', body: '', html: '',
+      isRead: sent, direction: sent ? 'outgoing' : 'incoming',
+    }] })
+    return true
+  }
+  if (/^\/api\/linux-do-mail\/(?:inbox|sent)\/(?:42|linuxdo-sent-1)$/.test(url.pathname)) {
+    const sent = url.pathname.includes('/sent/')
+    json(response, { message: {
+      id: sent ? 'linuxdo-sent-1' : '42',
+      from: sent ? linuxDoAccount.username : 'Linux DO Test <sender@example.net>',
+      to: sent ? 'recipient@example.net' : linuxDoAccount.username,
+      subject: `Linux DO ${sent ? 'sent' : 'inbox'} verification code`,
+      date: new Date().toISOString(), preview: 'Code 246810', body: 'Your code is 246810.',
+      html: '<p>Your Linux DO code is <strong>246810</strong>.</p>',
+      isRead: sent, direction: sent ? 'outgoing' : 'incoming',
+    } })
+    return true
+  }
   const fixture = sources.find(({ root }) => url.pathname.startsWith(`/api/${root}/`))
   if (!fixture) return false
   const { id: source, account } = fixture
@@ -75,10 +108,10 @@ export async function authorizeFromPanel(context, trigger) {
 export async function upgradeMailSourceAuthorization(context, frame) {
   const button = frame.getByRole('button', { name: '升级授权' })
   await button.waitFor()
-  assert.equal(indexedAccountRequests, 2)
+  assert.equal(indexedAccountRequests, 5)
   await authorizeFromPanel(context, button)
   await button.waitFor({ state: 'hidden' })
-  assert.equal(indexedAccountRequests, 7)
+  assert.equal(indexedAccountRequests, 11)
 }
 
 async function verifySource(frame, label, heading, code) {
@@ -96,11 +129,11 @@ export async function verifyIndexedSources(frame, page) {
   await frame.getByRole('listbox', { name: '邮箱来源' }).waitFor()
   await source.press('End')
   assert.match(
-    await frame.getByRole('option', { name: 'Yandex', exact: true }).getAttribute('class'),
+    await frame.getByRole('option', { name: 'Linux DO Mail', exact: true }).getAttribute('class'),
     /is-active/,
   )
   await source.press('Enter')
-  await frame.getByRole('heading', { name: 'Yandex 收件箱' }).waitFor()
+  await frame.getByRole('heading', { name: 'Linux DO Mail 收件箱' }).waitFor()
   await selectMailSource(frame, 'Gmail')
   await frame.getByRole('heading', { name: 'Gmail 收件箱' }).waitFor()
   await page.screenshot({ path: 'test-results/extension-gmail-inbox.png' })
@@ -125,6 +158,24 @@ export async function verifyMoreIndexedSources(frame) {
   await verifySource(frame, 'Microsoft', 'Microsoft 收件箱', 'MICROSOFT')
   await verifySource(frame, 'NAVER', 'NAVER 收件箱', 'NAVER')
   await verifySource(frame, 'Yandex', 'Yandex 收件箱', 'YANDEX')
+}
+
+export async function verifyLinuxDoSource(frame) {
+  await selectMailSource(frame, 'Linux DO Mail')
+  await frame.getByRole('heading', { name: 'Linux DO Mail 收件箱' }).waitFor()
+  await frame.getByText('Linux DO inbox verification code').click()
+  await frame.frameLocator('iframe[title="Linux DO Mail 邮件正文"]').getByText('246810').waitFor()
+  await frame.getByRole('button', { name: '返回 Linux DO Mail 收件箱' }).click()
+  const folder = frame.getByRole('combobox', { name: 'Linux DO Mail 文件夹' })
+  await folder.click()
+  await frame.getByRole('option', { name: '已发送' }).click()
+  await frame.getByRole('heading', { name: 'Linux DO Mail 已发送' }).waitFor()
+  await frame.getByText('Linux DO sent verification code').waitFor()
+}
+
+export async function verifyRemainingSources(frame) {
+  await verifyMoreIndexedSources(frame)
+  await verifyLinuxDoSource(frame)
 }
 
 export async function selectAndRememberSource(frame, serviceWorker) {

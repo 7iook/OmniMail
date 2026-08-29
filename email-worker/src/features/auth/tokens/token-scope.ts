@@ -36,6 +36,8 @@ export const EXTENSION_DEVICE_SCOPES = [
   'naver-mail:messages:read',
   'yandex-mail:accounts:read',
   'yandex-mail:messages:read',
+  'linuxdo-mail:account:read',
+  'linuxdo-mail:messages:read',
 ].join(' ')
 
 function hasScope(scopes: string, required: string): boolean {

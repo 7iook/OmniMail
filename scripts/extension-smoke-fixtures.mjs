@@ -28,10 +28,14 @@ export const float040Scopes = [
   'gmail:messages:read', 'qq-mail:accounts:read', 'qq-mail:messages:read',
 ]
 
-export const extensionScopes = [
+export const float041Scopes = [
   ...float040Scopes, 'microsoft:accounts:read', 'microsoft:messages:read',
   'naver-mail:accounts:read', 'naver-mail:messages:read',
   'yandex-mail:accounts:read', 'yandex-mail:messages:read',
+]
+
+export const extensionScopes = [
+  ...float041Scopes, 'linuxdo-mail:account:read', 'linuxdo-mail:messages:read',
 ]
 
 export const iCloudAccounts = [{

@@ -6,7 +6,7 @@
 
 ## 简短说明
 
-在任意网页生成和填入邮箱地址，并查看 OmniMail、iCloud 及已连接第三方邮箱的来信。
+在任意网页生成和填入邮箱地址，并查看 OmniMail、iCloud、Linux DO 及已连接第三方邮箱的来信。
 
 ## 详细说明
 
@@ -19,7 +19,7 @@ OmniMail Float 将用户指定的自托管 OmniMail 收件箱放进当前网页�
 - 在普通 HTTP/HTTPS 网页侧边显示可关闭、可停靠的悬浮邮箱面板。
 - 创建普通 OmniMail 邮箱，或使用和创建 iCloud Hide My Email 隐藏地址。
 - 复制地址，或在用户点击“填入网页”后写入当前页面的邮箱输入框。
-- 自动显示用户已在 Web 连接的 Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱，不在
+- 自动显示用户已在 Web 连接的 Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱，不在
   扩展中收集第三方凭据。
 - 在全部已连接来源之间切换，筛选账号、搜索邮件，并查看经过安全处理的正文。
 - 在后台检查 OmniMail 新邮件，并显示扩展徽标和浏览器通知。

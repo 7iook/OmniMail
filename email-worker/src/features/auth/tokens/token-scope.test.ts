@@ -158,6 +158,11 @@ describe('device token scopes', () => {
       '/api/yandex-mail/accounts',
       '/api/yandex-mail/messages?accountId=yandex-1',
       '/api/yandex-mail/accounts/yandex-1/messages/message-1',
+      '/api/linux-do-mail/account',
+      '/api/linux-do-mail/inbox?q=code',
+      '/api/linux-do-mail/inbox/42',
+      '/api/linux-do-mail/sent',
+      '/api/linux-do-mail/sent/message-1',
     ]
     for (const path of indexedReadPaths) {
       await expect(deviceScopesAllow(
@@ -173,9 +178,6 @@ describe('device token scopes', () => {
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/messages/message-1/raw'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/auth/devices'))).resolves.toBe(false)
-    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/account'))).resolves.toBe(false)
-    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/inbox'))).resolves.toBe(false)
-    await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/linux-do-mail/sent'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'PATCH'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/alias-1', 'DELETE'))).resolves.toBe(false)
     await expect(deviceScopesAllow(EXTENSION_DEVICE_SCOPES, request('/api/icloud/aliases/preview', 'POST'))).resolves.toBe(false)
@@ -199,6 +201,11 @@ describe('device token scopes', () => {
       ['/api/yandex-mail/accounts', 'POST'],
       ['/api/yandex-mail/accounts/yandex-1/sync', 'POST'],
       ['/api/yandex-mail/accounts/yandex-1/messages/message-1/attachments/part-1', 'GET'],
+      ['/api/linux-do-mail/account', 'POST'],
+      ['/api/linux-do-mail/account', 'DELETE'],
+      ['/api/linux-do-mail/account/verify', 'POST'],
+      ['/api/linux-do-mail/account/credential', 'PUT'],
+      ['/api/linux-do-mail/messages', 'POST'],
     ]
     for (const [path, method] of indexedWritesAndAttachments) {
       await expect(deviceScopesAllow(

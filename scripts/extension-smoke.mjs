@@ -6,14 +6,14 @@ import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 import {
   deferred, extensionScopes, iCloudAccounts, iCloudAliases, iCloudMessage,
-  float040Scopes,
+  float041Scopes,
   json, mailboxes, message, requestBody, user,
 } from './extension-smoke-fixtures.mjs'
 import { verifyThemeRestored, verifyThemeSwitch } from './extension-smoke-theme.mjs'
 import {
   authorizeFromPanel, handleIndexedRequest, selectAndRememberSource,
   selectMailSource, upgradeMailSourceAuthorization, verifyIndexedSources,
-  verifyMoreIndexedSources,
+  verifyRemainingSources,
 } from './extension-smoke-indexed.mjs'
 import { createPromoAsset } from './extension-smoke-promo.mjs'
 const extensionPath = resolve('dist-extension')
@@ -35,7 +35,6 @@ let lastMessageMailbox = ''
 let messageGate = null
 let refreshResponseStatus = 200
 let exchangeCount = 0
-
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, 'http://127.0.0.1')
@@ -76,7 +75,7 @@ const server = createServer(async (request, response) => {
       json(response, {
         accessToken: 'om_at_smoke_access_token_1234567890', expiresIn: 900,
         refreshToken: 'om_rt_smoke_refresh_token_1234567890', refreshExpiresIn: 2592000,
-        scopes: exchangeCount === 1 ? float040Scopes : extensionScopes, user,
+        scopes: exchangeCount === 1 ? float041Scopes : extensionScopes, user,
       })
       return
     }
@@ -104,6 +103,7 @@ const server = createServer(async (request, response) => {
         microsoftEnabled: true, microsoftWorkspaceEnabled: true,
         naverMailEnabled: true, naverMailWorkspaceEnabled: true,
         yandexMailEnabled: true, yandexMailWorkspaceEnabled: true,
+        linuxDoMailWorkspaceEnabled: true,
         mailRefreshInterval: 5, randomMailboxPrefix: 'alias-',
       })
       return
@@ -428,7 +428,7 @@ try {
   })
   await panelFrame.getByRole('button', { name: '返回 iCloud 收件箱' }).click()
   await verifyIndexedSources(panelFrame, page)
-  await verifyMoreIndexedSources(panelFrame)
+  await verifyRemainingSources(panelFrame)
   await selectMailSource(panelFrame, 'OmniMail')
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
   await panelFrame.getByRole('listbox', { name: '筛选邮箱' }).waitFor()
