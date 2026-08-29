@@ -25,7 +25,6 @@ export function PanelSelect({ ariaLabel, disabled = false, id, onChange, options
 
   useEffect(() => {
     if (!open) return
-    setActiveIndex(selectedIndex)
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -88,7 +87,10 @@ export function PanelSelect({ ariaLabel, disabled = false, id, onChange, options
         aria-haspopup="listbox"
         aria-label={ariaLabel}
         disabled={unavailable}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (!open) setActiveIndex(selectedIndex)
+          setOpen((current) => !current)
+        }}
         onKeyDown={handleKeyDown}
       >
         <span>{selectedOption?.label || '暂无可用选项'}</span>

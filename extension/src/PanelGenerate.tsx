@@ -1,7 +1,8 @@
 import { Copy, LoaderCircle, MailPlus, SendToBack } from 'lucide-react'
 import type { ICloudAccount, ICloudAlias, ManagedDomain, MessageSummary } from '../../src/shared/api/api-types'
+import type { MailSourceDescriptor, MailSourceId } from './mail-source'
 import { PanelICloudGenerate } from './PanelICloudGenerate'
-import { PanelMailSourceTabs, type MailSource } from './PanelMailSourceTabs'
+import { PanelMailSourceSelect } from './PanelMailSourceSelect'
 import { PanelRecentMail } from './PanelRecentMail'
 import { PanelSelect } from './PanelSelect'
 
@@ -39,11 +40,12 @@ interface Props {
   onLocalPart: (localPart: string) => void
   onRefresh: () => void
   onSelect: (message: MessageSummary) => void
-  onSource: (source: MailSource) => void
+  onSource: (source: MailSourceId) => void
   randomMailboxPrefix: string
   refreshInterval: number
   refreshing: boolean
-  source: MailSource
+  source: MailSourceId
+  sources: MailSourceDescriptor[]
 }
 
 export function GenerateView(props: Props) {
@@ -57,7 +59,8 @@ export function GenerateView(props: Props) {
         <h1>快速生成邮箱</h1>
         <p>选择已有地址直接使用，或创建新的 OmniMail / iCloud 邮箱。</p>
       </header>
-      <PanelMailSourceTabs source={props.source} onChange={props.onSource} />
+      <PanelMailSourceSelect id="generate-mail-source" source={props.source}
+        sources={props.sources} onChange={props.onSource} />
       {props.source === 'omnimail' ? (
         <div className="generate-source-panel" role="tabpanel">
           <div className="page-card">

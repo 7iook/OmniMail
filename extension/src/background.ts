@@ -1,4 +1,4 @@
-import type { User } from '../../src/shared/api/api-types'
+import type { AppConfig, User } from '../../src/shared/api/api-types'
 import {
   authorizationCode,
   extensionAuthorizationUrl,
@@ -11,6 +11,12 @@ import {
   savePersistentAuth,
 } from './auth-storage'
 import type { ExtensionRequest } from './protocol'
+import {
+  discoverMailSources,
+  getIndexedSourceMessage,
+  hasIndexedSourceScopes,
+  listIndexedSourceMessages,
+} from './mail-source-background'
 
 const MAIL_ALARM = 'omnimail-mail-poll'
 const LOCAL_SETTINGS = ['apiOrigin', 'knownMessageIds', 'floatingEnabled', 'theme'] as const
@@ -204,7 +210,7 @@ async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Pr
   return parseResponse<T>(response)
 }
 
-function apiCall(message: ExtensionRequest): Promise<unknown> {
+async function apiCall(message: ExtensionRequest): Promise<unknown> {
   switch (message.type) {
     case 'api:config':
       return authenticatedRequest('/api/config')
@@ -251,6 +257,17 @@ function apiCall(message: ExtensionRequest): Promise<unknown> {
       return authenticatedRequest(
         `/api/icloud/inbox/${encodeURIComponent(message.id)}?accountId=${encodeURIComponent(message.accountId)}`,
       )
+    case 'api:mail-sources': {
+      const [config, auth] = await Promise.all([
+        authenticatedRequest<AppConfig>('/api/config'),
+        loadAuth(),
+      ])
+      return discoverMailSources(authenticatedRequest, config, auth.scopes)
+    }
+    case 'api:indexed-source-messages':
+      return listIndexedSourceMessages(authenticatedRequest, message)
+    case 'api:indexed-source-message':
+      return getIndexedSourceMessage(authenticatedRequest, message)
     default:
       throw new Error('不支持的 API 操作。')
   }
@@ -265,6 +282,7 @@ async function authStatus() {
     apiOrigin: String(settings.apiOrigin || ''),
     authenticated: Boolean(auth.refreshToken && auth.user),
     iCloudAuthorized: hasICloudScopes(auth.scopes),
+    mailSourcesAuthorized: hasIndexedSourceScopes(auth.scopes),
     user: auth.user || null,
   }
 }
@@ -321,6 +339,7 @@ async function authorize(message: Extract<ExtensionRequest, { type: 'auth:author
     apiOrigin,
     authenticated: true,
     iCloudAuthorized: hasICloudScopes(tokens.scopes),
+    mailSourcesAuthorized: hasIndexedSourceScopes(tokens.scopes),
     user: tokens.user,
   }
 }

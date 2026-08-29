@@ -133,6 +133,8 @@ Scope 按能力和来源最小化，不能一次性为未来功能申请权限�
 
 ### 0.4.0：统一来源核心、Gmail 与 QQ 读取
 
+状态：已在 `feature/float-mail-source-core` 实现，等待完整发布验证。
+
 - 新增统一账号、消息摘要、正文、分页和能力类型。
 - 新增来源适配器注册表与 `api:mail-sources` 发现流程。
 - 把现有 OmniMail/iCloud 迁移到来源注册表，保持功能不回退。

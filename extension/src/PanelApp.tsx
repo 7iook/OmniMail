@@ -21,18 +21,19 @@ import {
 } from '../../src/features/mailbox/model/mailboxAddress'
 import { GenerateView } from './PanelGenerate'
 import { InboxView } from './PanelInbox'
-import type { MailSource } from './PanelMailSourceTabs'
 import { PanelScrollbar } from './PanelScrollbar'
 import { LoginView, NavButton, SettingsView } from './PanelViews'
 import {
   type AuthStatus,
   type ExtensionSettings,
   type InboxResult,
+  type MailSourcesResult,
   type ThemePreference,
   sendExtensionMessage,
 } from './protocol'
 import { setPanelTheme } from './theme'
 import { usePanelICloud } from './usePanelICloud'
+import { usePanelMailSources } from './usePanelMailSources'
 
 type View = 'generate' | 'inbox' | 'settings'
 
@@ -58,8 +59,8 @@ export function PanelApp() {
   const [domain, setDomain] = useState('')
   const [localPart, setLocalPart] = useState('')
   const [generatedAddress, setGeneratedAddress] = useState('')
-  const [generateSource, setGenerateSource] = useState<MailSource>('omnimail')
-  const [inboxSource, setInboxSource] = useState<MailSource>('omnimail')
+  const sourceState = usePanelMailSources(auth?.apiOrigin || '')
+  const { apply: applySources, reset: resetSources } = sourceState
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -67,8 +68,8 @@ export function PanelApp() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const iCloud = usePanelICloud({
-    active: (view === 'generate' && generateSource === 'icloud')
-      || (view === 'inbox' && inboxSource === 'icloud'),
+    active: (view === 'generate' && sourceState.generateSource === 'icloud')
+      || (view === 'inbox' && sourceState.inboxSource === 'icloud'),
     authorized: Boolean(auth?.iCloudAuthorized),
     enabled: Boolean(config?.iCloudEnabled),
     onError: setError,
@@ -119,11 +120,13 @@ export function PanelApp() {
     setLoading(true)
     setError('')
     try {
-      const [nextConfig, nextMailboxes] = await Promise.all([
+      const [nextConfig, nextMailboxes, sourceResult] = await Promise.all([
         sendExtensionMessage<AppConfig>({ type: 'api:config' }),
         loadMailboxData(),
+        sendExtensionMessage<MailSourcesResult>({ type: 'api:mail-sources' }),
       ])
       setConfig(nextConfig)
+      applySources(sourceResult)
       const saved = await chrome.storage.local.get(['lastMailbox'])
       const savedMailbox = typeof saved.lastMailbox === 'string' ? saved.lastMailbox : ''
       const nextMailbox = nextMailboxes.some((item) => item.address === savedMailbox)
@@ -136,7 +139,7 @@ export function PanelApp() {
     } finally {
       setLoading(false)
     }
-  }, [loadMailboxData, loadMessages])
+  }, [applySources, loadMailboxData, loadMessages])
 
   useEffect(() => {
     let active = true
@@ -172,13 +175,14 @@ export function PanelApp() {
         setMailboxes([])
         setDomains([])
         setMessages([])
+        resetSources()
         setSelectedMessage(null)
         setLoading(false)
       }).catch((authError) => setError(errorText(authError)))
     }
     chrome.storage.onChanged.addListener(handleAuthStorageChange)
     return () => chrome.storage.onChanged.removeListener(handleAuthStorageChange)
-  }, [])
+  }, [resetSources])
   useEffect(() => () => {
     messageRequestId.current += 1
     detailRequestId.current += 1
@@ -192,11 +196,11 @@ export function PanelApp() {
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 })
-  }, [generateSource, inboxSource, view])
+  }, [sourceState.generateSource, sourceState.inboxSource, view])
 
   const refreshMailbox = view === 'generate' ? generateAddress : selectedMailbox
-  const omniMailVisible = (view === 'generate' && generateSource === 'omnimail')
-    || (view === 'inbox' && inboxSource === 'omnimail')
+  const omniMailVisible = (view === 'generate' && sourceState.generateSource === 'omnimail')
+    || (view === 'inbox' && sourceState.inboxSource === 'omnimail')
   useAutoRefresh(
     config?.mailRefreshInterval ?? 0,
     () => loadMessages(refreshMailbox, true),
@@ -228,10 +232,12 @@ export function PanelApp() {
         apiOrigin: current?.apiOrigin || '',
         authenticated: false,
         iCloudAuthorized: false,
+        mailSourcesAuthorized: false,
         user: null,
       }))
       setMailboxes([])
       setMessages([])
+      resetSources()
       setSelectedMessage(null)
     } finally {
       setLoading(false)
@@ -287,11 +293,6 @@ export function PanelApp() {
       })
     }
     return address
-  }
-
-  function openICloudWeb() {
-    if (!auth?.apiOrigin) return
-    void chrome.tabs.create({ url: new URL('/icloud', auth.apiOrigin).toString() })
   }
 
   async function copyAddress(address: string) {
@@ -399,7 +400,8 @@ export function PanelApp() {
           <div className="panel-view" key={view}>
           {view === 'generate' && (
             <GenerateView
-              source={generateSource}
+              source={sourceState.generateSource}
+              sources={sourceState.generateSources}
               domains={enabledDomains}
               domain={domain}
               localPart={localPart}
@@ -422,14 +424,14 @@ export function PanelApp() {
               iCloudCreating={iCloud.creating}
               iCloudLoadingAccounts={iCloud.loadingAccounts}
               iCloudLoadingAliases={iCloud.loadingAliases}
-              onSource={setGenerateSource}
+              onSource={sourceState.setGenerateSource}
               onDomain={setDomain}
               onLocalPart={setLocalPart}
               onGenerate={generateMailbox}
               onICloudAccount={(accountId) => void iCloud.selectAccount(accountId)}
               onICloudAlias={iCloud.selectAlias}
               onICloudGenerate={generateICloudAlias}
-              onICloudOpenWeb={openICloudWeb}
+              onICloudOpenWeb={() => sourceState.openWeb('icloud')}
               onICloudReauthorize={() => void login({ apiOrigin: auth.apiOrigin })}
               onICloudRetry={() => void iCloud.loadAccounts()}
               onICloudRetryAliases={() => void iCloud.loadAliases()}
@@ -437,7 +439,7 @@ export function PanelApp() {
               onFill={fillAddress}
               onRefresh={() => loadMessages(generateAddress, true)}
               onSelect={(message) => {
-                setInboxSource('omnimail')
+                sourceState.setInboxSource('omnimail')
                 setView('inbox')
                 void openMessage(message)
               }}
@@ -445,7 +447,10 @@ export function PanelApp() {
           )}
           {view === 'inbox' && (
             <InboxView
-              source={inboxSource}
+              source={sourceState.inboxSource}
+              sources={sourceState.sources}
+              unavailableSources={sourceState.unavailable}
+              upgradeRequired={sourceState.upgradeRequired}
               messages={messages}
               mailboxes={mailboxes.filter((item) => item.isActive)}
               mailbox={selectedMailbox}
@@ -460,9 +465,11 @@ export function PanelApp() {
               iCloudPreferredAlias={iCloud.selectedAlias}
               iCloudLoadingAccounts={iCloud.loadingAccounts}
               iCloudLoadingAliases={iCloud.loadingAliases}
-              onSource={setInboxSource}
+              onSource={sourceState.setInboxSource}
+              onOpenSourceWeb={sourceState.openWeb}
+              onUpgradeAuthorization={() => void login({ apiOrigin: auth.apiOrigin })}
               onICloudAccount={(accountId) => void iCloud.selectAccount(accountId)}
-              onICloudOpenWeb={openICloudWeb}
+              onICloudOpenWeb={() => sourceState.openWeb('icloud')}
               onICloudReauthorize={() => void login({ apiOrigin: auth.apiOrigin })}
               onMailbox={changeMailbox}
               onRefresh={() => loadMessages(selectedMailbox, true)}

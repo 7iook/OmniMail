@@ -17,10 +17,15 @@ export const message = {
   deliveryStatus: null, purgeAfter: null,
 }
 
-export const extensionScopes = [
+export const legacyExtensionScopes = [
   'domains:read', 'mailboxes:read', 'mailboxes:create', 'messages:read',
   'messages:mark-read', 'icloud:accounts:read', 'icloud:aliases:read',
   'icloud:aliases:create', 'icloud:messages:read',
+]
+
+export const extensionScopes = [
+  ...legacyExtensionScopes, 'gmail:accounts:read',
+  'gmail:messages:read', 'qq-mail:accounts:read', 'qq-mail:messages:read',
 ]
 
 export const iCloudAccounts = [{

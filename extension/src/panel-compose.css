@@ -9,37 +9,22 @@
   padding-block: 20px;
 }
 
-.mail-source-switcher {
+.mail-source-select {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: var(--surface-muted);
-}
-
-.mail-source-switcher button {
-  display: inline-flex;
-  min-height: 38px;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  gap: 9px;
 }
 
-.mail-source-switcher button:hover,
-.mail-source-switcher button.is-active {
-  border-color: var(--line);
-  background: var(--surface);
-  color: var(--text);
+.mail-source-select > span {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mail-source-select .panel-select-trigger {
+  height: 38px;
 }
 
 .generate-source-panel {

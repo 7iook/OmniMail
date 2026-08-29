@@ -41,7 +41,7 @@ export function LoginView({ apiOrigin, busy, error, onLogin }: {
           value={site} onChange={(event) => setSite(event.target.value)} />
         <div className="login-data-disclosure" id="omnimail-data-disclosure">
           <strong>授权后的数据使用</strong>
-          <p>扩展会从所选 OmniMail 实例读取账户名称、邮箱地址和邮件内容，并在本机保存可撤销令牌与功能设置。数据只用于生成、填入、收件和通知，不用于广告或用户画像。</p>
+          <p>扩展会从所选 OmniMail 实例读取账户名称、邮箱地址，以及已连接邮箱的邮件内容，并在本机保存可撤销令牌与功能设置。数据只用于生成、填入、收件和通知，不用于广告或用户画像。</p>
         </div>
         {error && <p className="login-error" role="alert"><AlertCircle size={15} />{error}</p>}
         <button className="primary-button" type="submit" disabled={busy}>

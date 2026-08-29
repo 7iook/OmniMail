@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  AtSign,
   Bell,
   Check,
   Cloud,
@@ -92,6 +93,7 @@ export function ExtensionAuthorizationPage({
                 <article><MailPlus size={18} /><span><strong>{t('生成邮箱')}</strong><small>{t('在你有权限的域名下创建随机地址')}</small></span><Check size={16} /></article>
                 <article><Cloud size={18} /><span><strong>{t('iCloud 隐藏邮箱')}</strong><small>{t('使用已有隐藏地址、创建新地址并读取来信')}</small></span><Check size={16} /></article>
                 <article><Inbox size={18} /><span><strong>{t('读取收件箱')}</strong><small>{t('查看邮箱列表、邮件摘要和邮件正文')}</small></span><Check size={16} /></article>
+                <article><AtSign size={18} /><span><strong>{t('已连接的 Gmail 与 QQ 邮箱')}</strong><small>{t('读取账号、邮件摘要和你主动打开的正文')}</small></span><Check size={16} /></article>
                 <article><Bell size={18} /><span><strong>{t('新邮件通知')}</strong><small>{t('扩展在后台检查并提醒新邮件')}</small></span><Check size={16} /></article>
               </div>
               {user ? (

@@ -11,12 +11,30 @@ import type {
   PageInfo,
   User,
 } from '../../src/shared/api/api-types'
+import type {
+  IndexedMailSourceId,
+  IndexedMessageDetail,
+  IndexedMessageSummary,
+  MailSourceDescriptor,
+} from './mail-source'
 
 export interface AuthStatus {
   apiOrigin: string
   authenticated: boolean
   iCloudAuthorized: boolean
+  mailSourcesAuthorized: boolean
   user: User | null
+}
+
+export interface MailSourcesResult {
+  sources: MailSourceDescriptor[]
+  unavailable: Array<MailSourceDescriptor['id']>
+  upgradeRequired: boolean
+}
+
+export interface IndexedInboxResult {
+  messages: IndexedMessageSummary[]
+  page: PageInfo
 }
 
 export interface InboxResult {
@@ -43,6 +61,9 @@ export type ExtensionRequest =
   | { type: 'api:create-icloud-alias'; accountId: string; label: string }
   | { type: 'api:icloud-inbox'; accountId: string; alias?: string }
   | { type: 'api:icloud-message'; accountId: string; id: string }
+  | { type: 'api:mail-sources' }
+  | { type: 'api:indexed-source-messages'; source: IndexedMailSourceId; accountId?: string; query?: string }
+  | { type: 'api:indexed-source-message'; source: IndexedMailSourceId; accountId: string; id: string }
   | { type: 'page:fill-email'; email: string }
   | { type: 'settings:set-floating'; enabled: boolean }
   | { type: 'settings:set-theme'; theme: ThemePreference }
@@ -60,6 +81,8 @@ export type ExtensionResponse =
   | AppConfig
   | ExtensionSettings
   | InboxResult
+  | MailSourcesResult
+  | IndexedInboxResult
   | { mailboxes: MailboxAddress[] }
   | { domains: ManagedDomain[] }
   | { accounts: ICloudAccount[] }
@@ -67,6 +90,7 @@ export type ExtensionResponse =
   | { alias: Pick<ICloudAlias, 'email' | 'label' | 'createdAt'> }
   | { messages: ICloudMessage[]; method: 'imap' | 'web' }
   | { message: ICloudMessage }
+  | { message: IndexedMessageDetail }
   | { message: MessageDetail; thread: MessageSummary[] }
   | { mailbox: MailboxAddress }
   | { ok: true }

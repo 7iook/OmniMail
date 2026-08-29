@@ -8,7 +8,13 @@ import type {
 } from '../../src/shared/api/api-types'
 import { safeEmailDocument } from './email-document'
 import { PanelICloudInbox } from './PanelICloudInbox'
-import { PanelMailSourceTabs, type MailSource } from './PanelMailSourceTabs'
+import { PanelIndexedInbox } from './PanelIndexedInbox'
+import type {
+  IndexedMailSourceId,
+  MailSourceDescriptor,
+  MailSourceId,
+} from './mail-source'
+import { PanelMailSourceSelect } from './PanelMailSourceSelect'
 import { PanelSelect } from './PanelSelect'
 
 interface Props {
@@ -26,7 +32,10 @@ interface Props {
   messages: MessageSummary[]
   refreshing: boolean
   selected: MessageDetail | null
-  source: MailSource
+  source: MailSourceId
+  sources: MailSourceDescriptor[]
+  unavailableSources: MailSourceId[]
+  upgradeRequired: boolean
   onBack: () => void
   onICloudAccount: (accountId: string) => void
   onICloudOpenWeb: () => void
@@ -34,7 +43,9 @@ interface Props {
   onMailbox: (address: string) => void
   onRefresh: () => void
   onSelect: (message: MessageSummary) => void
-  onSource: (source: MailSource) => void
+  onSource: (source: MailSourceId) => void
+  onOpenSourceWeb: (source: MailSourceId) => void
+  onUpgradeAuthorization: () => void
 }
 
 function formatDate(timestamp: number): string {
@@ -96,17 +107,29 @@ function OmniInbox(props: Pick<Props,
 }
 
 export function InboxView(props: Props) {
+  const descriptor = props.sources.find(({ id }) => id === props.source)
   return (
     <div className="inbox-source-shell">
-      <div className="inbox-source-tabs"><PanelMailSourceTabs source={props.source} onChange={props.onSource} /></div>
-      {props.source === 'omnimail' ? <OmniInbox {...props} /> : (
+      <div className="inbox-source-select"><PanelMailSourceSelect id="inbox-mail-source"
+        source={props.source} sources={props.sources} onChange={props.onSource} /></div>
+      {props.upgradeRequired && <div className="source-upgrade-card">
+        <div><strong>解锁已连接的 Gmail 与 QQ 邮箱</strong>
+          <span>新来源需要你在 OmniMail 网站明确升级一次只读授权。</span></div>
+        <button type="button" onClick={props.onUpgradeAuthorization}>升级授权</button>
+      </div>}
+      {props.unavailableSources.length > 0 && <div className="source-discovery-warning" role="status">
+        部分邮箱来源暂时不可用，其他来源不受影响。
+      </div>}
+      {props.source === 'omnimail' ? <OmniInbox {...props} /> : props.source === 'icloud' ? (
         <PanelICloudInbox enabled={props.iCloudEnabled} authorized={props.iCloudAuthorized}
           accounts={props.iCloudAccounts} accountId={props.iCloudAccountId}
           aliases={props.iCloudAliases} preferredAlias={props.iCloudPreferredAlias}
           loadingAccounts={props.iCloudLoadingAccounts} loadingAliases={props.iCloudLoadingAliases}
           onAccount={props.onICloudAccount} onOpenWeb={props.onICloudOpenWeb}
           onReauthorize={props.onICloudReauthorize} />
-      )}
+      ) : descriptor ? <PanelIndexedInbox key={props.source}
+        source={props.source as IndexedMailSourceId} descriptor={descriptor}
+        onOpenWeb={() => props.onOpenSourceWeb(props.source)} /> : null}
     </div>
   )
 }

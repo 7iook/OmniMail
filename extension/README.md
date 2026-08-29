@@ -2,8 +2,9 @@
 
 OmniMail Float 是与本仓库一起构建的 Chrome Manifest V3 扩展。它在普通网页中
 注入一个隔离的悬浮入口，通过 OmniMail 网站授权获得可撤销的设备令牌，用于生成
-普通邮箱和 iCloud 隐藏地址、查看两类邮箱的来信，并接收 OmniMail 新邮件通知。扩展
-不会收集或处理用户密码或 iCloud 凭据。
+普通邮箱和 iCloud 隐藏地址，查看 OmniMail、iCloud、Gmail 与 QQ 邮箱的来信，并接收
+OmniMail 新邮件通知。扩展不会收集或处理用户密码、iCloud 凭据、Gmail 应用密码或
+QQ 授权码。
 
 隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)，商店介绍、权限
 理由和隐私披露填写稿见 [`STORE_LISTING.md`](./STORE_LISTING.md)，多邮箱来源的长期
@@ -71,9 +72,9 @@ Chrome Web Store 正式版本无需配置 `APP_ORIGINS`。主管理员登录 Omn
   扩展自身的 IndexedDB，普通网页中的 Content Script 无法读取。浏览器重启后会自动
   恢复登录；Refresh Token 每次成功使用后轮换并续期 30 天。
 - 扩展令牌使用最小权限 Scope：除普通邮箱的读取、创建、收件与标记已读外，只能读取
-  已连接 iCloud 账号的公开元数据、已有别名和最近来信，并创建隐藏地址；不能读取或
-  修改 iCloud Cookie、应用专用密码，不能停用或删除已有别名，也不能调用管理、发信、
-  删除、原文下载或账户设置接口。
+  已连接 iCloud 账号的公开元数据、已有别名和最近来信并创建隐藏地址，以及读取已连接
+  Gmail/QQ 账号的公开元数据、邮件列表和用户主动打开的正文。不能读取或修改第三方
+  凭据、管理账号、同步远端邮箱、下载附件、发信、删除邮件、下载原文或修改账户设置。
 - Content Script 只负责悬浮窗口和当前页面邮箱输入框填充，不能读取令牌。
 - Service Worker 只接受预定义的 OmniMail API 操作，不提供任意 URL 请求代理。
 - 邮件 HTML 在 sandbox iframe 中显示，脚本、表单、远程图片和危险属性会被移除。

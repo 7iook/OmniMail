@@ -1,14 +1,20 @@
 import { strict as assert } from 'node:assert'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 import {
   deferred, extensionScopes, iCloudAccounts, iCloudAliases, iCloudMessage,
+  legacyExtensionScopes,
   json, mailboxes, message, requestBody, user,
 } from './extension-smoke-fixtures.mjs'
 import { verifyThemeRestored, verifyThemeSwitch } from './extension-smoke-theme.mjs'
+import {
+  authorizeFromPanel, handleIndexedRequest, selectAndRememberSource,
+  selectMailSource, upgradeMailSourceAuthorization, verifyIndexedSources,
+} from './extension-smoke-indexed.mjs'
+import { createPromoAsset } from './extension-smoke-promo.mjs'
 const extensionPath = resolve('dist-extension')
 const previewMode = process.argv.includes('--preview')
 const updateStoreAssets = process.argv.includes('--update-store-assets')
@@ -27,6 +33,7 @@ let messageListRequests = 0
 let lastMessageMailbox = ''
 let messageGate = null
 let refreshResponseStatus = 200
+let exchangeCount = 0
 
 const server = createServer(async (request, response) => {
   try {
@@ -63,11 +70,12 @@ const server = createServer(async (request, response) => {
       return
     }
     if (url.pathname === '/api/auth/extension/exchange') {
+      exchangeCount += 1
       exchangeBody = await requestBody(request)
       json(response, {
         accessToken: 'om_at_smoke_access_token_1234567890', expiresIn: 900,
         refreshToken: 'om_rt_smoke_refresh_token_1234567890', refreshExpiresIn: 2592000,
-        scopes: extensionScopes, user,
+        scopes: exchangeCount === 1 ? legacyExtensionScopes : extensionScopes, user,
       })
       return
     }
@@ -89,11 +97,14 @@ const server = createServer(async (request, response) => {
     }
     if (url.pathname === '/api/config') {
       json(response, {
-        appName: 'OmniMail', iCloudEnabled: true,
+        appName: 'OmniMail', iCloudEnabled: true, iCloudWorkspaceEnabled: true,
+        gmailEnabled: true, gmailWorkspaceEnabled: true,
+        qqMailEnabled: true, qqMailWorkspaceEnabled: true,
         mailRefreshInterval: 5, randomMailboxPrefix: 'alias-',
       })
       return
     }
+    if (handleIndexedRequest(url, response)) return
     if (url.pathname === '/api/icloud/accounts') {
       json(response, { accounts: iCloudAccounts })
       return
@@ -273,15 +284,11 @@ try {
 
   const apiOrigin = `http://127.0.0.1:${address.port}`
   await panelFrame.getByLabel('OmniMail 地址').fill(apiOrigin)
-  const authorizationPagePromise = context.waitForEvent('page', {
-    predicate: (candidate) => candidate.url().includes('/extension/authorize'),
-    timeout: 10_000,
-  })
-  await loginButton.click()
-  const authorizationPage = await authorizationPagePromise
-  await authorizationPage.getByRole('heading', { name: '授权浏览器扩展' }).waitFor()
-  await authorizationPage.getByRole('button', { name: '允许访问' }).click()
+  await authorizeFromPanel(context, loginButton)
   await panelFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
+  await panelFrame.getByRole('button', { name: '收件' }).click()
+  await upgradeMailSourceAuthorization(context, panelFrame)
+  await panelFrame.getByRole('button', { name: '生成', exact: true }).click()
   const randomMailboxButton = panelFrame.getByRole('button', { name: '随机生成邮箱' })
   await randomMailboxButton.click({ trial: true })
   assert.deepEqual(await randomMailboxButton.evaluate((button) => ({
@@ -347,7 +354,7 @@ try {
   await panelFrame.getByRole('button', { name: '返回收件箱' }).click()
 
   await panelFrame.locator('.panel-nav').getByRole('button', { name: '生成', exact: true }).click()
-  await panelFrame.getByRole('tab', { name: 'iCloud' }).click()
+  await selectMailSource(panelFrame, 'iCloud')
   await panelFrame.getByRole('combobox', { name: 'iCloud 账号' }).waitFor()
   const existingAliasSelect = panelFrame.getByRole('combobox', { name: '已有 iCloud 隐藏邮箱' })
   await existingAliasSelect.waitFor()
@@ -400,11 +407,11 @@ try {
   await page.emulateMedia({ colorScheme: 'light' })
   await panelFrame.getByRole('button', { name: '填入网页' }).click()
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'float-preview@icloud.com')
-  await panelFrame.getByRole('tab', { name: 'OmniMail' }).click()
+  await selectMailSource(panelFrame, 'OmniMail')
   await panelFrame.getByRole('button', { name: '随机生成邮箱' }).waitFor()
 
   await panelFrame.getByRole('button', { name: '收件' }).click()
-  await panelFrame.getByRole('tab', { name: 'iCloud' }).click()
+  await selectMailSource(panelFrame, 'iCloud')
   await panelFrame.getByRole('heading', { name: 'iCloud 收件' }).waitFor()
   await panelFrame.getByText('Your iCloud verification code').waitFor()
   assert.equal(lastICloudInboxAlias, 'float-preview@icloud.com')
@@ -417,7 +424,8 @@ try {
     type: 'jpeg', quality: 94,
   })
   await panelFrame.getByRole('button', { name: '返回 iCloud 收件箱' }).click()
-  await panelFrame.getByRole('tab', { name: 'OmniMail' }).click()
+  await verifyIndexedSources(panelFrame, page)
+  await selectMailSource(panelFrame, 'OmniMail')
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
   await panelFrame.getByRole('listbox', { name: '筛选邮箱' }).waitFor()
   await panelFrame.getByRole('option', { name: '全部邮箱' }).click()
@@ -456,6 +464,7 @@ try {
     path: resolve(capturedAssetsPath, '03-floating-message.jpg'),
     type: 'jpeg', quality: 94,
   })
+  await selectAndRememberSource(panelFrame, serviceWorker)
   await verifyThemeSwitch(page, panelFrame, serviceWorker)
 
   const dockNodes = (await cdp.send('DOM.getFlattenedDocument', { depth: -1, pierce: true })).nodes
@@ -516,6 +525,7 @@ try {
   await restoredFrame.getByRole('heading', { name: '快速生成邮箱' }).waitFor()
   await verifyThemeRestored(page, restoredFrame)
   await restoredFrame.locator('.panel-nav').getByRole('button', { name: '收件', exact: true }).click()
+  await restoredFrame.getByRole('heading', { name: 'Gmail 收件箱' }).waitFor()
   const transitionState = await restoredFrame.locator('.panel-view').evaluate((element) => ({
     duration: getComputedStyle(element).animationDuration,
     name: getComputedStyle(element).animationName,
@@ -537,6 +547,7 @@ try {
     }))
     assert.equal(restoredAuth.authenticated, true)
     assert.equal(restoredAuth.iCloudAuthorized, true)
+    assert.equal(restoredAuth.mailSourcesAuthorized, true)
     assert.equal(restoredAuth.user.email, user.email)
     const restoredMessages = await restoredFrame.evaluate(() => new Promise((resolveResponse) => {
       chrome.runtime.sendMessage({ type: 'api:messages' }, resolveResponse)
@@ -576,21 +587,7 @@ try {
     await new Promise(() => {})
   }
 
-  const icon = await readFile(resolve('extension', 'public', 'icons', 'icon128.png'))
-  const promoPage = await context.newPage()
-  await promoPage.setViewportSize({ width: 440, height: 280 })
-  await promoPage.setContent(`<!doctype html><html><head><style>
-    *{box-sizing:border-box}body{margin:0;width:440px;height:280px;overflow:hidden;font-family:Inter,system-ui;color:white;background:#17181b}
-    main{position:relative;width:100%;height:100%;display:flex;align-items:center;padding:38px;background:radial-gradient(circle at 82% 18%,#3b82f655,transparent 42%)}
-    main:after{content:'';position:absolute;right:-45px;bottom:-90px;width:260px;height:260px;border:1px solid #ffffff26;border-radius:50%}
-    img{width:82px;height:82px;border-radius:24px;box-shadow:0 18px 45px #0008}
-    div{margin-left:24px}h1{margin:0 0 9px;font-size:27px;letter-spacing:-.6px}p{margin:0;color:#cbd0d9;font-size:15px;line-height:1.45}
-  </style></head><body><main><img src="data:image/png;base64,${icon.toString('base64')}" alt=""><div><h1>OmniMail Float</h1><p>邮箱随页面而行<br>生成 · 填入 · 收件</p></div></main></body></html>`)
-  await promoPage.screenshot({
-    path: resolve(capturedAssetsPath, 'promo-small-440x280.jpg'),
-    type: 'jpeg', quality: 95,
-  })
-  await promoPage.close()
+  await createPromoAsset(context, capturedAssetsPath)
   await page.screenshot({ path: screenshotPath })
   console.log(`Extension smoke test passed: ${screenshotPath}`)
 } finally {
