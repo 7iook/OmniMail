@@ -17,6 +17,7 @@ import {
   hasIndexedSourceScopes,
   listIndexedSourceMessages,
 } from './mail-source-background'
+import { handleChromeNotificationClick } from './notification-navigation'
 
 const MAIL_ALARM = 'omnimail-mail-poll'
 const LOCAL_SETTINGS = ['apiOrigin', 'knownMessageIds', 'floatingEnabled', 'theme'] as const
@@ -474,8 +475,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === MAIL_ALARM) void runPollMail().catch(() => {})
 })
 
-chrome.notifications.onClicked.addListener(() => {
-  void chrome.tabs.create({ url: chrome.runtime.getURL('panel.html#inbox') })
+chrome.notifications.onClicked.addListener((notificationId) => {
+  void handleChromeNotificationClick(notificationId)
 })
 
 chrome.runtime.onInstalled.addListener(() => {
