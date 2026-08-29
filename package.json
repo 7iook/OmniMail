@@ -1,6 +1,6 @@
 {
   "name": "omnimail",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "description": "A small, self-hosted webmail deployed as one Cloudflare Worker with Static Assets, D1, R2, Queues, and Resend.",
