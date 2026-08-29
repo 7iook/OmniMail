@@ -136,14 +136,9 @@
 }
 
 .audit-categories {
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding: 10px 18px;
   border-bottom: 1px solid var(--line);
-  scrollbar-width: none;
-}
-
-.audit-categories::-webkit-scrollbar {
-  display: none;
 }
 
 .audit-categories button {

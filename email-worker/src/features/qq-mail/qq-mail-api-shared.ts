@@ -96,8 +96,13 @@ export function qqMailAuthorizationCodeField(value: unknown): string {
 }
 
 export function maskedQqMailEmail(email: string): string {
-  const [local, domain] = email.split('@')
-  return `${local.slice(0, 2)}***@${domain}`
+  return email.split(/[;,]/).map((value) => {
+    const [local, ...domainParts] = value.trim().split('@')
+    const domain = domainParts.join('@')
+    return domain
+      ? `${local.slice(0, 2)}***@${domain}`
+      : local
+  }).join(', ')
 }
 
 async function qqMailClient(email: string, code: string): Promise<QqMailImapClient> {

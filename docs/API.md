@@ -552,6 +552,10 @@ GET /api/admin/audit-logs?days=7&category=auth&q=example.com&limit=50
 Authorization: Bearer om_at_...
 ```
 
+QQ 邮箱操作可使用 `category=qq-mail` 独立筛选。账号连接、重命名、授权码更新、验证、
+断开、身份增删、手动同步请求和发信都会记录操作者与脱敏账号信息；首次或手动同步结果还会
+记录同步来源、阶段、错误码、尝试次数、拉取数量、耗时和是否继续重试。
+
 `days` 支持 `1`、`7`、`30`、`90`；`category` 支持 `all`、`auth`、
 `account`、`user`、`mailbox`、`domain`、`invitation`、`message` 和
 `system`。`q` 可以搜索操作者、目标、操作名称和来源 IP，后续页面使用通用

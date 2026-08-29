@@ -134,6 +134,7 @@ export type AuditCategory =
   | 'icloud'
   | 'gmail'
   | 'microsoft'
+  | 'qq-mail'
   | 'linuxdo-mail'
   | 'system'
 

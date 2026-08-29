@@ -24,6 +24,7 @@ import {
 } from '../../../shared/api'
 import { getLocale, t } from '../../../shared/i18n'
 import { AdminPageHeader } from '../shell/AdminPageHeader'
+import { qqAuditActionLabels, qqAuditDetailParts } from './qqAuditPresentation'
 
 const categories: Array<{ id: AuditCategory; label: string }> = [
   { id: 'all', label: '全部' },
@@ -37,6 +38,7 @@ const categories: Array<{ id: AuditCategory; label: string }> = [
   { id: 'icloud', label: 'iCloud' },
   { id: 'gmail', label: 'Gmail' },
   { id: 'microsoft', label: 'Microsoft' },
+  { id: 'qq-mail', label: 'QQ 邮箱' },
   { id: 'linuxdo-mail', label: 'Linux DO Mail' },
   { id: 'system', label: '系统' },
 ]
@@ -49,6 +51,7 @@ const ranges: Array<{ value: AuditDays; label: string }> = [
 ]
 
 const actionLabels: Record<string, string> = {
+  ...qqAuditActionLabels,
   'setup.complete': '完成系统初始化',
   'auth.login': '网页登录成功',
   'auth.login_failed': '登录失败',
@@ -117,9 +120,6 @@ const actionLabels: Record<string, string> = {
   'linuxdo_mail.account.verify': '已验证 Linux DO 邮箱',
   'linuxdo_mail.account.credential_update': '已更新 Linux DO 邮箱认证令牌',
   'linuxdo_mail.message.send': '已发送 Linux DO 邮件',
-  'qq_mail.message.send': '已发送 QQ 邮件',
-  'qq_mail.identity.create': '已添加 QQ 邮箱发信身份',
-  'qq_mail.identity.delete': '已删除 QQ 邮箱发信身份',
   'naver_mail.account.connect': '已连接 NAVER 邮箱',
   'naver_mail.account.rename': '已重命名 NAVER 邮箱',
   'naver_mail.account.credential_update': '已更新 NAVER 应用专用密码',
@@ -209,6 +209,7 @@ export function detailText(log: AuditLog): string {
     parts.push(t('原名称：{name}', { name: String(detail.previousName) }))
   }
   if (detail.host) parts.push(t('区域：{host}', { host: String(detail.host) }))
+  parts.push(...qqAuditDetailParts(log))
   if (log.action === 'system.remote_images.update' && typeof detail.enabled === 'boolean') {
     parts.push(t(detail.enabled ? '默认加载' : '默认阻止'))
   }

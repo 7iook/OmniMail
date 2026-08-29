@@ -13,6 +13,7 @@ const CATEGORIES = [
   'icloud',
   'gmail',
   'microsoft',
+  'qq-mail',
   'linuxdo-mail',
   'system',
 ] as const
@@ -52,11 +53,12 @@ export function auditCategory(value: string | null): AuditCategory {
   return CATEGORIES.includes(value as AuditCategory) ? value as AuditCategory : 'all'
 }
 
-function categoryCondition(category: AuditCategory): string {
+export function auditCategoryCondition(category: AuditCategory): string {
   if (category === 'all') return ''
   if (category === 'invitation') return "a.action LIKE 'temporary_invite.%'"
   if (category === 'system') return "a.action LIKE 'setup.%'"
   if (category === 'linuxdo-mail') return "a.action LIKE 'linuxdo_mail.%'"
+  if (category === 'qq-mail') return "a.action LIKE 'qq_mail.%'"
   return `a.action LIKE '${category}.%'`
 }
 
@@ -91,7 +93,7 @@ export async function listAuditLogs(
   const now = Math.floor(Date.now() / 1000)
   const conditions = ['a.created_at >= ?']
   const bindings: Array<string | number> = [now - days * 86400]
-  const scoped = categoryCondition(category)
+  const scoped = auditCategoryCondition(category)
   if (scoped) conditions.push(scoped)
   if (query) {
     const escaped = query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
@@ -106,9 +108,16 @@ export async function listAuditLogs(
       COALESCE(tu.display_name, '') LIKE ? ESCAPE '\\' OR
       COALESCE(ia.name, '') LIKE ? ESCAPE '\\' OR
       COALESCE(ia.icloud_email, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(qa.name, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(qa.email, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(qi.name, '') LIKE ? ESCAPE '\\' OR
+      COALESCE(qi.email, '') LIKE ? ESCAPE '\\' OR
       COALESCE(a.detail_json, '') LIKE ? ESCAPE '\\'
     )`)
-    bindings.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+    bindings.push(
+      pattern, pattern, pattern, pattern, pattern, pattern,
+      pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern,
+    )
   }
   const summaryConditions = [...conditions]
   const summaryBindings = [...bindings]
@@ -131,12 +140,14 @@ export async function listAuditLogs(
     `SELECT a.id, a.user_id, u.email AS actor_email,
             u.display_name AS actor_name, u.role AS actor_role,
             COALESCE(tu.email, NULLIF(ia.icloud_email, ''), NULLIF(ia.real_email, '')) AS target_email,
-            COALESCE(tu.display_name, ia.name) AS target_name,
+            COALESCE(tu.display_name, ia.name, qa.name, qi.name) AS target_name,
             a.action, a.target_id, a.ip, a.detail_json, a.created_at
        FROM audit_logs a
        LEFT JOIN users u ON u.id = a.user_id
        LEFT JOIN users tu ON tu.id = a.target_id
        LEFT JOIN icloud_accounts ia ON ia.id = a.target_id
+       LEFT JOIN qq_mail_accounts qa ON qa.id = a.target_id
+       LEFT JOIN qq_mail_identities qi ON qi.id = a.target_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY a.created_at DESC, a.id DESC
       LIMIT ?`,
@@ -157,6 +168,8 @@ export async function listAuditLogs(
        LEFT JOIN users u ON u.id = a.user_id
        LEFT JOIN users tu ON tu.id = a.target_id
        LEFT JOIN icloud_accounts ia ON ia.id = a.target_id
+       LEFT JOIN qq_mail_accounts qa ON qa.id = a.target_id
+       LEFT JOIN qq_mail_identities qi ON qi.id = a.target_id
       WHERE ${summaryConditions.join(' AND ')}`,
   ).bind(...summaryBindings).first<{
     total: number

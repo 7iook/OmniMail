@@ -81,6 +81,7 @@ export async function createQqMailAccount(
     account.identities[0].accountId = account.id
     await store.insert(account)
     await writeAudit(env, user.id, 'qq_mail.account.connect', account.id, ip, {
+      accountName: name,
       email: maskedQqMailEmail(email),
     })
     try { await enqueueQqMailSync(env, account.id, 'connect') } catch { /* cron will retry */ }
@@ -99,12 +100,17 @@ export async function renameQqMailAccount(
 ): Promise<Response> {
   try {
     const store = new QqMailAccountStore(env, user.id)
+    const previous = await store.publicAccount(accountId)
     const account = await store.rename(
       accountId,
       qqMailNameField((await qqMailJsonBody(request)).name),
       Math.floor(Date.now() / 1000),
     )
-    await writeAudit(env, user.id, 'qq_mail.account.rename', accountId, ip)
+    await writeAudit(env, user.id, 'qq_mail.account.rename', accountId, ip, {
+      accountName: account.name,
+      previousName: previous?.name,
+      email: maskedQqMailEmail(account.email),
+    })
     return privateQqMailJson({ account })
   } catch (error) {
     return qqMailResponseError(error)
@@ -129,6 +135,7 @@ export async function updateQqMailAuthorizationCode(
     const now = Math.floor(Date.now() / 1000)
     await store.replaceAuthorizationCode(accountId, code, now)
     await writeAudit(env, user.id, 'qq_mail.account.credential_update', accountId, ip, {
+      accountName: account.name,
       email: maskedQqMailEmail(account.email),
     })
     try { await enqueueQqMailSync(env, accountId, 'manual') } catch { /* cron will retry */ }
@@ -166,6 +173,7 @@ export async function verifyQqMailAccount(
         WHERE id = ? AND user_id = ?`,
     ).bind(now, accountId, user.id).run()
     await writeAudit(env, user.id, 'qq_mail.account.verify', accountId, ip, {
+      accountName: account.name,
       email: maskedQqMailEmail(account.email),
     })
     return privateQqMailJson({ ok: true, validatedAt: now })
@@ -183,6 +191,7 @@ export async function deleteQqMailAccount(
   try {
     const account = await new QqMailAccountStore(env, user.id).remove(accountId)
     await writeAudit(env, user.id, 'qq_mail.account.disconnect', accountId, ip, {
+      accountName: account.name,
       email: maskedQqMailEmail(account.email),
     })
     return privateQqMailJson({ ok: true, remoteRevocationRequired: true })
@@ -196,6 +205,7 @@ export async function requestQqMailSync(
   user: SessionUser,
   accountId: string,
   request: Request,
+  ip: string,
   defer: (task: Promise<unknown>) => void,
 ): Promise<Response> {
   try {
@@ -218,6 +228,12 @@ export async function requestQqMailSync(
     if (!result.meta.changes) {
       throw new QqMailStoreError(429, '手动同步过于频繁，请稍后重试。')
     }
+    await writeAudit(env, user.id, 'qq_mail.sync.request', accountId, ip, {
+      accountName: account.name,
+      email: maskedQqMailEmail(account.email),
+      reason: 'manual',
+      limit,
+    })
     defer(enqueueQqMailSync(env, accountId, 'manual', limit).catch((error) => {
       console.error('Unable to enqueue manual QQ Mail synchronization', {
         accountId,

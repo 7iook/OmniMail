@@ -5,6 +5,7 @@ import { sendOutboundMessage } from '../outbound/outbound-message'
 import {
   qqMailIdentityEmailField,
   qqMailJsonBody,
+  maskedQqMailEmail,
   qqMailResponseError,
   requireQqMailEnabled,
 } from './qq-mail-api-shared'
@@ -84,9 +85,11 @@ export async function sendQqMailMessage(env: Env, user: SessionUser,
       auditAction: 'qq_mail.message.send',
       auditDetail: {
         accountId,
-        sender: identity.email,
-        recipient: validated.value.to,
-        replyToMessageId: reply ? body.replyToMessageId : undefined,
+        accountName: account.name,
+        sender: maskedQqMailEmail(identity.email),
+        recipient: maskedQqMailEmail(validated.value.to),
+        recipientCount: validated.value.recipients.length,
+        reply: Boolean(reply),
       },
       rateLimitMaximums: { dayLimit: 50 },
     }, ip)

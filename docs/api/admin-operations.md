@@ -10,7 +10,7 @@
 
 本分类共 **12** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
-<!-- endpoint:GET /api/admin/audit-logs catalog:a5e64b9c0d09 -->
+<!-- endpoint:GET /api/admin/audit-logs catalog:5d813d8d0f57 -->
 ## `GET /api/admin/audit-logs`
 
 **查询操作日志 / Query audit logs**
@@ -22,14 +22,14 @@
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 管理员或主管理员 |
-| 请求 | Query · days?, category?, q?, limit?, cursor? |
+| 请求 | Query · days?, category=all\|auth\|account\|user\|mailbox\|domain\|invitation\|message\|icloud\|gmail\|microsoft\|qq-mail\|linuxdo-mail\|system?, q?, limit?, cursor? |
 | 成功响应 | 200 · { logs, page } |
 
 ### cURL 示例
 
 ```bash
 curl --request GET \
-  --url "https://mail.example.com/api/admin/audit-logs?days=7&category=auth&limit=50" \
+  --url "https://mail.example.com/api/admin/audit-logs?days=7&category=qq-mail&limit=50" \
   --header "Authorization: Bearer om_at_admin..."
 ```
 

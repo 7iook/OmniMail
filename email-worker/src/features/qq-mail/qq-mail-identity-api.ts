@@ -47,6 +47,8 @@ export async function createQqMailIdentity(
     const updated = await store.insertIdentity(accountId, identity)
     await writeAudit(env, user.id, 'qq_mail.identity.create', identity.id, ip, {
       accountId,
+      accountName: account.name,
+      identityName: identity.name,
       email: maskedQqMailEmail(email),
     })
     return privateQqMailJson({ account: updated }, 201)
@@ -71,6 +73,8 @@ export async function deleteQqMailIdentity(
     const updated = await store.removeIdentity(accountId, identityId)
     await writeAudit(env, user.id, 'qq_mail.identity.delete', identityId, ip, {
       accountId,
+      accountName: account.name,
+      identityName: identity.name,
       email: maskedQqMailEmail(identity.email),
     })
     return privateQqMailJson({ account: updated })

@@ -62,6 +62,7 @@ qqMailRoutes.post('/qq-mail/accounts/:id/sync', (context) => requestQqMailSync(
   context.get('user'),
   context.req.param('id'),
   context.req.raw,
+  clientIp(context.req.raw.headers),
   (task) => context.executionCtx.waitUntil(task),
 ))
 qqMailRoutes.post('/qq-mail/accounts/:id/identities', (context) => createQqMailIdentity(

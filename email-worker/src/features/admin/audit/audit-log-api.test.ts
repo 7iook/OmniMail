@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditCategory, auditDays } from './audit-log-api'
+import { auditCategory, auditCategoryCondition, auditDays } from './audit-log-api'
 
 describe('audit log filters', () => {
   it('accepts supported time windows with a seven-day default', () => {
@@ -13,6 +13,8 @@ describe('audit log filters', () => {
     expect(auditCategory('auth')).toBe('auth')
     expect(auditCategory('invitation')).toBe('invitation')
     expect(auditCategory('icloud')).toBe('icloud')
+    expect(auditCategory('qq-mail')).toBe('qq-mail')
+    expect(auditCategoryCondition('qq-mail')).toBe("a.action LIKE 'qq_mail.%'")
     expect(auditCategory("auth' OR 1=1")).toBe('all')
   })
 })

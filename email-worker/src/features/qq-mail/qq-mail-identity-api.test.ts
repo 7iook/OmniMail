@@ -66,6 +66,13 @@ describe('QQ Mail identity API', () => {
     expect(mocks.insert).toHaveBeenCalledWith('qq-1', expect.objectContaining({
       name: 'Foxmail', email: 'work@foxmail.com', isPrimary: false,
     }))
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.anything(), user.id, 'qq_mail.identity.create', expect.any(String), '192.0.2.1',
+      expect.objectContaining({
+        accountId: 'qq-1', accountName: 'QQ', identityName: 'Foxmail',
+        email: 'wo***@foxmail.com',
+      }),
+    )
   })
 
   it('never persists an identity when SMTP verification fails', async () => {

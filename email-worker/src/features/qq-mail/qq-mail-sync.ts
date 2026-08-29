@@ -6,9 +6,10 @@ import {
 } from '../../platform/imap/sync-limit'
 import { qqMailImapEnabled } from './qq-mail-credentials'
 import { logWorkerError, logWorkerInfo } from '../../shared/observability/structured-log'
+import { writeAudit } from '../../shared/audit/audit'
 import type { QqMailImapClient } from './qq-mail-imap'
 import { qqMailAccountForSync, QqMailStoreError } from './qq-mail-store'
-import type { QqMailMessageMetadata } from './qq-mail-types'
+import type { QqMailAccount, QqMailMessageMetadata } from './qq-mail-types'
 import type { Env, MailQueueJob, MailSyncLimit, QqMailSyncJob } from '../../app/types'
 
 const INDEX_MESSAGE_LIMIT = 500
@@ -22,6 +23,31 @@ type QqMailSyncStage = 'claim' | 'load_account' | 'connect' | 'examine' | 'read_
 type QqMailSyncDiagnostics = {
   reason?: QqMailSyncJob['reason']
   attempt?: number
+}
+
+function maskedEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  return `${local.slice(0, 2)}***@${domain}`
+}
+
+async function writeSyncAudit(
+  env: Env,
+  account: QqMailAccount,
+  action: 'qq_mail.sync.success' | 'qq_mail.sync.failed',
+  detail: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await writeAudit(env, account.userId, action, account.id, 'queue', {
+      accountName: account.name,
+      email: maskedEmail(account.email),
+      ...detail,
+    })
+  } catch (error) {
+    logWorkerError('qq_mail_sync_audit_failed', {
+      account_id: account.id,
+      audit_action: action,
+    }, error)
+  }
 }
 
 async function qqMailClient(email: string, authorizationCode: string): Promise<QqMailImapClient> {
@@ -199,9 +225,10 @@ export async function syncQqMailAccount(
     return { status: 'skipped', retryable: false }
   }
   let client: QqMailImapClient | undefined
+  let account: QqMailAccount | null = null
   try {
     stage = 'load_account'
-    const account = await qqMailAccountForSync(env, accountId)
+    account = await qqMailAccountForSync(env, accountId)
     if (!account) throw new Error('credential_key_unavailable')
     stage = 'connect'
     client = await qqMailClient(account.email, account.authorizationCode)
@@ -273,6 +300,16 @@ export async function syncQqMailAccount(
         missing_count: missing.length,
         duration_ms: Date.now() - startedAt,
       })
+      await writeSyncAudit(env, account, 'qq_mail.sync.success', {
+        reason: diagnostics.reason,
+        attempt: diagnostics.attempt,
+        limit: messageLimit,
+        reset,
+        discoveredCount: discovery.uids.length,
+        fetchedCount: metadata.length,
+        missingCount: missing.length,
+        durationMs: Date.now() - startedAt,
+      })
     }
     return { status: 'synced', retryable: false }
   } catch (error) {
@@ -306,6 +343,18 @@ export async function syncQqMailAccount(
       retryable,
       duration_ms: Date.now() - startedAt,
     }, error)
+    if (account && (diagnostics.reason !== 'scheduled' || account.lastErrorCode !== code)) {
+      await writeSyncAudit(env, account, 'qq_mail.sync.failed', {
+        reason: diagnostics.reason,
+        attempt: diagnostics.attempt,
+        limit: messageLimit,
+        stage,
+        errorCode: code,
+        retryable,
+        willRetry: retryable && (diagnostics.attempt ?? 1) < 3,
+        durationMs: Date.now() - startedAt,
+      })
+    }
     return { status: 'skipped', retryable }
   } finally {
     await client?.close()

@@ -3,6 +3,7 @@ import {
   qqMailAuthorizationCodeField,
   qqMailEmailField,
   qqMailIdentityEmailField,
+  maskedQqMailEmail,
   qqMailNameField,
 } from './qq-mail-api-shared'
 
@@ -32,5 +33,10 @@ describe('QQ Mail input validation', () => {
   it('validates account labels', () => {
     expect(qqMailNameField(' Personal QQ ')).toBe('Personal QQ')
     expect(() => qqMailNameField('')).toThrow('1–60')
+  })
+
+  it('masks each address in a recipient list', () => {
+    expect(maskedQqMailEmail('first@example.com, second@example.net'))
+      .toBe('fi***@example.com, se***@example.net')
   })
 })

@@ -242,8 +242,8 @@ export const adminOperationEndpoints: ApiEndpoint[] = [
     method: 'GET', path: '/api/admin/audit-logs', group: 'adminOperations', auth: 'admin',
     title: l('查询操作日志', 'Query audit logs'),
     description: l('按时间、类别和关键词查询脱敏审计记录并游标分页。', 'Query sanitized audit records by time, category, and keyword with cursor pagination.'),
-    request: 'Query · days?, category?, q?, limit?, cursor?', response: '200 · { logs, page }',
-    examplePath: '/api/admin/audit-logs?days=7&category=auth&limit=50',
+    request: 'Query · days?, category=all|auth|account|user|mailbox|domain|invitation|message|icloud|gmail|microsoft|qq-mail|linuxdo-mail|system?, q?, limit?, cursor?', response: '200 · { logs, page }',
+    examplePath: '/api/admin/audit-logs?days=7&category=qq-mail&limit=50',
   },
   {
     method: 'GET', path: '/api/admin/statistics', group: 'adminOperations', auth: 'admin',

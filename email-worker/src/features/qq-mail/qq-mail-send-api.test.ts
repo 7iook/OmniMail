@@ -74,6 +74,10 @@ describe('QQ Mail sending API', () => {
     expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
       mailboxAddress: '123456789@qq.com', recipients: ['recipient@example.com'],
       rateLimitMaximums: { dayLimit: 50 }, auditAction: 'qq_mail.message.send',
+      auditDetail: expect.objectContaining({
+        accountName: 'QQ', sender: '12***@qq.com', recipient: 're***@example.com',
+        recipientCount: 1, reply: false,
+      }),
     }), '192.0.2.1')
   })
 
@@ -104,6 +108,21 @@ describe('QQ Mail sending API', () => {
     expect(response.status).toBe(202)
     expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
       mailboxAddress: 'work@foxmail.com',
+    }), '192.0.2.1')
+  })
+
+  it('masks every address in a multi-recipient audit detail', async () => {
+    const env = environment()
+    const response = await sendQqMailMessage(env, user, 'qq-1', request({
+      to: 'first@example.com, second@example.net', subject: 'Group', text: 'Message body',
+      idempotencyKey: 'request_group_123',
+    }), '192.0.2.1')
+
+    expect(response.status).toBe(202)
+    expect(mocks.send).toHaveBeenCalledWith(env, user, expect.objectContaining({
+      auditDetail: expect.objectContaining({
+        recipient: 'fi***@example.com, se***@example.net', recipientCount: 2,
+      }),
     }), '192.0.2.1')
   })
 
