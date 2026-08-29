@@ -113,7 +113,7 @@ export function InboxView(props: Props) {
       <div className="inbox-source-select"><PanelMailSourceSelect id="inbox-mail-source"
         source={props.source} sources={props.sources} onChange={props.onSource} /></div>
       {props.upgradeRequired && <div className="source-upgrade-card">
-        <div><strong>解锁已连接的 Gmail 与 QQ 邮箱</strong>
+        <div><strong>解锁更多已连接邮箱</strong>
           <span>新来源需要你在 OmniMail 网站明确升级一次只读授权。</span></div>
         <button type="button" onClick={props.onUpgradeAuthorization}>升级授权</button>
       </div>}

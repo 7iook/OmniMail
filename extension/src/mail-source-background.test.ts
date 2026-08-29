@@ -15,12 +15,18 @@ function config(input: Partial<AppConfig> = {}): AppConfig {
     gmailWorkspaceEnabled: true,
     qqMailEnabled: true,
     qqMailWorkspaceEnabled: true,
+    microsoftEnabled: true,
+    microsoftWorkspaceEnabled: true,
+    naverMailEnabled: true,
+    naverMailWorkspaceEnabled: true,
+    yandexMailEnabled: true,
+    yandexMailWorkspaceEnabled: true,
     ...input,
   } as AppConfig
 }
 
 describe('Float mail source background adapters', () => {
-  it('does not probe indexed accounts before explicit upgraded authorization', async () => {
+  it('does not probe any indexed account before first explicit upgraded authorization', async () => {
     const request = vi.fn()
     await expect(discoverMailSources(request, config(), [])).resolves.toEqual({
       sources: [{ id: 'omnimail', label: 'OmniMail', accounts: [] }],
@@ -28,6 +34,22 @@ describe('Float mail source background adapters', () => {
       upgradeRequired: true,
     })
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('keeps already-authorized sources while newer sources await upgrade', async () => {
+    const request = vi.fn(async (path: string) => ({ accounts: [{
+      id: path.includes('gmail') ? 'gmail-1' : 'qq-1', name: 'Existing',
+      email: 'owner@example.com', status: 'active',
+    }] }))
+    const existingScopes = INDEXED_SOURCE_SCOPES.filter((scope) => (
+      scope.startsWith('gmail:') || scope.startsWith('qq-mail:')
+    ))
+    const result = await discoverMailSources(request, config(), existingScopes)
+    expect(result.sources.map(({ id }) => id)).toEqual(['omnimail', 'gmail', 'qq'])
+    expect(result.upgradeRequired).toBe(true)
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/api/gmail/accounts', '/api/qq-mail/accounts',
+    ])
   })
 
   it('discovers connected sources independently and retains account errors', async () => {
@@ -38,7 +60,9 @@ describe('Float mail source background adapters', () => {
       if (path === '/api/qq-mail/accounts') throw new Error('QQ temporarily unavailable')
       throw new Error(`unexpected path ${path}`)
     })
-    const result = await discoverMailSources(request, config(), [...INDEXED_SOURCE_SCOPES])
+    const result = await discoverMailSources(request, config({
+      microsoftEnabled: false, naverMailEnabled: false, yandexMailEnabled: false,
+    }), [...INDEXED_SOURCE_SCOPES])
     expect(result.sources.map(({ id }) => id)).toEqual(['omnimail', 'gmail'])
     expect(result.sources[1].accounts[0]).toMatchObject({ status: 'error', needsAttention: true })
     expect(result.unavailable).toEqual(['qq'])

@@ -1,13 +1,16 @@
 import { strict as assert } from 'node:assert'
 import { json } from './extension-smoke-fixtures.mjs'
 
-const gmailAccount = {
-  id: 'gmail-account-1', name: 'Personal Gmail', email: 'owner@gmail.com', status: 'active',
-}
-const qqAccount = {
-  id: 'qq-account-1', name: 'Personal QQ', email: '1915992742@qq.com',
-  status: 'credential_error',
-}
+const sources = [
+  { id: 'gmail', root: 'gmail', label: 'Gmail', email: 'owner@gmail.com', status: 'active' },
+  { id: 'microsoft', root: 'microsoft', label: 'Microsoft', email: 'owner@outlook.com', status: 'active' },
+  { id: 'qq', root: 'qq-mail', label: 'QQ', email: '1915992742@qq.com', status: 'credential_error' },
+  { id: 'naver', root: 'naver-mail', label: 'NAVER', email: 'owner@naver.com', status: 'active' },
+  { id: 'yandex', root: 'yandex-mail', label: 'Yandex', email: 'owner@yandex.com', status: 'active' },
+].map((source) => ({ ...source, account: {
+  id: `${source.id}-account-1`, name: `Personal ${source.label}`,
+  email: source.email, status: source.status,
+} }))
 let indexedAccountRequests = 0
 
 function summary(source, account) {
@@ -29,11 +32,10 @@ function detail(source, account) {
 }
 
 export function handleIndexedRequest(url, response) {
-  const source = url.pathname.startsWith('/api/gmail/') ? 'gmail'
-    : url.pathname.startsWith('/api/qq-mail/') ? 'qq' : ''
-  if (!source) return false
-  const account = source === 'gmail' ? gmailAccount : qqAccount
-  const root = source === 'gmail' ? '/api/gmail' : '/api/qq-mail'
+  const fixture = sources.find(({ root }) => url.pathname.startsWith(`/api/${root}/`))
+  if (!fixture) return false
+  const { id: source, account } = fixture
+  const root = `/api/${fixture.root}`
   if (url.pathname === `${root}/accounts`) {
     indexedAccountRequests += 1
     json(response, { enabled: true, accounts: [account] })
@@ -73,10 +75,19 @@ export async function authorizeFromPanel(context, trigger) {
 export async function upgradeMailSourceAuthorization(context, frame) {
   const button = frame.getByRole('button', { name: '升级授权' })
   await button.waitFor()
-  assert.equal(indexedAccountRequests, 0)
+  assert.equal(indexedAccountRequests, 2)
   await authorizeFromPanel(context, button)
   await button.waitFor({ state: 'hidden' })
-  assert.equal(indexedAccountRequests, 2)
+  assert.equal(indexedAccountRequests, 7)
+}
+
+async function verifySource(frame, label, heading, code) {
+  await selectMailSource(frame, label)
+  await frame.getByRole('heading', { name: heading }).waitFor()
+  await frame.getByText(`Your ${code} verification code`).click()
+  await frame.getByRole('heading', { name: `Your ${code} verification code` }).waitFor()
+  await frame.frameLocator(`iframe[title="${label} 邮件正文"]`).getByText('246810').waitFor()
+  await frame.getByRole('button', { name: `返回 ${heading}` }).click()
 }
 
 export async function verifyIndexedSources(frame, page) {
@@ -84,12 +95,13 @@ export async function verifyIndexedSources(frame, page) {
   await source.press('ArrowDown')
   await frame.getByRole('listbox', { name: '邮箱来源' }).waitFor()
   await source.press('End')
-  await source.press('ArrowUp')
   assert.match(
-    await frame.getByRole('option', { name: 'Gmail', exact: true }).getAttribute('class'),
+    await frame.getByRole('option', { name: 'Yandex', exact: true }).getAttribute('class'),
     /is-active/,
   )
   await source.press('Enter')
+  await frame.getByRole('heading', { name: 'Yandex 收件箱' }).waitFor()
+  await selectMailSource(frame, 'Gmail')
   await frame.getByRole('heading', { name: 'Gmail 收件箱' }).waitFor()
   await page.screenshot({ path: 'test-results/extension-gmail-inbox.png' })
   await frame.getByText('Your GMAIL verification code').click()
@@ -107,6 +119,12 @@ export async function verifyIndexedSources(frame, page) {
   await frame.getByText('Your QQ verification code').waitFor()
   assert.match(await account.textContent(), /1915992742@qq\.com/)
   await page.screenshot({ path: 'test-results/extension-qq-inbox.png' })
+}
+
+export async function verifyMoreIndexedSources(frame) {
+  await verifySource(frame, 'Microsoft', 'Microsoft 收件箱', 'MICROSOFT')
+  await verifySource(frame, 'NAVER', 'NAVER 收件箱', 'NAVER')
+  await verifySource(frame, 'Yandex', 'Yandex 收件箱', 'YANDEX')
 }
 
 export async function selectAndRememberSource(frame, serviceWorker) {

@@ -338,11 +338,12 @@ Content-Type: application/json
 Worker 同时验证请求 Origin、客户端 ID、精确回调地址、PKCE、有效期和单次使用状态，
 成功后返回与设备令牌接口相同的 Access Token、轮换 Refresh Token 和用户信息。
 扩展令牌只包含实际界面使用的最小 Scope：普通邮箱域名、地址创建、收件和精确已读，
-iCloud 账号公开元数据、隐藏地址读取/创建和来信读取，以及 Gmail/QQ 账号公开元数据、
-邮件列表和正文读取。`messages:mark-read` 只接受请求体恰好为 `{ "isRead": true }` 的
-普通邮件更新；第三方账号连接/修改、主动同步、附件、身份管理、发信、删除、原文下载
-及账户设置接口返回 `403`。从旧版 Float 升级时，原 Refresh Token 保留旧 Scope，用户
-必须在网站明确确认一次扩展升级授权，服务端不会在刷新时静默扩大权限。
+iCloud 账号公开元数据、隐藏地址读取/创建和来信读取，以及 Gmail、Microsoft、QQ、
+NAVER 与 Yandex 账号公开元数据、邮件列表和正文读取。`messages:mark-read` 只接受请求
+体恰好为 `{ "isRead": true }` 的普通邮件更新；第三方账号连接/修改、主动同步、文件夹、
+附件、身份管理、发信、删除、原文下载及账户设置接口返回 `403`。从旧版 Float 升级时，
+原 Refresh Token 保留旧 Scope，用户必须在网站明确确认一次扩展升级授权，服务端不会
+在刷新时静默扩大权限。
 
 ## 游标分页
 

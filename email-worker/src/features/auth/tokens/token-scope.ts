@@ -30,6 +30,12 @@ export const EXTENSION_DEVICE_SCOPES = [
   'gmail:messages:read',
   'qq-mail:accounts:read',
   'qq-mail:messages:read',
+  'microsoft:accounts:read',
+  'microsoft:messages:read',
+  'naver-mail:accounts:read',
+  'naver-mail:messages:read',
+  'yandex-mail:accounts:read',
+  'yandex-mail:messages:read',
 ].join(' ')
 
 function hasScope(scopes: string, required: string): boolean {
@@ -154,6 +160,27 @@ export async function deviceScopesAllow(scopes: string, request: Request): Promi
     path === '/api/qq-mail/messages'
     || /^\/api\/qq-mail\/accounts\/[^/]+\/messages\/[^/]+$/.test(path)
   )) return hasScope(scopes, 'qq-mail:messages:read')
+  if (requestMethod === 'GET' && path === '/api/microsoft/accounts') {
+    return hasScope(scopes, 'microsoft:accounts:read')
+  }
+  if (requestMethod === 'GET' && (
+    path === '/api/microsoft/messages'
+    || /^\/api\/microsoft\/accounts\/[^/]+\/messages\/[^/]+$/.test(path)
+  )) return hasScope(scopes, 'microsoft:messages:read')
+  if (requestMethod === 'GET' && path === '/api/naver-mail/accounts') {
+    return hasScope(scopes, 'naver-mail:accounts:read')
+  }
+  if (requestMethod === 'GET' && (
+    path === '/api/naver-mail/messages'
+    || /^\/api\/naver-mail\/accounts\/[^/]+\/messages\/[^/]+$/.test(path)
+  )) return hasScope(scopes, 'naver-mail:messages:read')
+  if (requestMethod === 'GET' && path === '/api/yandex-mail/accounts') {
+    return hasScope(scopes, 'yandex-mail:accounts:read')
+  }
+  if (requestMethod === 'GET' && (
+    path === '/api/yandex-mail/messages'
+    || /^\/api\/yandex-mail\/accounts\/[^/]+\/messages\/[^/]+$/.test(path)
+  )) return hasScope(scopes, 'yandex-mail:messages:read')
   if (path === '/api/linux-do-mail/account') {
     if (requestMethod === 'GET') return hasScope(scopes, 'linuxdo-mail:account:read')
     if (requestMethod === 'POST' || requestMethod === 'DELETE') {

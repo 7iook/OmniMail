@@ -6,7 +6,7 @@ import {
 } from './mail-source'
 
 describe('Float indexed mail source adapters', () => {
-  it('builds only fixed Gmail and QQ API paths', () => {
+  it('builds only fixed indexed-source API paths', () => {
     const gmail = getIndexedSourceAdapter('gmail')!
     expect(gmail.accountsPath).toBe('/api/gmail/accounts')
     expect(gmail.messagesPath({ accountId: 'account / 1', query: 'code & test' }))
@@ -17,6 +17,10 @@ describe('Float indexed mail source adapters', () => {
     const qq = getIndexedSourceAdapter('qq')!
     expect(qq.accountsPath).toBe('/api/qq-mail/accounts')
     expect(qq.webPath).toBe('/qq-mail')
+    expect(getIndexedSourceAdapter('microsoft')?.accountsPath).toBe('/api/microsoft/accounts')
+    expect(getIndexedSourceAdapter('naver')?.webPath).toBe('/naver-mail')
+    expect(getIndexedSourceAdapter('yandex')?.messagePath('account-1', 'message-1'))
+      .toBe('/api/yandex-mail/accounts/account-1/messages/message-1')
     expect(getIndexedSourceAdapter('https://attacker.example')).toBeNull()
   })
 

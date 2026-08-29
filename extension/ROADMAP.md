@@ -147,6 +147,8 @@ Scope 按能力和来源最小化，不能一次性为未来功能申请权限�
 
 ### 0.4.1：Microsoft、NAVER 与 Yandex 读取
 
+状态：已在 `feature/float-more-sources` 实现，等待完整发布验证。
+
 - 三个来源进入同一个 `IndexedImapAdapter`，复用列表、搜索、正文和账号状态 UI。
 - Microsoft 初版只读取 INBOX；文件夹切换留到 `0.5.0`，避免阻塞全部来源接入。
 - 增加对应最小读取 Scope、授权说明、商店披露和自动化测试。

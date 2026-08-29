@@ -23,9 +23,15 @@ export const legacyExtensionScopes = [
   'icloud:aliases:create', 'icloud:messages:read',
 ]
 
-export const extensionScopes = [
+export const float040Scopes = [
   ...legacyExtensionScopes, 'gmail:accounts:read',
   'gmail:messages:read', 'qq-mail:accounts:read', 'qq-mail:messages:read',
+]
+
+export const extensionScopes = [
+  ...float040Scopes, 'microsoft:accounts:read', 'microsoft:messages:read',
+  'naver-mail:accounts:read', 'naver-mail:messages:read',
+  'yandex-mail:accounts:read', 'yandex-mail:messages:read',
 ]
 
 export const iCloudAccounts = [{

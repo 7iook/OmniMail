@@ -6,13 +6,14 @@ import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 import {
   deferred, extensionScopes, iCloudAccounts, iCloudAliases, iCloudMessage,
-  legacyExtensionScopes,
+  float040Scopes,
   json, mailboxes, message, requestBody, user,
 } from './extension-smoke-fixtures.mjs'
 import { verifyThemeRestored, verifyThemeSwitch } from './extension-smoke-theme.mjs'
 import {
   authorizeFromPanel, handleIndexedRequest, selectAndRememberSource,
   selectMailSource, upgradeMailSourceAuthorization, verifyIndexedSources,
+  verifyMoreIndexedSources,
 } from './extension-smoke-indexed.mjs'
 import { createPromoAsset } from './extension-smoke-promo.mjs'
 const extensionPath = resolve('dist-extension')
@@ -75,7 +76,7 @@ const server = createServer(async (request, response) => {
       json(response, {
         accessToken: 'om_at_smoke_access_token_1234567890', expiresIn: 900,
         refreshToken: 'om_rt_smoke_refresh_token_1234567890', refreshExpiresIn: 2592000,
-        scopes: exchangeCount === 1 ? legacyExtensionScopes : extensionScopes, user,
+        scopes: exchangeCount === 1 ? float040Scopes : extensionScopes, user,
       })
       return
     }
@@ -100,6 +101,9 @@ const server = createServer(async (request, response) => {
         appName: 'OmniMail', iCloudEnabled: true, iCloudWorkspaceEnabled: true,
         gmailEnabled: true, gmailWorkspaceEnabled: true,
         qqMailEnabled: true, qqMailWorkspaceEnabled: true,
+        microsoftEnabled: true, microsoftWorkspaceEnabled: true,
+        naverMailEnabled: true, naverMailWorkspaceEnabled: true,
+        yandexMailEnabled: true, yandexMailWorkspaceEnabled: true,
         mailRefreshInterval: 5, randomMailboxPrefix: 'alias-',
       })
       return
@@ -226,8 +230,7 @@ try {
       `--load-extension=${extensionPath}`,
     ],
   })
-  const serviceWorker = context.serviceWorkers()[0]
-    || await context.waitForEvent('serviceworker', { timeout: 10_000 })
+  const serviceWorker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', { timeout: 10_000 })
   assert.match(serviceWorker.url(), /^chrome-extension:\/\/[a-p]{32}\/background\.js$/)
 
   const page = await context.newPage()
@@ -425,6 +428,7 @@ try {
   })
   await panelFrame.getByRole('button', { name: '返回 iCloud 收件箱' }).click()
   await verifyIndexedSources(panelFrame, page)
+  await verifyMoreIndexedSources(panelFrame)
   await selectMailSource(panelFrame, 'OmniMail')
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()
   await panelFrame.getByRole('listbox', { name: '筛选邮箱' }).waitFor()
@@ -586,7 +590,6 @@ try {
     console.log('Float theme preview is ready. Try System, Light, and Dark in Settings.')
     await new Promise(() => {})
   }
-
   await createPromoAsset(context, capturedAssetsPath)
   await page.screenshot({ path: screenshotPath })
   console.log(`Extension smoke test passed: ${screenshotPath}`)

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "OmniMail Float",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "minimum_chrome_version": "120",
-  "description": "在任意网页生成 OmniMail 或 iCloud 地址，并查看 OmniMail、iCloud、Gmail 与 QQ 来信。",
+  "description": "在任意网页生成邮箱地址，并查看 OmniMail、iCloud、Gmail、Microsoft、QQ、NAVER 与 Yandex 来信。",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

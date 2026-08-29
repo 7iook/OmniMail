@@ -149,6 +149,15 @@ describe('device token scopes', () => {
       '/api/qq-mail/accounts',
       '/api/qq-mail/messages?accountId=qq-1',
       '/api/qq-mail/accounts/qq-1/messages/message-1',
+      '/api/microsoft/accounts',
+      '/api/microsoft/messages?accountId=microsoft-1',
+      '/api/microsoft/accounts/microsoft-1/messages/message-1',
+      '/api/naver-mail/accounts',
+      '/api/naver-mail/messages?accountId=naver-1',
+      '/api/naver-mail/accounts/naver-1/messages/message-1',
+      '/api/yandex-mail/accounts',
+      '/api/yandex-mail/messages?accountId=yandex-1',
+      '/api/yandex-mail/accounts/yandex-1/messages/message-1',
     ]
     for (const path of indexedReadPaths) {
       await expect(deviceScopesAllow(
@@ -180,6 +189,16 @@ describe('device token scopes', () => {
       ['/api/qq-mail/accounts/qq-1/identities', 'POST'],
       ['/api/qq-mail/accounts/qq-1/messages', 'POST'],
       ['/api/qq-mail/accounts/qq-1/messages/message-1/attachments/part-1', 'GET'],
+      ['/api/microsoft/accounts', 'POST'],
+      ['/api/microsoft/accounts/microsoft-1/sync', 'POST'],
+      ['/api/microsoft/accounts/microsoft-1/folders', 'GET'],
+      ['/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/part-1', 'GET'],
+      ['/api/naver-mail/accounts', 'POST'],
+      ['/api/naver-mail/accounts/naver-1/sync', 'POST'],
+      ['/api/naver-mail/accounts/naver-1/messages/message-1/attachments/part-1', 'GET'],
+      ['/api/yandex-mail/accounts', 'POST'],
+      ['/api/yandex-mail/accounts/yandex-1/sync', 'POST'],
+      ['/api/yandex-mail/accounts/yandex-1/messages/message-1/attachments/part-1', 'GET'],
     ]
     for (const [path, method] of indexedWritesAndAttachments) {
       await expect(deviceScopesAllow(

@@ -1,4 +1,4 @@
-export const INDEXED_SOURCE_IDS = ['gmail', 'qq'] as const
+export const INDEXED_SOURCE_IDS = ['gmail', 'microsoft', 'qq', 'naver', 'yandex'] as const
 
 export type IndexedMailSourceId = typeof INDEXED_SOURCE_IDS[number]
 export type MailSourceId = 'omnimail' | 'icloud' | IndexedMailSourceId
@@ -71,7 +71,10 @@ function adapter(id: IndexedMailSourceId, label: string, apiRoot: string): Index
 
 const INDEXED_SOURCE_ADAPTERS: Record<IndexedMailSourceId, IndexedSourceAdapter> = {
   gmail: adapter('gmail', 'Gmail', 'gmail'),
+  microsoft: adapter('microsoft', 'Microsoft', 'microsoft'),
   qq: adapter('qq', 'QQ 邮箱', 'qq-mail'),
+  naver: adapter('naver', 'NAVER', 'naver-mail'),
+  yandex: adapter('yandex', 'Yandex', 'yandex-mail'),
 }
 
 export function getIndexedSourceAdapter(value: string): IndexedSourceAdapter | null {

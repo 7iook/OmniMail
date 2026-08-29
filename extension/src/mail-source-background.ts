@@ -4,9 +4,18 @@ import type {
   GmailMessageDetail,
   GmailMessageSummary,
   ICloudAccount,
+  MicrosoftAccount,
+  MicrosoftMessageDetail,
+  MicrosoftMessageSummary,
+  NaverMailAccount,
+  NaverMailMessageDetail,
+  NaverMailMessageSummary,
   QqMailAccount,
   QqMailMessageDetail,
   QqMailMessageSummary,
+  YandexMailAccount,
+  YandexMailMessageDetail,
+  YandexMailMessageSummary,
 } from '../../src/shared/api/api-types'
 import {
   getIndexedSourceAdapter,
@@ -28,16 +37,41 @@ export const INDEXED_SOURCE_SCOPES = [
   'gmail:messages:read',
   'qq-mail:accounts:read',
   'qq-mail:messages:read',
+  'microsoft:accounts:read',
+  'microsoft:messages:read',
+  'naver-mail:accounts:read',
+  'naver-mail:messages:read',
+  'yandex-mail:accounts:read',
+  'yandex-mail:messages:read',
 ] as const
+
+const SOURCE_SCOPES: Record<IndexedMailSourceId, readonly string[]> = {
+  gmail: ['gmail:accounts:read', 'gmail:messages:read'],
+  microsoft: ['microsoft:accounts:read', 'microsoft:messages:read'],
+  qq: ['qq-mail:accounts:read', 'qq-mail:messages:read'],
+  naver: ['naver-mail:accounts:read', 'naver-mail:messages:read'],
+  yandex: ['yandex-mail:accounts:read', 'yandex-mail:messages:read'],
+}
 
 export function hasIndexedSourceScopes(scopes: string[] | undefined): boolean {
   return INDEXED_SOURCE_SCOPES.every((scope) => scopes?.includes(scope))
 }
 
+function hasSourceScopes(
+  scopes: string[] | undefined,
+  source: IndexedMailSourceId,
+): boolean {
+  return SOURCE_SCOPES[source].every((scope) => scopes?.includes(scope))
+}
+
 function sourceEnabled(config: AppConfig, source: IndexedMailSourceId): boolean {
-  return source === 'gmail'
-    ? config.gmailEnabled && config.gmailWorkspaceEnabled
-    : config.qqMailEnabled && config.qqMailWorkspaceEnabled
+  switch (source) {
+    case 'gmail': return config.gmailEnabled && config.gmailWorkspaceEnabled
+    case 'microsoft': return config.microsoftEnabled && config.microsoftWorkspaceEnabled
+    case 'qq': return config.qqMailEnabled && config.qqMailWorkspaceEnabled
+    case 'naver': return config.naverMailEnabled && config.naverMailWorkspaceEnabled
+    case 'yandex': return config.yandexMailEnabled && config.yandexMailWorkspaceEnabled
+  }
 }
 
 function iCloudAccounts(accounts: ICloudAccount[]): MailSourceDescriptor {
@@ -56,7 +90,9 @@ function iCloudAccounts(accounts: ICloudAccount[]): MailSourceDescriptor {
   }
 }
 
-type AccountResult = { accounts: GmailAccount[] | QqMailAccount[] }
+type AccountResult = { accounts: Array<
+  GmailAccount | MicrosoftAccount | QqMailAccount | NaverMailAccount | YandexMailAccount
+> }
 
 export async function discoverMailSources(
   request: AuthenticatedRequest,
@@ -84,23 +120,20 @@ export async function discoverMailSources(
     })
   }
 
-  const indexedAuthorized = hasIndexedSourceScopes(scopes)
-  if (indexedAuthorized) {
-    for (const id of INDEXED_SOURCE_IDS) {
-      if (!sourceEnabled(config, id)) continue
-      const adapter = getIndexedSourceAdapter(id)!
-      tasks.push({
-        id,
-        load: async () => {
-          const result = await request(adapter.accountsPath) as AccountResult
-          return result.accounts.length ? {
-            id,
-            label: adapter.label,
-            accounts: normalizeIndexedAccounts(id, result.accounts),
-          } : null
-        },
-      })
-    }
+  for (const id of INDEXED_SOURCE_IDS) {
+    if (!sourceEnabled(config, id) || !hasSourceScopes(scopes, id)) continue
+    const adapter = getIndexedSourceAdapter(id)!
+    tasks.push({
+      id,
+      load: async () => {
+        const result = await request(adapter.accountsPath) as AccountResult
+        return result.accounts.length ? {
+          id,
+          label: adapter.label,
+          accounts: normalizeIndexedAccounts(id, result.accounts),
+        } : null
+      },
+    })
   }
 
   const settled = await Promise.allSettled(tasks.map(({ load }) => load()))
@@ -109,12 +142,17 @@ export async function discoverMailSources(
       if (result.value) sources.push(result.value)
     } else unavailable.push(tasks[index].id)
   })
-  const indexedEnabled = INDEXED_SOURCE_IDS.some((id) => sourceEnabled(config, id))
-  return { sources, unavailable, upgradeRequired: indexedEnabled && !indexedAuthorized }
+  const upgradeRequired = INDEXED_SOURCE_IDS.some((id) => (
+    sourceEnabled(config, id) && !hasSourceScopes(scopes, id)
+  ))
+  return { sources, unavailable, upgradeRequired }
 }
 
 type MessageListResult = {
-  messages: Array<GmailMessageSummary | QqMailMessageSummary>
+  messages: Array<
+    GmailMessageSummary | MicrosoftMessageSummary | QqMailMessageSummary
+    | NaverMailMessageSummary | YandexMailMessageSummary
+  >
   page: { hasMore: boolean; nextCursor: string | null; limit: number }
 }
 
@@ -136,6 +174,7 @@ export async function getIndexedSourceMessage(
   if (!adapter) throw new Error('不支持的邮箱来源。')
   const result = await request(
     adapter.messagePath(input.accountId, input.id),
-  ) as { message: GmailMessageDetail | QqMailMessageDetail }
+  ) as { message: GmailMessageDetail | MicrosoftMessageDetail | QqMailMessageDetail
+    | NaverMailMessageDetail | YandexMailMessageDetail }
   return { message: normalizeIndexedMessageDetail(result.message) }
 }
