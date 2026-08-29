@@ -26,7 +26,7 @@
 ### 兼容性
 
 - 需要 Chrome 120 或更高版本。
-- 需要 OmniMail Web/API `0.11.0` 或更高版本。
+- 需要 OmniMail Web/API `0.10.1` 或更高版本。
 
 ### 安装与升级
 
