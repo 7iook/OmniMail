@@ -16,6 +16,7 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -33,7 +34,9 @@ import {
 } from '../../../shared/mail/attachmentPolicy'
 import { errorMessage } from '../../../shared/api/errorMessage'
 import { t } from '../../../shared/i18n'
+import { recipientValueIsValid } from '../../../shared/mail/recipients'
 import { ComposeMailboxSelect } from './ComposeMailboxSelect'
+import { RecipientInput } from '../../../shared/ui/mail-workspace/RecipientInput'
 
 export type ComposeDraftFields = Pick<
   MailDraft,
@@ -102,6 +105,7 @@ export function ComposeDialog({
     () => crypto.randomUUID().replaceAll('-', ''),
     [],
   )
+  const recipientId = useId()
   const busy = sending || uploading || discarding || closing
   const attachmentBytes = attachments.reduce((total, attachment) => total + attachment.size, 0)
   const attachmentLimitReached = attachments.length >= MAX_ATTACHMENTS
@@ -301,7 +305,7 @@ export function ComposeDialog({
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!mailboxAddress || !to.trim() || !subject.trim() || !text.trim()) return
+    if (!mailboxAddress || !recipientValueIsValid(to) || !subject.trim() || !text.trim()) return
     finalizing.current = true
     setSending(true)
     setError('')
@@ -371,12 +375,11 @@ export function ComposeDialog({
                 onChange={(value) => updateDraftField('mailboxAddress', value)}
               />
             </div>
-            <label className="compose-field">
-              <span>{t('收件人')}</span>
-              <input name="to" type="email" autoComplete="off" spellCheck={false} autoFocus
-                value={to} onChange={(event) => updateDraftField('to', event.target.value)}
-                placeholder="name@example.com" maxLength={254} required disabled={busy} />
-            </label>
+            <div className="compose-field compose-field--recipients">
+              <label htmlFor={recipientId}>{t('收件人')}</label>
+              <RecipientInput id={recipientId} value={to} disabled={busy} autoFocus
+                onChange={(value) => updateDraftField('to', value)} />
+            </div>
             <label className="compose-field compose-field--subject">
               <span>{t('主题')}</span>
               <input name="subject" type="text" autoComplete="off" value={subject}
@@ -419,7 +422,8 @@ export function ComposeDialog({
         </div>
         <footer>
           <button className="button button--primary" type="submit"
-            disabled={busy || !draftLoaded || !mailboxAddress || !to.trim() || !subject.trim() || !text.trim()}>
+            disabled={busy || !draftLoaded || !mailboxAddress || !recipientValueIsValid(to)
+              || !subject.trim() || !text.trim()}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}
             {t('发送邮件')}
           </button>

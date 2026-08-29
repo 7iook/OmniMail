@@ -2,7 +2,7 @@ import { expect, type Page, type Route, test } from '@playwright/test'
 import { beginMessageRowDrag, endMessageRowDrag, moveMessageRowDrag } from './drag-selection'
 import { message, reply, user } from './omnimail-fixtures'
 type MockState = {
-  messageRequests: number; conditionalRequests: number
+  messageRequests: number; conditionalRequests: number; sentCount: number
   failed: boolean
   version: number
   messageVisible: boolean
@@ -19,7 +19,7 @@ type MockState = {
 }
 function mockState(refreshInterval = 30, subject = message.subject): MockState {
   return {
-    messageRequests: 0,
+    messageRequests: 0, sentCount: 0,
     conditionalRequests: 0,
     failed: true,
     version: 1,
@@ -73,7 +73,7 @@ async function mockApp(page: Page, state = mockState()) {
     if (path === '/api/drafts' && request.method() === 'GET') return json(route, { drafts: [], limit: 5 })
     if (path === '/api/drafts' && request.method() === 'POST') { state.sentMessage = request.postDataJSON() as Record<string, string>; return json(route, { draft: { id: 'draft-1', ...state.sentMessage, createdAt: 1, updatedAt: 1, attachments: [] } }) }
     if (path === '/api/drafts/draft-1' && request.method() === 'PUT') { state.sentMessage = request.postDataJSON() as Record<string, string>; return json(route, { draft: { id: 'draft-1', ...state.sentMessage, createdAt: 1, updatedAt: 1, attachments: [] } }) }
-    if (path === '/api/drafts/draft-1/send' && request.method() === 'POST') { state.version += 1; return json(route, { message: { id: 'sent-1', status: 'queued' } }, 202) }
+    if (path === '/api/drafts/draft-1/send' && request.method() === 'POST') { state.sentCount += 1; state.version += 1; return json(route, { message: { id: `sent-${state.sentCount}`, status: 'queued' } }, 202) }
     if (path === '/api/messages/message-1' && request.method() === 'PATCH') {
       const input = request.postDataJSON() as { folder?: string }
       if (input.folder === 'trash') state.messageVisible = false
@@ -319,14 +319,14 @@ test('users can compose and send a new message', async ({ page }) => {
   const from = dialog.getByRole('combobox', { name: '发件人' }); await expect(from).toContainText('inbox@example.com')
   await from.click(); const otherMailbox = dialog.getByRole('option', { name: /support@other\.example/ })
   await expect(otherMailbox).toBeVisible(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
-  await expect(dialog.getByLabel('收件人')).toHaveCSS('border-top-width', '0px')
-  await dialog.getByLabel('收件人').fill('friend@example.net')
+  const recipient = dialog.getByRole('textbox', { name: '收件人', exact: true }); await expect(recipient).toHaveCSS('border-top-width', '0px')
+  await recipient.fill('friend@example.net'); await recipient.press('Enter'); await recipient.fill('team@example.org'); await recipient.press('Enter'); await expect(dialog.getByText('team@example.org', { exact: true })).toBeVisible()
   await dialog.getByLabel('主题').fill('Hello from OmniMail')
   await dialog.getByLabel('邮件正文').fill('This is a new message.')
   await dialog.getByRole('button', { name: '发送邮件' }).click()
   await expect(dialog).toBeHidden(); expect(state.sentMessage).toMatchObject({ mailboxAddress: 'support@other.example',
-    to: 'friend@example.net', subject: 'Hello from OmniMail', text: 'This is a new message.' })
-  await expect(page.getByRole('status').filter({ hasText: '邮件已进入发送队列' })).toHaveText('邮件已进入发送队列')
+    to: 'friend@example.net, team@example.org', subject: 'Hello from OmniMail', text: 'This is a new message.' })
+  await expect(page.getByRole('status').filter({ hasText: '邮件已进入发送队列' })).toHaveText('邮件已进入发送队列'); await page.getByRole('button', { name: '新建邮件' }).click(); const secondDialog = page.getByRole('dialog', { name: '新建邮件' }); await secondDialog.getByRole('textbox', { name: '收件人', exact: true }).fill('second@example.net'); await secondDialog.getByLabel('主题').fill('Second message'); await secondDialog.getByLabel('邮件正文').fill('Second body'); await secondDialog.getByRole('button', { name: '发送邮件' }).click(); await expect(secondDialog).toBeHidden(); expect(state.sentCount).toBe(2); await expect(page.locator('#root')).not.toBeEmpty()
 })
 test('a user with an empty mailbox allowance is prompted to choose an address', async ({ page }) => {
   const state = mockState()

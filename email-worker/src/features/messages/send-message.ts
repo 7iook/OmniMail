@@ -14,10 +14,14 @@ export type NewMessageInput = {
 export type ValidNewMessage = {
   mailboxAddress: string
   to: string
+  recipients: string[]
   subject: string
   text: string
   idempotencyKey: string
 }
+
+export const MAX_MESSAGE_RECIPIENTS = 50
+export const MAX_RECIPIENT_TEXT_LENGTH = MAX_MESSAGE_RECIPIENTS * 256
 
 export type NewMessageValidation =
   | { value: ValidNewMessage; error?: never }
@@ -29,12 +33,20 @@ function json(body: unknown, status = 200): Response {
 
 export function validateNewMessage(input: NewMessageInput): NewMessageValidation {
   const mailboxAddress = normalizeEmail(input.mailboxAddress || '')
-  const to = normalizeEmail(input.to || '')
+  const rawTo = typeof input.to === 'string' ? input.to : ''
+  const recipients = [...new Set(rawTo.split(/[;,]/).map(normalizeEmail).filter(Boolean))]
+  const to = recipients.join(', ')
   const subject = input.subject?.trim() || ''
   const text = input.text?.trim() || ''
   const idempotencyKey = input.idempotencyKey?.trim() || ''
   if (!validEmail(mailboxAddress)) return { error: '发件邮箱格式无效。' }
-  if (!validEmail(to)) return { error: '请输入有效的收件邮箱地址。' }
+  if (/\r|\n/.test(rawTo) || !recipients.length || recipients.some((item) => !validEmail(item))) {
+    return { error: '请输入有效的收件邮箱地址。' }
+  }
+  if (recipients.length > MAX_MESSAGE_RECIPIENTS
+    || rawTo.length > MAX_RECIPIENT_TEXT_LENGTH) {
+    return { error: `一封邮件最多添加 ${MAX_MESSAGE_RECIPIENTS} 个收件人。` }
+  }
   if (!subject || subject.length > 500 || /[\r\n]/.test(subject)) {
     return { error: '邮件主题需要在 1–500 个字符之间。' }
   }
@@ -44,7 +56,7 @@ export function validateNewMessage(input: NewMessageInput): NewMessageValidation
   if (!/^[a-zA-Z0-9_-]{8,100}$/.test(idempotencyKey)) {
     return { error: '无效的请求标识。' }
   }
-  return { value: { mailboxAddress, to, subject, text, idempotencyKey } }
+  return { value: { mailboxAddress, to, recipients, subject, text, idempotencyKey } }
 }
 
 export async function sendMessage(
@@ -76,11 +88,11 @@ export async function sendMessage(
 
   return sendOutboundMessage(env, user, {
     mailboxAddress: mailbox.address,
-    recipients: [message.to],
+    recipients: message.recipients,
     subject: message.subject,
     text: message.text,
     idempotencyKey: message.idempotencyKey,
     auditAction: 'message.send',
-    auditDetail: { recipient: message.to },
+    auditDetail: { recipients: message.recipients },
   }, ip)
 }

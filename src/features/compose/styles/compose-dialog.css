@@ -127,7 +127,8 @@
   background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
 }
 
-.compose-field > span {
+.compose-field > span,
+.compose-field > label {
   color: var(--text-tertiary);
   font-size: 11px;
   font-weight: 620;

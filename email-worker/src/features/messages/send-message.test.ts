@@ -29,6 +29,7 @@ describe('validateNewMessage', () => {
       value: {
         mailboxAddress: 'owner@example.com',
         to: 'friend@example.net',
+        recipients: ['friend@example.net'],
         subject: 'Hello',
         text: 'Message body',
         idempotencyKey: 'request_12345678',
@@ -36,9 +37,24 @@ describe('validateNewMessage', () => {
     })
   })
 
+  it('normalizes and deduplicates multiple recipients', () => {
+    expect(validateNewMessage({
+      ...validInput,
+      to: ' First@Example.com, second@example.net; FIRST@example.com ',
+    })).toMatchObject({
+      value: {
+        to: 'first@example.com, second@example.net',
+        recipients: ['first@example.com', 'second@example.net'],
+      },
+    })
+  })
+
   it.each([
     [{ ...validInput, mailboxAddress: 'invalid' }, '发件邮箱格式无效。'],
     [{ ...validInput, to: 'invalid' }, '请输入有效的收件邮箱地址。'],
+    [{ ...validInput, to: Array.from({ length: 51 }, (_, index) => (
+      `user${index}@example.com`
+    )).join(',') }, '一封邮件最多添加 50 个收件人。'],
     [{ ...validInput, subject: ' ' }, '邮件主题需要在 1–500 个字符之间。'],
     [{ ...validInput, subject: 'Hello\r\nBcc: hidden@example.com' }, '邮件主题需要在 1–500 个字符之间。'],
     [{ ...validInput, subject: 'x'.repeat(501) }, '邮件主题需要在 1–500 个字符之间。'],

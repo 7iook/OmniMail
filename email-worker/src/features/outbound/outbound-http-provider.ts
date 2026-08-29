@@ -63,12 +63,10 @@ export async function deliverWithSendflare(
   config: OutboundProviderConfig,
   payload: DeliveryPayload,
 ): Promise<string> {
-  if (payload.to.length !== 1) {
-    throw new OutboundDeliveryError('SendFlare requires exactly one recipient', false)
-  }
+  const batch = payload.to.length > 1
   let response: Response
   try {
-    response = await fetch('https://api.sendflare.com/v1/send', {
+    response = await fetch(`https://api.sendflare.com/v1/${batch ? 'batchSend' : 'send'}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
@@ -77,7 +75,7 @@ export async function deliverWithSendflare(
       },
       body: JSON.stringify({
         from: config.from || payload.replyTo,
-        to: payload.to[0],
+        to: batch ? payload.to : payload.to[0],
         subject: payload.subject,
         body: payload.html,
         replyTo: [payload.replyTo],
@@ -95,11 +93,13 @@ export async function deliverWithSendflare(
     success?: boolean
     message?: string
     requestId?: string
-    data?: { emailId?: string; emilId?: string }
+    data?: { emailId?: string; emilId?: string } | string[]
   }
   const result = await response.json<SendflareResult>()
     .catch(() => ({} as SendflareResult))
-  const providerReference = result.data?.emailId || result.data?.emilId || result.requestId
+  const providerReference = Array.isArray(result.data)
+    ? result.data.join(',') || result.requestId
+    : result.data?.emailId || result.data?.emilId || result.requestId
   if (!response.ok || !result.success || !providerReference) {
     throw new OutboundDeliveryError(
       result.message || `SendFlare returned ${response.status}`,

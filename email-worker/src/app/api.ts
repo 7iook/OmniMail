@@ -5,6 +5,7 @@ import { registerAccountRoutes } from './routes/account-routes'
 import { registerAdminRoutes } from './routes/admin-routes'
 import { registerMailRoutes } from './routes/mail-routes'
 import { registerPublicRoutes } from './routes/public-routes'
+import { logWorkerError } from '../shared/observability/structured-log'
 
 const app = new Hono<AppContext>()
 
@@ -15,7 +16,11 @@ registerAdminRoutes(app)
 registerMailRoutes(app)
 
 app.onError((error, context) => {
-  console.error(error)
+  logWorkerError('api_unhandled_error', {
+    method: context.req.method,
+    path: new URL(context.req.url).pathname,
+    cf_ray: context.req.header('CF-Ray') || '',
+  }, error)
   return context.json({ error: '服务器暂时无法处理这个请求。' }, 500)
 })
 

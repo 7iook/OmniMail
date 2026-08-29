@@ -78,8 +78,8 @@ export const enMailFeatures: Record<string, string> = {
   '发件正文结构': 'Sent message body structure',
   '正文 JSON 可以解析': 'Message body JSON is valid',
   '正文 JSON 无效': 'Message body JSON is invalid',
-  '草稿收件人不能超过 254 个字符或包含换行。':
-    'The draft recipient cannot exceed 254 characters or contain a line break.',
+  '草稿收件人内容过长或包含换行。':
+    'The draft recipient list is too long or contains a line break.',
   '草稿主题不能超过 500 个字符。':
     'The draft subject cannot exceed 500 characters.',
   '草稿正文不能超过 50,000 个字符。':

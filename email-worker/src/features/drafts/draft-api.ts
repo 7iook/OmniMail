@@ -24,7 +24,10 @@ import {
   outboundProviderForAddress,
 } from '../outbound/outbound-provider-config'
 import { resendConfigForAddress } from '../outbound/resend-config'
-import { validateNewMessage } from '../messages/send-message'
+import {
+  MAX_RECIPIENT_TEXT_LENGTH,
+  validateNewMessage,
+} from '../messages/send-message'
 import type { Env, SessionUser } from '../../app/types'
 
 type DraftInput = {
@@ -83,8 +86,8 @@ export function validateDraftInput(
   const subject = input.subject?.trim() || ''
   const text = input.text?.trim() || ''
   if (!validEmail(mailboxAddress)) return { error: '发件邮箱格式无效。' }
-  if (to.length > 254 || /[\r\n]/.test(input.to || '')) {
-    return { error: '草稿收件人不能超过 254 个字符或包含换行。' }
+  if (to.length > MAX_RECIPIENT_TEXT_LENGTH || /[\r\n]/.test(input.to || '')) {
+    return { error: '草稿收件人内容过长或包含换行。' }
   }
   if (subject.length > 500 || /[\r\n]/.test(subject)) {
     return { error: '草稿主题不能超过 500 个字符。' }
@@ -564,13 +567,13 @@ export async function sendDraft(
   const message = validated.value
   return sendOutboundMessage(env, user, {
     mailboxAddress: message.mailboxAddress,
-    recipients: [message.to],
+    recipients: message.recipients,
     subject: message.subject,
     text: message.text,
     idempotencyKey: message.idempotencyKey,
     attachments,
     draftId,
     auditAction: 'message.send',
-    auditDetail: { recipient: message.to, attachmentCount: attachments.length },
+    auditDetail: { recipients: message.recipients, attachmentCount: attachments.length },
   }, ip)
 }

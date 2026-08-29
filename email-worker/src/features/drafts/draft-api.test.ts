@@ -41,7 +41,18 @@ describe('mail draft validation', () => {
       to: 'friend@example.com\r\nBcc: hidden@example.com',
       subject: 'Hello\r\nBcc: hidden@example.com',
       text: '',
-    })).toEqual({ error: '草稿收件人不能超过 254 个字符或包含换行。' })
+    })).toEqual({ error: '草稿收件人内容过长或包含换行。' })
+  })
+
+  it('stores multiple draft recipients in the existing text field', () => {
+    expect(validateDraftInput({
+      mailboxAddress: 'owner@example.com',
+      to: ' First@Example.com, SECOND@example.net ',
+      subject: 'Hello',
+      text: '',
+    })).toMatchObject({
+      value: { to: 'first@example.com, second@example.net' },
+    })
   })
 
   it('sanitizes attachment names and exposes the upload limit', () => {

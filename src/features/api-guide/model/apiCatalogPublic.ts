@@ -131,6 +131,13 @@ export const authEndpoints: ApiEndpoint[] = [
     request: 'Optional · Cookie or Authorization header', response: '200 · { user: User | null }',
   },
   {
+    method: 'POST', path: '/api/client-errors', group: 'auth', auth: 'authenticated',
+    title: l('记录客户端异常', 'Record a client error'),
+    description: l('接收已登录客户端的安全化崩溃摘要，并写入 Cloudflare Workers Logs。', 'Accept a sanitized crash summary from an authenticated client and write it to Cloudflare Workers Logs.'),
+    request: 'JSON · crashId, errorName, message, componentStack, path', response: '204 · No Content',
+    exampleBody: { crashId: 'ui-m123abc', errorName: 'TypeError', message: 'Render failed', componentStack: 'at Mailbox', path: '/mail/inbox' },
+  },
+  {
     method: 'POST', path: '/api/logout', group: 'auth', auth: 'authenticated',
     title: l('退出当前会话', 'Sign out the current session'),
     description: l('删除浏览器会话，或撤销当前 Bearer 设备会话。', 'Delete the browser session or revoke the current bearer device session.'),

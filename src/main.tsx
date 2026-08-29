@@ -1,9 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './app/App'
+import { AppErrorBoundary } from './app/AppErrorBoundary'
 import { TooltipLayer } from './shared/ui/tooltip/TooltipLayer'
 import './app/styles/base.css'
 import './app/styles/splash.css'
+import './app/styles/app-error.css'
 import './shared/ui/language/language.css'
 import './shared/ui/tooltip/tooltip.css'
 import './features/auth/styles/auth-landing.css'
@@ -30,6 +32,7 @@ import './shared/ui/dialogs/external-link-dialog.css'
 import './features/messages/styles/attachment-preview.css'
 import './features/mailbox/styles/mail-delete-dialog.css'
 import './features/compose/styles/compose-dialog.css'
+import './features/compose/styles/recipient-input.css'
 import './features/compose/styles/compose-dialog-responsive.css'
 import './features/drafts/styles/draft-inline-editor.css'
 import './features/drafts/styles/draft-list.css'
@@ -37,7 +40,9 @@ import './app/styles/responsive.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
-    <TooltipLayer />
+    <AppErrorBoundary>
+      <App />
+      <TooltipLayer />
+    </AppErrorBoundary>
   </StrictMode>,
 )

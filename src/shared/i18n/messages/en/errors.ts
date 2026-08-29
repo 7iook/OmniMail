@@ -110,6 +110,7 @@ export const enErrors: Record<string, string> = {
   '该发件域名尚未配置发信服务。': 'No sending provider is configured for this sender domain.',
   '发件邮箱格式无效。': 'The sender mailbox is invalid.',
   '请输入有效的收件邮箱地址。': 'Enter a valid recipient email address.',
+  '一封邮件最多添加 50 个收件人。': 'A message can have up to 50 recipients.',
   '邮件主题需要在 1–500 个字符之间。':
     'The subject must be between 1 and 500 characters.',
   '邮件正文需要在 1–50,000 个字符之间。':

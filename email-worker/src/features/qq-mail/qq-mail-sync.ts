@@ -5,6 +5,7 @@ import {
   RECENT_MESSAGE_REFRESH_LIMIT,
 } from '../../platform/imap/sync-limit'
 import { qqMailImapEnabled } from './qq-mail-credentials'
+import { logWorkerError, logWorkerInfo } from '../../shared/observability/structured-log'
 import type { QqMailImapClient } from './qq-mail-imap'
 import { qqMailAccountForSync, QqMailStoreError } from './qq-mail-store'
 import type { QqMailMessageMetadata } from './qq-mail-types'
@@ -16,6 +17,12 @@ const LEASE_SECONDS = 6 * 60
 const SCHEDULE_BATCH = 50
 
 export type QqMailSyncResult = { status: 'synced' | 'skipped'; retryable: boolean }
+type QqMailSyncStage = 'claim' | 'load_account' | 'connect' | 'examine' | 'read_index'
+  | 'search' | 'fetch_metadata' | 'prepare' | 'persist'
+type QqMailSyncDiagnostics = {
+  reason?: QqMailSyncJob['reason']
+  attempt?: number
+}
 
 async function qqMailClient(email: string, authorizationCode: string): Promise<QqMailImapClient> {
   const { QqMailImapClient } = await import('./qq-mail-imap')
@@ -161,29 +168,61 @@ export async function syncQqMailAccount(
   accountId: string,
   now = Math.floor(Date.now() / 1000),
   messageLimit: MailSyncLimit = DEFAULT_MAIL_SYNC_LIMIT,
+  diagnostics: QqMailSyncDiagnostics = {},
 ): Promise<QqMailSyncResult> {
+  const startedAt = Date.now()
+  let stage: QqMailSyncStage = 'claim'
   const leaseId = crypto.randomUUID()
-  if (!await claimLease(env, accountId, leaseId, now)) {
+  let claimed = false
+  try {
+    claimed = await claimLease(env, accountId, leaseId, now)
+  } catch (error) {
+    logWorkerError('qq_mail_sync_claim_failed', {
+      account_id: accountId,
+      reason: diagnostics.reason,
+      attempt: diagnostics.attempt,
+      stage,
+      duration_ms: Date.now() - startedAt,
+    }, error)
+    throw error
+  }
+  if (!claimed) {
+    if (diagnostics.reason && diagnostics.reason !== 'scheduled') {
+      logWorkerInfo('qq_mail_sync_skipped', {
+        account_id: accountId,
+        reason: diagnostics.reason,
+        attempt: diagnostics.attempt,
+        stage,
+        duration_ms: Date.now() - startedAt,
+      })
+    }
     return { status: 'skipped', retryable: false }
   }
   let client: QqMailImapClient | undefined
   try {
+    stage = 'load_account'
     const account = await qqMailAccountForSync(env, accountId)
     if (!account) throw new Error('credential_key_unavailable')
+    stage = 'connect'
     client = await qqMailClient(account.email, account.authorizationCode)
     await client.open()
+    stage = 'examine'
     const mailbox = await client.examineInbox()
     const reset = account.uidValidity !== mailbox.uidValidity
+    stage = 'read_index'
     const existingUids = reset ? [] : await localUids(env, accountId, mailbox.uidValidity)
+    stage = 'search'
     const discovery = reset
       ? { uids: await client.searchLatestUids(mailbox.uidNext, messageLimit), scannedThrough: 0 }
       : await client.searchAfter(account.lastSeenUid, mailbox.uidNext, messageLimit)
     const fetchUids = selectQqMailFetchUids(existingUids, discovery.uids, messageLimit)
+    stage = 'fetch_metadata'
     const metadata = await client.fetchMetadata(fetchUids)
     const missing = reset ? [] : missingQqMailUids(existingUids, metadata)
     const highestUid = reset
       ? Math.max(0, ...discovery.uids, ...metadata.map(({ imapUid }) => imapUid))
       : Math.max(account.lastSeenUid, discovery.scannedThrough)
+    stage = 'prepare'
     const statements: D1PreparedStatement[] = []
     if (reset) {
       statements.push(env.DB.prepare(
@@ -220,20 +259,54 @@ export async function syncQqMailAccount(
       accountId,
       leaseId,
     ))
+    stage = 'persist'
     await env.DB.batch(statements)
+    if (diagnostics.reason && diagnostics.reason !== 'scheduled') {
+      logWorkerInfo('qq_mail_sync_completed', {
+        account_id: accountId,
+        reason: diagnostics.reason,
+        attempt: diagnostics.attempt,
+        message_limit: messageLimit,
+        reset_mailbox: reset,
+        discovered_count: discovery.uids.length,
+        fetched_count: metadata.length,
+        missing_count: missing.length,
+        duration_ms: Date.now() - startedAt,
+      })
+    }
     return { status: 'synced', retryable: false }
   } catch (error) {
-    const code = await recordFailure(env, accountId, leaseId, error, now)
-    console.error('QQ Mail synchronization failed', { accountId, code })
-    return {
-      status: 'skipped',
-      retryable: ![
+    let code = qqMailSyncErrorCode(error)
+    try {
+      code = await recordFailure(env, accountId, leaseId, error, now)
+    } catch (recordError) {
+      logWorkerError('qq_mail_sync_failure_record_failed', {
+        account_id: accountId,
+        failed_stage: stage,
+        original_error_code: code,
+        reason: diagnostics.reason,
+        attempt: diagnostics.attempt,
+        duration_ms: Date.now() - startedAt,
+      }, recordError)
+      throw recordError
+    }
+    const retryable = ![
         'authentication_failed',
         'credential_decryption_failed',
         'credential_key_unavailable',
         'response_too_large',
-      ].includes(code),
-    }
+      ].includes(code)
+    logWorkerError('qq_mail_sync_failed', {
+      account_id: accountId,
+      stage,
+      error_code: code,
+      reason: diagnostics.reason,
+      attempt: diagnostics.attempt,
+      message_limit: messageLimit,
+      retryable,
+      duration_ms: Date.now() - startedAt,
+    }, error)
+    return { status: 'skipped', retryable }
   } finally {
     await client?.close()
   }
@@ -250,6 +323,7 @@ export async function consumeQqMailSyncJob(
     message.body.accountId,
     Math.floor(Date.now() / 1000),
     limit,
+    { reason: message.body.reason, attempt: message.attempts },
   )
   if (result.retryable && message.attempts < 3) {
     message.retry({ delaySeconds: 30 * 2 ** Math.max(0, message.attempts - 1) })

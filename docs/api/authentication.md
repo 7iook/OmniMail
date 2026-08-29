@@ -8,7 +8,7 @@
 
 > Web login, device tokens, MFA, extension authorization, and account lifecycle.
 
-本分类共 **19** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **20** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/auth/linux-do catalog:1671fbe74574 -->
 ## `GET /api/auth/linux-do`
@@ -269,6 +269,37 @@ curl --request POST \
 ```bash
 curl --request GET \
   --url "https://mail.example.com/api/session"
+```
+
+<!-- endpoint:POST /api/client-errors catalog:e6fc480128c4 -->
+## `POST /api/client-errors`
+
+**记录客户端异常 / Record a client error**
+
+接收已登录客户端的安全化崩溃摘要，并写入 Cloudflare Workers Logs。
+
+> Accept a sanitized crash summary from an authenticated client and write it to Cloudflare Workers Logs.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 登录用户；支持 Session Cookie 或 Access Token |
+| 请求 | JSON · crashId, errorName, message, componentStack, path |
+| 成功响应 | 204 · No Content |
+
+### cURL 示例
+
+```bash
+curl --request POST \
+  --url "https://mail.example.com/api/client-errors" \
+  --header "Authorization: Bearer om_at_..." \
+  --header "Content-Type: application/json" \
+  --data '{
+  "crashId": "ui-m123abc",
+  "errorName": "TypeError",
+  "message": "Render failed",
+  "componentStack": "at Mailbox",
+  "path": "/mail/inbox"
+}'
 ```
 
 <!-- endpoint:POST /api/logout catalog:d9ea142047c6 -->

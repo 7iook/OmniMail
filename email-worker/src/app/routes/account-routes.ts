@@ -8,6 +8,7 @@ import { applySuperAdminRole, deleteSession, sessionUser } from '../../features/
 import { authenticateAccessToken, bearerToken, listDevices, revokeDevice } from '../../features/auth/tokens/token-api'
 import { writeAudit } from '../../shared/audit/audit'
 import { clientIp } from '../../shared/http/api-helpers'
+import { recordClientError } from '../../features/observability/client-error-api'
 
 export function registerAccountRoutes(app: Hono<AppContext>): void {
 app.get('/api/session', async (context) => {
@@ -30,6 +31,11 @@ app.get('/api/session', async (context) => {
   if (!session) clearSessionCookie(context, context.env)
   return context.json({ user })
 })
+app.post('/api/client-errors', (context) => recordClientError(
+  context.req.raw,
+  context.get('user'),
+  context.get('authKind'),
+))
 
 app.post('/api/logout', async (context) => {
   const user = context.get('user')
