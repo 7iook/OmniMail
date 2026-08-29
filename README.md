@@ -685,9 +685,9 @@ OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
 ## 浏览器悬浮扩展
 
 仓库内置 Chrome Manifest V3 扩展，可在普通网页显示隔离的 OmniMail 悬浮面板，
-支持跳转 OmniMail 网站授权、一键生成邮箱、复制或填入当前网页、查看收件箱和后台
-新邮件通知。密码与 MFA 只由 OmniMail 网站处理，扩展通过 PKCE 一次性授权码获得
-可随时撤销的设备令牌。
+支持跳转 OmniMail 网站授权、生成普通邮箱或 iCloud 隐藏地址、复制或填入当前网页、
+查看两类邮箱的来信和接收后台新邮件通知。密码与 MFA 只由 OmniMail 网站处理，扩展
+通过 PKCE 一次性授权码获得可随时撤销的设备令牌。
 
 ```powershell
 npm run build:extension

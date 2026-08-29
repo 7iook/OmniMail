@@ -37,14 +37,19 @@ export function LoginView({ apiOrigin, busy, error, onLogin }: {
       }}>
         <label htmlFor="omnimail-site">OmniMail 地址</label>
         <input id="omnimail-site" type="url" required placeholder="https://mail.example.com"
+          aria-describedby="omnimail-data-disclosure"
           value={site} onChange={(event) => setSite(event.target.value)} />
+        <div className="login-data-disclosure" id="omnimail-data-disclosure">
+          <strong>授权后的数据使用</strong>
+          <p>扩展会从所选 OmniMail 实例读取账户名称、邮箱地址和邮件内容，并在本机保存可撤销令牌与功能设置。数据只用于生成、填入、收件和通知，不用于广告或用户画像。</p>
+        </div>
         {error && <p className="login-error" role="alert"><AlertCircle size={15} />{error}</p>}
         <button className="primary-button" type="submit" disabled={busy}>
           {busy ? <LoaderCircle className="spin" size={17} /> : <ExternalLink size={17} />}
           {busy ? '等待网站授权…' : '前往 OmniMail 授权'}
         </button>
       </form>
-      <p className="login-security">授权完成后会安全保存登录，关闭浏览器后仍可自动恢复。</p>
+      <p className="login-security">继续后会在本机保存此站点地址并打开授权页；明确允许前不会读取账户或邮件。</p>
     </section>
   )
 }

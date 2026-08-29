@@ -251,6 +251,11 @@ try {
 
   const panelFrame = await panelFramePromise
   await panelFrame.getByRole('heading', { name: '连接你的邮箱' }).waitFor()
+  await panelFrame.getByText('授权后的数据使用').waitFor()
+  assert.equal(
+    await panelFrame.getByLabel('OmniMail 地址').getAttribute('aria-describedby'),
+    'omnimail-data-disclosure',
+  )
   const loginButton = panelFrame.getByRole('button', { name: '前往 OmniMail 授权' })
   await loginButton.click({ trial: true })
   await page.mouse.move(20, 20)
@@ -385,6 +390,10 @@ try {
   await page.waitForTimeout(300)
   assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '0')
   await page.screenshot({ path: resolve('test-results', 'extension-icloud.png') })
+  await page.screenshot({
+    path: resolve(capturedAssetsPath, '04-floating-icloud-generate.jpg'),
+    type: 'jpeg', quality: 94,
+  })
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.waitForTimeout(220)
   await page.screenshot({ path: resolve('test-results', 'extension-icloud-dark.png') })
@@ -403,6 +412,10 @@ try {
   await panelFrame.getByRole('heading', { name: 'Your iCloud verification code' }).waitFor()
   await panelFrame.frameLocator('iframe[title="iCloud 邮件正文"]').getByText('654321').waitFor()
   await page.screenshot({ path: resolve('test-results', 'extension-icloud-inbox.png') })
+  await page.screenshot({
+    path: resolve(capturedAssetsPath, '05-floating-icloud-inbox.jpg'),
+    type: 'jpeg', quality: 94,
+  })
   await panelFrame.getByRole('button', { name: '返回 iCloud 收件箱' }).click()
   await panelFrame.getByRole('tab', { name: 'OmniMail' }).click()
   await panelFrame.getByRole('combobox', { name: '筛选邮箱' }).click()

@@ -526,6 +526,28 @@ html.is-embedded .panel-shell {
   font-size: 12px;
 }
 
+.login-data-disclosure {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.login-data-disclosure strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.login-data-disclosure p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .login-view .primary-button {
   margin-top: 4px;
 }

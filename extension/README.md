@@ -5,7 +5,9 @@ OmniMail Float 是与本仓库一起构建的 Chrome Manifest V3 扩展。它在
 普通邮箱和 iCloud 隐藏地址、查看两类邮箱的来信，并接收 OmniMail 新邮件通知。扩展
 不会收集或处理用户密码或 iCloud 凭据。
 
-隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)。
+隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)，商店介绍、权限
+理由和隐私披露填写稿见 [`STORE_LISTING.md`](./STORE_LISTING.md)，多邮箱来源的长期
+版本计划见 [`ROADMAP.md`](./ROADMAP.md)。
 
 ## 构建与安装
 
@@ -54,6 +56,11 @@ Chrome Web Store 正式版本无需配置 `APP_ORIGINS`。主管理员登录 Omn
 脚本会打开独立的 Chrome 发布窗口。登录状态保存在本机
 `%LOCALAPPDATA%\OmniMail\ChromeWebStoreProfile`，不会写入 Git 仓库；关闭窗口后再次
 运行同一脚本即可复用登录。
+
+发布新版本前运行 `npm run update:extension-store-assets` 更新截图，并按
+[`STORE_LISTING.md`](./STORE_LISTING.md) 核对商店介绍、单一用途、权限理由、远程代码
+声明和数据处理类型。上传 ZIP 后再提交审核，不要把 GitHub Release ZIP 误当成已经完成
+商店发布。
 
 ## 安全边界
 
