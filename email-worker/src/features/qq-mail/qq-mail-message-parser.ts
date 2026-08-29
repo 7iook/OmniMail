@@ -47,7 +47,7 @@ function attributeList(line: string, name: string): string[] {
 }
 
 function numericAttribute(line: string, name: string): string {
-  return line.match(new RegExp(`\\b${name} (\\d+)\\b`, 'i'))?.[1] || ''
+  return line.match(new RegExp(`\\b${name}\\s+(\\d+)\\b`, 'i'))?.[1] || ''
 }
 
 function internalDate(line: string, headerDate = ''): number {
@@ -59,10 +59,17 @@ function internalDate(line: string, headerDate = ''): number {
 export async function parseQqMailMetadata(
   fetchLine: string,
   headers: Uint8Array,
+  expectedUid?: number,
 ): Promise<QqMailMessageMetadata> {
-  const uid = Number(numericAttribute(fetchLine, 'UID'))
-  if (!Number.isSafeInteger(uid) || uid < 1) {
-    throw new Error('QQ 邮箱 FETCH 响应缺少有效 UID。')
+  const responseUid = Number(numericAttribute(fetchLine, 'UID'))
+  const uid = Number.isSafeInteger(responseUid) && responseUid > 0
+    ? responseUid
+    : expectedUid
+  if (uid === undefined || !Number.isSafeInteger(uid) || uid < 1) {
+    throw new Error('QQ 邮箱 FETCH 响应缺少有效 UID，且无法从请求中安全关联。')
+  }
+  if (expectedUid !== undefined && uid !== expectedUid) {
+    throw new Error('QQ 邮箱 FETCH 响应 UID 与请求不一致。')
   }
   const parsed = await PostalMime.parse(headers, { maxHeadersSize: 128 * 1024 })
   const sender = imapMailboxes(parsed.from)[0]

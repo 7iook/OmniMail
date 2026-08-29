@@ -1,4 +1,12 @@
 export const enQqMail: Record<string, string> = {
+  '查看详情': 'View details',
+  '查看日志详情：{action}': 'View audit details: {action}',
+  '查看这条操作日志的完整记录和诊断信息。':
+    'Review the complete record and diagnostic information for this audit entry.',
+  '操作标识': 'Action identifier',
+  '目标对象': 'Target',
+  '日志 ID': 'Audit ID',
+  '诊断详情': 'Diagnostic details',
   'QQ 邮箱': 'QQ Mail',
   '已连接 QQ 邮箱账号': 'QQ Mail account connected',
   '已重命名 QQ 邮箱账号': 'QQ Mail account renamed',
@@ -19,6 +27,9 @@ export const enQqMail: Record<string, string> = {
   '第 {count} 次尝试': 'Attempt {count}',
   '阶段：{stage}': 'Stage: {stage}',
   '错误码：{code}': 'Error code: {code}',
+  '错误类型：{type}': 'Error type: {type}',
+  '错误说明：{message}': 'Error details: {message}',
+  '状态码：{status}': 'Status code: {status}',
   '读取：{count} 封': 'Fetched: {count}',
   '发现：{count} 封': 'Discovered: {count}',
   '远端缺失：{count} 封': 'Missing remotely: {count}',

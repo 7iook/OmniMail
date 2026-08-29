@@ -5,7 +5,11 @@ import {
   RECENT_MESSAGE_REFRESH_LIMIT,
 } from '../../platform/imap/sync-limit'
 import { qqMailImapEnabled } from './qq-mail-credentials'
-import { logWorkerError, logWorkerInfo } from '../../shared/observability/structured-log'
+import {
+  errorLogFields,
+  logWorkerError,
+  logWorkerInfo,
+} from '../../shared/observability/structured-log'
 import { writeAudit } from '../../shared/audit/audit'
 import type { QqMailImapClient } from './qq-mail-imap'
 import { qqMailAccountForSync, QqMailStoreError } from './qq-mail-store'
@@ -67,6 +71,19 @@ export function qqMailSyncErrorCode(error: unknown): string {
     return 'connection_failed'
   }
   return 'sync_failed'
+}
+
+export function qqMailSyncAuditErrorFields(error: unknown): Record<string, unknown> {
+  const fields = errorLogFields(error)
+  return {
+    errorType: error instanceof ImapConnectionError
+      ? 'ImapConnectionError'
+      : error instanceof QqMailStoreError
+        ? 'QqMailStoreError'
+        : fields.error_type,
+    errorMessage: fields.error_message,
+    errorStatus: fields.error_status,
+  }
 }
 
 export function missingQqMailUids(
@@ -350,6 +367,7 @@ export async function syncQqMailAccount(
         limit: messageLimit,
         stage,
         errorCode: code,
+        ...qqMailSyncAuditErrorFields(error),
         retryable,
         willRetry: retryable && (diagnostics.attempt ?? 1) < 3,
         durationMs: Date.now() - startedAt,

@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   Clock3,
+  Eye,
   LoaderCircle,
   LogIn,
   Search,
@@ -24,6 +25,7 @@ import {
 } from '../../../shared/api'
 import { getLocale, t } from '../../../shared/i18n'
 import { AdminPageHeader } from '../shell/AdminPageHeader'
+import { AuditLogDetailDialog } from './AuditLogDetailDialog'
 import { qqAuditActionLabels, qqAuditDetailParts } from './qqAuditPresentation'
 
 const categories: Array<{ id: AuditCategory; label: string }> = [
@@ -300,12 +302,14 @@ export function AuditLogs() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null)
 
   useEffect(() => {
     let active = true
     setLoading(true)
     setError('')
     setLogs([])
+    setSelectedLog(null)
     setPage(emptyPage)
     setSummary(emptySummary)
     Promise.all([
@@ -436,7 +440,18 @@ export function AuditLogs() {
                   </span>
                   <span className="audit-target">
                     <strong data-tooltip={log.targetId || undefined}>{targetName(log)}</strong>
-                    <small>{[log.target?.email, detailText(log)].filter(Boolean).join(' · ') || t('无附加信息')}</small>
+                    <span className="audit-target-detail">
+                      <small>{[log.target?.email, detailText(log)].filter(Boolean).join(' · ') || t('无附加信息')}</small>
+                      <button
+                        className="audit-detail-trigger"
+                        type="button"
+                        onClick={() => setSelectedLog(log)}
+                        aria-label={t('查看日志详情：{action}', { action: t(auditActionLabel(log.action)) })}
+                      >
+                        <Eye size={13} aria-hidden="true" />
+                        <span>{t('查看详情')}</span>
+                      </button>
+                    </span>
                   </span>
                   <code>{log.ip}</code>
                 </article>
@@ -458,6 +473,18 @@ export function AuditLogs() {
           <div className="audit-state"><ScrollText size={22} />{t('当前筛选范围内没有操作记录。')}</div>
         ) : null}
       </section>
+      {selectedLog && (
+        <AuditLogDetailDialog
+          log={selectedLog}
+          actionLabel={t(auditActionLabel(selectedLog.action))}
+          categoryLabel={actionCategory(selectedLog.action)}
+          actorLabel={actorName(selectedLog)}
+          targetLabel={targetName(selectedLog)}
+          formattedTime={formatTime(selectedLog.createdAt)}
+          detailParts={detailText(selectedLog).split(' · ').filter(Boolean)}
+          onClose={() => setSelectedLog(null)}
+        />
+      )}
     </main>
   )
 }

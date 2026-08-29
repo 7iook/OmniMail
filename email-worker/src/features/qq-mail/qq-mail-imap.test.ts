@@ -98,4 +98,42 @@ describe('QQ Mail controlled IMAP boundary', () => {
     expect(result.uids.at(-1)).toBe(20)
     expect(result.scannedThrough).toBe(20)
   })
+
+  it('associates QQ FETCH metadata with the requested UID when QQ omits UID', async () => {
+    const headers = [
+      'From: sender@example.com',
+      'To: 123456789@qq.com',
+      'Subject: QQ compatibility test',
+      'Date: Wed, 26 Aug 2026 12:00:00 +0000',
+      'Message-ID: <qq-compat@example.com>',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+    ].join('\r\n')
+    const headerBytes = new TextEncoder().encode(headers)
+    const fixture = scriptedSocket([
+      '* OK QQ Mail ready',
+      '* CAPABILITY IMAP4rev1',
+      'A0001 OK CAPABILITY',
+      'A0002 OK LOGIN',
+      '* CAPABILITY IMAP4rev1',
+      'A0003 OK CAPABILITY',
+      `* 1 FETCH (FLAGS () BODY[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE)] {${headerBytes.byteLength}}`,
+      headers,
+      ')',
+      'A0004 OK UID FETCH',
+      '* BYE',
+      'A0005 OK LOGOUT',
+      '',
+    ].join('\r\n'))
+    vi.mocked(connect).mockReturnValue(fixture.socket)
+    const client = new QqMailImapClient('123456789@qq.com', 'authorization-code')
+
+    await client.open()
+    await expect(client.fetchMetadata([9000])).resolves.toMatchObject([
+      { imapUid: 9000, subject: 'QQ compatibility test' },
+    ])
+    await client.close()
+
+    expect(fixture.commands()).toContain('UID FETCH 9000 (UID FLAGS')
+  })
 })

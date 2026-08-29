@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import {
   enqueueDueQqMailSyncs,
+  qqMailSyncAuditErrorFields,
   qqMailSyncErrorCode,
   selectQqMailFetchUids,
 } from './qq-mail-sync'
@@ -27,6 +28,17 @@ describe('QQ Mail synchronization policy', () => {
     expect(qqMailSyncErrorCode(new ImapConnectionError(504, 'timeout'))).toBe('timeout')
     expect(qqMailSyncErrorCode(new ImapConnectionError(502, '响应超过读取上限')))
       .toBe('response_too_large')
+  })
+
+  it('keeps a safe, actionable error summary for the audit detail dialog', () => {
+    expect(qqMailSyncAuditErrorFields(new ImapConnectionError(
+      502,
+      'QQ 邮箱 FETCH 响应缺少有效 UID，authorization=1234567890abcdef。',
+    ))).toEqual({
+      errorType: 'ImapConnectionError',
+      errorMessage: 'QQ 邮箱 FETCH 响应缺少有效 UID，authorization=[redacted]',
+      errorStatus: 502,
+    })
   })
 
   it('requeues expired syncing accounts without racing an active lease', async () => {

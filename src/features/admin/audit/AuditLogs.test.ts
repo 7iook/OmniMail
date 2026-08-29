@@ -38,7 +38,8 @@ describe('QQ Mail audit log presentation', () => {
     const entry = log({
       accountName: '工作 QQ', email: '123456789@qq.com', reason: 'manual',
       attempt: 2, limit: 20, stage: 'fetch_metadata', errorCode: 'sync_failed',
-      durationMs: 1432, willRetry: true,
+      errorType: 'ImapConnectionError', errorMessage: 'QQ 邮箱 FETCH 响应缺少有效 UID。',
+      errorStatus: 502, durationMs: 1432, willRetry: true,
     }, 'qq_mail.sync.failed')
 
     expect(auditActionLabel(entry.action)).toBe('QQ 邮箱同步失败')
@@ -48,6 +49,9 @@ describe('QQ Mail audit log presentation', () => {
     expect(detailText(entry)).toContain('来源：手动请求')
     expect(detailText(entry)).toContain('阶段：读取邮件元数据')
     expect(detailText(entry)).toContain('错误码：sync_failed')
+    expect(detailText(entry)).toContain('错误类型：ImapConnectionError')
+    expect(detailText(entry)).toContain('错误说明：QQ 邮箱 FETCH 响应缺少有效 UID。')
+    expect(detailText(entry)).toContain('状态码：502')
     expect(detailText(entry)).toContain('系统将自动重试')
   })
 

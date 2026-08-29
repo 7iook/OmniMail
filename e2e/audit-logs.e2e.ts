@@ -48,7 +48,8 @@ test('filters detailed QQ Mail audit entries without overflowing the category ba
           target: { id: 'qq-1', email: null, displayName: '工作 QQ' }, ip: 'queue',
           detail: { accountName: '工作 QQ', email: '12***@qq.com', reason: 'manual',
             attempt: 2, limit: 20, stage: 'fetch_metadata', errorCode: 'sync_failed',
-            durationMs: 1432, willRetry: true }, createdAt: 1_787_980_000,
+            errorType: 'ImapConnectionError', errorMessage: 'QQ 邮箱 FETCH 响应缺少有效 UID。',
+            errorStatus: 502, durationMs: 1432, willRetry: true }, createdAt: 1_787_980_000,
         }] : [],
         page: { hasMore: false, nextCursor: null, limit: 50 },
         summary: { total: requestedCategory === 'qq-mail' ? 1 : 0,
@@ -67,4 +68,25 @@ test('filters detailed QQ Mail audit entries without overflowing the category ba
   await expect(page.getByText(/错误码：sync_failed/)).toBeVisible()
   await expect(page.getByText(/系统将自动重试/)).toBeVisible()
   expect(await categories.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+
+  const detailTrigger = page.getByRole('button', { name: '查看日志详情：QQ 邮箱同步失败' })
+  await detailTrigger.click()
+  const dialog = page.getByRole('dialog', { name: 'QQ 邮箱同步失败' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('qq_mail.sync.failed')).toBeVisible()
+  await expect(dialog.getByText('阶段：读取邮件元数据')).toBeVisible()
+  await expect(dialog.getByText('错误码：sync_failed')).toBeVisible()
+  await expect(dialog.getByText('错误类型：ImapConnectionError')).toBeVisible()
+  await expect(dialog.getByText('错误说明：QQ 邮箱 FETCH 响应缺少有效 UID。')).toBeVisible()
+  await expect(dialog.getByText('状态码：502')).toBeVisible()
+  await expect(dialog.getByText('耗时：1432 ms')).toBeVisible()
+  await expect(dialog.getByText('系统将自动重试')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(detailTrigger).toBeFocused()
+
+  await page.setViewportSize({ width: 375, height: 720 })
+  await detailTrigger.click()
+  await expect(dialog).toBeVisible()
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })

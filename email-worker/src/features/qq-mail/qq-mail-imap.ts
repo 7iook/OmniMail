@@ -7,7 +7,6 @@ import type { QqMailMessageMetadata } from './qq-mail-types'
 const IMAP_HOST = 'imap.qq.com'
 const IMAP_PORT = 993
 const MAX_MESSAGE_BYTES = 10 * 1024 * 1024
-const METADATA_BATCH_SIZE = 20
 const SEARCH_RANGE_SIZE = 500
 const INITIAL_SEARCH_ROUNDS = 20
 const INCREMENTAL_SEARCH_ROUNDS = 10
@@ -129,16 +128,15 @@ export class QqMailImapClient {
   ): Promise<QqMailMessageMetadata[]> {
     const selected = validUids(uids)
     const messages: QqMailMessageMetadata[] = []
-    for (let offset = 0; offset < selected.length; offset += METADATA_BATCH_SIZE) {
+    for (const uid of selected) {
       if (Date.now() >= deadline) {
         throw new ImapConnectionError(504, 'QQ 邮箱同步超过总执行时间上限。')
       }
-      const batch = selected.slice(offset, offset + METADATA_BATCH_SIZE)
       const result = await this.connection.command(
-        `UID FETCH ${batch.join(',')} (UID FLAGS INTERNALDATE RFC822.SIZE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE)])`,
+        `UID FETCH ${uid} (UID FLAGS INTERNALDATE RFC822.SIZE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE)])`,
       )
       for (const literal of result.literals) {
-        messages.push(await parseQqMailMetadata(literal.line, literal.data))
+        messages.push(await parseQqMailMetadata(literal.line, literal.data, uid))
       }
     }
     return messages

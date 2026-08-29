@@ -57,6 +57,13 @@ export function qqAuditDetailParts(log: AuditLog): string[] {
     stage: t(syncStages[String(detail.stage)] || String(detail.stage)),
   }))
   if (detail.errorCode) parts.push(t('错误码：{code}', { code: String(detail.errorCode) }))
+  if (detail.errorType) parts.push(t('错误类型：{type}', { type: String(detail.errorType) }))
+  if (detail.errorMessage) parts.push(t('错误说明：{message}', {
+    message: String(detail.errorMessage),
+  }))
+  if (typeof detail.errorStatus === 'number') {
+    parts.push(t('状态码：{status}', { status: detail.errorStatus }))
+  }
   if (typeof detail.fetchedCount === 'number') {
     parts.push(t('读取：{count} 封', { count: detail.fetchedCount }))
   }
