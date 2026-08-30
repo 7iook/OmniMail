@@ -7,9 +7,13 @@ export const NOTIFICATION_SOURCE_IDS: MailSourceId[] = [
 export interface NotificationSettings {
   notificationsEnabled: boolean
   notificationSources: MailSourceId[]
+  quietHoursEnabled: boolean
   quietHoursStart: string
   quietHoursEnd: string
 }
+
+export const DEFAULT_QUIET_HOURS_START = '22:00'
+export const DEFAULT_QUIET_HOURS_END = '07:00'
 
 function validTime(value: unknown): value is string {
   return typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)
@@ -26,8 +30,11 @@ export function normalizedNotificationSettings(
   return {
     notificationsEnabled: value.notificationsEnabled !== false,
     notificationSources: [...new Set(sources)],
-    quietHoursStart: validTime(value.quietHoursStart) ? value.quietHoursStart : '',
-    quietHoursEnd: validTime(value.quietHoursEnd) ? value.quietHoursEnd : '',
+    quietHoursEnabled: value.quietHoursEnabled === true,
+    quietHoursStart: validTime(value.quietHoursStart)
+      ? value.quietHoursStart : DEFAULT_QUIET_HOURS_START,
+    quietHoursEnd: validTime(value.quietHoursEnd)
+      ? value.quietHoursEnd : DEFAULT_QUIET_HOURS_END,
   }
 }
 
@@ -40,7 +47,7 @@ export function isQuietTime(
   settings: NotificationSettings,
   date = new Date(),
 ): boolean {
-  if (!settings.quietHoursStart || !settings.quietHoursEnd) return false
+  if (!settings.quietHoursEnabled || !settings.quietHoursStart || !settings.quietHoursEnd) return false
   const start = minuteOfDay(settings.quietHoursStart)
   const end = minuteOfDay(settings.quietHoursEnd)
   const current = date.getHours() * 60 + date.getMinutes()

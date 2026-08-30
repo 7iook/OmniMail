@@ -289,7 +289,7 @@
   border-top: 1px solid var(--line);
 }
 
-.message-list > button {
+.message-open-button {
   position: relative;
   display: grid;
   width: 100%;
@@ -306,7 +306,7 @@
   transition: background 160ms ease;
 }
 
-.message-list > button:hover {
+.message-open-button:hover {
   background: var(--surface-hover);
 }
 

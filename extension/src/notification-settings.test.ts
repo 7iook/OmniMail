@@ -7,8 +7,12 @@ import {
 
 describe('Float notification settings', () => {
   it('enables every server-indexed source by default and rejects unknown sources', () => {
-    expect(normalizedNotificationSettings({}).notificationSources)
-      .toEqual(NOTIFICATION_SOURCE_IDS)
+    expect(normalizedNotificationSettings({})).toMatchObject({
+      notificationSources: NOTIFICATION_SOURCE_IDS,
+      quietHoursEnabled: false,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+    })
     expect(normalizedNotificationSettings({
       notificationSources: ['gmail', 'attacker'] as never,
     }).notificationSources).toEqual(['gmail'])
@@ -16,9 +20,11 @@ describe('Float notification settings', () => {
 
   it('supports daytime and overnight quiet hours in local time', () => {
     const daytime = normalizedNotificationSettings({
+      quietHoursEnabled: true,
       quietHoursStart: '09:00', quietHoursEnd: '17:00',
     })
     const overnight = normalizedNotificationSettings({
+      quietHoursEnabled: true,
       quietHoursStart: '22:00', quietHoursEnd: '07:00',
     })
     expect(isQuietTime(daytime, new Date(2026, 0, 1, 12, 0))).toBe(true)
@@ -26,5 +32,7 @@ describe('Float notification settings', () => {
     expect(isQuietTime(overnight, new Date(2026, 0, 1, 23, 0))).toBe(true)
     expect(isQuietTime(overnight, new Date(2026, 0, 1, 6, 0))).toBe(true)
     expect(isQuietTime(overnight, new Date(2026, 0, 1, 12, 0))).toBe(false)
+    expect(isQuietTime({ ...overnight, quietHoursEnabled: false },
+      new Date(2026, 0, 1, 23, 0))).toBe(false)
   })
 })

@@ -96,6 +96,7 @@ export type ExtensionRequest =
   | ({ type: 'api:compose-send' } & ComposeRequestInput)
   | ({ type: 'api:compose-save-draft' } & Omit<ComposeRequestInput, 'source' | 'replyToMessageId'>)
   | { type: 'page:fill-email'; email: string }
+  | { type: 'page:fill-verification-code'; code: string }
   | { type: 'settings:set-floating'; enabled: boolean }
   | { type: 'settings:set-theme'; theme: ThemePreference }
   | ({ type: 'settings:set-notifications' } & NotificationSettings)

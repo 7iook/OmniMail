@@ -137,6 +137,30 @@
   gap: 8px;
 }
 
+.quiet-hours-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.quiet-hours-header > div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.quiet-hours-header strong { color: var(--text); font-size: 10px; }
+.quiet-hours-header span { color: var(--text-tertiary); font-size: 9px; }
+
+.quiet-hours-header input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
 .quiet-hours-fields label {
   display: grid;
   gap: 5px;

@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { t } from '../../src/shared/i18n'
-import { NOTIFICATION_SOURCE_IDS } from './notification-settings'
+import {
+  DEFAULT_QUIET_HOURS_END,
+  DEFAULT_QUIET_HOURS_START,
+  NOTIFICATION_SOURCE_IDS,
+} from './notification-settings'
 import type { ExtensionSettings, ThemePreference } from './protocol'
 import { sendExtensionMessage } from './protocol'
 import { setPanelTheme } from './theme'
@@ -21,8 +25,9 @@ export function usePanelSettings({
     theme: 'system',
     notificationsEnabled: true,
     notificationSources: NOTIFICATION_SOURCE_IDS,
-    quietHoursStart: '',
-    quietHoursEnd: '',
+    quietHoursEnabled: false,
+    quietHoursStart: DEFAULT_QUIET_HOURS_START,
+    quietHoursEnd: DEFAULT_QUIET_HOURS_END,
   })
 
   async function toggleFloating(enabled: boolean) {
@@ -54,7 +59,8 @@ export function usePanelSettings({
 
   async function changeNotifications(input: Pick<
     ExtensionSettings,
-    'notificationsEnabled' | 'notificationSources' | 'quietHoursStart' | 'quietHoursEnd'
+    'notificationsEnabled' | 'notificationSources' | 'quietHoursEnabled'
+    | 'quietHoursStart' | 'quietHoursEnd'
   >) {
     const previous = settings
     const next = { ...settings, ...input }

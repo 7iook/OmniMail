@@ -208,6 +208,7 @@ export async function upgradeMailSourceAuthorization(context, frame) {
 async function verifySource(frame, label, heading, code) {
   await selectMailSource(frame, label)
   await frame.getByRole('heading', { name: heading }).waitFor()
+  await frame.getByRole('group', { name: '识别到验证码 246810' }).first().waitFor()
   await frame.getByText(`Your ${code} verification code`).click()
   await frame.getByRole('heading', { name: `Your ${code} verification code` }).waitFor()
   await frame.frameLocator(`iframe[title="${label} 邮件正文"]`).getByText('246810').waitFor()
@@ -229,6 +230,7 @@ export async function verifyIndexedSources(frame, page) {
   await frame.getByRole('heading', { name: 'Linux DO Mail 收件箱' }).waitFor()
   await selectMailSource(frame, 'Gmail')
   await frame.getByRole('heading', { name: 'Gmail 收件箱' }).waitFor()
+  await frame.getByRole('group', { name: '识别到验证码 246810' }).first().waitFor()
   await frame.getByRole('button', { name: '加载更多' }).click()
   await frame.getByText('Older GMAIL verification code').waitFor()
   const gmailAccount = frame.getByRole('combobox', { name: 'Gmail 账号' })

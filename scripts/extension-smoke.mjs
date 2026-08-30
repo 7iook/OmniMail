@@ -6,8 +6,7 @@ import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 import {
   deferred, extensionScopes, iCloudAccounts, iCloudAliases, iCloudMessage,
-  float041Scopes,
-  json, mailboxes, message, requestBody, user,
+  float041Scopes, json, mailboxes, message, requestBody, user,
 } from './extension-smoke-fixtures.mjs'
 import { verifyNarrowPanel, verifyThemeRestored, verifyThemeSwitch } from './extension-smoke-theme.mjs'
 import {
@@ -17,13 +16,10 @@ import {
   verifyRemainingSources,
 } from './extension-smoke-indexed.mjs'
 import { createPromoAsset } from './extension-smoke-promo.mjs'
-import {
-  handleComposeRequest,
-  verifyOmniCompose,
-  verifyOmniReply,
-} from './extension-smoke-compose.mjs'
+import { handleComposeRequest, verifyOmniCompose, verifyOmniReply } from './extension-smoke-compose.mjs'
 import { verifyNotificationSettings } from './extension-smoke-notifications.mjs'
 import { verifyEnglishPanel } from './extension-smoke-language.mjs'
+import { verifyCodeActions } from './extension-smoke-verification.mjs'
 const extensionPath = resolve('dist-extension'); const previewMode = process.argv.includes('--preview'); const updateStoreAssets = process.argv.includes('--update-store-assets')
 const profilePath = await mkdtemp(resolve(tmpdir(), 'omnimail-extension-'))
 const screenshotPath = resolve('test-results', 'extension-smoke.png'); const dropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open.png'); const darkDropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open-dark.png')
@@ -45,11 +41,13 @@ const server = createServer(async (request, response) => {
         main{min-height:732px;display:grid;place-items:center;padding:48px}
         section{width:460px;padding:40px;border:1px solid #e1e4e8;border-radius:18px;background:white;box-shadow:0 20px 60px #11182712}
         h1{margin:0 0 10px;font-size:30px}.copy{margin:0 0 28px;color:#6b7280;line-height:1.6}
-        label{display:grid;gap:9px;font-weight:650}input{height:48px;padding:0 14px;border:1px solid #cfd4dc;border-radius:10px;font:inherit}
+        label{display:grid;gap:9px;font-weight:650}label+label{margin-top:16px}input{height:48px;padding:0 14px;border:1px solid #cfd4dc;border-radius:10px;font:inherit}
         .continue{width:100%;height:48px;margin-top:22px;border:0;border-radius:10px;color:white;background:#1d1d1f;font-weight:700}
       </style></head><body><nav><span class="brand">Acme</span><span class="nav-links">产品 定价 帮助</span></nav>
         <main><section><h1>创建你的账户</h1><p class="copy">填写邮箱即可开始使用。OmniMail Float 能帮你快速生成并填入一个新地址。</p>
-          <label>邮箱地址<input type="email" placeholder="name@example.com" /></label><button class="continue">继续</button>
+          <label>邮箱地址<input type="email" placeholder="name@example.com" /></label>
+          <label>验证码<input name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位验证码" /></label>
+          <button class="continue">继续</button>
         </section></main></body></html>`)
       return
     }
@@ -286,6 +284,13 @@ try {
   await panelFrame.getByRole('button', { name: '切换到 OmniMail 收件箱' }).click()
   await upgradeMailSourceAuthorization(context, panelFrame)
   await panelFrame.getByRole('button', { name: '生成', exact: true }).click()
+  await selectGenerateMailSource(panelFrame, 'Gmail')
+  const connectedAddresses = panelFrame.getByRole('region', { name: '使用已连接的 Gmail 邮箱' })
+  const gmailAddress = connectedAddresses.getByRole('group', { name: /Gmail · Personal Gmail · owner@gmail\.com/ })
+  await gmailAddress.getByText('owner@gmail.com').waitFor()
+  await gmailAddress.getByRole('button', { name: '填入网页' }).click()
+  assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'owner@gmail.com')
+  await selectGenerateMailSource(panelFrame, 'OmniMail')
   const randomMailboxButton = panelFrame.getByRole('button', { name: '随机生成邮箱' })
   await randomMailboxButton.click({ trial: true })
   assert.deepEqual(await randomMailboxButton.evaluate((button) => ({
@@ -331,6 +336,7 @@ try {
   assert.match(generatedAddress, /^alias-[a-f0-9]{12}@example\.com$/)
   const recentMail = panelFrame.getByRole('region', { name: '当前邮箱邮件' })
   await recentMail.getByText('Your verification code').waitFor()
+  await verifyCodeActions(page, panelFrame, recentMail)
   assert.equal(lastMessageMailbox, generatedAddress)
   await recentMail.getByText('每 5 秒自动刷新').waitFor()
   const requestsBeforeManualRefresh = messageListRequests
@@ -341,7 +347,8 @@ try {
   const requestsBeforeAutoRefresh = messageListRequests
   await page.waitForTimeout(5_200)
   assert(messageListRequests > requestsBeforeAutoRefresh)
-  await panelFrame.getByRole('button', { name: '填入网页' }).click()
+  await panelFrame.locator('.generate-page .address-result')
+    .getByRole('button', { name: '填入网页' }).click()
   await page.getByLabel('邮箱地址').waitFor()
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), generatedAddress)
   await recentMail.getByText('Your verification code').click()
@@ -366,7 +373,7 @@ try {
   iCloudAliasGate.release.resolve()
   await aliasSkeleton.waitFor({ state: 'hidden' })
   iCloudAliasGate = null
-  await panelFrame.getByRole('button', { name: '填入网页' }).click()
+  await existingAliasCard.getByRole('button', { name: '填入网页' }).click()
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'existing-alias@icloud.com')
   await panelFrame.getByRole('button', { name: '创建新的隐藏邮箱' }).click()
   await panelFrame.getByLabel('用途标签 可选').fill('购物注册')
@@ -399,7 +406,7 @@ try {
   await page.waitForTimeout(220)
   await page.screenshot({ path: resolve('test-results', 'extension-icloud-dark.png') })
   await page.emulateMedia({ colorScheme: 'light' })
-  await panelFrame.getByRole('button', { name: '填入网页' }).click()
+  await existingAliasCard.getByRole('button', { name: '填入网页' }).click()
   assert.equal(await page.getByLabel('邮箱地址').inputValue(), 'float-preview@icloud.com')
   await selectGenerateMailSource(panelFrame, 'OmniMail')
   await panelFrame.getByRole('button', { name: '随机生成邮箱' }).waitFor()

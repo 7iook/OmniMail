@@ -15,15 +15,22 @@ export async function verifyNotificationSettings(page, frame, serviceWorker, add
     chrome.storage.local.get('notificationSources')
   ))).notificationSources.includes('gmail'), false)
   await gmailNotifications.check()
-  await frame.getByLabel('开始').fill('22:00')
-  await frame.getByLabel('结束').fill('07:00')
+  assert.equal(await frame.getByLabel('开始').inputValue(), '22:00')
+  assert.equal(await frame.getByLabel('结束').inputValue(), '07:00')
+  const quietHoursEnabled = frame.getByRole('checkbox', { name: '启用勿扰时段' })
+  assert.equal(await quietHoursEnabled.isChecked(), false)
+  await quietHoursEnabled.check()
+  await frame.getByLabel('开始').fill('23:00')
+  await frame.getByLabel('结束').fill('08:00')
   await page.waitForTimeout(100)
   const quietHours = await serviceWorker.evaluate(() => chrome.storage.local.get([
-    'quietHoursStart', 'quietHoursEnd',
+    'quietHoursEnabled', 'quietHoursStart', 'quietHoursEnd',
   ]))
-  assert.deepEqual(quietHours, { quietHoursStart: '22:00', quietHoursEnd: '07:00' })
+  assert.deepEqual(quietHours, {
+    quietHoursEnabled: true, quietHoursStart: '23:00', quietHoursEnd: '08:00',
+  })
+  await quietHoursEnabled.uncheck()
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.local.set({ quietHoursStart: '', quietHoursEnd: '' })
     await chrome.storage.local.remove(['knownMessageKeys', 'knownNotificationSources'])
     await chrome.alarms.create('omnimail-mail-poll', { when: Date.now() + 100 })
   })

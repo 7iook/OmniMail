@@ -78,7 +78,8 @@ Chrome Web Store 正式版本无需配置 `APP_ORIGINS`。主管理员登录 Omn
   支持服务端开放的发信/回复能力。不能读取或修改第三方凭据、管理账号、下载原文、
   删除邮件或修改账户设置。新邮件通知读取服务端轻量元数据索引；Cookie-only iCloud
   账号保持手动读取，不会触发后台 IMAP。
-- Content Script 只负责悬浮窗口和当前页面邮箱输入框填充，不能读取令牌。
+- Content Script 只负责悬浮窗口，以及用户点击后的当前页面邮箱或验证码输入框填充，
+  不能读取令牌或表单原有值。
 - Service Worker 只接受预定义的 OmniMail API 操作，不提供任意 URL 请求代理。
 - 邮件 HTML 在 sandbox iframe 中显示，脚本、表单、远程图片和危险属性会被移除。
 - 为了自动显示悬浮入口，扩展需要访问普通 HTTP/HTTPS 网页；可以在扩展设置里关闭

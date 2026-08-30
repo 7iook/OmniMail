@@ -33,6 +33,7 @@ import {
 } from './protocol'
 import { usePanelICloud } from './usePanelICloud'
 import { usePanelMailSources } from './usePanelMailSources'
+import { usePanelQuickActions } from './usePanelQuickActions'
 import { usePanelSettings } from './usePanelSettings'
 
 type View = 'generate' | 'inbox' | 'settings'
@@ -50,6 +51,7 @@ export function PanelApp() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const settingsState = usePanelSettings({ onNotice: setNotice, onError: setError }); const { settings, setSettings } = settingsState
+  const quickActions = usePanelQuickActions({ onNotice: setNotice, onError: setError })
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [mailboxes, setMailboxes] = useState<MailboxAddress[]>([])
   const [domains, setDomains] = useState<ManagedDomain[]>([])
@@ -314,24 +316,6 @@ export function PanelApp() {
     return address
   }
 
-  async function copyAddress(address: string) {
-    try {
-      await navigator.clipboard.writeText(address)
-      setNotice('邮箱地址已复制')
-    } catch {
-      setError('无法访问剪贴板，请手动复制。')
-    }
-  }
-
-  async function fillAddress(address: string) {
-    try {
-      await sendExtensionMessage({ type: 'page:fill-email', email: address })
-      setNotice('已填入当前网页')
-    } catch (fillError) {
-      setError(errorText(fillError))
-    }
-  }
-
   async function changeMailbox(address: string) {
     detailRequestId.current += 1
     setSelectedMailbox(address)
@@ -397,8 +381,7 @@ export function PanelApp() {
           <div className="panel-view" key={view}>
           {view === 'generate' && (
             <GenerateView
-              source={sourceState.generateSource}
-              sources={sourceState.generateSources}
+              source={sourceState.generateSource} sources={sourceState.sources}
               domains={enabledDomains}
               domain={domain}
               localPart={localPart}
@@ -432,8 +415,10 @@ export function PanelApp() {
               onICloudReauthorize={() => void login({ apiOrigin: auth.apiOrigin })}
               onICloudRetry={() => void iCloud.loadAccounts()}
               onICloudRetryAliases={() => void iCloud.loadAliases()}
-              onCopy={copyAddress}
-              onFill={fillAddress}
+              onCopy={quickActions.copyAddress}
+              onFill={quickActions.fillAddress}
+              onCopyVerificationCode={quickActions.copyVerificationCode}
+              onFillVerificationCode={quickActions.fillVerificationCode}
               onRefresh={() => loadMessages(generateAddress, true)}
               onSelect={(message) => {
                 sourceState.setInboxSource('omnimail')
@@ -477,6 +462,8 @@ export function PanelApp() {
                 : Promise.resolve()}
               onSelect={openMessage}
               onBack={() => { detailRequestId.current += 1; setSelectedMessage(null) }}
+              onCopyVerificationCode={quickActions.copyVerificationCode}
+              onFillVerificationCode={quickActions.fillVerificationCode}
             />
           )}
           {view === 'settings' && (

@@ -4,7 +4,9 @@ import { getLocale, t, useLocale } from '../../src/shared/i18n'
 import type { ICloudAccount, ICloudAlias, ICloudMessage } from '../../src/shared/api/api-types'
 import { safeEmailDocument } from './email-document'
 import { PanelSelect } from './PanelSelect'
+import { PanelVerificationCode } from './PanelVerificationCode'
 import { sendExtensionMessage } from './protocol'
+import { extractVerificationCode } from './verification-code'
 
 interface Props {
   accountId: string
@@ -18,6 +20,8 @@ interface Props {
   onAccount: (accountId: string) => void
   onOpenWeb: () => void
   onReauthorize: () => void
+  onCopyVerificationCode: (code: string) => void
+  onFillVerificationCode: (code: string) => void
 }
 
 function errorText(error: unknown): string {
@@ -191,15 +195,21 @@ export function PanelICloudInbox(props: Props) {
         <div className="empty-state"><LoaderCircle className="spin" size={20} />{t('正在读取 iCloud 邮件…')}</div>
       ) : (
         <div className="message-list">
-          {messages.map((message) => (
-            <button type="button" key={message.id} onClick={() => void openMessage(message)}>
-              <span className="unread-dot" /><span className="message-copy">
-                <strong>{message.from || t('未知发件人')}</strong>
-                <b>{message.subject || t('（无主题）')}</b>
-                <small>{message.preview || t('暂无预览')}</small>
-              </span><time>{formatDate(message.date)}</time>
-            </button>
-          ))}
+          {messages.map((message) => {
+            const code = extractVerificationCode(message.subject, message.preview)
+            return <div className="message-list-item" key={message.id}>
+              <button className="message-open-button" type="button"
+                onClick={() => void openMessage(message)}>
+                <span className="unread-dot" /><span className="message-copy">
+                  <strong>{message.from || t('未知发件人')}</strong>
+                  <b>{message.subject || t('（无主题）')}</b>
+                  <small>{message.preview || t('暂无预览')}</small>
+                </span><time>{formatDate(message.date)}</time>
+              </button>
+              <PanelVerificationCode code={code} onCopy={props.onCopyVerificationCode}
+                onFill={props.onFillVerificationCode} />
+            </div>
+          })}
           {!messages.length && !error && <div className="empty-state"><Inbox size={23} />
             <strong>{t('最近 7 天没有来信')}</strong><span>{t('可切换隐藏地址或稍后手动刷新。')}</span></div>}
         </div>

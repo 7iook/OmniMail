@@ -79,6 +79,7 @@ async function pollCandidates(request: AuthenticatedRequest, enabled: Set<MailSo
 async function pollMail(request: AuthenticatedRequest): Promise<void> {
   const stored = await chrome.storage.local.get([
     'notificationsEnabled', 'notificationSources', 'quietHoursStart', 'quietHoursEnd',
+    'quietHoursEnabled',
     'knownMessageKeys', 'knownNotificationSources', 'notificationTargets',
   ])
   const settings = normalizedNotificationSettings(stored)

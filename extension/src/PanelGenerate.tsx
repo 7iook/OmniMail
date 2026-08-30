@@ -3,6 +3,7 @@ import type { ICloudAccount, ICloudAlias, ManagedDomain, MessageSummary } from '
 import type { MailSourceDescriptor, MailSourceId } from './mail-source'
 import { t, useLocale } from '../../src/shared/i18n'
 import { PanelICloudGenerate } from './PanelICloudGenerate'
+import { PanelConnectedAddresses } from './PanelConnectedAddresses'
 import { PanelMailSourceSelect } from './PanelMailSourceSelect'
 import { PanelRecentMail } from './PanelRecentMail'
 import { PanelSelect } from './PanelSelect'
@@ -41,6 +42,8 @@ interface Props {
   onLocalPart: (localPart: string) => void
   onRefresh: () => void
   onSelect: (message: MessageSummary) => void
+  onCopyVerificationCode: (code: string) => void
+  onFillVerificationCode: (code: string) => void
   onSource: (source: MailSourceId) => void
   randomMailboxPrefix: string
   refreshInterval: number
@@ -52,6 +55,7 @@ interface Props {
 export function GenerateView(props: Props) {
   useLocale()
   const address = props.generatedAddress || props.fallbackAddress
+  const connectedSource = props.sources.find((source) => source.id === props.source)
   const previewLocalPart = props.localPart.trim().toLowerCase()
     || `${props.randomMailboxPrefix}${t('随机字符')}`
   return (
@@ -93,9 +97,11 @@ export function GenerateView(props: Props) {
           {address && <div className="page-card address-result"><span>{t(props.generatedAddress ? '刚刚生成' : '当前邮箱')}</span><strong>{address}</strong><div><button type="button" onClick={() => props.onCopy(address)}><Copy size={15} />{t('复制')}</button><button type="button" onClick={() => props.onFill(address)}><SendToBack size={15} />{t('填入网页')}</button></div></div>}
           {address && <PanelRecentMail messages={props.messages} loading={props.mailLoading}
             refreshing={props.refreshing} refreshInterval={props.refreshInterval}
-            onRefresh={props.onRefresh} onSelect={props.onSelect} />}
+            onRefresh={props.onRefresh} onSelect={props.onSelect}
+            onCopyVerificationCode={props.onCopyVerificationCode}
+            onFillVerificationCode={props.onFillVerificationCode} />}
         </div>
-      ) : (
+      ) : props.source === 'icloud' ? (
         <div className="generate-source-panel" role="tabpanel">
           <PanelICloudGenerate enabled={props.iCloudEnabled}
             authorized={props.iCloudAuthorized} accounts={props.iCloudAccounts}
@@ -108,7 +114,12 @@ export function GenerateView(props: Props) {
             onReauthorize={props.onICloudReauthorize} onRetry={props.onICloudRetry}
             onRetryAliases={props.onICloudRetryAliases} />
         </div>
-      )}
+      ) : connectedSource ? (
+        <div className="generate-source-panel" role="tabpanel">
+          <PanelConnectedAddresses source={connectedSource}
+            onCopy={props.onCopy} onFill={props.onFill} />
+        </div>
+      ) : null}
     </section>
   )
 }

@@ -105,14 +105,23 @@ export function SettingsView({ auth, settings, onToggleFloating, onTheme,
                     : settings.notificationSources.filter((item) => item !== source.id),
                 })} />{source.label}</label>)}
           </div></fieldset>
-          <fieldset><legend>{t('勿扰时段（本机时间）')}</legend><div className="quiet-hours-fields">
-            <label>{t('开始')}<input aria-label={t('开始')} type="time" value={settings.quietHoursStart}
-              onChange={(event) => onNotifications({ ...settings,
-                quietHoursStart: event.target.value })} /></label>
-            <label>{t('结束')}<input aria-label={t('结束')} type="time" value={settings.quietHoursEnd}
-              onChange={(event) => onNotifications({ ...settings,
-                quietHoursEnd: event.target.value })} /></label>
-          </div></fieldset>
+          <fieldset><legend>{t('勿扰时段（本机时间）')}</legend>
+            <div className="quiet-hours-header"><div><strong>{t('暂停新邮件通知')}</strong>
+              <span>{t('开启后，在设定时间内不显示浏览器通知')}</span></div>
+              <input aria-label={t('启用勿扰时段')} type="checkbox"
+                checked={settings.quietHoursEnabled}
+                onChange={(event) => onNotifications({ ...settings,
+                  quietHoursEnabled: event.target.checked })} />
+            </div>
+            <div className="quiet-hours-fields">
+              <label>{t('开始')}<input aria-label={t('开始')} type="time" value={settings.quietHoursStart}
+                onChange={(event) => onNotifications({ ...settings,
+                  quietHoursStart: event.target.value })} /></label>
+              <label>{t('结束')}<input aria-label={t('结束')} type="time" value={settings.quietHoursEnd}
+                onChange={(event) => onNotifications({ ...settings,
+                  quietHoursEnd: event.target.value })} /></label>
+            </div>
+          </fieldset>
         </>}
       </div>
       <PanelThemeSettings value={settings.theme} onChange={onTheme} />

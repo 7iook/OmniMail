@@ -26,6 +26,7 @@ const LOCAL_SETTINGS = [
   'notificationTargets',
   'notificationsEnabled',
   'notificationSources',
+  'quietHoursEnabled',
   'quietHoursStart',
   'quietHoursEnd',
   'floatingEnabled',
@@ -349,10 +350,17 @@ async function logout() {
   return { ok: true as const }
 }
 
-async function fillCurrentPage(email: string, sender: chrome.runtime.MessageSender) {
+async function fillCurrentPage(
+  value: string,
+  kind: 'email' | 'verification-code',
+  sender: chrome.runtime.MessageSender,
+) {
   const tabId = sender.tab?.id ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id
   if (!tabId) throw new Error('没有可填入的活动网页。')
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'omnimail:fill-email', email })
+  const response = await chrome.tabs.sendMessage(tabId, {
+    type: kind === 'email' ? 'omnimail:fill-email' : 'omnimail:fill-verification-code',
+    value,
+  })
   if (!response?.ok) throw new Error(response?.error || '当前页面没有可用的邮箱输入框。')
   return { ok: true as const }
 }
@@ -376,11 +384,13 @@ async function handleMessage(message: ExtensionRequest, sender: chrome.runtime.M
     case 'auth:status': return authStatus()
     case 'auth:authorize': return authorize(message)
     case 'auth:logout': return logout()
-    case 'page:fill-email': return fillCurrentPage(message.email, sender)
+    case 'page:fill-email': return fillCurrentPage(message.email, 'email', sender)
+    case 'page:fill-verification-code':
+      return fillCurrentPage(message.code, 'verification-code', sender)
     case 'settings:get': {
       const settings = await chrome.storage.local.get([
         'floatingEnabled', 'theme', 'notificationsEnabled', 'notificationSources',
-        'quietHoursStart', 'quietHoursEnd',
+        'quietHoursEnabled', 'quietHoursStart', 'quietHoursEnd',
       ])
       return {
         floatingEnabled: settings.floatingEnabled !== false,
@@ -454,8 +464,9 @@ chrome.runtime.onInstalled.addListener(() => {
     if (settings.notificationSources === undefined) {
       defaults.notificationSources = normalizedNotificationSettings({}).notificationSources
     }
-    if (settings.quietHoursStart === undefined) defaults.quietHoursStart = ''
-    if (settings.quietHoursEnd === undefined) defaults.quietHoursEnd = ''
+    if (settings.quietHoursEnabled === undefined) defaults.quietHoursEnabled = false
+    if (settings.quietHoursStart === undefined) defaults.quietHoursStart = '22:00'
+    if (settings.quietHoursEnd === undefined) defaults.quietHoursEnd = '07:00'
     if (Object.keys(defaults).length) return chrome.storage.local.set(defaults)
   })
   void configureMailAlarm()

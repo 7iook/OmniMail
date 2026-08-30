@@ -1,3 +1,5 @@
+import { fillPageValue } from './page-fill'
+
 (() => {
   const CONTROLLER_KEY = '__omnimailFloatController'
   const existing = (window as typeof window & Record<string, unknown>)[CONTROLLER_KEY] as {
@@ -377,39 +379,6 @@
     frameLoaded = false
   }
 
-  function visibleInput(input: HTMLInputElement): boolean {
-    const rect = input.getBoundingClientRect()
-    return !input.disabled && !input.readOnly && rect.width > 0 && rect.height > 0
-  }
-
-  function looksLikeEmailInput(input: HTMLInputElement): boolean {
-    return input.type === 'email'
-      || input.autocomplete === 'email'
-      || /(?:e-?mail|邮箱)/i.test(`${input.name} ${input.id} ${input.placeholder}`)
-  }
-
-  function emailInput(): HTMLInputElement | null {
-    if (
-      lastFocusedInput
-      && document.contains(lastFocusedInput)
-      && visibleInput(lastFocusedInput)
-      && looksLikeEmailInput(lastFocusedInput)
-    ) {
-      return lastFocusedInput
-    }
-    const candidates = [...document.querySelectorAll<HTMLInputElement>('input')]
-    return candidates.find((input) => visibleInput(input) && looksLikeEmailInput(input)) ?? null
-  }
-
-  function setInputValue(input: HTMLInputElement, value: string): void {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-    if (setter) setter.call(input, value)
-    else input.value = value
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-    input.focus()
-  }
-
   function reconcile(): void {
     void chrome.storage.local.get(['floatingEnabled', 'apiOrigin', 'floatLayout', 'theme']).then((settings) => {
       const ownSite = settings.apiOrigin && location.origin === settings.apiOrigin
@@ -426,14 +395,11 @@
   cleanup.push(() => document.removeEventListener('focusin', onFocus, true))
 
   const onRuntimeMessage = (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (response: unknown) => void) => {
-    const request = message as { type?: string; email?: string }
-    if (request.type !== 'omnimail:fill-email' || typeof request.email !== 'string') return
-    const input = emailInput()
-    if (!input) sendResponse({ ok: false, error: '当前页面没有找到邮箱输入框。' })
-    else {
-      setInputValue(input, request.email)
-      sendResponse({ ok: true })
-    }
+    const request = message as { type?: string; value?: string }
+    const kind = request.type === 'omnimail:fill-email' ? 'email'
+      : request.type === 'omnimail:fill-verification-code' ? 'verification-code' : null
+    if (!kind || typeof request.value !== 'string') return
+    sendResponse(fillPageValue(document, lastFocusedInput, kind, request.value))
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage)
   cleanup.push(() => chrome.runtime.onMessage.removeListener(onRuntimeMessage))

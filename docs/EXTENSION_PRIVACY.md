@@ -1,6 +1,6 @@
 # OmniMail Float 隐私政策 / Privacy Policy
 
-生效日期 / Effective date: 2026-08-29
+生效日期 / Effective date: 2026-08-30
 
 OmniMail Float 是连接用户指定 OmniMail 实例的浏览器客户端。本政策说明浏览器扩展
 本身如何处理数据。用户所连接实例的数据保留与管理同时受该实例运营者的政策约束。
@@ -21,8 +21,9 @@ by the selected instance is also governed by that instance operator's policy.
   iCloud Cookie、应用专用密码和 QQ 授权码不会提供给扩展。
 - 本地功能设置，例如主题偏好、悬浮入口开关、通知来源、勿扰时段、面板位置、上次选择
   的邮箱和用于判断新邮件的来源游标。
-- 为显示悬浮入口，内容脚本会在普通 HTTP/HTTPS 网页中运行。只有当用户主动选择
-  “填入网页”时，它才会在当前页面定位邮箱输入框并写入用户选择的地址。扩展不会收集
+- 扩展会在本地从邮件标题和摘要中识别带明确验证码语义的短数字，并仅在用户点击后复制
+  或填入。为显示悬浮入口，内容脚本会在普通 HTTP/HTTPS 网页中运行。只有当用户主动
+  选择“填入网页”时，它才会定位邮箱或验证码输入框并写入用户选择的值。扩展不会收集
   或上传浏览历史、当前网页网址、网页正文、页面 Cookie 或表单中原有的值。
 
 - The OmniMail site address entered by the user.
@@ -38,20 +39,24 @@ by the selected instance is also governed by that instance operator's policy.
 - Local feature settings such as theme preference, floating-button state,
   panel layout, last selected mailbox, and message identifiers used to detect
   new mail.
-- A content script runs on ordinary HTTP/HTTPS pages to display the floating
-  entry point. Only when the user chooses to fill the page does it locate an
-  email input and write the selected address. It does not collect or upload
+- The extension locally recognizes short numbers with explicit verification-code
+  context in message subjects and previews, and only copies or fills them after
+  a user click. A content script runs on ordinary HTTP/HTTPS pages to display the
+  floating entry point. Only when the user chooses to fill the page does it locate
+  an email or verification-code input and write the selected value. It does not collect or upload
   browsing history, the current page URL, page contents, page cookies, or
   existing form values.
 
 ## 使用目的 / How data is used
 
 这些数据只用于连接用户选择的 OmniMail 实例、创建和填入普通或 iCloud 隐藏邮箱地址、
+在本地识别并由用户主动复制或填入验证码、
 显示 OmniMail、iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱和邮件，
 以及提醒新邮件。附件、草稿和发信内容仅在用户主动操作时传输。数据不会用于广告、用户画像、信用评估或与扩展功能无关的分析。
 
 The data is used only to connect to the user's selected OmniMail instance,
-create and fill regular or iCloud Hide My Email addresses, display OmniMail,
+create and fill regular or iCloud Hide My Email addresses, locally recognize and
+copy or fill verification codes after a user action, display OmniMail,
 iCloud, Linux DO, Gmail, Microsoft, QQ, NAVER, and Yandex Mail accounts and messages,
 and notify the user of new mail. Attachments, drafts, and outbound messages are transferred only after the user acts. It is not used for advertising, profiling,
 credit assessment, or analytics unrelated to the extension's functionality.

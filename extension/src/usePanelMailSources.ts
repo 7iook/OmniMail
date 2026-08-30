@@ -69,7 +69,6 @@ export function usePanelMailSources(apiOrigin: string) {
     generateSource, setGenerateSource: selectGenerateSource,
     inboxSource, setInboxSource: selectInboxSource,
     sources, unavailable, upgradeRequired,
-    generateSources: sources.filter(({ id }) => id === 'omnimail' || id === 'icloud'),
     apply, reset, openWeb,
   }
 }

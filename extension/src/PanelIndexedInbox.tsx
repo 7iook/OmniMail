@@ -21,11 +21,13 @@ import { safeEmailDocument } from './email-document'
 import { PanelAttachments } from './PanelAttachments'
 import { PanelCompose } from './PanelCompose'
 import { PanelSelect } from './PanelSelect'
+import { PanelVerificationCode } from './PanelVerificationCode'
 import {
   type AttachmentPayload,
   type IndexedInboxResult,
   sendExtensionMessage,
 } from './protocol'
+import { extractVerificationCode } from './verification-code'
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : '读取邮箱失败。'
@@ -43,11 +45,14 @@ function sender(message: IndexedMessageSummary): string {
   return message.senderName || message.senderAddress || '未知发件人'
 }
 
-export function PanelIndexedInbox({ source, descriptor, canSend, onOpenWeb }: {
+export function PanelIndexedInbox({ source, descriptor, canSend, onOpenWeb,
+  onCopyVerificationCode, onFillVerificationCode }: {
   source: IndexedMailSourceId
   descriptor: MailSourceDescriptor
   canSend: boolean
   onOpenWeb: () => void
+  onCopyVerificationCode: (code: string) => void
+  onFillVerificationCode: (code: string) => void
 }) {
   useLocale()
   const listRequestId = useRef(0)
@@ -305,15 +310,20 @@ export function PanelIndexedInbox({ source, descriptor, canSend, onOpenWeb }: {
       {loading && !messages.length ? <div className="empty-state">
         <LoaderCircle className="spin" size={20} />{t('正在读取 {source} 邮件…', { source: descriptor.label })}</div> : (
         <div className="message-list">
-          {messages.map((message) => (
-            <button className={!message.isRead ? 'is-unread' : ''} type="button"
-              key={`${message.accountId}:${message.id}`} onClick={() => void openMessage(message)}>
-              <span className="unread-dot" /><span className="message-copy">
-                <strong>{sender(message)}</strong><b>{message.subject || '（无主题）'}</b>
-                <small>{message.preview || message.accountEmail}</small></span>
-              <time>{formatDate(message.date)}</time>
-            </button>
-          ))}
+          {messages.map((message) => {
+            const code = extractVerificationCode(message.subject, message.preview)
+            return <div className="message-list-item" key={`${message.accountId}:${message.id}`}>
+              <button className={`message-open-button${!message.isRead ? ' is-unread' : ''}`}
+                type="button" onClick={() => void openMessage(message)}>
+                <span className="unread-dot" /><span className="message-copy">
+                  <strong>{sender(message)}</strong><b>{message.subject || '（无主题）'}</b>
+                  <small>{message.preview || message.accountEmail}</small></span>
+                <time>{formatDate(message.date)}</time>
+              </button>
+              <PanelVerificationCode code={code} onCopy={onCopyVerificationCode}
+                onFill={onFillVerificationCode} />
+            </div>
+          })}
           {!messages.length && !error && <div className="empty-state"><Inbox size={23} />
             <strong>{t('没有匹配的邮件')}</strong><span>{t('可以切换账号或修改搜索词。')}</span></div>}
           {page.hasMore && page.nextCursor && <div className="indexed-load-more">

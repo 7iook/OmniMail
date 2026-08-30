@@ -20,7 +20,9 @@ import type {
   MailSourceId,
 } from './mail-source'
 import { PanelSelect } from './PanelSelect'
+import { PanelVerificationCode } from './PanelVerificationCode'
 import { type AttachmentPayload, sendExtensionMessage } from './protocol'
+import { extractVerificationCode } from './verification-code'
 
 interface Props {
   iCloudAccountId: string
@@ -54,6 +56,8 @@ interface Props {
   onSelect: (message: MessageSummary) => void
   onOpenSourceWeb: (source: MailSourceId) => void
   onUpgradeAuthorization: () => void
+  onCopyVerificationCode: (code: string) => void
+  onFillVerificationCode: (code: string) => void
 }
 
 function formatDate(timestamp: number): string {
@@ -72,6 +76,7 @@ function OmniInbox(props: Pick<Props,
   'loading' | 'mailbox' | 'mailboxes' | 'messages' | 'refreshing' | 'selected'
   | 'loadingMore' | 'page' | 'sources' | 'onBack' | 'onLoadMore' | 'onMailbox'
   | 'onRefresh' | 'onSelect' | 'canSend'
+  | 'onCopyVerificationCode' | 'onFillVerificationCode'
 >) {
   useLocale()
   const [compose, setCompose] = useState<'new' | 'reply' | ''>('')
@@ -139,14 +144,19 @@ function OmniInbox(props: Pick<Props,
       </div>
       {props.loading && !props.messages.length ? <div className="empty-state"><LoaderCircle className="spin" size={20} />{t('正在读取邮件…')}</div> : (
         <div className="message-list">
-          {props.messages.map((message) => (
-            <button className={!message.isRead ? 'is-unread' : ''} type="button"
-              key={message.id} onClick={() => props.onSelect(message)}>
-              <span className="unread-dot" /><span className="message-copy">
-                <strong>{senderName(message)}</strong><b>{message.subject || t('（无主题）')}</b>
-                <small>{message.preview || t('暂无预览')}</small></span><time>{formatDate(message.date)}</time>
-            </button>
-          ))}
+          {props.messages.map((message) => {
+            const code = extractVerificationCode(message.subject, message.preview)
+            return <div className="message-list-item" key={message.id}>
+              <button className={`message-open-button${!message.isRead ? ' is-unread' : ''}`}
+                type="button" onClick={() => props.onSelect(message)}>
+                <span className="unread-dot" /><span className="message-copy">
+                  <strong>{senderName(message)}</strong><b>{message.subject || t('（无主题）')}</b>
+                  <small>{message.preview || t('暂无预览')}</small></span><time>{formatDate(message.date)}</time>
+              </button>
+              <PanelVerificationCode code={code} onCopy={props.onCopyVerificationCode}
+                onFill={props.onFillVerificationCode} />
+            </div>
+          })}
           {!props.messages.length && <div className="empty-state"><Inbox size={23} />
             <strong>{t('还没有邮件')}</strong><span>{t('新邮件到达后会自动出现在这里。')}</span></div>}
           {props.page.hasMore && props.page.nextCursor && <div className="indexed-load-more">
@@ -179,10 +189,14 @@ export function InboxView(props: Props) {
           aliases={props.iCloudAliases} preferredAlias={props.iCloudPreferredAlias}
           loadingAccounts={props.iCloudLoadingAccounts} loadingAliases={props.iCloudLoadingAliases}
           onAccount={props.onICloudAccount} onOpenWeb={props.onICloudOpenWeb}
-          onReauthorize={props.onICloudReauthorize} />
+          onReauthorize={props.onICloudReauthorize}
+          onCopyVerificationCode={props.onCopyVerificationCode}
+          onFillVerificationCode={props.onFillVerificationCode} />
       ) : descriptor ? <PanelIndexedInbox key={props.source}
         source={props.source as IndexedMailSourceId} descriptor={descriptor}
         canSend={props.canSend}
+        onCopyVerificationCode={props.onCopyVerificationCode}
+        onFillVerificationCode={props.onFillVerificationCode}
         onOpenWeb={() => props.onOpenSourceWeb(props.source)} /> : null}
     </div>
   )

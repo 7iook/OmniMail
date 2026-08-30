@@ -1,12 +1,16 @@
 import { Inbox, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { MessageSummary } from '../../src/shared/api/api-types'
 import { getLocale, t, useLocale } from '../../src/shared/i18n'
+import { PanelVerificationCode } from './PanelVerificationCode'
+import { extractVerificationCode } from './verification-code'
 
 interface Props {
   loading: boolean
   messages: MessageSummary[]
   onRefresh: () => void
   onSelect: (message: MessageSummary) => void
+  onCopyVerificationCode: (code: string) => void
+  onFillVerificationCode: (code: string) => void
   refreshInterval: number
   refreshing: boolean
 }
@@ -24,6 +28,8 @@ export function PanelRecentMail({
   messages,
   onRefresh,
   onSelect,
+  onCopyVerificationCode,
+  onFillVerificationCode,
   refreshInterval,
   refreshing,
 }: Props) {
@@ -56,20 +62,21 @@ export function PanelRecentMail({
         <div className="recent-mail-empty"><LoaderCircle className="spin" size={17} />{t('正在读取邮件…')}</div>
       ) : recentMessages.length ? (
         <div className="recent-mail-list">
-          {recentMessages.map((message) => (
-            <button
-              className={message.isRead ? '' : 'is-unread'}
-              type="button"
-              key={message.id}
-              onClick={() => onSelect(message)}
-            >
-              <span className="recent-mail-dot" />
-              <span className="recent-mail-copy">
-                <span><strong>{message.subject || t('（无主题）')}</strong><time>{messageDate(message.date)}</time></span>
-                <small>{message.senderName || message.senderAddress || t('未知发件人')}</small>
-              </span>
-            </button>
-          ))}
+          {recentMessages.map((message) => {
+            const code = extractVerificationCode(message.subject, message.preview)
+            return <div className="recent-mail-item" key={message.id}>
+              <button className={`recent-mail-open-button${message.isRead ? '' : ' is-unread'}`}
+                type="button" onClick={() => onSelect(message)}>
+                <span className="recent-mail-dot" />
+                <span className="recent-mail-copy">
+                  <span><strong>{message.subject || t('（无主题）')}</strong><time>{messageDate(message.date)}</time></span>
+                  <small>{message.senderName || message.senderAddress || t('未知发件人')}</small>
+                </span>
+              </button>
+              <PanelVerificationCode code={code} onCopy={onCopyVerificationCode}
+                onFill={onFillVerificationCode} />
+            </div>
+          })}
         </div>
       ) : (
         <div className="recent-mail-empty">

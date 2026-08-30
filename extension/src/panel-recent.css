@@ -46,7 +46,7 @@
   border-top: 1px solid var(--line);
 }
 
-.recent-mail-list > button {
+.recent-mail-open-button {
   display: grid;
   width: 100%;
   min-height: 52px;
@@ -62,11 +62,11 @@
   transition: background 160ms ease;
 }
 
-.recent-mail-list > button:last-child {
+.recent-mail-item:last-child .recent-mail-open-button {
   border-bottom: 0;
 }
 
-.recent-mail-list > button:hover {
+.recent-mail-open-button:hover {
   background: var(--surface-hover);
 }
 
