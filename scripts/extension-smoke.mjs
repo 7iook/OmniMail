@@ -221,6 +221,7 @@ try {
   context = await chromium.launchPersistentContext(profilePath, {
     channel: 'chromium',
     headless: !previewMode,
+    locale: 'zh-CN',
     viewport: { width: 1280, height: 800 },
     args: [
       `--disable-extensions-except=${extensionPath}`,
