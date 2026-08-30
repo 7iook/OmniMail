@@ -8,6 +8,7 @@ function browser(tabs: Array<{ id?: number; windowId?: number; url?: string }> =
   return {
     listTabs: vi.fn(async (_urlPattern: string) => tabs),
     activateTab: vi.fn(async () => {}),
+    navigateTab: vi.fn(async () => {}),
     focusWindow: vi.fn(async () => {}),
     createTab: vi.fn(async () => {}),
     clearNotification: vi.fn(async () => {}),
@@ -23,9 +24,28 @@ describe('Float notification navigation', () => {
     await handleNotificationClick('omnimail:message-1', 'https://mail.example.com', target)
     expect(target.listTabs).toHaveBeenCalledWith('https://mail.example.com/*')
     expect(target.activateTab).toHaveBeenCalledWith(3)
+    expect(target.navigateTab).toHaveBeenCalledWith(
+      3,
+      'https://mail.example.com/mail/inbox',
+    )
     expect(target.focusWindow).toHaveBeenCalledWith(4)
     expect(target.createTab).not.toHaveBeenCalled()
     expect(target.clearNotification).toHaveBeenCalledWith('omnimail:message-1')
+  })
+
+  it('opens and reuses a fixed source deep link', async () => {
+    const target = browser([{ id: 8, windowId: 9, url: 'https://mail.example.com/gmail' }])
+    await handleNotificationClick(
+      'float:gmail:message-1',
+      'https://mail.example.com',
+      target,
+      '/gmail?accountId=gmail-1&messageId=message-1',
+    )
+    expect(target.navigateTab).toHaveBeenCalledWith(
+      8,
+      'https://mail.example.com/gmail?accountId=gmail-1&messageId=message-1',
+    )
+    expect(target.activateTab).toHaveBeenCalledWith(8)
   })
 
   it('opens a new Web inbox without replacing another OmniMail workspace', async () => {

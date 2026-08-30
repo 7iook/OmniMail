@@ -1,5 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { t, useLocale } from '../../src/shared/i18n'
 
 export interface PanelSelectOption {
   label: string
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function PanelSelect({ ariaLabel, disabled = false, id, onChange, options, value }: Props) {
+  useLocale()
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const activeIndexRef = useRef(0)
@@ -100,7 +102,7 @@ export function PanelSelect({ ariaLabel, disabled = false, id, onChange, options
         }}
         onKeyDown={handleKeyDown}
       >
-        <span>{selectedOption?.label || '暂无可用选项'}</span>
+        <span>{selectedOption?.label || t('暂无可用选项')}</span>
         <ChevronDown size={15} aria-hidden="true" />
       </button>
       {open && (
