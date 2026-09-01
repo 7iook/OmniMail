@@ -125,6 +125,123 @@ export async function parseMicrosoftMetadata(
   }
 }
 
+/**
+ * The slice of a Graph `message` resource this mapper reads.
+ *
+ * Declared locally on purpose: it is the anti-corruption boundary. Nothing past
+ * this file sees Graph's field names, and the Graph client owns its own types, so
+ * importing them here would couple the two in both directions.
+ */
+export interface MicrosoftGraphMessageInput {
+  id?: unknown
+  internetMessageId?: unknown
+  subject?: unknown
+  bodyPreview?: unknown
+  isRead?: unknown
+  hasAttachments?: unknown
+  receivedDateTime?: unknown
+  sentDateTime?: unknown
+  from?: unknown
+  sender?: unknown
+  toRecipients?: unknown
+  ccRecipients?: unknown
+  flag?: unknown
+  singleValueExtendedProperties?: unknown
+}
+
+/** PidTagMessageSize — the only route to a message's size on the v1.0 surface. */
+const GRAPH_SIZE_PROPERTY = /^integer 0x0*e08$/i
+const GRAPH_PREVIEW_CHARS = 180
+
+/**
+ * Same bound and shape as the inbound preview, kept local on purpose: the shared
+ * helper lives in the queue handler module, which imports the Microsoft sync
+ * consumer, so importing it here would close an import cycle.
+ */
+function graphPreview(value: string): string {
+  const clean = value.replace(/\s+/g, ' ').trim()
+  return clean.length > GRAPH_PREVIEW_CHARS
+    ? `${clean.slice(0, GRAPH_PREVIEW_CHARS - 1)}…` : clean
+}
+
+function graphText(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function graphMailbox(value: unknown): { name: string; address: string } | undefined {
+  const mailbox = (value as { emailAddress?: { name?: unknown; address?: unknown } } | null)
+    ?.emailAddress
+  const address = graphText(mailbox?.address).trim()
+  if (!address) return undefined
+  return { name: graphText(mailbox?.name).trim(), address }
+}
+
+function graphMailboxes(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map(graphMailbox).filter((mailbox) => !!mailbox).map(mailboxText)
+}
+
+function graphSizeBytes(value: unknown): number {
+  if (!Array.isArray(value)) return 0
+  for (const property of value) {
+    const { id, value: raw } = (property || {}) as { id?: unknown; value?: unknown }
+    if (!GRAPH_SIZE_PROPERTY.test(graphText(id).trim())) continue
+    const size = Number(graphText(raw) || raw)
+    if (Number.isSafeInteger(size) && size >= 0) return size
+  }
+  return 0
+}
+
+/**
+ * Normalises one Graph message into the same shape the IMAP path produces, so a
+ * mail fetched over either transport renders identically.
+ *
+ * Where the two transports genuinely differ, this picks the value that keeps the
+ * UI consistent rather than the value that is cheapest to read:
+ * - `remoteId` stays Graph's opaque id verbatim; it is transport-scoped by contract.
+ * - `uidValidity` is `null` — Graph has no UIDVALIDITY.
+ * - Display names are kept. Graph splits them out of the address, while IMAP keeps
+ *   the RFC2822 header, so recipients are re-composed into `Name <addr>` form.
+ * - Dates become epoch seconds, erasing the ISO-8601 vs RFC-2822 divergence.
+ * - `flags` stays empty: IMAP flag tokens are an IMAP fact and would be a lie here.
+ *   `isRead` / `isStarred` carry the same meaning across both instead.
+ */
+export function parseMicrosoftGraphMetadata(
+  message: MicrosoftGraphMessageInput,
+): MicrosoftMessageMetadata {
+  const remoteId = graphText(message.id).trim()
+  if (!remoteId) throw new Error('Microsoft Graph 消息缺少 id。')
+  const sender = graphMailbox(message.from) ?? graphMailbox(message.sender)
+  const messageId = graphText(message.internetMessageId).trim()
+  const receivedAt = timestamp(graphText(message.receivedDateTime))
+  const sentAt = timestamp(graphText(message.sentDateTime))
+  const flagStatus = graphText((message.flag as { flagStatus?: unknown } | null)?.flagStatus)
+  return {
+    remoteId,
+    // Graph has no UIDVALIDITY; the two-layer identity uses internetMessageId instead.
+    uidValidity: null,
+    // Empty is legitimate — not every mail carries a Message-ID, and inventing a
+    // synthetic one would fabricate a cross-transport identity that does not exist.
+    // Bare ids are bracketed so both transports key on the same string.
+    internetMessageId: messageId && !messageId.startsWith('<') ? `<${messageId}>` : messageId,
+    senderName: sender?.name || '',
+    senderAddress: sender?.address || '',
+    recipients: graphMailboxes(message.toRecipients),
+    cc: graphMailboxes(message.ccRecipients),
+    subject: graphText(message.subject).trim().slice(0, 998),
+    preview: graphPreview(graphText(message.bodyPreview)),
+    receivedAt: receivedAt ?? sentAt ?? 0,
+    sentAt,
+    sizeBytes: graphSizeBytes(message.singleValueExtendedProperties),
+    // IMAP flag tokens (\Seen, \Flagged) describe an IMAP mailbox. Graph state is
+    // carried by the booleans below, which is what every consumer actually reads.
+    flags: [],
+    isRead: message.isRead === true,
+    isStarred: flagStatus === 'flagged' || flagStatus === 'complete',
+    hasAttachments: message.hasAttachments === true,
+  }
+}
+
 function attachmentBytes(attachment: Attachment): Uint8Array {
   if (typeof attachment.content === 'string') return new TextEncoder().encode(attachment.content)
   return attachment.content instanceof Uint8Array
