@@ -104,7 +104,10 @@ export async function parseMicrosoftMetadata(
   const sentAt = timestamp(parsed.date)
   const contentType = parsed.headers.find(({ key }) => key === 'content-type')?.value || ''
   return {
-    uid,
+    remoteId: String(uid),
+    // UIDVALIDITY belongs to the mailbox, not the FETCH line — the sync layer,
+    // which has already examined the folder, fills it in before persisting.
+    uidValidity: null,
     internetMessageId: parsed.messageId || '',
     senderName: sender?.name || '',
     senderAddress: sender?.address || '',

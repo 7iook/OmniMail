@@ -18,7 +18,8 @@ describe('Microsoft MIME parsing', () => {
       '* 1 FETCH (UID 42 FLAGS (\\Seen) INTERNALDATE "25-Aug-2026 02:00:00 +0000" RFC822.SIZE 321 BODYSTRUCTURE ("TEXT" "PLAIN") {250}',
       headers,
     )).resolves.toMatchObject({
-      uid: 42,
+      remoteId: '42',
+      uidValidity: null,
       internetMessageId: '<outlook-message@example.com>',
       senderAddress: 'sender@example.com',
       subject: 'Outlook message',

@@ -175,11 +175,15 @@ export async function importMicrosoftAccounts(
           providedEmail: input.email,
           normalizedEmail: input.email,
           authMode: input.authMode,
+          // Freshly imported: transport not probed yet. The cascade resolves it on
+          // first use and writes the winner back (state machine entry point).
+          preferredTransport: 'unknown',
           clientId: input.clientId,
           authority: input.authority,
           refreshToken: validated.refreshToken,
           accessToken: validated.accessToken,
           accessTokenExpiresAt: validated.accessTokenExpiresAt,
+          graphAccessTokenExpiresAt: null,
           password: '',
           status: 'active',
           lastSyncedAt: null,

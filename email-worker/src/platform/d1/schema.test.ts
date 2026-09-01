@@ -106,6 +106,7 @@ const FINAL_MIGRATIONS = [
   '0033_naver_mail_imap.sql',
   '0034_yandex_mail_imap.sql',
   '0035_external_mail_indexes.sql',
+  '0036_microsoft_transport_channel.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -118,7 +119,7 @@ describe('D1 migration check', () => {
     const checkedMigrations = fixture.prepare.mock.results
       .map(({ value }) => (value as MockStatement).bindings[0])
       .filter(Boolean)
-    expect(checkedMigrations).toEqual(['0035_external_mail_indexes.sql'])
+    expect(checkedMigrations).toEqual(['0036_microsoft_transport_channel.sql'])
   })
 
   it('applies external mail indexes 0035 to an existing Yandex installation', async () => {
@@ -127,7 +128,7 @@ describe('D1 migration check', () => {
     await ensureSchema(fixture.db)
 
     expect(fixture.batch).toHaveBeenCalledOnce()
-    expect(fixture.applied.has('0035_external_mail_indexes.sql')).toBe(true)
+    expect(fixture.applied.has('0036_microsoft_transport_channel.sql')).toBe(true)
   })
 
   it('recovers from 0033 through Yandex and external mail indexes', async () => {
@@ -139,7 +140,7 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0032_netease_mail.sql')).toBe(false)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
-    expect(fixture.applied.has('0035_external_mail_indexes.sql')).toBe(true)
+    expect(fixture.applied.has('0036_microsoft_transport_channel.sql')).toBe(true)
   })
 
   it('applies NAVER and Yandex when a test database already recorded NetEase 0032', async () => {
@@ -153,14 +154,14 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0032_netease_mail.sql')).toBe(true)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
-    expect(fixture.applied.has('0035_external_mail_indexes.sql')).toBe(true)
+    expect(fixture.applied.has('0036_microsoft_transport_channel.sql')).toBe(true)
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 21],
-    ['2026-08-01-p2-translation-permissions', 16, 19],
-    ['2026-08-03-p3-multiple-drafts', 17, 18],
-  ])('recovers legacy schema %s through migration 0035', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 22],
+    ['2026-08-01-p2-translation-permissions', 16, 20],
+    ['2026-08-03-p3-multiple-drafts', 17, 19],
+  ])('recovers legacy schema %s through migration 0036', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -170,7 +171,7 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(34)
+    expect(fixture.applied.size).toBe(35)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
     expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
     expect(fixture.applied.has('0022_consistency_guards.sql')).toBe(true)
@@ -185,7 +186,7 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0031_qq_mail_identities.sql')).toBe(true)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
-    expect(fixture.applied.has('0035_external_mail_indexes.sql')).toBe(true)
+    expect(fixture.applied.has('0036_microsoft_transport_channel.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
@@ -220,7 +221,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(34)
+    expect(fixture.applied.size).toBe(35)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -255,7 +256,7 @@ describe('D1 migration check', () => {
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0035_external_mail_indexes.sql',
+      concurrentMigration: '0036_microsoft_transport_channel.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
@@ -268,7 +269,7 @@ describe('D1 migration check', () => {
       failBatchOnce: true,
     })
 
-    await expect(ensureSchema(fixture.db)).rejects.toThrow('0035_external_mail_indexes.sql')
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0036_microsoft_transport_channel.sql')
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledTimes(2)
   })

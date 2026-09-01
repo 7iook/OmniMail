@@ -84,12 +84,12 @@ function messageStatement(
 ): D1PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO microsoft_imap_messages (
-      id, account_id, folder_path, uid_validity, imap_uid,
+      id, account_id, folder_path, source_transport, remote_id, uid_validity,
       internet_message_id, sender_name, sender_address, recipients_json,
       cc_json, subject, preview, received_at, sent_at, size_bytes, flags_json,
       is_read, is_starred, has_attachments, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(account_id, folder_path, uid_validity, imap_uid) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(account_id, folder_path, source_transport, remote_id) DO UPDATE SET
       internet_message_id = excluded.internet_message_id,
       sender_name = excluded.sender_name,
       sender_address = excluded.sender_address,
@@ -109,8 +109,9 @@ function messageStatement(
     `microsoft_msg_${crypto.randomUUID().replaceAll('-', '')}`,
     accountId,
     folderPath,
+    'imap',
+    message.remoteId,
     uidValidity,
-    message.uid,
     message.internetMessageId,
     message.senderName,
     message.senderAddress,

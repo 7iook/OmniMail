@@ -17,9 +17,13 @@ const GMAIL_MIGRATION = '0025_gmail_imap.sql'
 const GMAIL_UNLIMITED_MIGRATION = '0026_gmail_unlimited_accounts.sql'
 const MICROSOFT_MIGRATION = '0027_microsoft_imap.sql'
 const MICROSOFT_COMBINATION_PASSWORD_MIGRATION = '0028_microsoft_oauth_combination_password.sql'
+const MICROSOFT_TRANSPORT_CHANNEL_MIGRATION = '0036_microsoft_transport_channel.sql'
 const QQ_MAIL_MIGRATION = '0029_qq_mail_imap.sql'
 const QQ_MAIL_SMTP_MIGRATION = '0030_qq_mail_smtp.sql'
-export const REQUIRED_MIGRATION = EXTERNAL_MAIL_INDEX_MIGRATION
+// Fast-path probe: must always name the LAST migration in WRANGLER_MIGRATION_NAMES.
+// Adding a migration without moving this pointer makes ensureSchema report the
+// previous tail as satisfied and silently skip the new one.
+export const REQUIRED_MIGRATION = MICROSOFT_TRANSPORT_CHANNEL_MIGRATION
 export const WRANGLER_MIGRATION_NAMES = [
   '0001_initial.sql',
   '0002_domains.sql',
@@ -54,6 +58,7 @@ export const WRANGLER_MIGRATION_NAMES = [
   QQ_MAIL_IDENTITIES_MIGRATION,
   NAVER_MAIL_MIGRATION,
   YANDEX_MAIL_MIGRATION,
+  EXTERNAL_MAIL_INDEX_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 export const LEGACY_BASELINES: Record<string, number> = {
@@ -506,6 +511,69 @@ export const RECOVERABLE_MIGRATIONS = [
        SET status = 'credential_error', last_error_code = 'password_auth_removed',
            last_error_at = unixepoch(), next_sync_at = 0, updated_at = unixepoch()
        WHERE auth_mode = 'password'`,
+    ],
+  },
+  {
+    name: MICROSOFT_TRANSPORT_CHANNEL_MIGRATION,
+    statements: [
+      `ALTER TABLE microsoft_imap_accounts
+       ADD COLUMN preferred_transport TEXT NOT NULL DEFAULT 'unknown'`,
+      `ALTER TABLE microsoft_imap_accounts
+       ADD COLUMN graph_access_token_cipher TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE microsoft_imap_accounts
+       ADD COLUMN graph_access_token_expires_at INTEGER`,
+      `UPDATE microsoft_imap_accounts
+       SET preferred_transport = 'imap', updated_at = unixepoch()
+       WHERE preferred_transport = 'unknown'
+         AND EXISTS (SELECT 1 FROM microsoft_imap_messages
+                      WHERE microsoft_imap_messages.account_id = microsoft_imap_accounts.id)`,
+      // Guard: abort rather than silently drop data if the table is not empty.
+      // Verified behaviour: empty -> passes, non-empty -> "CHECK constraint failed".
+      `CREATE TABLE _migration_0036_guard (ok INTEGER NOT NULL CHECK (ok = 1))`,
+      `INSERT INTO _migration_0036_guard (ok)
+       SELECT CASE WHEN (SELECT count(*) FROM microsoft_imap_messages) = 0 THEN 1 ELSE 0 END`,
+      `DROP TABLE _migration_0036_guard`,
+      `DROP TABLE microsoft_imap_messages`,
+      `CREATE TABLE microsoft_imap_messages (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES microsoft_imap_accounts(id) ON DELETE CASCADE,
+        folder_path TEXT NOT NULL,
+        source_transport TEXT NOT NULL DEFAULT 'imap'
+          CHECK (source_transport IN ('graph', 'imap')),
+        remote_id TEXT NOT NULL CHECK (remote_id != ''),
+        uid_validity INTEGER CHECK (uid_validity IS NULL OR uid_validity > 0),
+        internet_message_id TEXT NOT NULL DEFAULT '',
+        sender_name TEXT NOT NULL DEFAULT '',
+        sender_address TEXT NOT NULL DEFAULT '',
+        recipients_json TEXT NOT NULL DEFAULT '[]',
+        cc_json TEXT NOT NULL DEFAULT '[]',
+        subject TEXT NOT NULL DEFAULT '',
+        preview TEXT NOT NULL DEFAULT '',
+        received_at INTEGER NOT NULL,
+        sent_at INTEGER,
+        size_bytes INTEGER NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+        flags_json TEXT NOT NULL DEFAULT '[]',
+        is_read INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
+        is_starred INTEGER NOT NULL DEFAULT 0 CHECK (is_starred IN (0, 1)),
+        has_attachments INTEGER NOT NULL DEFAULT 0 CHECK (has_attachments IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (account_id, folder_path, source_transport, remote_id),
+        CHECK (
+          (source_transport = 'imap' AND uid_validity IS NOT NULL)
+          OR
+          (source_transport = 'graph' AND uid_validity IS NULL)
+        ),
+        FOREIGN KEY (account_id, folder_path)
+          REFERENCES microsoft_imap_folders(account_id, path) ON DELETE CASCADE
+      )`,
+      `CREATE UNIQUE INDEX idx_microsoft_imap_messages_rfc_identity
+       ON microsoft_imap_messages(account_id, folder_path, internet_message_id)
+       WHERE internet_message_id != ''`,
+      `CREATE INDEX idx_microsoft_imap_messages_folder_date
+       ON microsoft_imap_messages(account_id, folder_path, received_at DESC, id DESC)`,
+      `CREATE INDEX idx_microsoft_imap_messages_date
+       ON microsoft_imap_messages(received_at DESC, id DESC, account_id)`,
     ],
   },
   {
