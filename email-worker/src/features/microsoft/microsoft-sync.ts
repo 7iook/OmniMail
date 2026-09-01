@@ -65,13 +65,15 @@ async function localUids(
   folderPath: string,
   uidValidity: number,
 ): Promise<number[]> {
+  // remote_id holds the IMAP UID in string form; this IMAP-only path converts back.
   const { results } = await env.DB.prepare(
-    `SELECT imap_uid FROM microsoft_imap_messages
+    `SELECT remote_id FROM microsoft_imap_messages
       WHERE account_id = ? AND folder_path = ? AND uid_validity = ?
+        AND source_transport = 'imap'
       ORDER BY received_at DESC, id DESC LIMIT ?`,
   ).bind(accountId, folderPath, uidValidity, INDEX_MESSAGE_LIMIT)
-    .all<{ imap_uid: number }>()
-  return results.map(({ imap_uid }) => imap_uid)
+    .all<{ remote_id: string }>()
+  return results.map(({ remote_id }) => Number(remote_id)).filter(Number.isSafeInteger)
 }
 
 function messageStatement(
@@ -171,8 +173,9 @@ export async function refreshMicrosoftFolderWithClient(
   )))
   statements.push(...missing.map((uid) => env.DB.prepare(
     `DELETE FROM microsoft_imap_messages
-      WHERE account_id = ? AND folder_path = ? AND uid_validity = ? AND imap_uid = ?`,
-  ).bind(accountId, folderPath, mailbox.uidValidity, uid)))
+      WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
+        AND remote_id = ?`,
+  ).bind(accountId, folderPath, String(uid))))
   statements.push(env.DB.prepare(
     `DELETE FROM microsoft_imap_messages
       WHERE account_id = ? AND folder_path = ? AND id NOT IN (

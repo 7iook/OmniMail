@@ -45,7 +45,8 @@ async function testEnv(isRead = 0) {
   const statements: Array<{ sql: string; bindings: unknown[] }> = []
   const messageRow = {
     id: 'message-1', account_id: 'microsoft-1', folder_path: 'INBOX',
-    uid_validity: 42, imap_uid: 7, internet_message_id: '<message@example.com>',
+    source_transport: 'imap', remote_id: '7',
+    uid_validity: 42, internet_message_id: '<message@example.com>',
     sender_name: 'Sender', sender_address: 'sender@example.com', recipients_json: '[]',
     cc_json: '[]', subject: 'Subject', preview: '', received_at: 1, sent_at: null,
     size_bytes: 100, is_read: isRead, is_starred: 0, has_attachments: 0,

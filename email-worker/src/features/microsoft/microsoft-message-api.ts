@@ -9,7 +9,7 @@ import {
 import { openMicrosoftClient } from './microsoft-session'
 import { MicrosoftAccountStore, MicrosoftStoreError } from './microsoft-store'
 import { refreshMicrosoftFolderWithClient } from './microsoft-sync'
-import type { MicrosoftAccountStatus } from './microsoft-types'
+import type { MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 const FOLDER_REFRESH_INTERVAL_SECONDS = 30
@@ -18,8 +18,9 @@ type MicrosoftMessageRow = {
   id: string
   account_id: string
   folder_path: string
-  uid_validity: number
-  imap_uid: number
+  source_transport: MicrosoftTransport
+  remote_id: string
+  uid_validity: number | null
   internet_message_id: string
   sender_name: string
   sender_address: string
@@ -71,7 +72,7 @@ function publicMessage(row: MicrosoftMessageRow) {
     },
     folderPath: row.folder_path,
     uidValidity: row.uid_validity,
-    uid: row.imap_uid,
+    remoteId: row.remote_id,
     senderName: row.sender_name,
     senderAddress: row.sender_address,
     recipients: safeJsonArray(row.recipients_json),
@@ -247,24 +248,23 @@ async function remoteMessage(
         'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
       )
     }
-    const parsed = await client.getMessage(row.folder_path, row.imap_uid)
+    const parsed = await client.getMessage(row.folder_path, Number(row.remote_id))
     let markedRead = false
     if (markRead && !row.is_read) {
       try {
-        await client.markSeen(row.folder_path, row.imap_uid, row.uid_validity)
+        await client.markSeen(row.folder_path, Number(row.remote_id), row.uid_validity ?? 0)
         markedRead = true
         try {
           await env.DB.prepare(
+            // `id` is the primary key — the old uid_validity/imap_uid predicates were
+            // redundant, and are transport-specific besides.
             `UPDATE microsoft_imap_messages SET is_read = 1, updated_at = ?
-              WHERE id = ? AND account_id = ? AND folder_path = ?
-                AND uid_validity = ? AND imap_uid = ?`,
+              WHERE id = ? AND account_id = ? AND folder_path = ?`,
           ).bind(
             Math.floor(Date.now() / 1000),
             row.id,
             accountId,
             row.folder_path,
-            row.uid_validity,
-            row.imap_uid,
           ).run()
         } catch (error) {
           console.error('Unable to persist Microsoft read state', {

@@ -315,8 +315,10 @@ export interface MicrosoftMessageSummary {
   id: string
   account: Pick<MicrosoftAccount, 'id' | 'name' | 'email' | 'status'>
   folderPath: string
-  uidValidity: number
-  uid: number
+  /** IMAP only; `null` over Graph, which has no UIDVALIDITY. */
+  uidValidity: number | null
+  /** Transport-scoped locator: stringified UID over IMAP, opaque id over Graph. */
+  remoteId: string
   senderName: string
   senderAddress: string
   recipients: string[]
