@@ -39,9 +39,31 @@ const SCOPE_REQUIREMENT: Record<MicrosoftTransport, {
     errorCode: 'graph_scope_missing',
     // Fully qualified against the Graph resource on purpose: the Outlook REST
     // resource also publishes a `Mail.Read`, and that token cannot call Graph.
+    //
+    // `some`, not `every`, and deliberately so: Mail.Read alone is a perfectly
+    // usable Graph mailbox — listing and reading work, only read-state write-back
+    // does not. Rejecting such an account would lose a working channel to gain
+    // nothing. The write capability is reported separately (see
+    // graphWriteGranted) so callers can surface "needs re-authorisation" instead
+    // of discovering it as a runtime 403.
     granted: (item) => GRAPH_MAIL_SCOPES
       .some((scope) => item === `${GRAPH_RESOURCE}${scope}`.toLowerCase()),
   },
+}
+
+/**
+ * Whether a granted scope string permits Graph write operations (mark-as-read).
+ *
+ * Separate from token validity on purpose: a read-only Graph token is valid and
+ * should keep working for everything except write-back. An empty granted string
+ * means Microsoft did not echo the scope, which is not evidence of denial — treat
+ * it as permitted and let a real 403 speak, rather than pre-emptively disabling a
+ * capability the mailbox may well have.
+ */
+export function graphWriteGranted(grantedScope: string): boolean {
+  const items = grantedScope.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!items.length) return true
+  return items.includes(`${GRAPH_RESOURCE}Mail.ReadWrite`.toLowerCase())
 }
 
 const NAMED_AUTHORITIES = new Set(['common', 'consumers', 'organizations'])

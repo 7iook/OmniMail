@@ -264,9 +264,18 @@ export class MicrosoftAccountStore {
       microsoftCredentialContext(this.userId, account.id, 'access-token'),
     )
     const result = await this.env.DB.prepare(
+      // Every cached access token must die with the credential that minted it.
+      // The Graph cipher is cleared, not just the IMAP one: leaving it behind lets
+      // the Graph path keep decrypting a token issued for the PREVIOUS credential —
+      // which, when the user repointed the account at a different mailbox, means
+      // silently syncing the wrong mailbox until that token expires.
+      // preferred_transport resets too: which transport worked for the old
+      // credential says nothing about the new one.
       `UPDATE microsoft_imap_accounts
           SET client_id = ?, authority = ?, refresh_token_cipher = ?,
               access_token_cipher = ?, access_token_expires_at = ?,
+              graph_access_token_cipher = '', graph_access_token_expires_at = NULL,
+              preferred_transport = 'unknown',
               status = 'active', last_error_code = '', last_error_at = NULL,
               next_sync_at = 0, token_lease_id = NULL, token_lease_until = NULL,
               sync_lease_id = NULL, sync_lease_until = NULL, updated_at = ?

@@ -19,8 +19,16 @@ const GRAPH_BASE = `${GRAPH_ORIGIN}/v1.0`
 const REQUEST_TIMEOUT_MS = 20_000
 const MAX_ATTEMPTS = 3
 const BACKOFF_BASE_MS = 1_000
-/** Cap a hostile/absurd Retry-After: one mailbox must not stall the worker. */
-const MAX_RETRY_AFTER_MS = 60_000
+/**
+ * Ceiling on how long a single invocation will sit waiting.
+ *
+ * A server-supplied Retry-After longer than this is NOT shortened — waiting less
+ * than Microsoft asked for means retrying early, which extends the throttling
+ * window because usage keeps accruing while throttled. Instead the request is
+ * abandoned and the full retry-after is handed to the caller to reschedule.
+ * The cap only truncates our OWN exponential backoff, which we chose ourselves.
+ */
+const MAX_WAIT_IN_INVOCATION_MS = 60_000
 const DEFAULT_PAGE_SIZE = 50
 const DEFAULT_MAX_PAGES = 40
 /** PidTagMessageSize — the only way Graph exposes a message's size. */
@@ -72,6 +80,8 @@ export type MicrosoftGraphErrorCode =
   | 'graph_request_failed'
   | 'graph_invalid_response'
   | 'graph_invalid_next_link'
+  /** A listing hit the page budget; the partial set must not be used as complete. */
+  | 'graph_listing_truncated'
   | 'graph_invalid_message_id'
   | 'graph_invalid_folder'
 
@@ -336,7 +346,11 @@ export class MicrosoftGraphClient {
       if (attempt > 0) {
         // Wait BEFORE the retry. Retrying a throttled request immediately keeps
         // accruing usage against the limit and extends the lockout.
-        await this.sleeper(this.delayMs(attempt, lastError))
+        const wait = this.delayMs(attempt, lastError)
+        // Server asked for longer than we may hold: surface it with the full
+        // retry-after so scheduling can defer, rather than retrying early.
+        if (wait === null) throw lastError as MicrosoftGraphError
+        await this.sleeper(wait)
       }
 
       let response: Response
@@ -371,12 +385,17 @@ export class MicrosoftGraphClient {
     throw lastError ?? new MicrosoftGraphError('graph_request_failed', 502, true)
   }
 
-  private delayMs(attempt: number, lastError: MicrosoftGraphError | undefined): number {
+  /**
+   * How long to wait before the next attempt, or `null` when the server's wait is
+   * longer than this invocation should hold — the caller must reschedule instead.
+   */
+  private delayMs(attempt: number, lastError: MicrosoftGraphError | undefined): number | null {
     const seconds = lastError?.retryAfterSeconds
     if (seconds !== null && seconds !== undefined) {
-      return Math.min(seconds * 1_000, MAX_RETRY_AFTER_MS)
+      const requested = seconds * 1_000
+      return requested > MAX_WAIT_IN_INVOCATION_MS ? null : requested
     }
-    return Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), MAX_RETRY_AFTER_MS)
+    return Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), MAX_WAIT_IN_INVOCATION_MS)
   }
 
   private async readBody<T>(response: Response, expect: Expected): Promise<T> {
@@ -447,11 +466,16 @@ export class MicrosoftGraphClient {
     const url = new URL(`${GRAPH_BASE}/me/mailFolders`)
     url.searchParams.set('$select', GRAPH_FOLDER_SELECT)
     url.searchParams.set('$top', String(DEFAULT_PAGE_SIZE))
-    const { items } = await this.collect(
+    const { items, truncated } = await this.collect(
       url.toString(),
       toFolder,
       options.maxPages ?? DEFAULT_MAX_PAGES,
     )
+    // A partial folder list would make the missing folders look absent rather
+    // than unfetched, so callers must not silently receive one.
+    if (truncated) {
+      throw new MicrosoftGraphError('graph_listing_truncated', 502, true)
+    }
     return items
   }
 
@@ -485,11 +509,17 @@ export class MicrosoftGraphClient {
     options: { pageSize?: number; maxPages?: number } = {},
   ): Promise<string[]> {
     const url = this.messagesUrl(folder, GRAPH_MESSAGE_ID_SELECT, options)
-    const { items } = await this.collect(
+    const { items, truncated } = await this.collect(
       url,
       (value) => text(record(value).id),
       options.maxPages ?? DEFAULT_MAX_PAGES,
     )
+    // Deletion reconciliation treats absence from this set as "deleted remotely",
+    // so a partial set would delete mail that still exists. Refuse rather than
+    // hand back something the caller cannot tell is incomplete.
+    if (truncated) {
+      throw new MicrosoftGraphError('graph_listing_truncated', 502, true)
+    }
     return items.filter(Boolean)
   }
 
@@ -524,12 +554,27 @@ export class MicrosoftGraphClient {
     )
   }
 
-  /** Attachment metadata. `contentId` is read from the body, never `$select`ed. */
-  async listAttachments(messageId: string): Promise<MicrosoftGraphAttachment[]> {
+  /**
+   * Attachment metadata. `contentId` is read from the body, never `$select`ed.
+   *
+   * Paged like every other listing: a message with more attachments than one page
+   * would otherwise silently lose the rest (I-6).
+   */
+  async listAttachments(
+    messageId: string,
+    options: { maxPages?: number } = {},
+  ): Promise<MicrosoftGraphAttachment[]> {
     const url = new URL(`${GRAPH_BASE}/me/messages/${messageSegment(messageId)}/attachments`)
     url.searchParams.set('$select', GRAPH_ATTACHMENT_SELECT)
-    const page = await this.request<Record<string, unknown>>(url.toString())
-    return Array.isArray(page.value) ? page.value.map(toAttachment) : []
+    const { items, truncated } = await this.collect(
+      url.toString(),
+      toAttachment,
+      options.maxPages ?? DEFAULT_MAX_PAGES,
+    )
+    if (truncated) {
+      throw new MicrosoftGraphError('graph_listing_truncated', 502, true)
+    }
+    return items
   }
 
   /**

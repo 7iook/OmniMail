@@ -1,5 +1,24 @@
 import type { MicrosoftFolder } from './microsoft-types'
 
+/** IMAP UIDs are 32-bit unsigned and start at 1 (RFC 3501). */
+const MAX_IMAP_UID = 4_294_967_295
+
+/**
+ * Reads an IMAP UID out of a stored `remote_id`, or `null` if it is not one.
+ *
+ * The column is TEXT because it also holds Graph's opaque ids, so nothing at the
+ * schema level keeps an IMAP row's value canonical. `Number()` alone is too
+ * permissive here — it accepts `'0'`, `'-1'`, `'1e3'`, `'7.0'` and whitespace,
+ * any of which would silently address the wrong message or send UID 0 to the
+ * server. Callers that need a UID must go through this, so sync and the message
+ * API cannot drift apart on what counts as valid.
+ */
+export function parseMicrosoftImapUid(value: string): number | null {
+  if (!/^[1-9][0-9]*$/.test(value)) return null
+  const uid = Number(value)
+  return uid <= MAX_IMAP_UID ? uid : null
+}
+
 const SPECIAL_USE = new Set([
   '\\inbox', '\\sent', '\\drafts', '\\trash', '\\junk', '\\archive', '\\all',
 ])

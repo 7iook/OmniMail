@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import {
   decodeModifiedUtf7,
+  parseMicrosoftImapUid,
   parseMicrosoftList,
   parseMicrosoftSearchUids,
 } from './microsoft-imap-values'
+
+describe('Microsoft IMAP UID parsing', () => {
+  it('accepts a canonical UID', () => {
+    expect(parseMicrosoftImapUid('7')).toBe(7)
+    expect(parseMicrosoftImapUid('4294967295')).toBe(4_294_967_295)
+  })
+
+  it('rejects values Number() would silently accept', () => {
+    // Each of these would otherwise address the wrong message or send UID 0.
+    for (const value of ['0', '-1', '1e3', '7.0', ' 7', '7 ', '', '07', 'AAMkOpaque']) {
+      expect(parseMicrosoftImapUid(value)).toBeNull()
+    }
+  })
+
+  it('rejects a UID beyond the 32-bit range', () => {
+    expect(parseMicrosoftImapUid('4294967296')).toBeNull()
+  })
+})
 
 describe('Microsoft IMAP parsing', () => {
   it('parses LIST flags, quoted paths, special-use, and modified UTF-7 names', () => {

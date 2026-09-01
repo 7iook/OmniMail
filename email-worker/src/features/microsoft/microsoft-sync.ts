@@ -2,6 +2,7 @@ import type { Env, MailQueueJob, MicrosoftSyncJob } from '../../app/types'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { microsoftMailEnabled } from './microsoft-credentials'
 import type { MicrosoftImapClient } from './microsoft-imap'
+import { parseMicrosoftImapUid } from './microsoft-imap-values'
 import { openMicrosoftClient } from './microsoft-session'
 import {
   microsoftAccountForSync,
@@ -73,7 +74,9 @@ async function localUids(
       ORDER BY received_at DESC, id DESC LIMIT ?`,
   ).bind(accountId, folderPath, uidValidity, INDEX_MESSAGE_LIMIT)
     .all<{ remote_id: string }>()
-  return results.map(({ remote_id }) => Number(remote_id)).filter(Number.isSafeInteger)
+  return results
+    .map(({ remote_id }) => parseMicrosoftImapUid(remote_id))
+    .filter((uid): uid is number => uid !== null)
 }
 
 function messageStatement(
@@ -189,8 +192,12 @@ export async function refreshMicrosoftFolderWithClient(
 
   const statements: D1PreparedStatement[] = []
   if (folder.uid_validity !== null && folder.uid_validity !== mailbox.uidValidity) {
+    // UIDVALIDITY is an IMAP concept: a change invalidates IMAP locators only.
+    // Graph rows in the same folder are addressed by opaque id and stay valid, so
+    // wiping them here would destroy mail the IMAP server never spoke for.
     statements.push(env.DB.prepare(
-      'DELETE FROM microsoft_imap_messages WHERE account_id = ? AND folder_path = ?',
+      `DELETE FROM microsoft_imap_messages
+        WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'`,
     ).bind(accountId, folderPath))
   }
   statements.push(...metadata.map((message) => messageStatement(
@@ -206,11 +213,15 @@ export async function refreshMicrosoftFolderWithClient(
       WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
         AND remote_id = ?`,
   ).bind(accountId, folderPath, String(uid))))
+  // Retention trim, scoped to this transport: ranking IMAP and Graph rows together
+  // would let an IMAP sync evict Graph-fetched mail (and vice versa) purely because
+  // the other transport happened to hold newer messages.
   statements.push(env.DB.prepare(
     `DELETE FROM microsoft_imap_messages
-      WHERE account_id = ? AND folder_path = ? AND id NOT IN (
+      WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
+        AND id NOT IN (
         SELECT id FROM microsoft_imap_messages
-          WHERE account_id = ? AND folder_path = ?
+          WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
           ORDER BY received_at DESC, id DESC LIMIT ?
       )`,
   ).bind(accountId, folderPath, accountId, folderPath, INDEX_MESSAGE_LIMIT))

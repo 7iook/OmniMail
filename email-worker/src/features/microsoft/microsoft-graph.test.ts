@@ -115,15 +115,21 @@ describe('Microsoft Graph throttling', () => {
     expect(waits).toEqual([1_000])
   })
 
-  it('caps an absurd Retry-After so a single mailbox cannot stall the worker', async () => {
-    const { graph, waits } = client([
+  it('defers instead of retrying early when Retry-After exceeds the invocation budget', async () => {
+    // Waiting less than Microsoft asked for IS retrying early, and usage keeps
+    // accruing while throttled, so shortening the wait extends the lockout. The
+    // request must be abandoned with the full retry-after for rescheduling.
+    const { graph, waits, fetcher } = client([
       () => throttled('86400'),
       () => messagePage(['m1']),
     ])
 
-    await graph.listMessages('inbox')
-
-    expect(waits).toEqual([60_000])
+    await expect(graph.listMessages('inbox')).rejects.toMatchObject({
+      code: 'graph_throttled',
+      retryAfterSeconds: 86_400,
+    })
+    expect(waits).toEqual([])
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('surfaces a typed error carrying retry-after seconds when the retry budget runs out', async () => {
@@ -209,6 +215,18 @@ describe('Microsoft Graph pagination', () => {
     // The second call must use the server-issued link verbatim, never computed $skip.
     expect(log.urls()[1]).toBe(nextLink)
     expect(log.urls()[1]).not.toContain('$skip=')
+  })
+
+  it('refuses to return a truncated id listing rather than let it look complete', async () => {
+    // listMessageIds feeds deletion reconciliation, which reads absence from the
+    // set as "deleted remotely". A partial set would delete mail that still
+    // exists, and the caller cannot tell a partial set from a complete one.
+    const nextLink = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=more'
+    const { graph } = client([() => messagePage(['m1'], nextLink)])
+
+    await expect(graph.listMessageIds('inbox', { maxPages: 1 })).rejects.toMatchObject({
+      code: 'graph_listing_truncated',
+    })
   })
 
   it('never computes $skip arithmetic on the first page either', async () => {

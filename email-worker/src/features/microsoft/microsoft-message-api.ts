@@ -8,6 +8,7 @@ import {
 } from './microsoft-api-shared'
 import { openMicrosoftClient } from './microsoft-session'
 import { MicrosoftAccountStore, MicrosoftStoreError } from './microsoft-store'
+import { parseMicrosoftImapUid } from './microsoft-imap-values'
 import { refreshMicrosoftFolderWithClient } from './microsoft-sync'
 import type { MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
 
@@ -248,11 +249,23 @@ async function remoteMessage(
         'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
       )
     }
-    const parsed = await client.getMessage(row.folder_path, Number(row.remote_id))
+    // This path is still IMAP-shaped; a Graph row cannot be addressed by UID at
+    // all, so fail with a clear code rather than sending NaN or 0 to the server.
+    // (The transport branch that routes Graph rows elsewhere lands with the
+    // cascade — see the decision card's link table.)
+    const uid = parseMicrosoftImapUid(row.remote_id)
+    if (uid === null) {
+      throw new MicrosoftStoreError(
+        409,
+        'message_transport_unsupported',
+        'Microsoft 邮件来自 Graph 通道，暂不支持在此读取。',
+      )
+    }
+    const parsed = await client.getMessage(row.folder_path, uid)
     let markedRead = false
     if (markRead && !row.is_read) {
       try {
-        await client.markSeen(row.folder_path, Number(row.remote_id), row.uid_validity ?? 0)
+        await client.markSeen(row.folder_path, uid, row.uid_validity ?? 0)
         markedRead = true
         try {
           await env.DB.prepare(
