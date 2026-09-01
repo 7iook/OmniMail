@@ -414,7 +414,6 @@ export const RECOVERABLE_MIGRATIONS = [
   },
   MICROSOFT_BASE_RECOVERY,
   MICROSOFT_COMBINATION_PASSWORD_RECOVERY,
-  MICROSOFT_TRANSPORT_CHANNEL_RECOVERY,
   {
     name: QQ_MAIL_MIGRATION,
     statements: [
@@ -500,4 +499,8 @@ export const RECOVERABLE_MIGRATIONS = [
   NAVER_MAIL_RECOVERY,
   YANDEX_MAIL_RECOVERY,
   EXTERNAL_MAIL_INDEX_RECOVERY,
+  // Must stay last, and in migration-number order: ensureRequiredMigrations()
+  // treats REQUIRED_MIGRATION (0036) as proof the whole chain ran, so recording
+  // it before 0029-0035 lets a later failure strand those permanently.
+  MICROSOFT_TRANSPORT_CHANNEL_RECOVERY,
 ] as const

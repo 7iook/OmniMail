@@ -84,6 +84,17 @@ function messageStatement(
   message: MicrosoftMessageMetadata,
   now: number,
 ): D1PreparedStatement {
+  // Two upsert paths, because a row can collide on either identity layer:
+  //  1. named locator target — the same transport re-fetching the same message;
+  //     refresh the payload in place.
+  //  2. targetless fallback — the same mail (matched on RFC5322 Message-ID by the
+  //     partial index) arriving over the OTHER transport, or from a folder this
+  //     transport names differently. Take over the existing row and adopt the new
+  //     locator, so later fetches and deletion reconciliation address it through
+  //     whichever transport last won. Without this the insert fails outright and
+  //     takes the entire D1 batch with it.
+  // SQLite only permits a target on non-final clauses, so the fallback must come
+  // last and stay targetless — a second named target is rejected at prepare time.
   return env.DB.prepare(
     `INSERT INTO microsoft_imap_messages (
       id, account_id, folder_path, source_transport, remote_id, uid_validity,
@@ -93,6 +104,25 @@ function messageStatement(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(account_id, folder_path, source_transport, remote_id) DO UPDATE SET
       internet_message_id = excluded.internet_message_id,
+      sender_name = excluded.sender_name,
+      sender_address = excluded.sender_address,
+      recipients_json = excluded.recipients_json,
+      cc_json = excluded.cc_json,
+      subject = excluded.subject,
+      preview = excluded.preview,
+      received_at = excluded.received_at,
+      sent_at = excluded.sent_at,
+      size_bytes = excluded.size_bytes,
+      flags_json = excluded.flags_json,
+      is_read = excluded.is_read,
+      is_starred = excluded.is_starred,
+      has_attachments = excluded.has_attachments,
+      updated_at = excluded.updated_at
+    ON CONFLICT DO UPDATE SET
+      folder_path = excluded.folder_path,
+      source_transport = excluded.source_transport,
+      remote_id = excluded.remote_id,
+      uid_validity = excluded.uid_validity,
       sender_name = excluded.sender_name,
       sender_address = excluded.sender_address,
       recipients_json = excluded.recipients_json,

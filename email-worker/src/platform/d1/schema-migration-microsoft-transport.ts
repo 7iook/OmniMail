@@ -73,10 +73,14 @@ export const MICROSOFT_TRANSPORT_CHANNEL_RECOVERY = {
         REFERENCES microsoft_imap_folders(account_id, path) ON DELETE CASCADE
     )`,
     // Cross-transport dedupe: the same mail fetched over both channels keeps one
-    // row. Partial index — rows with an empty Message-ID fall back to the
-    // per-transport unique constraint above, a limit that is explicit by design.
+    // row. Scoped to the ACCOUNT, deliberately not to the folder — "the same mail"
+    // is independent of which folder holds it, and the two transports name the
+    // same folder differently (IMAP `INBOX` vs a Graph opaque id), so including
+    // folder_path would let one mail persist twice, once per transport.
+    // Partial index — rows with an empty Message-ID fall back to the per-transport
+    // unique constraint above, a limit that is explicit by design.
     `CREATE UNIQUE INDEX idx_microsoft_imap_messages_rfc_identity
-     ON microsoft_imap_messages(account_id, folder_path, internet_message_id)
+     ON microsoft_imap_messages(account_id, internet_message_id)
      WHERE internet_message_id != ''`,
     `CREATE INDEX idx_microsoft_imap_messages_folder_date
      ON microsoft_imap_messages(account_id, folder_path, received_at DESC, id DESC)`,

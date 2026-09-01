@@ -98,10 +98,13 @@ CREATE TABLE microsoft_imap_messages (
 );
 
 -- 跨通道去重（决策卡 I-2）：同一封信经 Graph 与 IMAP 各抓一次时只留一行。
+-- ⚠️ 粒度是**账号级**，不含 folder_path —— 「同一封信」与它在哪个文件夹无关，
+-- 且两条通道对同一文件夹的命名不同（IMAP 用 `INBOX`，Graph 用 opaque id），
+-- 带上 folder_path 会让同一封信在两个通道下各存一行（实测复现）。
 -- 部分索引 —— 仅对有 Message-ID 的行生效；空串行退回上面的通道内唯一约束
 -- （决策卡 I-2b 已显式收缩承诺：空 Message-ID 的邮件不保证跨通道去重）。
 CREATE UNIQUE INDEX idx_microsoft_imap_messages_rfc_identity
-  ON microsoft_imap_messages(account_id, folder_path, internet_message_id)
+  ON microsoft_imap_messages(account_id, internet_message_id)
   WHERE internet_message_id != '';
 
 CREATE INDEX idx_microsoft_imap_messages_folder_date
