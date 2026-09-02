@@ -7,6 +7,7 @@ import {
   parseMicrosoftGraphMetadata,
   parseMicrosoftMessage,
 } from './microsoft-message-parser'
+import { MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS } from './microsoft-types'
 import type { MicrosoftFolder, MicrosoftMessageMetadata } from './microsoft-types'
 import type {
   MicrosoftFolderState,
@@ -23,7 +24,8 @@ import type {
  * beta-only and `displayName` is localised, so a mailbox in Chinese returns
  * "收件箱"). Measured during W3 — do not try to recognise it from the listing.
  */
-const GRAPH_INBOX = 'inbox'
+const [MICROSOFT_GRAPH_INBOX_SPEC, MICROSOFT_GRAPH_JUNK_SPEC] = MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS
+const GRAPH_INBOX = MICROSOFT_GRAPH_INBOX_SPEC.wellKnownName
 
 /**
  * The path the rest of the codebase uses for the inbox.
@@ -33,7 +35,7 @@ const GRAPH_INBOX = 'inbox'
  * "收件箱" would present as having no inbox at all — imports would succeed and the
  * mailbox would render empty (link table node 7).
  */
-const INBOX_PATH = 'INBOX'
+const INBOX_PATH = MICROSOFT_GRAPH_INBOX_SPEC.folderPath
 
 /**
  * The inbox, as a folder row addressed by well-known name.
@@ -43,6 +45,19 @@ const INBOX_PATH = 'INBOX'
  * the listing knows and `null` otherwise, which is the honest answer.
  */
 const INBOX_FOLDER: MicrosoftGraphFolder = { id: GRAPH_INBOX, displayName: 'INBOX' }
+
+/**
+ * Junk Email, addressed and synthesised exactly like the inbox above (decision
+ * card §12 recon §14): a mailbox in Chinese calls this folder "垃圾邮件" in its
+ * `displayName`, so it must never be identified from the listing either. The
+ * well-known name `junkemail` and the fixed literal path both come from
+ * `microsoft-types.ts` (card C-4 / C-7) so the notification subscription's
+ * `resource` string and this transport's `folder_path` never drift apart.
+ */
+const GRAPH_JUNK = MICROSOFT_GRAPH_JUNK_SPEC.wellKnownName
+const JUNK_PATH = MICROSOFT_GRAPH_JUNK_SPEC.folderPath
+const JUNK_PATH_UPPER = JUNK_PATH.toUpperCase()
+const JUNK_FOLDER: MicrosoftGraphFolder = { id: GRAPH_JUNK, displayName: JUNK_PATH }
 
 /**
  * Page budget for the id-only listing that deletion reconciliation consumes.
@@ -80,10 +95,12 @@ export function microsoftGraphTransport(
   async function loadFolders(): Promise<MicrosoftFolder[]> {
     const remote = await client.listFolders()
     const next = new Map<string, MicrosoftGraphFolder>()
-    // The inbox is always exposed under the literal path, addressed by its
-    // well-known name. It is NOT matched against the listing: v1.0 has no
-    // property that identifies it there, so any such match would be guesswork.
+    // The inbox and Junk Email are always exposed under their literal paths,
+    // addressed by well-known name. Neither is matched against the listing:
+    // v1.0 has no property that identifies either there, so any such match
+    // would be guesswork (and would break on a localised mailbox).
     next.set(INBOX_PATH, INBOX_FOLDER)
+    next.set(JUNK_PATH, JUNK_FOLDER)
     const mapped: MicrosoftFolder[] = [{
       path: INBOX_PATH,
       displayName: INBOX_PATH,
@@ -93,12 +110,20 @@ export function microsoftGraphTransport(
       uidValidity: null,
       lastUid: 0,
       specialUse: '\\inbox',
+    }, {
+      path: JUNK_PATH,
+      displayName: JUNK_PATH,
+      flags: [],
+      uidValidity: null,
+      lastUid: 0,
+      specialUse: '\\junk',
     }]
     for (const folder of remote) {
       const path = folder.displayName || folder.id
-      // The inbox already occupies INBOX_PATH under its well-known name; the
-      // localised duplicate would otherwise shadow it with an opaque id.
-      if (path.toUpperCase() === INBOX_PATH || next.has(path)) continue
+      // The inbox and Junk Email already occupy their literal paths under their
+      // well-known names; the localised duplicate would otherwise shadow them
+      // with an opaque id.
+      if (path.toUpperCase() === INBOX_PATH || path.toUpperCase() === JUNK_PATH_UPPER || next.has(path)) continue
       next.set(path, folder)
       mapped.push({
         path,
@@ -116,9 +141,10 @@ export function microsoftGraphTransport(
   function folderId(folderPath: string): string {
     const folder = folders.get(folderPath)
     if (folder) return folder.id
-    // The inbox is addressable without a prior listing thanks to its well-known
-    // name; anything else genuinely requires one.
+    // The inbox and Junk Email are addressable without a prior listing thanks to
+    // their well-known names; anything else genuinely requires one.
     if (folderPath.toUpperCase() === INBOX_PATH) return GRAPH_INBOX
+    if (folderPath.toUpperCase() === JUNK_PATH_UPPER) return GRAPH_JUNK
     throw new MicrosoftGraphError('graph_invalid_folder', 404, false)
   }
 

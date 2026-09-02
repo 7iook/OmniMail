@@ -9,7 +9,7 @@ import {
 } from '../../features/outbound/outbound-message'
 import { ensureSchema } from '../../platform/d1/schema'
 import { consumeGmailSyncJob } from '../../features/gmail/gmail-sync'
-import { consumeMicrosoftSyncJob } from '../../features/microsoft/microsoft-sync'
+import { consumeMicrosoftFolderRefreshJob, consumeMicrosoftSyncJob } from '../../features/microsoft/microsoft-sync'
 import { consumeQqMailSyncJob } from '../../features/qq-mail/qq-mail-sync'
 import { consumeNaverMailSyncJob } from '../../features/naver-mail/naver-mail-sync'
 import { consumeYandexMailSyncJob } from '../../features/yandex-mail/yandex-mail-sync'
@@ -427,6 +427,10 @@ export async function consumeEmailQueue(batch: MessageBatch<MailQueueJob>, env: 
     }
     if (message.body.kind === 'microsoft-sync') {
       await consumeMicrosoftSyncJob(message, env)
+      continue
+    }
+    if (message.body.kind === 'microsoft-folder-refresh') {
+      await consumeMicrosoftFolderRefreshJob(message, env)
       continue
     }
     if (message.body.kind === 'qq-mail-sync') {

@@ -61,6 +61,42 @@ describe('Microsoft Graph transport adapter', () => {
     expect(folders.some(({ path }) => path === 'INBOX')).toBe(true)
   })
 
+  it('synthesises Junk Email under a fixed literal path, the same way as the inbox (card C-4/C-7)', async () => {
+    const { client } = graphClient()
+    const transport = microsoftGraphTransport(client as never)
+    await transport.open()
+    const folders = await transport.listFolders()
+    expect(folders.some(({ path }) => path === 'Junk Email')).toBe(true)
+    // Both fixed paths present regardless of what the listing itself returned
+    // (this fixture never lists a folder called "Junk Email" at all).
+    expect(folders.map(({ path }) => path)).toEqual(
+      expect.arrayContaining(['INBOX', 'Junk Email']),
+    )
+  })
+
+  it('addresses Junk Email by well-known name without a prior listing entry for it', async () => {
+    const { client, calls } = graphClient()
+    const transport = microsoftGraphTransport(client as never)
+    await transport.open()
+    await transport.listRemoteIds('Junk Email')
+    expect(calls).toContain('listMessageIds(junkemail)')
+  })
+
+  it('never lets a localised Junk Email listing entry shadow the fixed path', async () => {
+    const { client } = graphClient({
+      listFolders: vi.fn(async () => [
+        { id: 'inbox-id', displayName: 'Inbox', totalItemCount: 4 },
+        // A mailbox whose Junk folder is literally named "Junk Email" in the
+        // listing must not produce a second, competing folder row.
+        { id: 'junk-listing-id', displayName: 'Junk Email', totalItemCount: 2 },
+      ]),
+    })
+    const transport = microsoftGraphTransport(client as never)
+    await transport.open()
+    const folders = await transport.listFolders()
+    expect(folders.filter(({ path }) => path === 'Junk Email')).toHaveLength(1)
+  })
+
   it('reports a null uidValidity, never a fabricated integer', async () => {
     const { client } = graphClient()
     const transport = microsoftGraphTransport(client as never)

@@ -227,7 +227,9 @@ export async function listMicrosoftMessages(
       conditions.push('a.id = ?', 'm.folder_path = ?')
       bindings.push(accountId, folderPath)
     } else {
-      conditions.push("upper(m.folder_path) = 'INBOX'")
+      // Junk Email is Graph-only (card C-4): an IMAP mailbox's spam folder is
+      // never named this literal path, so this is a no-op for IMAP accounts.
+      conditions.push("upper(m.folder_path) IN ('INBOX', 'JUNK EMAIL')")
     }
     if (query) {
       const term = query.toLowerCase()

@@ -1,5 +1,7 @@
 import type { Env, MailQueueJob, MicrosoftSyncJob } from '../../app/types'
 import { microsoftMailEnabled } from './microsoft-credentials'
+import { microsoftGraphSubscriptionRuntime } from './microsoft-graph-notifications'
+import { recordMicrosoftAccountFailure } from './microsoft-api-shared'
 import { resolveMicrosoftTransport } from './microsoft-session'
 import {
   microsoftAccountForSync,
@@ -13,7 +15,16 @@ import {
   microsoftTransportFailure,
   type MicrosoftTransportFailure,
 } from './microsoft-transport-errors'
-import type { MicrosoftAccount, MicrosoftFolder, MicrosoftTransport } from './microsoft-types'
+import {
+  MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS,
+  type MicrosoftAccount,
+  type MicrosoftFolder,
+  type MicrosoftGraphSubscription,
+  type MicrosoftTransport,
+} from './microsoft-types'
+
+/** Fixed literal path for Junk Email (card C-4/C-7); see `microsoft-graph-transport.ts`. */
+const JUNK_FOLDER_PATH_UPPER = MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS[1].folderPath.toUpperCase()
 
 const INITIAL_MESSAGE_LIMIT = 100
 const SYNC_INTERVAL_SECONDS = 5 * 60
@@ -135,6 +146,20 @@ export async function syncMicrosoftAccount(
       transport,
       now,
     )
+    // Junk Email is Graph-only (card C-4): IMAP's Junk folder is whatever the
+    // mailbox calls it locally, never this literal path, so this is a no-op for
+    // IMAP transports without needing a `transport.transport` branch here.
+    const junk = folders.find(({ path }) => path.toUpperCase() === JUNK_FOLDER_PATH_UPPER)
+    if (junk) {
+      await refreshMicrosoftFolderWithTransport(
+        env,
+        accountId,
+        junk.path,
+        INITIAL_MESSAGE_LIMIT,
+        transport,
+        now,
+      )
+    }
     await env.DB.prepare(
       `UPDATE microsoft_imap_accounts
           SET status = 'active', last_synced_at = ?, next_sync_at = ?,
@@ -173,6 +198,89 @@ export async function consumeMicrosoftSyncJob(
     message.retry({ delaySeconds: Math.max(backoff, result.retryAfterSeconds ?? 0) })
   } else {
     message.ack()
+  }
+}
+
+/**
+ * Consumes a Graph-notification-triggered folder refresh (card C-3/C-4).
+ *
+ * Deliberately not a variant of {@link syncMicrosoftAccount}: that function owns
+ * the scheduled cadence (`next_sync_at`, the `sync_lease_*` columns) and always
+ * refreshes both folders; this job refreshes exactly the one folder a
+ * notification named, and its own concurrency guard is the subscription row's
+ * `refresh_state` (C-3), not the account-level sync lease.
+ *
+ * Failure classification and retry intentionally reuse
+ * {@link microsoftTransportFailure} and `recordMicrosoftAccountFailure` — the
+ * same ones {@link consumeMicrosoftSyncJob} uses — rather than a second
+ * classifier (I-10). `next_sync_at` is left untouched: this job is an
+ * accelerator on top of the 5-minute cron, not a replacement for it.
+ */
+export async function consumeMicrosoftFolderRefreshJob(
+  message: Message<MailQueueJob>,
+  env: Env,
+): Promise<void> {
+  if (message.body.kind !== 'microsoft-folder-refresh') return
+  const { accountId, folderPath } = message.body
+  const now = Math.floor(Date.now() / 1000)
+  const runtime = microsoftGraphSubscriptionRuntime()
+  const repository = runtime?.repositoryFor(env) ?? null
+  let subscription: MicrosoftGraphSubscription | null = null
+  if (repository) {
+    subscription = (await repository.forAccount(accountId)).find((row) => row.folderPath === folderPath) ?? null
+    if (subscription) await repository.markRunning(subscription.id, now)
+  }
+  let account: MicrosoftAccount | null = null
+  let transport: MicrosoftMailTransport | undefined
+  try {
+    account = await microsoftAccountForSync(env, accountId)
+    if (!account) {
+      message.ack()
+      return
+    }
+    transport = (await resolveMicrosoftTransport(env, account)).transport
+    // C-4: Graph-pinned. A fixed Graph path handed to an IMAP transport would
+    // address nothing real — IMAP's own Junk folder is named whatever the
+    // mailbox calls it locally, never this literal path.
+    if (transport.transport !== 'graph') {
+      console.warn('Microsoft Graph folder refresh skipped: account resolved to a non-Graph transport', {
+        accountId,
+        folderPath,
+        code: 'folder_refresh_skipped_non_graph',
+      })
+      message.ack()
+      return
+    }
+    await refreshMicrosoftFolderWithTransport(env, accountId, folderPath, INITIAL_MESSAGE_LIMIT, transport, now)
+    message.ack()
+  } catch (error) {
+    const failure = microsoftTransportFailure(error, transport?.transport ?? attemptedTransport(account))
+    await recordMicrosoftAccountFailure(env, accountId, failure, now)
+    if ((failure.category === 'transient' || failure.category === 'throttled')
+      && message.attempts < QUEUE_MAX_ATTEMPTS) {
+      const backoff = QUEUE_BASE_DELAY_SECONDS * 2 ** Math.max(0, message.attempts - 1)
+      message.retry({ delaySeconds: Math.max(backoff, failure.retryAfterSeconds ?? 0) })
+    } else {
+      message.ack()
+    }
+  } finally {
+    await transport?.close()
+    // Always release the C-3 state, success or failure, so a stuck `running`
+    // row does not block every future notification for this (account, folder).
+    if (repository && subscription) {
+      const { requeue } = await repository.finishRunning(subscription.id, now)
+      if (requeue) {
+        try {
+          await env.MAIL_QUEUE.send({ kind: 'microsoft-folder-refresh', accountId, folderPath, reason: 'notification' })
+        } catch (sendError) {
+          console.error('Unable to enqueue the follow-up Microsoft folder refresh', {
+            accountId,
+            folderPath,
+            type: sendError instanceof Error ? sendError.name : typeof sendError,
+          })
+        }
+      }
+    }
   }
 }
 

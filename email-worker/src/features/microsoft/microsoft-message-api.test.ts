@@ -382,3 +382,25 @@ describe('Microsoft message handlers leave transport verdicts on the account row
     expect(statements.some(accountStatusUpdate)).toBe(false)
   })
 })
+
+describe('Microsoft aggregate message list (no accountId)', () => {
+  it('includes both Inbox and Junk Email in the combined "all accounts" view (card C-4)', async () => {
+    const statements: Statement[] = []
+    const env = {
+      MICROSOFT_CREDENTIALS_KEY: key,
+      DB: { prepare(sql: string) {
+        return { bind: (...bindings: unknown[]) => {
+          statements.push({ sql, bindings })
+          return { all: async () => ({ results: [] }) }
+        } }
+      } },
+    } as unknown as Env
+    const request = new Request('https://mail.example.com/api/microsoft/messages')
+
+    const response = await listMicrosoftMessages(env, user, request)
+
+    expect(response.status).toBe(200)
+    const listQuery = statements.find(({ sql }) => sql.includes('FROM microsoft_imap_messages m'))
+    expect(listQuery?.sql).toContain("upper(m.folder_path) IN ('INBOX', 'JUNK EMAIL')")
+  })
+})

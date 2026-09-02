@@ -13,10 +13,10 @@ import { issueDeviceToken, refreshDeviceToken, revokeRefreshToken } from '../../
 import { extensionAuthorizationRoutes } from '../../features/extension-authorization/extension-authorization-routes'
 import { proxyRemoteImage } from '../../features/messages/remote-image'
 import {
-  dropLifecycle,
-  dropNotifications,
   handleMicrosoftGraphLifecycle,
   handleMicrosoftGraphNotification,
+  microsoftGraphLifecycleProcessor,
+  microsoftGraphNotificationProcessor,
   MICROSOFT_GRAPH_LIFECYCLE_PATH,
   MICROSOFT_GRAPH_NOTIFICATION_PATH,
 } from '../../features/microsoft/microsoft-graph-notifications'
@@ -66,14 +66,14 @@ app.post(MICROSOFT_GRAPH_NOTIFICATION_PATH, (context) => handleMicrosoftGraphNot
   context.req.raw,
   clientIp(context.req.raw.headers),
   (task) => context.executionCtx.waitUntil(task),
-  dropNotifications,
+  microsoftGraphNotificationProcessor,
 ))
 app.post(MICROSOFT_GRAPH_LIFECYCLE_PATH, (context) => handleMicrosoftGraphLifecycle(
   context.env,
   context.req.raw,
   clientIp(context.req.raw.headers),
   (task) => context.executionCtx.waitUntil(task),
-  dropLifecycle,
+  microsoftGraphLifecycleProcessor,
 ))
 
 app.post('/api/setup', async (context) => {

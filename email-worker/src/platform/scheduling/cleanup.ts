@@ -4,6 +4,7 @@ import { permanentlyDeleteMessage, purgePendingObjectDeletions } from '../../fea
 import { enqueueMissingMessageSearch } from '../../shared/mail/message-search'
 import { ensureSchema } from '../d1/schema'
 import { enqueueDueGmailSyncs } from '../../features/gmail/gmail-sync'
+import { reconcileDueMicrosoftGraphSubscriptions } from '../../features/microsoft/microsoft-graph-reconcile'
 import { enqueueDueMicrosoftSyncs } from '../../features/microsoft/microsoft-sync'
 import { enqueueDueQqMailSyncs } from '../../features/qq-mail/qq-mail-sync'
 import { enqueueDueNaverMailSyncs } from '../../features/naver-mail/naver-mail-sync'
@@ -212,6 +213,11 @@ export async function cleanup(env: Env): Promise<void> {
     await enqueueDueMicrosoftSyncs(env, now)
   } catch (error) {
     console.error('Unable to enqueue Microsoft synchronization', error)
+  }
+  try {
+    await reconcileDueMicrosoftGraphSubscriptions(env, now)
+  } catch (error) {
+    console.error('Unable to reconcile Microsoft Graph subscriptions', error)
   }
   try {
     await enqueueDueQqMailSyncs(env, now)
