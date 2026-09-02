@@ -35,6 +35,20 @@ function columns(db: DatabaseSync, table: string): string[] {
     .all().map((row) => (row as { name: string }).name).sort()
 }
 
+/**
+ * Whitespace-normalised CREATE statements for a table and its indexes, so the
+ * disk migration and its runtime twin can be compared on constraints and index
+ * definitions, not just column names.
+ */
+function definitions(db: DatabaseSync, table: string): string[] {
+  return db.prepare(
+    "SELECT sql FROM sqlite_schema WHERE tbl_name = ? AND sql IS NOT NULL ORDER BY type DESC, name",
+  ).all(table).map((row) => (row as { sql: string }).sql
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim())
+}
+
 describe('D1 schema shape (real execution, not mocked batches)', () => {
   it('applies every tracked migration in order without error', () => {
     const db = applyDiskMigrations()
@@ -130,9 +144,46 @@ describe('D1 schema shape (real execution, not mocked batches)', () => {
     for (const statement of MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY.statements) runtime.exec(statement)
     for (const statement of MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY.statements) runtime.exec(statement)
     expect(columns(runtime, 'microsoft_graph_subscriptions')).toEqual(cols)
-    expect((runtime.prepare(
-      "SELECT \"notnull\" AS not_null FROM pragma_table_info('microsoft_graph_subscriptions') WHERE name = 'subscription_id'",
-    ).get() as { not_null: number }).not_null).toBe(0)
+    // Constraints and indexes too, not only column names: a CHECK or a partial
+    // index that exists on disk but not at runtime would otherwise go unnoticed.
+    expect(definitions(runtime, 'microsoft_graph_subscriptions'))
+      .toEqual(definitions(db, 'microsoft_graph_subscriptions'))
+  })
+
+  it('refuses to rebuild Graph subscriptions over existing rows (0038 guard)', () => {
+    // Both the disk file and the runtime twin must abort before DROP TABLE when
+    // the 0037 table already holds data, instead of silently discarding it.
+    const seed = (target: DatabaseSync) => {
+      target.exec('PRAGMA foreign_keys = OFF')
+      target.exec(
+        `INSERT INTO microsoft_graph_subscriptions
+           (id, account_id, folder_path, subscription_id, client_state_hash, expires_at, created_at, updated_at)
+         VALUES ('row', 'acct', 'INBOX', 'remote', 'h', 1, 1, 1)`,
+      )
+    }
+
+    const disk = new DatabaseSync(':memory:')
+    disk.exec('PRAGMA foreign_keys = OFF')
+    for (const name of WRANGLER_MIGRATION_NAMES) {
+      if (name === MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY.name) break
+      disk.exec(readFileSync(`migrations/${name}`, 'utf8'))
+    }
+    seed(disk)
+    expect(() => disk.exec(readFileSync(
+      `migrations/${MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY.name}`, 'utf8',
+    ))).toThrow(/CHECK constraint failed/)
+    expect(disk.prepare('SELECT count(*) AS n FROM microsoft_graph_subscriptions').get())
+      .toEqual({ n: 1 })
+
+    const runtime = new DatabaseSync(':memory:')
+    runtime.exec('CREATE TABLE microsoft_imap_accounts (id TEXT PRIMARY KEY)')
+    for (const statement of MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY.statements) runtime.exec(statement)
+    seed(runtime)
+    expect(() => {
+      for (const statement of MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY.statements) runtime.exec(statement)
+    }).toThrow(/CHECK constraint failed/)
+    expect(runtime.prepare('SELECT count(*) AS n FROM microsoft_graph_subscriptions').get())
+      .toEqual({ n: 1 })
   })
 
   it('orders runtime recovery the same as the tracked migration list', () => {
