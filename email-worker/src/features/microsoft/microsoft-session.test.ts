@@ -5,10 +5,17 @@ import { MicrosoftGraphError } from './microsoft-graph'
 import type { MicrosoftMailTransport } from './microsoft-transport'
 import {
   __setMicrosoftTransportFactories,
-  openMicrosoftClient,
+  MicrosoftTransportUnavailableError,
   openMicrosoftTransport,
   resolveMicrosoftTransport,
 } from './microsoft-session'
+import { MicrosoftStoreError } from './microsoft-store'
+import { MicrosoftTokenError } from './microsoft-token'
+import {
+  microsoftAccountStatusForFailure,
+  microsoftTransportFailure,
+  publicMicrosoftTransportAttempts,
+} from './microsoft-transport-errors'
 import type { MicrosoftAccount, MicrosoftPreferredTransport } from './microsoft-types'
 
 const calls: string[] = []
@@ -210,10 +217,79 @@ describe('Microsoft transport cascade', () => {
     expect(resolved.transport.transport).toBe('imap')
     expect(calls).toEqual(['graph.open', 'graph.close', 'imap.open'])
   })
+})
 
-  it('still exports openMicrosoftClient for the consumers not yet migrated', () => {
-    // Returns a raw MicrosoftImapClient, unchanged: sync, folder refresh, message
-    // read and verify still call IMAP-specific methods on it.
-    expect(typeof openMicrosoftClient).toBe('function')
+describe('Microsoft failure to account status', () => {
+  const imapRejected = new ImapConnectionError(401, 'IMAP authentication failed')
+
+  it('maps the classifier category, not a per-call-site code list', () => {
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(authFailure, 'graph')))
+      .toBe('credential_error')
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(imapRejected, 'imap')))
+      .toBe('credential_error')
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(
+      new MicrosoftGraphError('graph_permission_denied', 403, false), 'graph',
+    ))).toBe('permission_error')
+    // The token codes verify used to drop and sync used to keep now agree.
+    for (const code of ['unauthorized_client', 'consent_required', 'invalid_scope']) {
+      expect(microsoftAccountStatusForFailure(microsoftTransportFailure(
+        new MicrosoftTokenError(code, false, 400), 'graph',
+      ))).toBe('permission_error')
+    }
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(throttled, 'graph')))
+      .toBe('error')
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(
+      new ImapConnectionError(504, 'timeout'), 'imap',
+    ))).toBe('error')
+  })
+
+  it('treats an unusable stored credential as a credential error', () => {
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(
+      new MicrosoftStoreError(500, 'credential_decryption_failed', 'corrupt'), 'graph',
+    ))).toBe('credential_error')
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(
+      new MicrosoftStoreError(503, 'credential_key_unavailable', 'no key'), 'graph',
+    ))).toBe('credential_error')
+  })
+
+  it('judges an exhausted cascade by its attempts and never asks for another switch', () => {
+    const both = new MicrosoftTransportUnavailableError([
+      microsoftTransportFailure(authFailure, 'graph'),
+      microsoftTransportFailure(imapRejected, 'imap'),
+    ])
+    const failure = microsoftTransportFailure(both, 'imap')
+    expect(failure).toMatchObject({
+      code: 'transport_unavailable', category: 'auth',
+      mayTryOtherTransport: false, mayRewritePreferred: false,
+    })
+    expect(microsoftAccountStatusForFailure(failure)).toBe('credential_error')
+
+    const mixed = new MicrosoftTransportUnavailableError([
+      microsoftTransportFailure(new MicrosoftGraphError('graph_permission_denied', 403, false), 'graph'),
+      microsoftTransportFailure(imapRejected, 'imap'),
+    ])
+    expect(microsoftAccountStatusForFailure(microsoftTransportFailure(mixed, 'imap')))
+      .toBe('permission_error')
+  })
+
+  it('never surfaces an exhausted cascade as HTTP 401', () => {
+    // The frontend treats a 401 from our API as a lost session and logs out.
+    const error = new MicrosoftTransportUnavailableError([
+      microsoftTransportFailure(authFailure, 'graph'),
+      microsoftTransportFailure(imapRejected, 'imap'),
+    ])
+    expect(error.status).toBe(400)
+  })
+
+  it('exposes only the per-channel facts a client needs', () => {
+    const attempts = publicMicrosoftTransportAttempts([
+      microsoftTransportFailure(authFailure, 'graph'),
+      microsoftTransportFailure(imapRejected, 'imap'),
+    ])
+    expect(attempts).toEqual([
+      { transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401 },
+      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+    ])
+    expect(Object.keys(attempts[0])).not.toContain('mayTryOtherTransport')
   })
 })

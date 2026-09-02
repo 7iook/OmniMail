@@ -294,12 +294,25 @@ export interface MicrosoftImportAccount {
   persistPasswordConfirmed?: boolean
 }
 
+/**
+ * One transport channel's failure during import or verify. Present only when
+ * both Graph and IMAP were tried and both refused (`code: 'transport_unavailable'`).
+ */
+export interface MicrosoftTransportAttempt {
+  transport: 'graph' | 'imap'
+  category: 'auth' | 'permission' | 'throttled' | 'transient' | 'contract' | 'data'
+  code: string
+  /** The upstream HTTP-equivalent status of that channel's failure. */
+  status: number
+}
+
 export interface MicrosoftImportResult {
   index: number
   status: 'accepted' | 'duplicate' | 'error'
   code?: string
   error?: string
   account?: MicrosoftAccount
+  attempts?: MicrosoftTransportAttempt[]
 }
 
 export interface MicrosoftFolder {

@@ -10,6 +10,7 @@ import { microsoftAccessToken } from './microsoft-token-manager'
 import type { MicrosoftMailTransport } from './microsoft-transport'
 import {
   microsoftTransportFailure,
+  MicrosoftTransportUnavailableError,
   type MicrosoftTransportFailure,
 } from './microsoft-transport-errors'
 import type {
@@ -17,6 +18,8 @@ import type {
   MicrosoftPreferredTransport,
   MicrosoftTransport,
 } from './microsoft-types'
+
+export { MicrosoftTransportUnavailableError }
 
 /**
  * A mailbox that is not in the database yet.
@@ -44,24 +47,12 @@ export interface MicrosoftResolvedTransport {
   transport: MicrosoftMailTransport
   /** Which channel actually worked. Import persists this on the new row. */
   preferredTransport: MicrosoftTransport
-  /** Rotated credentials, present only for an import candidate. */
+  /**
+   * Rotated credentials, present for an import candidate once a token exchange
+   * happened. Absent only when no exchange ran (test seams), in which case the
+   * pasted refresh token is still the live one.
+   */
   credential?: MicrosoftRotatedCredential
-}
-
-/**
- * Raised when no transport could serve the mailbox.
- *
- * Carries one entry per attempted channel so the import dialog can say which
- * channel failed and why, rather than a single opaque "validation failed" (I-7).
- */
-export class MicrosoftTransportUnavailableError extends MicrosoftStoreError {
-  constructor(readonly attempts: MicrosoftTransportFailure[]) {
-    super(
-      attempts.at(-1)?.status ?? 502,
-      'transport_unavailable',
-      'Microsoft 邮箱的 Graph 与 IMAP 通道都无法连接。',
-    )
-  }
 }
 
 type Target =
@@ -194,8 +185,12 @@ function order(preferred: MicrosoftPreferredTransport): MicrosoftTransport[] {
  * Conditional on purpose: two concurrent syncs must not overwrite each other's
  * finding. Losing that race is not an error — the fetch already succeeded and the
  * next sync re-derives the hint — so a zero-row update is accepted silently.
+ *
+ * Exported for the two paths where the row is written by something other than
+ * the cascade itself (import's INSERT and credential update's reset both leave
+ * `unknown` behind), so the write-back SQL still exists in exactly one place.
  */
-async function recordPreferred(
+export async function recordMicrosoftPreferredTransport(
   env: Env,
   account: MicrosoftAccount,
   winner: MicrosoftTransport,
@@ -250,7 +245,9 @@ async function cascade(env: Env, target: Target): Promise<MicrosoftResolvedTrans
   for (const channel of sequence) {
     try {
       const transport = await attempt(env, target, channel)
-      if (target.kind === 'account') await recordPreferred(env, target.account, channel)
+      if (target.kind === 'account') {
+        await recordMicrosoftPreferredTransport(env, target.account, channel)
+      }
       return {
         transport,
         preferredTransport: channel,
@@ -289,25 +286,4 @@ export async function openMicrosoftTransport(
   candidate: MicrosoftImportCandidate,
 ): Promise<MicrosoftResolvedTransport> {
   return await cascade(env, { kind: 'candidate', candidate })
-}
-
-/**
- * Opens the IMAP channel for a stored account.
- *
- * Retained for the consumers still written against IMAP-specific methods (sync,
- * folder refresh, message read, verify). It shares `openImapClient` with the
- * cascade's IMAP arm, so there is still exactly one place that builds an IMAP
- * client and one place that decides channel order. Those call sites move onto
- * {@link resolveMicrosoftTransport} with the orchestration package.
- */
-export async function openMicrosoftClient(
-  env: Env,
-  account: MicrosoftAccount,
-): Promise<MicrosoftImapClient> {
-  if (account.authMode !== 'oauth2') {
-    throw new MicrosoftStoreError(
-      409, 'password_auth_removed', 'Microsoft 密码 LOGIN 已停用，请断开后使用 OAuth2 重新连接。',
-    )
-  }
-  return await openImapClient(env, { kind: 'account', account })
 }

@@ -2,7 +2,7 @@ import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { MicrosoftGraphError } from './microsoft-graph'
 import { MicrosoftStoreError } from './microsoft-store'
 import { MicrosoftTokenError } from './microsoft-token'
-import type { MicrosoftTransport } from './microsoft-types'
+import type { MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
 
 /**
  * Why a transport failed, at the granularity the fallback matrix needs.
@@ -40,6 +40,55 @@ export interface MicrosoftTransportFailure {
   mayTryOtherTransport: boolean
   /** Whether the winner may overwrite `preferred_transport`. */
   mayRewritePreferred: boolean
+}
+
+/**
+ * One channel's failure as reported to a client (I-7).
+ *
+ * The cascade-control fields (`mayTryOtherTransport`, `mayRewritePreferred`,
+ * `retryAfterSeconds`) are deliberately absent: they describe what the server
+ * decided, not what the user can act on.
+ */
+export interface MicrosoftTransportAttempt {
+  transport: MicrosoftTransport
+  category: MicrosoftFailureCategory
+  code: string
+  /** The upstream HTTP-equivalent status of that channel's failure. */
+  status: number
+}
+
+export function publicMicrosoftTransportAttempts(
+  attempts: readonly MicrosoftTransportFailure[],
+): MicrosoftTransportAttempt[] {
+  return attempts.map(({ transport, category, code, status }) => ({
+    transport, category, code, status,
+  }))
+}
+
+/**
+ * Raised when no transport could serve the mailbox.
+ *
+ * Carries one entry per attempted channel so the import dialog can say which
+ * channel failed and why, rather than a single opaque "validation failed" (I-7).
+ */
+export class MicrosoftTransportUnavailableError extends MicrosoftStoreError {
+  constructor(readonly attempts: MicrosoftTransportFailure[]) {
+    super(
+      exhaustedStatus(attempts),
+      'transport_unavailable',
+      'Microsoft 邮箱的 Graph 与 IMAP 通道都无法连接。',
+    )
+  }
+}
+
+/**
+ * A 401 from Microsoft must not become a 401 from us: the frontend API client
+ * treats that as a lost OmniMail session and logs the user out. The pre-Graph
+ * IMAP path already downgraded 401 to 400 for the same reason.
+ */
+function exhaustedStatus(attempts: readonly MicrosoftTransportFailure[]): number {
+  const status = attempts.at(-1)?.status ?? 502
+  return status === 401 ? 400 : status
 }
 
 /**
@@ -164,10 +213,33 @@ function imapFailure(error: ImapConnectionError): ClassifiedFailure {
 
 function storeFailure(error: MicrosoftStoreError): ClassifiedFailure {
   if (error.status === 503) return { category: 'transient', code: error.code, status: 503 }
+  if (error.status === 429) return { category: 'throttled', code: error.code, status: 429 }
   if (error.status === 404) return { category: 'data', code: error.code, status: 404 }
   // 409/400 here are configuration facts (password auth removed, wrong auth mode)
   // that no other transport can satisfy either.
   return { category: 'contract', code: error.code, status: error.status }
+}
+
+/**
+ * An exhausted cascade is judged by what its channels said, not by the wrapper.
+ *
+ * Every attempt was auth or permission class (nothing else lets the cascade move
+ * on). If every channel rejected the credential the credential is dead; if any
+ * channel said "insufficient scope" the user can still fix it by re-authorising,
+ * which is what `permission` communicates.
+ */
+function exhaustedFailure(error: MicrosoftTransportUnavailableError): MicrosoftTransportFailure {
+  const last = error.attempts.at(-1)
+  return {
+    transport: last?.transport ?? 'graph',
+    category: error.attempts.every(({ category }) => category === 'auth') ? 'auth' : 'permission',
+    code: error.code,
+    status: error.status,
+    retryAfterSeconds: null,
+    // Both channels have already been tried; there is nothing left to switch to.
+    mayTryOtherTransport: false,
+    mayRewritePreferred: false,
+  }
 }
 
 /**
@@ -178,12 +250,16 @@ function storeFailure(error: MicrosoftStoreError): ClassifiedFailure {
  * rewriting stickiness. Anything unrecognised is treated as `transient`, which is
  * the conservative answer: it neither switches nor rewrites, so an error class we
  * have not seen before cannot cause channel flapping.
+ *
+ * `transport` is the channel the caller was speaking to when the error surfaced.
+ * For an exhausted cascade it is ignored in favour of the attempts it carries.
  */
 export function microsoftTransportFailure(
   error: unknown,
   transport: MicrosoftTransport,
   operation: MicrosoftOperation = 'read',
 ): MicrosoftTransportFailure {
+  if (error instanceof MicrosoftTransportUnavailableError) return exhaustedFailure(error)
   const classified: ClassifiedFailure = error instanceof MicrosoftGraphError ? graphFailure(error)
     : error instanceof MicrosoftTokenError ? tokenFailure(error)
       : error instanceof MicrosoftStoreError ? storeFailure(error)
@@ -198,4 +274,39 @@ export function microsoftTransportFailure(
     retryAfterSeconds: classified.retryAfterSeconds ?? null,
     ...rules,
   }
+}
+
+/**
+ * Stored credentials that cannot be used at all. Neither is a channel verdict
+ * (so they stay `contract`/`transient` for the cascade), but for the account row
+ * they mean the same as a rejected credential: nothing works until the user
+ * re-enters it, and re-syncing on a schedule cannot help.
+ */
+const STATUS_BY_CODE: Record<string, MicrosoftAccountStatus> = {
+  credential_decryption_failed: 'credential_error',
+  credential_key_unavailable: 'credential_error',
+}
+
+const STATUS_BY_CATEGORY: Record<MicrosoftFailureCategory, MicrosoftAccountStatus> = {
+  auth: 'credential_error',
+  permission: 'permission_error',
+  throttled: 'error',
+  transient: 'error',
+  contract: 'error',
+  data: 'error',
+}
+
+/**
+ * The account `status` a failure should leave behind.
+ *
+ * One mapping for verify, folder refresh and sync, so the same failure can no
+ * longer land as `error` on one path and `credential_error` on another — which
+ * is what let a dead account keep accepting manual sync requests.
+ * `credential_error` and `permission_error` both stop scheduled and manual sync
+ * until the credential is replaced.
+ */
+export function microsoftAccountStatusForFailure(
+  failure: Pick<MicrosoftTransportFailure, 'category' | 'code'>,
+): MicrosoftAccountStatus {
+  return STATUS_BY_CODE[failure.code] ?? STATUS_BY_CATEGORY[failure.category]
 }

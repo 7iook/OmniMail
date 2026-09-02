@@ -5,13 +5,22 @@ import {
   importMicrosoftAccounts,
   listMicrosoftAccounts,
   MICROSOFT_VALIDATION_ATTEMPTS,
+  verifyMicrosoftAccount,
 } from './microsoft-account-api'
 import { microsoftResponseError } from './microsoft-api-shared'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import {
+  encryptMicrosoftCredential,
+  microsoftCredentialContext,
+} from './microsoft-credentials'
+import { MicrosoftGraphError } from './microsoft-graph'
+import {
   getMicrosoftMessage,
   listMicrosoftMessages,
 } from './microsoft-message-api'
+import { __setMicrosoftTransportFactories } from './microsoft-session'
+import type { MicrosoftMailTransport } from './microsoft-transport'
+import type { MicrosoftAccountRow, MicrosoftFolder } from './microsoft-types'
 
 const user = {
   id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'user',
@@ -30,7 +39,212 @@ function request(body: unknown): Request {
   })
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  __setMicrosoftTransportFactories(null)
+})
+
+const inbox: MicrosoftFolder = {
+  path: 'INBOX', displayName: 'Inbox', flags: [], specialUse: 'inbox',
+  uidValidity: null, lastUid: 0,
+}
+
+const calls: string[] = []
+
+/** A proven channel, or one that fails its handshake with `failWith`. */
+function fakeTransport(
+  transport: 'graph' | 'imap',
+  failWith?: unknown,
+): MicrosoftMailTransport {
+  return {
+    transport,
+    open: vi.fn(async () => {
+      calls.push(`${transport}.open`)
+      if (failWith) throw failWith
+    }),
+    close: vi.fn(async () => { calls.push(`${transport}.close`) }),
+    listFolders: vi.fn(async () => [inbox]),
+    folderState: vi.fn(async () => ({ uidValidity: null, exists: 0 })),
+    listRemoteIds: vi.fn(async () => []),
+    listRecentMetadata: vi.fn(async () => []),
+    getMessage: vi.fn(async () => ({ message: {}, parsedAttachments: [] }) as never),
+    markSeen: vi.fn(async () => undefined),
+  }
+}
+
+function installTransports(options: { graph?: unknown; imap?: unknown } = {}) {
+  calls.length = 0
+  const factory = (transport: 'graph' | 'imap', failWith?: unknown) => async () => {
+    const fake = fakeTransport(transport, failWith)
+    try {
+      await fake.open()
+      return fake
+    } catch (error) {
+      await fake.close()
+      throw error
+    }
+  }
+  __setMicrosoftTransportFactories({
+    graph: factory('graph', options.graph),
+    imap: factory('imap', options.imap),
+  })
+}
+
+/**
+ * D1 double that records every bound statement. `row` is what `first()` returns,
+ * which is how a stored account is fed to the verify path.
+ */
+function fakeEnv(row: Record<string, unknown> | null = null) {
+  const statements: Array<{ sql: string; bindings: unknown[] }> = []
+  const DB = {
+    prepare(sql: string) {
+      const statement = {
+        bindings: [] as unknown[],
+        bind(...bindings: unknown[]) {
+          statement.bindings = bindings
+          return statement
+        },
+        async all() {
+          statements.push({ sql, bindings: statement.bindings })
+          return { results: [] }
+        },
+        async first() {
+          statements.push({ sql, bindings: statement.bindings })
+          return row
+        },
+        async run() {
+          statements.push({ sql, bindings: statement.bindings })
+          return { meta: { changes: 1 } }
+        },
+      }
+      return statement
+    },
+    async batch(items: unknown[]) {
+      return items.map(() => ({ meta: { changes: 1 } }))
+    },
+  }
+  const env = {
+    MICROSOFT_CREDENTIALS_KEY: key,
+    DB,
+    MAIL_QUEUE: { send: async () => undefined },
+  } as unknown as Env
+  return { env, statements }
+}
+
+const oauthImport = {
+  email: 'user@outlook.com', authMode: 'oauth2', refreshToken: 'refresh-secret',
+  clientId: '00000000-0000-4000-8000-000000000000', authority: 'common',
+}
+
+async function storedAccountRow(env: Env): Promise<MicrosoftAccountRow> {
+  return {
+    id: 'microsoft-1', user_id: user.id, name: 'Work',
+    provided_email: 'user@outlook.com', normalized_email: 'user@outlook.com',
+    auth_mode: 'oauth2', preferred_transport: 'unknown',
+    client_id: '00000000-0000-4000-8000-000000000000', authority: 'common',
+    refresh_token_cipher: await encryptMicrosoftCredential(
+      env, 'refresh', microsoftCredentialContext(user.id, 'microsoft-1', 'refresh-token'),
+    ),
+    access_token_cipher: '', access_token_expires_at: null,
+    graph_access_token_cipher: '', graph_access_token_expires_at: null,
+    password_cipher: '', combination_password_cipher: '',
+    status: 'active', last_synced_at: null, next_sync_at: 0,
+    last_error_code: '', last_error_at: null,
+    sync_lease_id: null, sync_lease_until: null,
+    token_lease_id: null, token_lease_until: null,
+    last_manual_sync_at: null, created_at: 1, updated_at: 1,
+  }
+}
+
+describe('Microsoft import and verify go through the transport cascade', () => {
+  it('imports a Graph-only credential and stores preferred_transport=graph', async () => {
+    // The RCA shape: Microsoft refuses IMAP for this mailbox, Graph works.
+    installTransports({ imap: new ImapConnectionError(401, 'IMAP authentication failed') })
+    const { env, statements } = fakeEnv()
+    const response = await importMicrosoftAccounts(
+      env, user, request({ accounts: [oauthImport] }), '192.0.2.1',
+    )
+    const body = await response.json<{ results: Array<Record<string, unknown>> }>()
+    expect(response.status).toBe(201)
+    expect(body.results[0]).toMatchObject({
+      status: 'accepted',
+      account: { preferredTransport: 'graph', status: 'active' },
+    })
+    expect(calls).toEqual(['graph.open', 'graph.close'])
+    expect(statements.some(({ sql }) => /INSERT INTO microsoft_imap_accounts/i.test(sql))).toBe(true)
+    const stickiness = statements.find(({ sql }) => /SET preferred_transport = \?/.test(sql))
+    expect(stickiness?.bindings[0]).toBe('graph')
+  })
+
+  it('reports each channel attempt when both Graph and IMAP reject the credential', async () => {
+    installTransports({
+      graph: new MicrosoftGraphError('graph_permission_denied', 403, false),
+      imap: new ImapConnectionError(401, 'IMAP authentication failed'),
+    })
+    const { env, statements } = fakeEnv()
+    const response = await importMicrosoftAccounts(
+      env, user, request({ accounts: [oauthImport] }), '192.0.2.1',
+    )
+    const body = await response.json<{ results: Array<Record<string, unknown>> }>()
+    expect(response.status).toBe(207)
+    expect(body.results[0]).toMatchObject({ status: 'error', code: 'transport_unavailable' })
+    expect(body.results[0].attempts).toEqual([
+      { transport: 'graph', category: 'permission', code: 'graph_permission_denied', status: 403 },
+      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+    ])
+    expect(JSON.stringify(body)).not.toContain('refresh-secret')
+    expect(statements.some(({ sql }) => /INSERT INTO microsoft_imap_accounts/i.test(sql))).toBe(false)
+  })
+
+  it('verifies through the cascade and records the winning transport', async () => {
+    installTransports()
+    const { env: seed } = fakeEnv()
+    const { env, statements } = fakeEnv(await storedAccountRow(seed))
+    const response = await verifyMicrosoftAccount(env, user, 'microsoft-1', '192.0.2.1')
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ ok: true })
+    expect(calls).toEqual(['graph.open', 'graph.close'])
+    const stickiness = statements.find(({ sql }) => /SET preferred_transport = \?/.test(sql))
+    expect(stickiness?.bindings[0]).toBe('graph')
+    // Conditional on the value read from the row, so a concurrent sync cannot lose.
+    expect(stickiness?.bindings).toContain('unknown')
+    expect(statements.some(({ sql }) => /status = 'active'/.test(sql))).toBe(true)
+  })
+
+  it('derives the verify failure status from the transport classifier', async () => {
+    installTransports({
+      graph: new MicrosoftGraphError('graph_credential_rejected', 401, false),
+      imap: new ImapConnectionError(401, 'IMAP authentication failed'),
+    })
+    const { env: seed } = fakeEnv()
+    const { env, statements } = fakeEnv(await storedAccountRow(seed))
+    const response = await verifyMicrosoftAccount(env, user, 'microsoft-1', '192.0.2.1')
+    // Never 401: the frontend treats a 401 from our API as a lost session.
+    expect(response.status).not.toBe(401)
+    const body = await response.json<Record<string, unknown>>()
+    expect(body).toMatchObject({ code: 'transport_unavailable' })
+    expect(body.attempts).toEqual([
+      { transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401 },
+      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+    ])
+    const failure = statements.find(({ sql }) => /SET status = \?, last_error_code = \?/.test(sql))
+    // Both channels rejected the credential: the same verdict sync reaches, not a
+    // generic `error` that would let the user keep re-syncing a dead account.
+    expect(failure?.bindings.slice(0, 2)).toEqual(['credential_error', 'transport_unavailable'])
+  })
+
+  it('does not switch channel on a throttled verify and records a plain error', async () => {
+    installTransports({ graph: new MicrosoftGraphError('graph_throttled', 429, true, 30) })
+    const { env: seed } = fakeEnv()
+    const { env, statements } = fakeEnv(await storedAccountRow(seed))
+    const response = await verifyMicrosoftAccount(env, user, 'microsoft-1', '192.0.2.1')
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(calls).not.toContain('imap.open')
+    const failure = statements.find(({ sql }) => /SET status = \?, last_error_code = \?/.test(sql))
+    expect(failure?.bindings.slice(0, 2)).toEqual(['error', 'graph_throttled'])
+    expect(statements.some(({ sql }) => /SET preferred_transport = \?/.test(sql))).toBe(false)
+  })
+})
 
 describe('Microsoft mail API boundaries', () => {
   it('reports the feature as disabled without reading D1', async () => {
@@ -77,7 +291,16 @@ describe('Microsoft mail API boundaries', () => {
     }] }), '192.0.2.1')
     const body = await response.json()
     expect(response.status).toBe(207)
-    expect(body).toMatchObject({ results: [{ status: 'error', code: 'invalid_grant' }] })
+    // The token endpoint is asked once per channel scope (its verdict is
+    // scope-dependent, measured), so a dead grant surfaces on both attempts.
+    expect(body).toMatchObject({ results: [{
+      status: 'error',
+      code: 'transport_unavailable',
+      attempts: [
+        { transport: 'graph', code: 'invalid_grant', category: 'auth' },
+        { transport: 'imap', code: 'invalid_grant', category: 'auth' },
+      ],
+    }] })
     expect(JSON.stringify(body)).not.toContain('refresh-secret')
     expect(JSON.stringify(body)).not.toContain('combination-password')
     expect(statements.some((sql) => /INSERT INTO microsoft_imap_accounts/i.test(sql))).toBe(false)

@@ -1,9 +1,9 @@
 import type { Env, MicrosoftSyncJob, SessionUser } from '../../app/types'
+import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { writeAudit } from '../../shared/audit/audit'
 import { sha256 } from '../auth/session/auth'
 import { microsoftMailEnabled } from './microsoft-credentials'
 import { microsoftImportAccount, MicrosoftInputError } from './microsoft-fields'
-import type { MicrosoftImapClient } from './microsoft-imap'
 import {
   maskedMicrosoftEmail,
   microsoftJsonBody,
@@ -11,7 +11,14 @@ import {
   microsoftPrivateJson,
   microsoftResponseError,
 } from './microsoft-api-shared'
-import { openMicrosoftClient } from './microsoft-session'
+import {
+  type MicrosoftResolvedTransport,
+  type MicrosoftRotatedCredential,
+  MicrosoftTransportUnavailableError,
+  openMicrosoftTransport,
+  recordMicrosoftPreferredTransport,
+  resolveMicrosoftTransport,
+} from './microsoft-session'
 import {
   MicrosoftAccountStore,
   MicrosoftStoreError,
@@ -19,10 +26,16 @@ import {
   saveMicrosoftFolders,
 } from './microsoft-store'
 import { refreshMicrosoftFolders } from './microsoft-sync'
-import { refreshMicrosoftToken } from './microsoft-token'
+import type { MicrosoftMailTransport } from './microsoft-transport'
+import {
+  microsoftAccountStatusForFailure,
+  microsoftTransportFailure,
+  publicMicrosoftTransportAttempts,
+} from './microsoft-transport-errors'
 import type {
   MicrosoftAccount,
   MicrosoftFolder,
+  MicrosoftTransport,
   ValidMicrosoftImport,
 } from './microsoft-types'
 
@@ -30,15 +43,6 @@ const VALIDATION_WINDOW_SECONDS = 10 * 60
 const MANUAL_SYNC_INTERVAL_SECONDS = 60
 const MAX_IMPORT_ACCOUNTS = 25
 export const MICROSOFT_VALIDATION_ATTEMPTS = MAX_IMPORT_ACCOUNTS * 2
-
-async function microsoftClient(
-  email: string,
-  authMode: ValidMicrosoftImport['authMode'],
-  credential: string,
-): Promise<MicrosoftImapClient> {
-  const { MicrosoftImapClient } = await import('./microsoft-imap')
-  return new MicrosoftImapClient(email, authMode, credential)
-}
 
 export async function claimMicrosoftValidationAttempt(
   env: Env,
@@ -72,39 +76,56 @@ export async function claimMicrosoftValidationAttempt(
   }
 }
 
-async function validateImport(input: ValidMicrosoftImport): Promise<{
-  refreshToken: string
-  accessToken: string
-  accessTokenExpiresAt: number | null
+/**
+ * Lists folders and proves the inbox is reachable on an already-open transport.
+ *
+ * Both adapters expose the inbox under the literal path `INBOX` (Graph is
+ * addressed by well-known name and normalised in its adapter), so this check is
+ * transport-agnostic.
+ */
+async function checkInbox(transport: MicrosoftMailTransport): Promise<MicrosoftFolder[]> {
+  const folders = await transport.listFolders()
+  const inbox = folders.find(({ path }) => path.toUpperCase() === 'INBOX')
+  if (!inbox) throw new MicrosoftStoreError(502, 'inbox_unavailable', 'Microsoft INBOX 不可用。')
+  await transport.folderState(inbox.path)
+  return folders
+}
+
+/**
+ * Validates a credential that is not stored yet, through the same cascade every
+ * other path uses (invariant I-1).
+ *
+ * `microsoftImportAccount` only ever yields `authMode: 'oauth2'` — password
+ * imports are refused at parse time with `password_auth_removed` — so there is
+ * no second, IMAP-only path here any more. That path was the bypass that made
+ * the 20 RCA credentials (IMAP refused, Graph fine) fail to import.
+ */
+async function validateImport(env: Env, input: ValidMicrosoftImport): Promise<{
+  credential: MicrosoftRotatedCredential
+  preferredTransport: MicrosoftTransport
   folders: MicrosoftFolder[]
 }> {
-  let refreshToken = input.refreshToken || ''
-  let accessToken = ''
-  let accessTokenExpiresAt: number | null = null
-  if (input.authMode === 'oauth2') {
-    const token = await refreshMicrosoftToken({
-      authority: input.authority,
-      clientId: input.clientId,
-      refreshToken,
-    })
-    refreshToken = token.refreshToken
-    accessToken = token.accessToken
-    accessTokenExpiresAt = Math.floor(Date.now() / 1000) + token.expiresIn
-  }
-  const client = await microsoftClient(
-    input.email,
-    input.authMode,
-    input.authMode === 'oauth2' ? accessToken : input.password || '',
-  )
+  const resolved = await openMicrosoftTransport(env, {
+    email: input.email,
+    authority: input.authority,
+    clientId: input.clientId,
+    refreshToken: input.refreshToken || '',
+  })
   try {
-    await client.open()
-    const folders = await client.listFolders()
-    const inbox = folders.find(({ path }) => path.toUpperCase() === 'INBOX')
-    if (!inbox) throw new MicrosoftStoreError(502, 'inbox_unavailable', 'Microsoft INBOX 不可用。')
-    await client.examineFolder(inbox.path)
-    return { refreshToken, accessToken, accessTokenExpiresAt, folders }
+    const folders = await checkInbox(resolved.transport)
+    return {
+      // No exchange ran only when the cascade was replaced by a test seam; the
+      // pasted token is then still the live one.
+      credential: resolved.credential ?? {
+        refreshToken: input.refreshToken || '',
+        accessToken: '',
+        accessTokenExpiresAt: null,
+      },
+      preferredTransport: resolved.preferredTransport,
+      folders,
+    }
   } finally {
-    await client.close()
+    await resolved.transport.close()
   }
 }
 
@@ -126,8 +147,29 @@ export async function listMicrosoftAccounts(env: Env, user: SessionUser): Promis
   }
 }
 
+/**
+ * The error response for account-level requests.
+ *
+ * Adds the per-channel `attempts` when the cascade exhausted both transports,
+ * so a client can show "Graph: permission denied / IMAP: access rejected"
+ * instead of one opaque failure (I-7). Everything else keeps the shared shape.
+ */
+function accountErrorResponse(
+  error: unknown,
+  authMode?: ValidMicrosoftImport['authMode'],
+): Response {
+  if (error instanceof MicrosoftTransportUnavailableError) {
+    return microsoftPrivateJson({
+      error: error.message,
+      code: error.code,
+      attempts: publicMicrosoftTransportAttempts(error.attempts),
+    }, error.status)
+  }
+  return microsoftResponseError(error, authMode)
+}
+
 function importError(error: unknown, authMode?: ValidMicrosoftImport['authMode']) {
-  const response = microsoftResponseError(error, authMode)
+  const response = accountErrorResponse(error, authMode)
   return response.json().then((body) => ({
     status: response.status === 409 ? 'duplicate' as const : 'error' as const,
     ...(body as Record<string, unknown>),
@@ -166,7 +208,7 @@ export async function importMicrosoftAccounts(
         }
         seen.add(input.email)
         await claimMicrosoftValidationAttempt(env, user.id, ip)
-        const validated = await validateImport(input)
+        const validated = await validateImport(env, input)
         const now = Math.floor(Date.now() / 1000)
         const account: MicrosoftAccount = {
           id: `microsoft_${crypto.randomUUID().replaceAll('-', '')}`,
@@ -175,14 +217,14 @@ export async function importMicrosoftAccounts(
           providedEmail: input.email,
           normalizedEmail: input.email,
           authMode: input.authMode,
-          // Freshly imported: transport not probed yet. The cascade resolves it on
-          // first use and writes the winner back (state machine entry point).
-          preferredTransport: 'unknown',
+          // The channel that just validated this credential — the state machine
+          // leaves `unknown` at import, not on first sync.
+          preferredTransport: validated.preferredTransport,
           clientId: input.clientId,
           authority: input.authority,
-          refreshToken: validated.refreshToken,
-          accessToken: validated.accessToken,
-          accessTokenExpiresAt: validated.accessTokenExpiresAt,
+          refreshToken: validated.credential.refreshToken,
+          accessToken: validated.credential.accessToken,
+          accessTokenExpiresAt: validated.credential.accessTokenExpiresAt,
           graphAccessTokenExpiresAt: null,
           password: '',
           status: 'active',
@@ -199,6 +241,12 @@ export async function importMicrosoftAccounts(
           updatedAt: now,
         }
         await store.insert(account, input.password || '')
+        // `insert` does not carry `preferred_transport` (the row takes the column
+        // default `unknown`), so the winner is written through the one place that
+        // owns that SQL, conditioned on the default it is replacing.
+        await recordMicrosoftPreferredTransport(
+          env, { ...account, preferredTransport: 'unknown' }, validated.preferredTransport,
+        )
         await saveMicrosoftFolders(env, account.id, validated.folders, now)
         await writeAudit(env, user.id, 'microsoft.account.connect', account.id, ip, {
           email: maskedMicrosoftEmail(account.normalizedEmail),
@@ -257,20 +305,24 @@ export async function updateMicrosoftCredential(
       authMode,
     })
     await claimMicrosoftValidationAttempt(env, user.id, ip)
-    const validated = await validateImport(input)
+    // `microsoftImportAccount` has already refused anything but oauth2, so a
+    // legacy password account cannot reach this point with a password to store.
+    const validated = await validateImport(env, input)
     const now = Math.floor(Date.now() / 1000)
-    if (authMode === 'oauth2') {
-      await store.replaceOAuthCredential({
-        ...account,
-        clientId: input.clientId,
-        authority: input.authority,
-        refreshToken: validated.refreshToken,
-        accessToken: validated.accessToken,
-        accessTokenExpiresAt: validated.accessTokenExpiresAt,
-      }, now)
-    } else {
-      await store.replacePassword(accountId, input.password || '', now)
-    }
+    await store.replaceOAuthCredential({
+      ...account,
+      clientId: input.clientId,
+      authority: input.authority,
+      refreshToken: validated.credential.refreshToken,
+      accessToken: validated.credential.accessToken,
+      accessTokenExpiresAt: validated.credential.accessTokenExpiresAt,
+    }, now)
+    // The replace resets stickiness to `unknown` (the old credential's channel
+    // says nothing about the new one); the cascade just proved which channel the
+    // new credential works on, so record it rather than re-probe on first sync.
+    await recordMicrosoftPreferredTransport(
+      env, { ...account, preferredTransport: 'unknown' }, validated.preferredTransport,
+    )
     await saveMicrosoftFolders(env, accountId, validated.folders, now)
     await writeAudit(env, user.id, 'microsoft.account.credential_update', accountId, ip, {
       email: maskedMicrosoftEmail(account.normalizedEmail),
@@ -279,30 +331,38 @@ export async function updateMicrosoftCredential(
     try { await enqueueSync(env, accountId, 'manual') } catch { /* cron will retry */ }
     return microsoftPrivateJson({ ok: true })
   } catch (error) {
-    return microsoftResponseError(error, authMode)
+    return accountErrorResponse(error, authMode)
   }
 }
 
+/**
+ * Which channel an error came from, when the caller did not get as far as a
+ * resolved transport. Only the IMAP client raises `ImapConnectionError`; Graph
+ * errors carry `graph_*` codes of their own. An exhausted cascade is judged by
+ * its attempts inside the classifier regardless of this hint.
+ */
+function failedTransport(error: unknown, resolved?: MicrosoftResolvedTransport): MicrosoftTransport {
+  return resolved?.preferredTransport ?? (error instanceof ImapConnectionError ? 'imap' : 'graph')
+}
+
+/**
+ * Leaves the account in the status the classifier derives for this failure —
+ * the same derivation sync uses, so verify and sync agree on what a dead
+ * credential looks like.
+ */
 async function recordRemoteFailure(
   env: Env,
   account: MicrosoftAccount,
   error: unknown,
+  resolved?: MicrosoftResolvedTransport,
 ): Promise<void> {
-  const response = microsoftResponseError(error, account.authMode)
-  const body: { code?: string } = await response.clone().json<{ code?: string }>()
-    .catch(() => ({}))
-  const code = body.code || 'connection_failed'
-  const status = [
-    'invalid_grant', 'invalid_client', 'basic_auth_rejected',
-  ].includes(code) ? 'credential_error'
-    : ['imap_scope_missing', 'imap_access_rejected', 'xoauth2_unavailable'].includes(code)
-      ? 'permission_error' : 'error'
+  const failure = microsoftTransportFailure(error, failedTransport(error, resolved))
   const now = Math.floor(Date.now() / 1000)
   try {
     await env.DB.prepare(
       `UPDATE microsoft_imap_accounts SET status = ?, last_error_code = ?,
               last_error_at = ?, updated_at = ? WHERE id = ?`,
-    ).bind(status, code, now, now, account.id).run()
+    ).bind(microsoftAccountStatusForFailure(failure), failure.code, now, now, account.id).run()
   } catch { /* preserve remote error */ }
 }
 
@@ -313,15 +373,16 @@ export async function verifyMicrosoftAccount(
   ip: string,
 ): Promise<Response> {
   let account: MicrosoftAccount | undefined
-  let client: MicrosoftImapClient | undefined
+  let resolved: MicrosoftResolvedTransport | undefined
   try {
-    account = await new MicrosoftAccountStore(env, user.id).get(accountId)
+    // Claim before loading the row: our own rate limit is not a remote failure
+    // and must not be recorded against the account.
     await claimMicrosoftValidationAttempt(env, user.id, ip)
-    client = await openMicrosoftClient(env, account)
-    const folders = await client.listFolders()
-    const inbox = folders.find(({ path }) => path.toUpperCase() === 'INBOX')
-    if (!inbox) throw new MicrosoftStoreError(502, 'inbox_unavailable', 'Microsoft INBOX 不可用。')
-    await client.examineFolder(inbox.path)
+    account = await new MicrosoftAccountStore(env, user.id).get(accountId)
+    // The cascade records the winning channel on the row (stickiness), so
+    // verify doubles as a re-probe for an account whose channel state is stale.
+    resolved = await resolveMicrosoftTransport(env, account)
+    const folders = await checkInbox(resolved.transport)
     const now = Math.floor(Date.now() / 1000)
     await saveMicrosoftFolders(env, accountId, folders, now)
     await env.DB.prepare(
@@ -334,10 +395,10 @@ export async function verifyMicrosoftAccount(
     })
     return microsoftPrivateJson({ ok: true, validatedAt: now })
   } catch (error) {
-    if (account) await recordRemoteFailure(env, account, error)
-    return microsoftResponseError(error, account?.authMode)
+    if (account) await recordRemoteFailure(env, account, error, resolved)
+    return accountErrorResponse(error, account?.authMode)
   } finally {
-    await client?.close()
+    await resolved?.transport.close()
   }
 }
 
@@ -410,6 +471,6 @@ export async function listMicrosoftFolders(
     return microsoftPrivateJson({ folders: await store.folders(accountId) })
   } catch (error) {
     if (account) await recordRemoteFailure(env, account, error)
-    return microsoftResponseError(error, account?.authMode)
+    return accountErrorResponse(error, account?.authMode)
   }
 }
