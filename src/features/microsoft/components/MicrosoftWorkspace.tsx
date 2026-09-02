@@ -1,6 +1,5 @@
 import {
-  AlertCircle, Check, Copy, KeyRound, LoaderCircle, Mail, Paperclip,
-  Plus, RefreshCw, Search, Settings2, ShieldCheck, X,
+  AlertCircle, Check, Copy, LoaderCircle, Plus, RefreshCw, Search, Settings2, ShieldCheck, X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type MicrosoftAccount, type MicrosoftFolder, type MicrosoftMessageDetail,
@@ -10,25 +9,50 @@ import { t } from '../../../shared/i18n'
 import { notificationDeepLink } from '../../../shared/mail/notificationDeepLink'
 import { ListScrollTopHeading } from '../../../shared/ui/mail-workspace/ListScrollTopHeading'
 import { useMailListScroll } from '../../../shared/ui/mail-workspace/hooks/useMailListScroll'
+import { useAutoRefresh } from '../../../shared/hooks/useAutoRefresh'
 import '../../../shared/ui/mail-workspace/styles/workspace.css'
 import '../../gmail/styles/gmail-dialog.css'
 import '../../gmail/styles/gmail-workspace.css'
 import '../styles/microsoft-workspace.css'
 import { MicrosoftAccountDialog } from './MicrosoftAccountDialog'
+import { MicrosoftMessageList } from './MicrosoftMessageList'
 import { MicrosoftReader } from './MicrosoftReader'
 import { MicrosoftScopeSwitcher } from './MicrosoftScopeSwitcher'
 
+/** Card §12.1/§12.7: pinned regardless of the admin's global `mailRefreshInterval`. */
+const MICROSOFT_POLL_SECONDS = 5
 const emptyPage: PageInfo = { hasMore: false, nextCursor: null, limit: 50 }
-function accountWarning(accounts: MicrosoftAccount[]) {
+
+export function accountWarning(accounts: MicrosoftAccount[]): string {
   const failed = accounts.filter(({ status }) => ['credential_error', 'permission_error', 'error'].includes(status))
   return failed.length ? t('{count} 个 Microsoft 账号需要处理，其他账号仍可继续使用。', {
     count: failed.length,
   }) : ''
 }
 
-export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
+export function pushDegradedNotice(accounts: MicrosoftAccount[]): string {
+  return accounts.some(({ pushStatus }) => pushStatus === 'degraded')
+    ? t('实时推送暂不可用，正在按 5 分钟同步')
+    : ''
+}
+
+/**
+ * §12.7 Q2/A1: the page polls on a fixed cadence regardless of the admin's
+ * global `mailRefreshInterval` — EXCEPT that an explicit `0` (admin turned
+ * auto-refresh off entirely) also disables the Microsoft page's own polling.
+ */
+export function microsoftPollingEnabled(workspaceEnabled: boolean, mailRefreshInterval: number): boolean {
+  return workspaceEnabled && mailRefreshInterval !== 0
+}
+
+export function autoRefreshOffNotice(workspaceEnabled: boolean, mailRefreshInterval: number): string {
+  return workspaceEnabled && mailRefreshInterval === 0 ? t('自动刷新已关闭') : ''
+}
+
+export function MicrosoftWorkspace({ enabled, remoteImagesEnabled, mailRefreshInterval }: {
   enabled: boolean
   remoteImagesEnabled: boolean
+  mailRefreshInterval: number
 }) {
   const mailListScroll = useMailListScroll()
   const pendingDeepLink = useRef(notificationDeepLink('microsoft'))
@@ -119,6 +143,15 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
   useEffect(() => { void loadAccounts().catch((loadError) => setError(errorMessage(loadError))) }, [loadAccounts])
   useEffect(() => { void loadFolders() }, [loadFolders])
   useEffect(() => { void loadMessages() }, [loadMessages])
+  // §12.1/§12.7: local-D1-only, quiet reload — never `refresh=1` (that would hit
+  // Microsoft itself). Reuses the shared hook's leader-tab/visibility gating but
+  // with a fixed interval and `adaptive=false`, since the global setting's
+  // backoff cannot promise the ≤5s SLA this page committed to.
+  const pollMessages = useCallback(() => loadMessages(true), [loadMessages])
+  useAutoRefresh(
+    MICROSOFT_POLL_SECONDS, pollMessages,
+    microsoftPollingEnabled(enabled, mailRefreshInterval), false,
+  )
   useEffect(() => {
     const link = pendingDeepLink.current
     const message = link && messages.find(({ id, account }) => (
@@ -249,40 +282,14 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
         {query && <button type="button" onClick={() => setQuery('')} aria-label={t('清除搜索')}>
           <X size={14} /></button>}</label>}
       {accountWarning(accounts) && <p className="gmail-partial-error" role="status"><AlertCircle size={15} />{accountWarning(accounts)}</p>}
+      {pushDegradedNotice(accounts) && <p className="gmail-partial-error" role="status"><AlertCircle size={15} />{pushDegradedNotice(accounts)}</p>}
+      {autoRefreshOffNotice(enabled, mailRefreshInterval) && <p className="microsoft-scope-note">
+        {autoRefreshOffNotice(enabled, mailRefreshInterval)}</p>}
       {error && <p className="list-error" role="alert"><AlertCircle size={15} />{error}</p>}
-      <div className="gmail-message-list" aria-busy={loading}>
-        {!enabled ? <div className="icloud-empty"><span><KeyRound size={24} /></span>
-          <h3>{t('Microsoft 邮箱功能尚未启用')}</h3>
-          <p>{t('配置至少 32 字节的 MICROSOFT_CREDENTIALS_KEY，并启用 MICROSOFT_MAIL_ENABLED 后重新部署。')}</p></div>
-          : loading ? <div className="gmail-list-state" role="status"><LoaderCircle className="spin" size={21} />{t('正在读取 Microsoft 邮件索引…')}</div>
-            : !accounts.length ? <div className="gmail-list-state gmail-list-state--empty"><span><Mail size={25} /></span>
-              <h2>{t('连接你的第一个 Microsoft 邮箱')}</h2><p>{t('仅支持 OAuth2；不再接受仅邮箱密码登录。')}</p>
-              <button className="button button--primary" type="button" onClick={() => setDialogMode('add')}><Plus size={16} />{t('添加 Microsoft 账号')}</button></div>
-              : !messages.length ? <div className="gmail-list-state gmail-list-state--empty"><span>{searchQuery ? <Search size={25} /> : <Mail size={25} />}</span>
-                <h2>{t(searchQuery ? '未找到相关 Microsoft 邮件' : '当前文件夹还没有索引邮件')}</h2>
-                <p>{t(searchQuery ? '请尝试其他关键词。' : accountId
-                  ? '可远程刷新当前文件夹，或等待后台定时同步 INBOX。'
-                  : '可同步全部 Microsoft 账号，或等待后台定时同步 INBOX。')}</p></div>
-                : <div className="message-list-shell"><div className="message-list" role="listbox" aria-label={t('Microsoft 邮件列表')}>
-                  {messages.map((message) => {
-                    const active = selected?.id === message.id
-                    const sender = message.senderName || message.senderAddress || t('未知发件人')
-                    return <article className={`message-row${message.isRead ? '' : ' is-unread'}${active ? ' is-selected' : ''}`}
-                      role="option" aria-selected={active} key={message.id}>
-                      <button className="message-row__main" type="button" onClick={() => void selectMessage(message)}>
-                        <span className="message-row__top"><strong>{sender}</strong><time dateTime={new Date(message.date * 1000).toISOString()}>
-                          {new Date(message.date * 1000).toLocaleDateString()}</time></span>
-                        <span className="message-row__subject"><span className="message-row__subject-text">{message.subject || t('无主题')}</span></span>
-                        <span className="message-row__preview">{message.preview || t('邮件正文将在打开时按需读取')}</span>
-                        <span className="mailbox-hint"><Mail size={12} />{message.account.name}</span>
-                        {message.hasAttachments && <span className="attachment-hint"><Paperclip size={12} />{t('附件')}</span>}
-                      </button>{!message.isRead && <span className="message-row__unread-dot" aria-hidden="true" />}
-                    </article>
-                  })}
-                  {page.hasMore && <button className="gmail-load-more" type="button" disabled={loadingMore}
-                    onClick={() => void loadMore()}>{loadingMore && <LoaderCircle className="spin" size={15} />}{t('加载更多')}</button>}
-                </div></div>}
-      </div>
+      <MicrosoftMessageList enabled={enabled} loading={loading} accounts={accounts} accountId={accountId}
+        searchQuery={searchQuery} messages={messages} selectedId={selected?.id ?? null} page={page}
+        loadingMore={loadingMore} onSelect={(message) => void selectMessage(message)}
+        onLoadMore={() => void loadMore()} onAddAccount={() => setDialogMode('add')} />
     </section>
     <main className="reader-pane icloud-reader-pane gmail-reader-pane"><MicrosoftReader selected={selected}
       message={detail} loading={detailLoading} error={detailError} remoteImagesEnabled={remoteImagesEnabled}

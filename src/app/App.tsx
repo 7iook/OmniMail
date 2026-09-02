@@ -185,7 +185,7 @@ function Mailbox({
         onAdminViewChange={changeAdminView}
         onLogout={onLogout}
       />
-      {adminView === 'microsoft' ? <Suspense fallback={null}><MicrosoftWorkspace enabled={config.microsoftEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
+      {adminView === 'microsoft' ? <Suspense fallback={null}><MicrosoftWorkspace enabled={config.microsoftEnabled} remoteImagesEnabled={config.remoteImagesEnabled} mailRefreshInterval={config.mailRefreshInterval} /></Suspense>
         : adminView === 'qq-mail' ? <Suspense fallback={null}><QqMailWorkspace enabled={config.qqMailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} canSend={user.role === 'super_admin' || user.canReply} /></Suspense>
         : adminView === 'naver-mail' ? <Suspense fallback={null}><NaverMailWorkspace enabled={config.naverMailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>
         : adminView === 'yandex-mail' ? <Suspense fallback={null}><YandexMailWorkspace enabled={config.yandexMailEnabled} remoteImagesEnabled={config.remoteImagesEnabled} /></Suspense>

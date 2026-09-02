@@ -1,13 +1,25 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import type { MicrosoftAccount } from '../../../shared/api'
 import { MicrosoftAccountDialog } from './MicrosoftAccountDialog'
 import { MicrosoftReader } from './MicrosoftReader'
-import { MicrosoftWorkspace } from './MicrosoftWorkspace'
+import {
+  autoRefreshOffNotice, microsoftPollingEnabled, MicrosoftWorkspace, pushDegradedNotice,
+} from './MicrosoftWorkspace'
+
+function microsoftAccount(overrides: Partial<MicrosoftAccount> = {}): MicrosoftAccount {
+  return {
+    id: 'microsoft-1', name: 'Work', email: 'user@outlook.com', authMode: 'oauth2',
+    clientIdMasked: '0000••••0000', authority: 'common', status: 'active',
+    lastSyncedAt: null, nextSyncAt: 0, lastErrorCode: '', lastErrorAt: null,
+    createdAt: 0, hasCredential: true, ...overrides,
+  }
+}
 
 describe('Microsoft workspace safety and accessibility boundaries', () => {
   it('shows the deployment recovery path without removing the workspace layout', () => {
     const html = renderToStaticMarkup(
-      <MicrosoftWorkspace enabled={false} remoteImagesEnabled={false} />,
+      <MicrosoftWorkspace enabled={false} remoteImagesEnabled={false} mailRefreshInterval={30} />,
     )
     expect(html).toContain('MICROSOFT_CREDENTIALS_KEY')
     expect(html).toContain('MICROSOFT_MAIL_ENABLED')
@@ -52,5 +64,47 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
     expect(html).not.toContain('仅允许已读状态写入')
     expect(html).not.toContain('gmail-readonly-note')
     expect(html).toContain('/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/0')
+  })
+})
+
+describe('Microsoft §12.7 A1 — fixed 5s polling gate', () => {
+  it('polls only while the workspace feature is enabled and the global interval is not explicitly off', () => {
+    expect(microsoftPollingEnabled(true, 30)).toBe(true)
+    expect(microsoftPollingEnabled(true, 5)).toBe(true)
+    expect(microsoftPollingEnabled(true, 120)).toBe(true)
+    // 0 is the admin's explicit "off", not "use the global cadence instead".
+    expect(microsoftPollingEnabled(true, 0)).toBe(false)
+    expect(microsoftPollingEnabled(false, 30)).toBe(false)
+  })
+
+  it('shows the off note only when enabled but the global interval is explicitly 0', () => {
+    expect(autoRefreshOffNotice(true, 0)).toBe('自动刷新已关闭')
+    expect(autoRefreshOffNotice(true, 30)).toBe('')
+    expect(autoRefreshOffNotice(false, 0)).toBe('')
+  })
+
+  it('renders the off note near the list header when the global interval is 0', () => {
+    const html = renderToStaticMarkup(
+      <MicrosoftWorkspace enabled remoteImagesEnabled={false} mailRefreshInterval={0} />,
+    )
+    expect(html).toContain('自动刷新已关闭')
+  })
+
+  it('does not render the off note when the global interval polls normally', () => {
+    const html = renderToStaticMarkup(
+      <MicrosoftWorkspace enabled remoteImagesEnabled={false} mailRefreshInterval={30} />,
+    )
+    expect(html).not.toContain('自动刷新已关闭')
+  })
+})
+
+describe('Microsoft §12.7 Q3 — degraded push notice', () => {
+  it('shows the notice only when at least one listed account is degraded', () => {
+    expect(pushDegradedNotice([microsoftAccount({ pushStatus: 'degraded' })]))
+      .toBe('实时推送暂不可用，正在按 5 分钟同步')
+    expect(pushDegradedNotice([microsoftAccount({ pushStatus: 'active' })])).toBe('')
+    expect(pushDegradedNotice([microsoftAccount({ pushStatus: 'off' })])).toBe('')
+    expect(pushDegradedNotice([microsoftAccount({ pushStatus: undefined })])).toBe('')
+    expect(pushDegradedNotice([])).toBe('')
   })
 })

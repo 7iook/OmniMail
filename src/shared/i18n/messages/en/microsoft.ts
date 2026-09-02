@@ -135,4 +135,6 @@ export const enMicrosoft: Record<string, string> = {
   '已更新 Microsoft 凭据': 'Updated a Microsoft credential',
   '已验证 Microsoft 账号': 'Verified a Microsoft account',
   '已断开 Microsoft 账号': 'Disconnected a Microsoft account',
+  '垃圾邮件': 'Junk email',
+  '实时推送暂不可用，正在按 5 分钟同步': 'Real-time push is temporarily unavailable; syncing every 5 minutes instead.',
 }

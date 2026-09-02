@@ -5,11 +5,13 @@ import {
   microsoftCredentialContext,
   microsoftCredentialsReady,
 } from './microsoft-credentials'
+import { MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS } from './microsoft-types'
 import type {
   MicrosoftAccount,
   MicrosoftAccountRow,
   MicrosoftFolder,
   MicrosoftFolderRow,
+  MicrosoftPushStatus,
   PublicMicrosoftAccount,
 } from './microsoft-types'
 
@@ -42,7 +44,7 @@ export function publicMicrosoftAccount(account: MicrosoftAccount): PublicMicroso
   }
 }
 
-function publicRow(row: MicrosoftAccountRow): PublicMicrosoftAccount {
+function publicRow(row: MicrosoftAccountRow, pushStatus?: MicrosoftPushStatus): PublicMicrosoftAccount {
   return {
     id: row.id,
     name: row.name,
@@ -58,7 +60,27 @@ function publicRow(row: MicrosoftAccountRow): PublicMicrosoftAccount {
     lastErrorAt: row.last_error_at,
     createdAt: row.created_at,
     hasCredential: true,
+    ...(pushStatus ? { pushStatus } : {}),
   }
+}
+
+/**
+ * Card §12.7 Q3 / C-5: derived on read, not stored (no new column, no second
+ * source of truth). `off` covers accounts not currently on the Graph channel
+ * and the whole-deployment kill switch (no webhook base URL — card S-6, push
+ * disabled entirely). `active` requires every subscribed folder
+ * (`MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS` — today INBOX + Junk Email) to have an
+ * `active` row; anything short of that (missing rows, `stale`, `rejected`) is
+ * `degraded`. The 5-minute cron sync remains the backstop either way (I-11);
+ * this only tells the user whether push is currently accelerating delivery.
+ */
+function derivePushStatus(
+  env: Env,
+  preferredTransport: MicrosoftAccountRow['preferred_transport'],
+  activeSubscriptions: number,
+): MicrosoftPushStatus {
+  if (preferredTransport !== 'graph' || !env.MICROSOFT_GRAPH_WEBHOOK_BASE_URL) return 'off'
+  return activeSubscriptions >= MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS.length ? 'active' : 'degraded'
 }
 
 async function accountFromRow(env: Env, row: MicrosoftAccountRow): Promise<MicrosoftAccount> {
@@ -146,12 +168,23 @@ export class MicrosoftAccountStore {
     }
   }
 
+  /**
+   * One LEFT JOIN (not N+1): every account's active-subscription count comes
+   * back in the same statement as the account rows themselves, so listing
+   * accounts still costs a single query regardless of how many the user has.
+   */
   async list(): Promise<PublicMicrosoftAccount[]> {
     const { results } = await this.env.DB.prepare(
-      `SELECT * FROM microsoft_imap_accounts
-        WHERE user_id = ? ORDER BY created_at, id`,
-    ).bind(this.userId).all<MicrosoftAccountRow>()
-    return results.map(publicRow)
+      `SELECT a.*, COUNT(CASE WHEN s.status = 'active' THEN 1 END) AS active_subscriptions
+         FROM microsoft_imap_accounts a
+         LEFT JOIN microsoft_graph_subscriptions s ON s.account_id = a.id
+        WHERE a.user_id = ?
+        GROUP BY a.id
+        ORDER BY a.created_at, a.id`,
+    ).bind(this.userId).all<MicrosoftAccountRow & { active_subscriptions: number }>()
+    return results.map((row) => publicRow(
+      row, derivePushStatus(this.env, row.preferred_transport, row.active_subscriptions),
+    ))
   }
 
   async publicAccount(accountId: string): Promise<PublicMicrosoftAccount | null> {

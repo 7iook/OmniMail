@@ -281,6 +281,12 @@ export interface MicrosoftAccount {
   lastErrorAt: number | null
   createdAt: number
   hasCredential: true
+  /**
+   * Graph push-subscription health (card §12.7 Q3), derived server-side from
+   * `microsoft_graph_subscriptions`. Absent on older responses — optional and
+   * additive. `off` = not a Graph account (IMAP mailboxes are never pushed to).
+   */
+  pushStatus?: 'active' | 'degraded' | 'off'
 }
 
 export interface MicrosoftImportAccount {
