@@ -19,3 +19,7 @@ NAVER_MAIL_IMAP_ENABLED=false
 # Optional. At least 32 UTF-8 bytes; enables controlled Microsoft IMAP access.
 MICROSOFT_CREDENTIALS_KEY=
 MICROSOFT_MAIL_ENABLED=true
+# Public HTTPS origin of this Worker, used for Graph change-notification URLs.
+# Leave empty to disable Graph push (polling/cron still work). Local dev cannot
+# receive Microsoft's callbacks, so only set it on a deployed Worker.
+MICROSOFT_GRAPH_WEBHOOK_BASE_URL=

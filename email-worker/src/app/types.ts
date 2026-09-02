@@ -33,6 +33,19 @@ export interface MicrosoftSyncJob {
   reason: 'connect' | 'manual' | 'scheduled'
 }
 
+/**
+ * Refresh one folder of one Microsoft account, triggered by a Graph change
+ * notification. Separate from MicrosoftSyncJob because that job's folder choice
+ * is hardcoded to INBOX and its `reason` is retry bookkeeping only. Graph-pinned:
+ * the consumer acks without work if the cascade resolves to IMAP (card C-4).
+ */
+export interface MicrosoftFolderRefreshJob {
+  kind: 'microsoft-folder-refresh'
+  accountId: string
+  folderPath: string
+  reason: 'notification'
+}
+
 export interface QqMailSyncJob {
   kind: 'qq-mail-sync'
   accountId: string
@@ -65,6 +78,7 @@ export type MailQueueJob =
   | SearchIndexJob
   | GmailSyncJob
   | MicrosoftSyncJob
+  | MicrosoftFolderRefreshJob
   | QqMailSyncJob
   | NaverMailSyncJob
   | YandexMailSyncJob
@@ -112,6 +126,13 @@ export interface Env {
   GMAIL_IMAP_ENABLED?: string
   MICROSOFT_CREDENTIALS_KEY?: string
   MICROSOFT_MAIL_ENABLED?: string
+  /**
+   * Public HTTPS origin of this Worker (e.g. https://omni-mail.example.workers.dev),
+   * used to build Graph change-notification URLs. Cron has no request to derive it
+   * from, and APP_ORIGINS means "who may call me", not "where am I". Unset disables
+   * Graph push entirely; nothing else depends on it.
+   */
+  MICROSOFT_GRAPH_WEBHOOK_BASE_URL?: string
   QQ_MAIL_CREDENTIALS_KEY?: string
   QQ_MAIL_IMAP_ENABLED?: string
   NAVER_MAIL_CREDENTIALS_KEY?: string

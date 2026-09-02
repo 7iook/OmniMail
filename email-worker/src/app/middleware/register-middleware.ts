@@ -26,6 +26,8 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/linux-do',
   '/api/auth/linux-do/callback',
   '/api/webhooks/resend',
+  '/api/microsoft/graph/notifications',
+  '/api/microsoft/graph/lifecycle',
 ])
 
 export function registerMiddleware(app: Hono<AppContext>): void {

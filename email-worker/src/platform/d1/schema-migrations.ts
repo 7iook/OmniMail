@@ -13,6 +13,10 @@ import {
   MICROSOFT_TRANSPORT_CHANNEL_RECOVERY,
 } from './schema-migration-microsoft-transport'
 import {
+  MICROSOFT_GRAPH_SUBSCRIPTIONS_MIGRATION,
+  MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY,
+} from './schema-migration-microsoft-graph-subscriptions'
+import {
   MICROSOFT_BASE_RECOVERY,
   MICROSOFT_COMBINATION_PASSWORD_MIGRATION,
   MICROSOFT_COMBINATION_PASSWORD_RECOVERY,
@@ -30,7 +34,7 @@ const QQ_MAIL_SMTP_MIGRATION = '0030_qq_mail_smtp.sql'
 // Fast-path probe: must always name the LAST migration in WRANGLER_MIGRATION_NAMES.
 // Adding a migration without moving this pointer makes ensureSchema report the
 // previous tail as satisfied and silently skip the new one.
-export const REQUIRED_MIGRATION = MICROSOFT_TRANSPORT_CHANNEL_MIGRATION
+export const REQUIRED_MIGRATION = MICROSOFT_GRAPH_SUBSCRIPTIONS_MIGRATION
 export const WRANGLER_MIGRATION_NAMES = [
   '0001_initial.sql',
   '0002_domains.sql',
@@ -66,6 +70,9 @@ export const WRANGLER_MIGRATION_NAMES = [
   NAVER_MAIL_MIGRATION,
   YANDEX_MAIL_MIGRATION,
   EXTERNAL_MAIL_INDEX_MIGRATION,
+  // Listed by name, not via REQUIRED_MIGRATION: when the pointer moved off 0035
+  // once, 0035 silently vanished from this list. Every entry stays explicit.
+  MICROSOFT_TRANSPORT_CHANNEL_MIGRATION,
   REQUIRED_MIGRATION,
 ] as const
 export const LEGACY_BASELINES: Record<string, number> = {
@@ -499,8 +506,9 @@ export const RECOVERABLE_MIGRATIONS = [
   NAVER_MAIL_RECOVERY,
   YANDEX_MAIL_RECOVERY,
   EXTERNAL_MAIL_INDEX_RECOVERY,
-  // Must stay last, and in migration-number order: ensureRequiredMigrations()
-  // treats REQUIRED_MIGRATION (0036) as proof the whole chain ran, so recording
-  // it before 0029-0035 lets a later failure strand those permanently.
   MICROSOFT_TRANSPORT_CHANNEL_RECOVERY,
+  // Must stay last, and in migration-number order: ensureRequiredMigrations()
+  // treats REQUIRED_MIGRATION (0037) as proof the whole chain ran, so recording
+  // it before 0029-0036 lets a later failure strand those permanently.
+  MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY,
 ] as const

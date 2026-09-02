@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY } from './schema-migration-microsoft-graph-subscriptions'
 import { RECOVERABLE_MIGRATIONS, WRANGLER_MIGRATION_NAMES } from './schema-migrations'
 
 /**
@@ -75,6 +76,36 @@ describe('D1 schema shape (real execution, not mocked batches)', () => {
     // twice, once per transport.
     expect(keyed).toContain('internet_message_id')
     expect(keyed).not.toContain('folder_path')
+  })
+
+  it('keys Graph subscriptions by (account, folder) and by remote id, storing only a digest of clientState', () => {
+    const db = applyDiskMigrations()
+    const cols = columns(db, 'microsoft_graph_subscriptions')
+
+    // Identity group: no plaintext clientState column may exist (card C-1).
+    expect(cols).toContain('client_state_hash')
+    expect(cols).not.toContain('client_state')
+    // Scheduling group (C-5) and coalescing state machine (C-3) are separate columns.
+    expect(cols).toEqual(expect.arrayContaining([
+      'status', 'failure_count', 'next_attempt_at',
+      'refresh_state', 'refresh_pending', 'refresh_state_at',
+    ]))
+
+    const uniqueIndexes = db.prepare(
+      "SELECT name FROM pragma_index_list('microsoft_graph_subscriptions') WHERE \"unique\" = 1",
+    ).all().map((row) => (row as { name: string }).name)
+    const uniqueColumnSets = uniqueIndexes.map((index) => db.prepare(
+      `SELECT name FROM pragma_index_info('${index}')`,
+    ).all().map((row) => (row as { name: string }).name).sort().join(','))
+    expect(uniqueColumnSets).toContain('account_id,folder_path')
+    expect(uniqueColumnSets).toContain('subscription_id')
+
+    // The runtime twin must produce the same shape as the .sql file: both are
+    // hand-kept, and 0036 already showed how easily they can drift.
+    const runtime = new DatabaseSync(':memory:')
+    runtime.exec('CREATE TABLE microsoft_imap_accounts (id TEXT PRIMARY KEY)')
+    for (const statement of MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY.statements) runtime.exec(statement)
+    expect(columns(runtime, 'microsoft_graph_subscriptions')).toEqual(cols)
   })
 
   it('orders runtime recovery the same as the tracked migration list', () => {

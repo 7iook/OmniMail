@@ -12,6 +12,14 @@ import { completeSetup } from '../../features/auth/setup/setup-api'
 import { issueDeviceToken, refreshDeviceToken, revokeRefreshToken } from '../../features/auth/tokens/token-api'
 import { extensionAuthorizationRoutes } from '../../features/extension-authorization/extension-authorization-routes'
 import { proxyRemoteImage } from '../../features/messages/remote-image'
+import {
+  dropLifecycle,
+  dropNotifications,
+  handleMicrosoftGraphLifecycle,
+  handleMicrosoftGraphNotification,
+  MICROSOFT_GRAPH_LIFECYCLE_PATH,
+  MICROSOFT_GRAPH_NOTIFICATION_PATH,
+} from '../../features/microsoft/microsoft-graph-notifications'
 import { handleResendWebhook } from '../../features/outbound/resend-webhook'
 import { publicConfig } from '../../features/system/public-config'
 import { writeAudit } from '../../shared/audit/audit'
@@ -51,6 +59,22 @@ app.get('/api/auth/linux-do/callback', async (context) => {
 
 app.get('/api/remote-images', (context) => proxyRemoteImage(context.req.raw))
 app.post('/api/webhooks/resend', (context) => handleResendWebhook(context.env, context.req.raw))
+// Microsoft Graph calls these itself: no session, no Origin header. The handler
+// answers within Graph's 3 s budget and defers real work via waitUntil.
+app.post(MICROSOFT_GRAPH_NOTIFICATION_PATH, (context) => handleMicrosoftGraphNotification(
+  context.env,
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+  (task) => context.executionCtx.waitUntil(task),
+  dropNotifications,
+))
+app.post(MICROSOFT_GRAPH_LIFECYCLE_PATH, (context) => handleMicrosoftGraphLifecycle(
+  context.env,
+  context.req.raw,
+  clientIp(context.req.raw.headers),
+  (task) => context.executionCtx.waitUntil(task),
+  dropLifecycle,
+))
 
 app.post('/api/setup', async (context) => {
   const result = await completeSetup(

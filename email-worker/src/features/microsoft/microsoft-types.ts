@@ -198,3 +198,94 @@ export interface ValidMicrosoftImport {
   clientId: string
   authority: string
 }
+
+// ---------------------------------------------------------------------------
+// Graph change-notification subscriptions (decision card §12 · frozen in P2-W1)
+// ---------------------------------------------------------------------------
+
+/** Scheduling state of a subscription (card C-5). `rejected` = permanent refusal, retried daily. */
+export type MicrosoftGraphSubscriptionStatus = 'active' | 'stale' | 'rejected'
+
+/** Coalescing state machine for notification-driven refreshes (card C-3). */
+export type MicrosoftGraphRefreshState = 'idle' | 'queued' | 'running'
+
+/** Folders that get a subscription. Well-known Graph names; D1 stores the fixed literal paths. */
+export const MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS = [
+  { wellKnownName: 'inbox', folderPath: 'INBOX' },
+  { wellKnownName: 'junkemail', folderPath: 'Junk Email' },
+] as const
+
+export interface MicrosoftGraphSubscription {
+  id: string
+  accountId: string
+  folderPath: string
+  subscriptionId: string
+  /** SHA-256 hex of the clientState sent to Graph; the plaintext is never stored (C-1). */
+  clientStateHash: string
+  expiresAt: number
+  status: MicrosoftGraphSubscriptionStatus
+  failureCount: number
+  nextAttemptAt: number
+  refreshState: MicrosoftGraphRefreshState
+  refreshPending: boolean
+  refreshStateAt: number
+  lastNotifiedAt: number | null
+  lastErrorCode: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** What Graph returns for a subscription; the client normalises to this. */
+export interface MicrosoftGraphRemoteSubscription {
+  subscriptionId: string
+  resource: string
+  notificationUrl: string
+  expiresAt: number
+}
+
+/**
+ * Talks to Graph's /subscriptions endpoint for one account's access token.
+ *
+ * Its errors are classified on their own (`subscription_rejected` etc.) and
+ * MUST NOT flow into the transport cascade's switch/stickiness decision: a
+ * mailbox whose reads are fine but whose tenant forbids subscriptions is still a
+ * healthy Graph mailbox (card C-5, S-5).
+ */
+export interface MicrosoftGraphSubscriptionClient {
+  create(input: {
+    wellKnownFolder: string
+    notificationUrl: string
+    lifecycleNotificationUrl: string
+    clientState: string
+    expiresAt: number
+  }): Promise<MicrosoftGraphRemoteSubscription>
+  renew(subscriptionId: string, expiresAt: number): Promise<MicrosoftGraphRemoteSubscription>
+  /** 404 is success: the goal is "it no longer exists". */
+  remove(subscriptionId: string): Promise<void>
+  /** All subscriptions this app holds for the signed-in user; the basis of reconciliation (C-2). */
+  list(): Promise<MicrosoftGraphRemoteSubscription[]>
+}
+
+/**
+ * Persistence for `microsoft_graph_subscriptions`. Every state transition is a
+ * single conditional UPDATE so two Workers cannot both win (C-3, C-5).
+ */
+export interface MicrosoftGraphSubscriptionRepository {
+  bySubscriptionId(subscriptionId: string): Promise<MicrosoftGraphSubscription | null>
+  forAccount(accountId: string): Promise<MicrosoftGraphSubscription[]>
+  insert(row: Omit<MicrosoftGraphSubscription, 'createdAt' | 'updatedAt'>, now: number): Promise<void>
+  remove(id: string): Promise<void>
+  /** Renewal / status changes; returns the updated row or null when it vanished. */
+  update(id: string, patch: Partial<Pick<MicrosoftGraphSubscription,
+    'subscriptionId' | 'clientStateHash' | 'expiresAt' | 'status' | 'failureCount'
+    | 'nextAttemptAt' | 'lastErrorCode'>>, now: number): Promise<MicrosoftGraphSubscription | null>
+  /** Rows whose next_attempt_at <= now, oldest first, bounded (C-5 fairness). */
+  due(now: number, limit: number): Promise<MicrosoftGraphSubscription[]>
+  /** C-3 transitions. Each returns true only if this caller performed the transition. */
+  markQueued(id: string, now: number): Promise<boolean>
+  markPending(id: string, now: number): Promise<void>
+  releaseQueued(id: string, now: number): Promise<boolean>
+  markRunning(id: string, now: number): Promise<boolean>
+  /** Ends a run: clears pending and returns whether a follow-up refresh must be enqueued. */
+  finishRunning(id: string, now: number): Promise<{ requeue: boolean }>
+}
