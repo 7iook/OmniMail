@@ -54,7 +54,7 @@ const message = {
   id: 'message-1', account: {
     id: account.id, name: account.name, email: account.email, status: account.status,
   },
-  folderPath: 'INBOX', uidValidity: 42, uid: 7,
+  folderPath: 'INBOX', uidValidity: 42, remoteId: '7',
   senderName: 'Microsoft', senderAddress: 'security@microsoft.com',
   recipients: ['user@outlook.com'], cc: [], subject: '安全提醒', preview: '',
   date: 1_787_486_400, sentAt: 1_787_486_400, sizeBytes: 2048,
