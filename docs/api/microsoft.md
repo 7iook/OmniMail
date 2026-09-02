@@ -8,7 +8,7 @@ OAuth2 认证、受控 IMAP 同步、正文、附件与精确已读写入。
 
 > OAuth2 authentication, controlled IMAP synchronization, bodies, attachments, and exact Seen writes.
 
-本分类共 **11** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
+本分类共 **13** 个端点。返回 [完整 API 索引](README.md) 或 [API 架构与安全说明](../API.md)。
 
 <!-- endpoint:GET /api/microsoft/accounts catalog:72ad0c21cd5c -->
 ## `GET /api/microsoft/accounts`
@@ -298,4 +298,77 @@ curl --request GET \
   --url "https://mail.example.com/api/microsoft/accounts/microsoft_account_id/messages/message_id/attachments/0" \
   --header "Authorization: Bearer om_at_..." \
   --output "microsoft-attachment.bin"
+```
+
+<!-- endpoint:POST /api/microsoft/graph/notifications catalog:7eb877212d92 -->
+## `POST /api/microsoft/graph/notifications`
+
+**接收 Microsoft Graph 变更通知 / Receive Microsoft Graph change notifications**
+
+Microsoft Graph 自己调用，不带请求头签名；带 validationToken 时原样回显握手，否则按请求体内 clientState 的 SHA-256 摘要校验通知后入队文件夹刷新，无论结果如何都回 202。
+
+> Called by Microsoft Graph itself with no header-based signature; echoes the validation handshake verbatim when validationToken is present, otherwise verifies the SHA-256 digest of the clientState carried in the body and queues a folder refresh, always answering 202 regardless of outcome.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 公开，无需登录 |
+| 请求 | Query · validationToken? (handshake); or JSON · { value: [{ subscriptionId, clientState, changeType, resource }] } |
+| 成功响应 | 200 text/plain (握手) 或 202 (通知，恒定) |
+
+> 注意：没有 Svix 之类的请求头签名；真伪校验完全在请求体内完成，clientState 摘要不匹配、subscriptionId 未知或请求畸形都回 202 且不入队，响应从不区分这些情况。按来源 IP 限速 600 次/10 分钟；超限仍回 202 但不再读取请求体。
+>
+> Note: There is no Svix-style header signature; authenticity is verified entirely from the request body — a clientState digest mismatch, an unknown subscriptionId, or a malformed request all answer 202 without queuing anything, and the response never distinguishes between them. Requests are rate-limited to 600 per 10 minutes per source IP; over the limit still answers 202 but stops reading the body.
+
+### cURL 示例
+
+```bash
+curl --request POST \
+  --url "https://mail.example.com/api/microsoft/graph/notifications" \
+  --header "Content-Type: application/json" \
+  --data '{
+  "value": [
+    {
+      "subscriptionId": "00000000-0000-4000-8000-000000000000",
+      "clientState": "opaque-client-state",
+      "changeType": "created",
+      "resource": "Users/{id}/Messages/{id}"
+    }
+  ]
+}'
+```
+
+<!-- endpoint:POST /api/microsoft/graph/lifecycle catalog:100d02b4e901 -->
+## `POST /api/microsoft/graph/lifecycle`
+
+**接收 Microsoft Graph 订阅生命周期事件 / Receive Microsoft Graph subscription lifecycle events**
+
+Microsoft Graph 自己调用，不带请求头签名；处理同一份握手契约，并把 subscriptionRemoved/reauthorizationRequired 标记为待重建、missed 当作一次通知触发防御性刷新。
+
+> Called by Microsoft Graph itself with no header-based signature; shares the same handshake contract, and marks subscriptionRemoved/reauthorizationRequired for rebuild while treating missed as a notification that triggers a defensive refresh.
+
+| 项目 | 内容 |
+| --- | --- |
+| 认证 | 公开，无需登录 |
+| 请求 | Query · validationToken? (handshake); or JSON · { value: [{ subscriptionId, clientState, lifecycleEvent }] } |
+| 成功响应 | 200 text/plain (握手) 或 202 (事件，恒定) |
+
+> 注意：下一轮 Cron 对账负责实际重建订阅；该端点本身只落一次状态标记，不直接调用 Microsoft Graph。
+>
+> Note: The next cron reconciliation pass is responsible for the actual rebuild; this endpoint itself only records a status marker and never calls Microsoft Graph directly.
+
+### cURL 示例
+
+```bash
+curl --request POST \
+  --url "https://mail.example.com/api/microsoft/graph/lifecycle" \
+  --header "Content-Type: application/json" \
+  --data '{
+  "value": [
+    {
+      "subscriptionId": "00000000-0000-4000-8000-000000000000",
+      "clientState": "opaque-client-state",
+      "lifecycleEvent": "subscriptionRemoved"
+    }
+  ]
+}'
 ```

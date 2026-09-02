@@ -14,10 +14,11 @@ TLS + XOAUTH2）。Worker 自动试探并回退，新账号先试 Graph，成功
    值必须至少包含 32 个随机 UTF-8 字节，并在迁移或恢复部署时保持不变。
 2. 可选新增 Text 变量 `MICROSOFT_MAIL_ENABLED=true`。设为 `false` 会隐藏入口并停止定时入队，
    但不会删除已保存的账号、密文或索引。
-3. 应用 D1 迁移 `0027_microsoft_imap.sql`、`0028_microsoft_oauth_combination_password.sql` 与
-   `0036_microsoft_transport_channel.sql`，然后重新部署 Worker。`0036` 会重建
-   `microsoft_imap_messages`，并在该表非空时主动失败中止；升级已有数据的部署前先确认表为空，
-   或改走「建新表 + 回填」路径。
+3. 应用 D1 迁移 `0027_microsoft_imap.sql`、`0028_microsoft_oauth_combination_password.sql`、
+   `0036_microsoft_transport_channel.sql` 与 `0037_microsoft_graph_subscriptions.sql`，然后重新
+   部署 Worker。`0036` 会重建 `microsoft_imap_messages`，并在该表非空时主动失败中止；升级已有
+   数据的部署前先确认表为空，或改走「建新表 + 回填」路径。`0037` 只新建
+   `microsoft_graph_subscriptions` 表，不改动既有表。
 4. 确认 `MAIL_QUEUE` producer/consumer 与 `*/5 * * * *` Cron 已按 `wrangler.jsonc` 绑定。
 5. 主管理员可在 **系统设置 → 邮箱功能入口** 中隐藏或恢复 Microsoft 入口。
 
@@ -176,3 +177,79 @@ OmniMail 不使用 ROPC、密码 LOGIN、网页登录自动化、代理或其他
   `MICROSOFT_CREDENTIALS_KEY`，或断开后重新连接账号。
 
 完整端点与响应说明见 [Microsoft API 参考](api/microsoft.md)。
+
+## 8. Graph 推送（change notifications，可选）
+
+Graph 通道账号可以额外开启「change notifications」推送：Outlook 收到新信后，Worker 在数秒
+内主动把它写入本地 D1，不必等下一轮 5 分钟 Cron。IMAP 通道账号没有这个能力（Workers 上
+没有 IMAP IDLE），仍按 §4 的轮询节奏收信。完整设计见
+[当前实现说明](MICROSOFT_MAIL_INTEGRATION_PLAN.md) §12。
+
+### 8.1 部署配置
+
+1. 确认已应用 D1 迁移 `0037_microsoft_graph_subscriptions.sql`（§1 第 3 步）。
+2. 在 Worker 的 **Variables & Secrets** 中新增变量 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL`，值为
+   这个 Worker 自己可从公网 HTTPS 访问到的 origin，不带路径和结尾斜杠，例如：
+
+   ```text
+   MICROSOFT_GRAPH_WEBHOOK_BASE_URL=https://<你的 Worker 名称>.workers.dev
+   ```
+
+   （或已绑定的自定义域名，例如 `https://mail.example.com`）。可以在 Dashboard 中作为普通
+   Text 变量配置，也可以用命令行写入：
+
+   ```powershell
+   npx wrangler secret put MICROSOFT_GRAPH_WEBHOOK_BASE_URL
+   ```
+
+   本地 `wrangler dev` 收不到 Microsoft 的回调（没有公网地址），因此这个变量只应在已部署的
+   Worker 上设置；本地开发保持留空即可，其余功能不受影响。
+3. 留空该变量等价于显式关闭推送：不创建、不续期、不对账任何订阅，通知端点仍然存在但没有
+   订阅行可查，账号连接和轮询同步完全不受影响。
+4. 确认以下两个路径可以从公网直接访问到这个 Worker，没有被反向代理、WAF 规则或访问控制
+   拦截或要求登录（它们由 Microsoft Graph 自己调用，不带 OmniMail 会话或 `Origin` 头）：
+
+   ```text
+   POST /api/microsoft/graph/notifications
+   POST /api/microsoft/graph/lifecycle
+   ```
+
+   请求体和握手都由服务端自行校验（`clientState` 摘要比较、按来源 IP 限速），不需要额外的
+   网络层鉴权；两个路径与其余 `/api/*` 一样由这个 Worker 处理，不需要单独的 DNS 或路由配置。
+
+### 8.2 验证订阅是否存在
+
+配置好上面的变量后，每个 Graph 通道账号在下一次导入、替换凭据或 Cron 对账后，应该在
+`microsoft_graph_subscriptions` 表里各出现两行（`INBOX` 与 `Junk Email`）。用 D1 查询确认：
+
+```sql
+SELECT account_id, folder_path, status, expires_at, next_attempt_at, refresh_state, last_error_code
+FROM microsoft_graph_subscriptions
+WHERE account_id = 'microsoft_account_id';
+```
+
+或通过 `wrangler d1 execute` 直接对生产数据库执行：
+
+```powershell
+npx wrangler d1 execute <D1 绑定名> --remote --command "SELECT account_id, folder_path, status, expires_at, last_error_code FROM microsoft_graph_subscriptions ORDER BY account_id;"
+```
+
+正常状态下每行 `status = active`、`expires_at` 落在未来约 6–7 天内、`refresh_state = idle`。
+
+### 8.3 运维说明
+
+- **续期节奏**：与账号同步共用同一个既有 `*/5 * * * *` 触发器；`expires_at - now < 24 小时`
+  的行会被自动续期，正常运行时 `expires_at` 会一直维持在「未来 6–7 天」区间，不需要人工干预。
+- **`status = rejected`**：Microsoft 明确拒绝了创建或续期这一条订阅（常见于租户策略禁止
+  webhook，或返回 403 / `ExtensionError`）。这个错误分类与账号本身的读信权限完全独立，
+  **不会**把 `preferredTransport` 从 `graph` 翻到 `imap`——账号读信、轮询同步照常工作，只是
+  推送这条加速通道暂时用不上。`rejected` 状态每 24 小时自动重试一次。
+- **`status = stale`**：Microsoft 通过 lifecycle 回调告知这条订阅已经失效
+  （`subscriptionRemoved`）或需要重新授权（`reauthorizationRequired`）。下一轮 Cron 会自动
+  删除旧订阅并重建一条新的，不需要手动处理。
+- **强制重建**：删除该账号在 `microsoft_graph_subscriptions` 表里对应的行，下一轮 Cron 的
+  「补建缺订阅」步骤会重新为它创建订阅；也可以先在 Microsoft 账户或租户应用授权页面撤销这个
+  应用的邮箱访问权限再重新授权，触发一次干净的重建。
+- **观测**：`microsoft_graph_subscriptions.last_error_code` 记录最近一次失败的原因码，
+  `failure_count` 记录连续失败次数；`refresh_state`/`refresh_state_at` 反映通知合并状态机
+  当前所处的阶段，足以在不接触 Microsoft 侧的情况下判断是否需要人工介入。

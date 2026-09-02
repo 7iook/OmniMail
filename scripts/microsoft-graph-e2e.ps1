@@ -12,13 +12,23 @@
     4. per account: GET /api/microsoft/messages?accountId=…&refresh=1&limit=50
     5. per -ReadIndexes account: GET /api/microsoft/accounts/{id}/messages/{mid}
        (this call is what marks the message read remotely)
+    6. -CheckSubscriptions: GET /api/microsoft/accounts        -> assert pushStatus for
+       every Graph-transport account (decision card §12.6 "前端配置"-adjacent row; SKIPs
+       cleanly while the account response has no pushStatus field yet)
+    7. -ArrivalProbe <index>: baseline the newest local message id for one account, wait
+       for a real inbound mail (manual or -TriggerCommand), then poll the local listing
+       every 2 s and report seconds-to-arrival (decision card §12.1 / §12.6 "✈ 单封到达")
 
-  Acceptance (decision card §3.4 / recon §6.3):
+  Acceptance (decision card §3.4 / §12.6 / recon §6.3):
     - every import item is `accepted`  (`duplicate` passes only with -AllowDuplicate)
     - every listing answers HTTP 200 and `messages` is an ARRAY — an EMPTY array is a
       PASS; most test inboxes are empty
     - every -ReadIndexes account has ≥1 message, the body/html is non-empty and the
       response says `isRead: true` (remote write-back succeeded)
+    - with -CheckSubscriptions: every Graph-transport account's `pushStatus` is `active`
+      (SKIP, not FAIL, when the field is absent — it ships in a concurrent work package)
+    - with -ArrivalProbe: the newest message id changes within 10 s of the mail being
+      sent (§12.1's "≤5 s while the page is open" budget, read with a 2 s poll floor)
 
   Credential file: one account per line, fields separated by `----`. Recognised layouts
   mirror src/features/microsoft/model/microsoft-import.ts:
@@ -46,8 +56,26 @@
   Use -Command (or call from an interactive pwsh), not `pwsh -File`: with -File every
   argument arrives as a string, so `13,15` is not parsed as an int array.
 
+.EXAMPLE
+  pwsh -Command "& scripts/microsoft-graph-e2e.ps1 -BaseUrl https://omni-mail.example.workers.dev -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -AllowDuplicate -CheckSubscriptions"
+
+  Re-run against accounts already imported and assert Graph-transport accounts report
+  pushStatus=active (requires a deployed Worker with MICROSOFT_GRAPH_WEBHOOK_BASE_URL set).
+
+.EXAMPLE
+  pwsh -Command "& scripts/microsoft-graph-e2e.ps1 -BaseUrl https://omni-mail.example.workers.dev -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -AllowDuplicate -ArrivalProbe 13"
+
+  After the baseline snapshot, the script prompts you to send a real mail to account #13,
+  then polls the local listing every 2 s and reports how many seconds it took to appear.
+
+.EXAMPLE
+  pwsh -Command "& scripts/microsoft-graph-e2e.ps1 -BaseUrl https://omni-mail.example.workers.dev -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -AllowDuplicate -ArrivalProbe 13 -TriggerCommand 'python send-test-mail.py' -ArrivalTimeoutSeconds 90"
+
+  Same as above, but runs -TriggerCommand instead of prompting, and waits up to 90 s.
+
 .NOTES
-  Exit code 0 = every row PASS; 1 = at least one FAIL (or a fatal setup error).
+  Exit code 0 = every row PASS; 1 = at least one FAIL (or a fatal setup error). SKIP rows
+  (currently only -CheckSubscriptions when pushStatus is absent) never affect the exit code.
   Outlook-side confirmation (message shows read; deleted mail disappears after the next
   sync) is NOT automated — check it by eye afterwards.
 #>
@@ -79,7 +107,24 @@ param(
 
   # Send the combination password with persistPasswordConfirmed=true. Off by default:
   # the password never takes part in authentication, so the check does not need it.
-  [switch] $PersistPassword
+  [switch] $PersistPassword,
+
+  # After import, assert pushStatus=active for every Graph-transport account (decision
+  # card §12.6). SKIPs cleanly, per account, if the field is not present yet.
+  [switch] $CheckSubscriptions,
+
+  # 1-based line index (same numbering as -ReadIndexes) to run the push-arrival timing
+  # probe against. 0 (default) disables the probe.
+  [int] $ArrivalProbe = 0,
+
+  # Shell command run (via Invoke-Expression) to trigger the test mail for -ArrivalProbe
+  # after the baseline snapshot is taken. Omit to be prompted for a manual send instead.
+  [string] $TriggerCommand = '',
+
+  # How long -ArrivalProbe polls before giving up. The card's own PASS threshold is a
+  # much tighter <=10 s; this only bounds how long the script waits before reporting FAIL.
+  [ValidateRange(5, 600)]
+  [int] $ArrivalTimeoutSeconds = 60
 )
 
 Set-StrictMode -Version Latest
@@ -205,16 +250,17 @@ function Format-Attempts {
 
 $results = [System.Collections.Generic.List[pscustomobject]]::new()
 function Add-Result {
-  param([int] $Index, [string] $Email, [string] $Step, [bool] $Pass, [string] $Detail)
+  param([int] $Index, [string] $Email, [string] $Step, [bool] $Pass, [string] $Detail, [switch] $Skip)
+  $status = if ($Skip) { 'SKIP' } elseif ($Pass) { 'PASS' } else { 'FAIL' }
   $results.Add([pscustomobject]@{
     Index  = $Index
     Email  = (Mask-Email $Email)
     Step   = $Step
-    Result = if ($Pass) { 'PASS' } else { 'FAIL' }
+    Result = $status
     Detail = $Detail
   })
-  $colour = if ($Pass) { 'Green' } else { 'Red' }
-  Write-Host ('[{0}] #{1,-3} {2,-8} {3,-28} {4}' -f $(if ($Pass) { 'PASS' } else { 'FAIL' }), $Index, $Step, (Mask-Email $Email), $Detail) -ForegroundColor $colour
+  $colour = if ($Skip) { 'Yellow' } elseif ($Pass) { 'Green' } else { 'Red' }
+  Write-Host ('[{0}] #{1,-3} {2,-8} {3,-28} {4}' -f $status, $Index, $Step, (Mask-Email $Email), $Detail) -ForegroundColor $colour
 }
 
 # ----------------------------------------------------------------------------- 0. parse
@@ -309,6 +355,8 @@ foreach ($row in $importable) {
 
 # ----------------------------------------------------------------------------- 3. list accounts
 
+# email -> full account object from the listing, for -CheckSubscriptions below.
+$accountObjects = @{}
 $listing = Invoke-Api -Method GET -Path '/api/microsoft/accounts' -Token $token -TimeoutSec 30
 if ($listing.Status -ne 200) {
   Write-Host ("GET /api/microsoft/accounts failed after import: HTTP {0}" -f $listing.Status) -ForegroundColor Red
@@ -317,6 +365,7 @@ if ($listing.Status -ne 200) {
     $mail = ([string] (Get-Prop $acct 'email')).ToLowerInvariant()
     $id = [string] (Get-Prop $acct 'id')
     if ($mail -and $id -and -not $accountIds.ContainsKey($mail)) { $accountIds[$mail] = $id }
+    if ($mail) { $accountObjects[$mail] = $acct }
   }
 }
 Write-Host ("Accounts resolvable for listing: {0}/{1}" -f @($importable | Where-Object { $accountIds.ContainsKey($_.Email) }).Count, $importable.Count)
@@ -390,6 +439,90 @@ foreach ($index in $ReadIndexes) {
   }
 }
 
+# ----------------------------------------------------------------------------- 6. -CheckSubscriptions
+
+# Decision card §12.6: assert Graph-transport accounts report pushStatus=active. The
+# field ships from a concurrent work package (P2-W4); SKIP cleanly while it is absent
+# instead of failing a check the deployed Worker cannot answer yet.
+if ($CheckSubscriptions) {
+  Write-Host ''
+  Write-Host '---- CheckSubscriptions ----'
+  $graphRows = @($importable | Where-Object {
+    $accountObjects.ContainsKey($_.Email) -and (Get-Prop $accountObjects[$_.Email] 'preferredTransport') -eq 'graph'
+  })
+  if (-not $graphRows.Count) {
+    Write-Host 'No Graph-transport accounts among the imported/listed rows; nothing to check.' -ForegroundColor Yellow
+  }
+  foreach ($row in $graphRows) {
+    $acct = $accountObjects[$row.Email]
+    $prop = $acct.PSObject.Properties['pushStatus']
+    if ($null -eq $prop) {
+      Add-Result -Index $row.Index -Email $row.Email -Step 'subscriptions' -Pass $true -Skip -Detail 'account response has no pushStatus field yet (P2-W4 not merged on this Worker)'
+      continue
+    }
+    $value = [string] $prop.Value
+    Add-Result -Index $row.Index -Email $row.Email -Step 'subscriptions' -Pass ($value -eq 'active') -Detail ('pushStatus={0}' -f $value)
+  }
+}
+
+# ----------------------------------------------------------------------------- 7. -ArrivalProbe
+
+# Decision card §12.1 / §12.6 "✈ 单封到达": time how long a real inbound mail takes to
+# reach this Worker's own D1, read locally (no `refresh=1`, so this never forces a Graph
+# call). PASS threshold is <=10 s; the poll floor is 2 s so sub-2s arrivals still round up.
+if ($ArrivalProbe -gt 0) {
+  Write-Host ''
+  Write-Host '---- ArrivalProbe ----'
+  $row = $importable | Where-Object { $_.Index -eq $ArrivalProbe } | Select-Object -First 1
+  if ($null -eq $row) {
+    Add-Result -Index $ArrivalProbe -Email '' -Step 'arrival' -Pass $false -Detail 'index not among importable lines'
+  } elseif (-not $accountIds.ContainsKey($row.Email)) {
+    Add-Result -Index $ArrivalProbe -Email $row.Email -Step 'arrival' -Pass $false -Detail 'no account id'
+  } else {
+    $id = $accountIds[$row.Email]
+    $path = '/api/microsoft/messages?accountId={0}&limit=1' -f [uri]::EscapeDataString($id)
+    $baseline = Invoke-Api -Method GET -Path $path -Token $token -TimeoutSec 30
+    if ($baseline.Status -ne 200) {
+      Add-Result -Index $ArrivalProbe -Email $row.Email -Step 'arrival' -Pass $false -Detail ('baseline read failed: HTTP {0}' -f $baseline.Status)
+    } else {
+      $baselineMessages = @(Get-Prop $baseline.Body 'messages')
+      $baselineId = if ($baselineMessages.Count -gt 0) { [string] (Get-Prop $baselineMessages[0] 'id') } else { $null }
+      Write-Host ("Baseline newest message id for #{0}: {1}" -f $ArrivalProbe, $(if ($baselineId) { $baselineId } else { '(none, empty inbox)' }))
+
+      if ($TriggerCommand) {
+        Write-Host ("Running trigger command: {0}" -f $TriggerCommand)
+        Invoke-Expression $TriggerCommand
+      } else {
+        Write-Host 'Send a test message to this mailbox now (including Junk Email), then press Enter to start polling...' -ForegroundColor Cyan
+        [void] (Read-Host)
+      }
+
+      $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+      $arrivedAfterSeconds = $null
+      while ($stopwatch.Elapsed.TotalSeconds -lt $ArrivalTimeoutSeconds) {
+        Start-Sleep -Seconds 2
+        $poll = Invoke-Api -Method GET -Path $path -Token $token -TimeoutSec 30
+        if ($poll.Status -eq 200) {
+          $polledMessages = @(Get-Prop $poll.Body 'messages')
+          $polledId = if ($polledMessages.Count -gt 0) { [string] (Get-Prop $polledMessages[0] 'id') } else { $null }
+          if ($polledId -and $polledId -ne $baselineId) {
+            $arrivedAfterSeconds = $stopwatch.Elapsed.TotalSeconds
+            break
+          }
+        }
+      }
+      $stopwatch.Stop()
+
+      if ($null -ne $arrivedAfterSeconds) {
+        $seconds = [Math]::Round($arrivedAfterSeconds, 1)
+        Add-Result -Index $ArrivalProbe -Email $row.Email -Step 'arrival' -Pass ($arrivedAfterSeconds -le 10) -Detail ('new message visible in D1 after {0}s (2 s poll floor) · PASS threshold <=10s per decision-card §12.1' -f $seconds)
+      } else {
+        Add-Result -Index $ArrivalProbe -Email $row.Email -Step 'arrival' -Pass $false -Detail ('no new message observed within {0}s' -f $ArrivalTimeoutSeconds)
+      }
+    }
+  }
+}
+
 # ----------------------------------------------------------------------------- summary
 
 Write-Host ''
@@ -398,7 +531,8 @@ $results | Sort-Object Index, Step | Format-Table -AutoSize -Wrap Index, Email, 
 
 $failed = @($results | Where-Object { $_.Result -eq 'FAIL' }).Count
 $passed = @($results | Where-Object { $_.Result -eq 'PASS' }).Count
-Write-Host ("PASS {0} · FAIL {1}" -f $passed, $failed) -ForegroundColor $(if ($failed) { 'Red' } else { 'Green' })
+$skipped = @($results | Where-Object { $_.Result -eq 'SKIP' }).Count
+Write-Host ("PASS {0} · FAIL {1} · SKIP {2}" -f $passed, $failed, $skipped) -ForegroundColor $(if ($failed) { 'Red' } else { 'Green' })
 Write-Host 'Manual follow-up (not automated): confirm in Outlook web that the read message shows as read, delete one message there, trigger POST /api/microsoft/accounts/{id}/sync (≥60 s apart) or wait for cron, and confirm it disappears from GET /api/microsoft/messages.'
 
 exit $(if ($failed) { 1 } else { 0 })

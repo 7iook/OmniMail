@@ -6,6 +6,8 @@
 >
 > 双通道基线：2026-09-02，`feat/microsoft-graph-channel`（Microsoft Graph + IMAP 级联）
 >
+> 推送基线：2026-09-03，`feat/microsoft-graph-push`（Graph change notifications 订阅 + cron 对账，见 §12）
+>
 > 状态：功能、测试和 Cloudflare Worker 部署链路已实现；本文只描述当前代码，不保留已取消方案。
 > 「为什么这样设计、否决了哪些替代方案」见 [ADR 0001](architecture/0001-microsoft-transport-identity.md)。
 
@@ -309,6 +311,8 @@ preferred      preferred          导入拒绝 / 同步失败
 - `0036_microsoft_transport_channel.sql`：账号表加 `preferred_transport`、
   `graph_access_token_cipher`、`graph_access_token_expires_at`；消息表重建为下节形状。
   该迁移在消息表非空时**主动失败中止**（`_migration_0036_guard`），不会静默丢数据。
+- `0037_microsoft_graph_subscriptions.sql`：新增 `microsoft_graph_subscriptions` 表，承载
+  Graph change-notification 订阅的身份、调度状态和合并状态机（见 §12）。新建表，不改动既有表。
 
 同一 schema 还维护在 `email-worker/src/platform/d1/schema-migrations.ts`，由测试断言两处一致。
 
@@ -318,6 +322,7 @@ preferred      preferred          导入拒绝 / 同步失败
 - `microsoft_imap_folders`
 - `microsoft_imap_messages`
 - `microsoft_imap_validation_limits`
+- `microsoft_graph_subscriptions`（§12）
 
 ### 6.2 三个「通道」字段不可混用
 
@@ -379,7 +384,8 @@ URL、公共缓存或导出接口返回。
 
 ## 7. HTTP API
 
-当前共 11 个端点，没有为 Graph 新增端点：
+当前用户可调用的账号与邮件接口共 11 个，认证要求与既有接口一致；另有两个公网端点专供
+Microsoft Graph 自身调用（无 OmniMail 会话，见 §12.2），不计入这 11 个：
 
 | 方法 | 路径 | 当前用途 |
 | --- | --- | --- |
@@ -499,6 +505,12 @@ email-worker/src/features/microsoft/microsoft-transport.ts         # MicrosoftMa
 email-worker/src/features/microsoft/microsoft-transport-errors.ts  # 失败分类 · 回退矩阵 · 状态映射
 email-worker/src/features/microsoft/microsoft-graph.ts             # Graph 薄客户端（request() 单点）
 email-worker/src/features/microsoft/microsoft-graph-transport.ts   # Graph 适配器
+email-worker/src/features/microsoft/microsoft-graph-notifications.ts        # 公网端点、C-1 摘要比较、C-3 入队（§12）
+email-worker/src/features/microsoft/microsoft-graph-subscriptions.ts        # /subscriptions 客户端（独立错误轴）
+email-worker/src/features/microsoft/microsoft-graph-subscription-store.ts   # 订阅表仓储（C-3/C-5 原子 CAS）
+email-worker/src/features/microsoft/microsoft-graph-subscription-lifecycle.ts # 导入/换凭据/删除三个钩子
+email-worker/src/features/microsoft/microsoft-graph-reconcile.ts            # cron 对账（C-2/C-5）
+email-worker/src/features/microsoft/microsoft-graph-runtime.ts              # 接线：注入真实 client + 仓储
 email-worker/src/features/microsoft/microsoft-imap.ts              # IMAP 客户端
 email-worker/src/features/microsoft/microsoft-imap-transport.ts    # IMAP 适配器
 email-worker/src/features/microsoft/microsoft-message-parser.ts    # MIME / Graph 元数据归一
@@ -525,9 +537,13 @@ email-worker/src/features/microsoft/microsoft-credentials.ts
 - 删除对账只比较同通道行、列表失败跳过对账、UIDVALIDITY 变化只清本通道行；
 - 已读回写先远端后本地、写 403 记 `permission_error` 且不换通道；
 - XOAUTH2、LIST、EXAMINE、UID SEARCH/FETCH、MIME、附件和 `\Seen`；
-- D1 迁移真实执行（含 0036）、用户隔离、唯一约束、同步 lease 和状态转换；
+- D1 迁移真实执行（含 0036、0037）、用户隔离、唯一约束、同步 lease 和状态转换；
 - 连接、替换、验证、同步、断开、`transport_unavailable` + `attempts[]` 和跨用户 API 边界；
-- 批量导入两步流、逐项动画、按通道错误呈现、批量断开、范围复制、全部账号同步和移动端布局 E2E。
+- 批量导入两步流、逐项动画、按通道错误呈现、批量断开、范围复制、全部账号同步和移动端布局 E2E；
+- Graph 推送（§12）：握手（200 text/plain 原样回显、零 D1 访问）、`clientState` 摘要比较、
+  畸形/超限/未知 id 一律 202、IP 计数、C-3 合并状态机（idle→queued→running、风暴合并、
+  10 分钟崩溃恢复）、C-4 Graph-pinned 消费者跳过非 Graph 账号、C-5 调度退避、C-2 双向对账
+  （均使用真实 SQLite 或 fake client/repository，不依赖网络）。
 
 提交前使用：
 
@@ -541,26 +557,135 @@ npm run build
 自动化测试使用受控响应，不包含真实 Microsoft 凭据，**单测全绿不构成达标**。真实凭据验收用
 `scripts/microsoft-graph-e2e.ps1` 对本地 `wrangler dev` 或已部署 Worker 跑一遍（判据见脚本
 头部注释与 [Microsoft 邮箱设置指南](MICROSOFT_SETUP.md) §6）；已读回写与删除同步只能在有
-邮件的账号上人工确认。
+邮件的账号上人工确认。Graph 推送的到达延迟（`-ArrivalProbe`）和订阅状态（`-CheckSubscriptions`）
+只能在已部署的 Worker 上验证，见脚本用法与 [Microsoft 邮箱设置指南](MICROSOFT_SETUP.md) §8。
 
-## 12. 当前明确不做
+## 12. Graph 推送（change notifications）
 
-- Graph change notifications（Webhook）、delta 查询或秒级实时推送。
+Outlook 收到新信后，Worker 在数秒内主动把它写入本地 D1，不必等下一轮 5 分钟 Cron。这是
+Graph 通道账号才有的能力（IMAP 通道没有 IDLE，仍按 §5.2 的 Cron 节奏收信）；未配置
+`MICROSOFT_GRAPH_WEBHOOK_BASE_URL`（见 §12.5）时整个能力不存在，其余功能不受影响。
+
+代码位置：`migrations/0037_microsoft_graph_subscriptions.sql`、
+`email-worker/src/features/microsoft/microsoft-graph-notifications.ts`、
+`microsoft-graph-subscriptions.ts`、`microsoft-graph-subscription-store.ts`、
+`microsoft-graph-subscription-lifecycle.ts`、`microsoft-graph-reconcile.ts`、
+`microsoft-graph-runtime.ts`（见 §10）。
+
+### 12.1 订阅生命周期
+
+- **导入成功**且验证通道为 `graph`：`createMicrosoftGraphSubscriptionsForAccount` 为
+  `inbox` 与 `junkemail` 各建一个订阅，写入 `microsoft_graph_subscriptions`；这一步是
+  best-effort（失败只记日志，不影响导入本身），缺失的订阅由 Cron 补建。
+- **替换凭据**：先用旧凭据 `teardownMicrosoftGraphSubscriptions({ dropLocalRows: true })`
+  （远端 `DELETE`、404 视为成功，随后删本地行），新凭据验证成功且通道仍为 `graph` 时再
+  `createMicrosoftGraphSubscriptionsForAccount` 重建。必须先拆后建：换了凭据的旧订阅对新
+  token 已经没有意义。
+- **删除账号**：先用账号仍持有的有效凭据 `teardownMicrosoftGraphSubscriptions({ dropLocalRows: false })`
+  远端删除订阅（凭据失效之后就再也无法认证 `DELETE` 请求），本地行随后被账号行自身的
+  `ON DELETE CASCADE` 一并清除；`dropLocalRows: false` 只是避免这里再多做一次即将被级联
+  删除的重复写入。任一环节失败都不会阻止删除账号本身，见 §12.5 的接受边界。
+- **Cron 对账**（`reconcileDueMicrosoftGraphSubscriptions`，复用既有 `*/5 * * * *` 触发器）：
+  1. `next_attempt_at <= now` 的行（到期前 24 小时进入这个集合）按 `status` 续期（`PATCH`）
+     或重建（`stale` 行先 `DELETE` 再 `create`）；
+  2. 仍是 `graph` 通道但订阅行少于两条的账号，先用 `GET /subscriptions` 做两向对账（远端
+     有、本地无、`notificationUrl` 指向我们 → 远端 `DELETE` 清孤儿；本地有、远端无 → 删本地
+     行），再补建缺失的 `inbox`/`junkemail` 订阅；
+  3. `preferred_transport` 已经翻到 `imap` 但仍留有订阅行的账号：远端 `DELETE`（best effort）
+     后删本地行——这是粘性翻转的自愈路径，没有单独的翻转钩子。
+  每一步每轮最多处理 10 个账号（`LIMIT 10`），彼此独立且互不阻塞。
+
+### 12.2 两个公网端点
+
+```text
+POST /api/microsoft/graph/notifications
+POST /api/microsoft/graph/lifecycle
+```
+
+这两个路径由 Microsoft Graph 自己调用，不带 OmniMail 会话或 `Origin` 头，`app/routes` 里
+直接以公网路由注册：
+
+- **握手**：请求带 `?validationToken=...` 时，服务端不读 body、不查 D1，直接 `200
+  text/plain` 原样回显该 token。
+- **通知 / lifecycle**：请求体上限 64 KB，`value` 数组上限 100 项；逐项校验 `subscriptionId`
+  （UUID 格式）与 `clientState`（非空字符串），畸形项跳过、不影响其余项。命中项按
+  `subscriptionId` 查表得到 `(accountId, folderPath)`，再用 `SHA-256(clientState)` 与
+  存储的摘要做 **timing-safe** 比较（明文从不落库，见 §12.5）。**无论命中、未命中、未知
+  id 还是畸形项，响应统一是 `202`**——服务端不通过响应差异让探测者学到任何信息。
+- **IP 限速**：按 `CF-Connecting-IP` 做 D1 CAS 计数（复用既有 `microsoft_imap_validation_limits`
+  表，identity 加 `graph-notify:` 前缀避免与其他限速用途相撞），阈值 **600 次 / 10 分钟**；
+  超限时仍回 `202`，但不再查 D1、也不解析请求体。
+- **真实验证**：部署握手空壳后，用一个真实 Microsoft 账号的 access token 直接对该端点
+  `POST /subscriptions` 两次（`inbox`、`junkemail`）——微软对该端点的握手全部通过
+  （两次均 `201`），随即撤销两个探针订阅成功；据此排除了「微软拒绝创建订阅」和
+  「`junkemail` well-known 名不可订阅」两种可能的停止条件。
+
+### 12.3 通知到落库：合并状态机
+
+合并状态落在订阅行自己身上：`refresh_state ∈ {idle, queued, running}`、
+`refresh_pending`、`refresh_state_at`。
+
+| 情形 | 转换 |
+| --- | --- |
+| 通知到达，`state = idle` | CAS `idle → queued` 成功才把 `{ kind: 'microsoft-folder-refresh', accountId, folderPath, reason: 'notification' }` 发进 `MAIL_QUEUE`；发送失败则 CAS 回 `idle`（不丢失这次唤醒） |
+| 通知到达，`state ∈ {queued, running}` | 只置 `refresh_pending = 1`，不再入队——一次风暴（同一 `(account, folder)` 收到 N 条通知）最多触发一次在飞刷新加一次尾随刷新 |
+| 消费者开始处理 | CAS `queued → running` |
+| 消费者结束处理 | `refresh_pending = 1` → 转回 `queued` 并再入队一次；否则 `running → idle` |
+| 任一状态卡住超过 10 分钟 | 视为消费者崩溃或队列消息已丢，下一次转换按 `idle`/`queued` 起点照常推进，不会永久卡死 |
+
+`lifecycle` 回调的 `subscriptionRemoved` / `reauthorizationRequired` 把该行标记 `stale`，
+交给下一轮 Cron 重建；`missed`（Graph 明确说无法保证已投递）按一次通知处理，防御性地
+刷新一次。
+
+### 12.4 Job kind、Junk Email 范围与聚合视图
+
+- 队列新增一种任务：`microsoft-folder-refresh { accountId, folderPath, reason: 'notification' }`，
+  由既有队列消费者分发到 `consumeMicrosoftFolderRefreshJob`（`microsoft-sync.ts`）。
+- 该任务是 **Graph-pinned**：消费者经级联拿到的传输不是 `graph`（账号粘性已经翻到
+  `imap`）时直接确认任务并记录 `folder_refresh_skipped_non_graph` 日志，绝不会把 Graph 的
+  固定路径塞给 IMAP 定位——两条通道对「垃圾邮件」文件夹的命名完全不同。
+- **Junk Email** 现在纳入 Graph 通道账号的同步与推送范围：固定 well-known 名
+  `junkemail`、固定本地路径字面量 `Junk Email`（合成方式与既有 `INBOX` 相同，见 §4.4）。
+  聚合 `GET /api/microsoft/messages`（不指定 `folder`）的查询条件相应改为
+  `upper(folder_path) IN ('INBOX', 'JUNK EMAIL')`；**IMAP 账号的垃圾邮件文件夹不在这个
+  范围内**——IMAP 的 Junk 文件夹名因邮箱而异，这个固定路径合成对它没有意义。
+
+### 12.5 环境变量与显式接受的边界
+
+- **`MICROSOFT_GRAPH_WEBHOOK_BASE_URL`**（可选）：这个 Worker 自己的公网 HTTPS origin，
+  用来拼出通知 / lifecycle 回调 URL（Worker 自己拿不到这个值——`APP_ORIGINS` 回答的是
+  「谁能调我」而不是「我在哪」，Cron 触发时也没有 `request` 可取）。留空等于显式关闭整个
+  推送能力：不创建、不续期、不对账任何订阅；通知端点仍然存在，但没有订阅行可查，其余功能
+  不受影响。部署与验证细节见 [Microsoft 邮箱设置指南](MICROSOFT_SETUP.md) §8。
+- 删除账号后，它在 Microsoft 侧的订阅**最坏可能存活到自然过期（≤7 天）**；这段时间内到达
+  的通知因为查不到本地行会被当作「未知 `subscriptionId`」丢弃（`202`，不落库）——这是显式
+  接受的边界，不是缺陷，写进本文档而不是留作隐性行为。
+- 没有 `internet_message_id` 的邮件在文件夹间移动时仍遵循 §6.3 已有的承诺边界（可能表现
+  为两行、无法被另一通道认领）；推送不改变、也不修复这一点。
+- **推送是加速器，不是唯一真源**：既有 5 分钟 Cron 同步始终保留作兜底。订阅创建失败、
+  一直被拒绝、或从未配置 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL`，账号都退化到今天的定时收信
+  行为，不会退化到「不同步」。
+
+## 13. 当前明确不做
+
+- Graph rich notifications（含资源数据的加密通知）、`delta` 查询或对 IMAP 通道的推送。
 - 自动获取 refresh token、硬编码第三方 Client ID 或借用 Microsoft 第一方应用。
 - ROPC、MFA/条件访问绕过、代理池或网页登录自动化。
 - 仅邮箱密码、IMAP LOGIN 或 OAuth2 失败后的密码回退。
 - shared mailbox、application permissions 或组织全邮箱抓取。
 - Azure China、GCC High、DoD 等 national cloud。
-- IMAP IDLE 或所有文件夹的后台持续同步。
+- IMAP IDLE 或除 INBOX / Junk Email 外所有文件夹的后台持续同步。
 - 界面上显示或选择通道；跨通道重放写操作。
 - 长期保存正文、HTML、CID 图片或附件内容。
 - 发信、回复、删除、移动、归档、星标或除已读外的远端写入。
 
-## 13. 官方资料
+## 14. 官方资料
 
 - [Microsoft Graph 限流（429 / Retry-After）](https://learn.microsoft.com/en-us/graph/throttling)
 - [Microsoft Graph 分页（@odata.nextLink）](https://learn.microsoft.com/en-us/graph/sdks/paging)
 - [Microsoft Graph message 资源](https://learn.microsoft.com/en-us/graph/api/resources/message)
+- [Microsoft Graph change notifications 总览](https://learn.microsoft.com/en-us/graph/change-notifications-overview)
+- [Microsoft Graph change notifications：webhook 投递](https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks)
 - [Microsoft IMAP/POP/SMTP OAuth 与 XOAUTH2](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)
 - [Microsoft refresh token 生命周期](https://learn.microsoft.com/en-us/entra/identity-platform/refresh-tokens)
 - [Microsoft OAuth 2.0 授权码流程](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow)

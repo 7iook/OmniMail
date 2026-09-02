@@ -724,9 +724,23 @@ GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId
 在远端标已读（Graph `PATCH isRead` / IMAP `UID STORE ... +FLAGS.SILENT (\\Seen)`），成功后才更新
 本地索引。写入失败不会阻断正文响应；Graph 403 会把账号标为 `permission_error`。后台约每 5 分钟
 只读同步 INBOX 并按通道对账远端删除；全部账号同步由浏览器逐账号调用单账号 sync 端点，单账号
-当前文件夹可通过 messages 的 `refresh=1` 受限刷新。这是轮询而非秒级推送。
+当前文件夹可通过 messages 的 `refresh=1` 受限刷新。聚合列表同时纳入 Junk Email（Graph 通道；
+`folder_path` 固定为 `Junk Email`）。
 除精确标记已读外，不提供移动、删除、归档、星标或其他远端写入。部署与真实账号验收见
 [`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md)，完整字段见 [`api/microsoft.md`](api/microsoft.md)。
+
+Graph 通道账号还可以选择开启变更通知推送：Outlook 收到新信后，Worker 通过
+
+```http
+POST /api/microsoft/graph/notifications
+POST /api/microsoft/graph/lifecycle
+```
+
+在数秒内把它写入本地 D1，不必等下一轮 Cron。这两个端点由 Microsoft Graph 自己调用，不带
+OmniMail 会话；真伪校验完全在请求体内完成（`clientState` 的 SHA-256 摘要比较），没有请求头
+签名，也没有返回值差异可供探测——命中、未命中、未知 id 和畸形请求一律回 `202`。推送始终只是
+一条加速通道，5 分钟 Cron 同步仍是兜底；未配置 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL` 时整个能力
+禁用，其余功能不受影响。部署步骤见 [`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md) §8。
 
 ## QQ 邮箱
 

@@ -141,9 +141,11 @@ Serverless Webmail：
 - 工作区可以聚合 INBOX，也可选择单账号的服务器文件夹，按 1–200 条读取元数据。全部范围可把
   所有账号逐个加入同步 Queue，单账号范围可直接刷新当前文件夹；复制按钮在全部范围默认复制
   第一个账号邮箱。正文、CID 图片与最大 5 MiB 附件仅在打开时按需读取完整 MIME，不长期保存。
-- Cron 约每 5 分钟将到期 INBOX 同步加入 Queue，并按通道对账远端删除；这是定时收信，不是秒级
-  推送。打开未读邮件会在正文读取成功后先在远端标已读（Graph `PATCH isRead` / IMAP `\Seen`），
-  再更新本地；除此之外不提供发信、删除、移动、归档或星标等远端写操作。
+- Cron 约每 5 分钟将到期 INBOX 同步加入 Queue，并按通道对账远端删除。Graph 通道账号还可以
+  额外开启变更通知推送：配置 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL` 后，Outlook（含 Junk Email）
+  收到新信会在数秒内主动写入本地，5 分钟 Cron 仍作为兜底；未配置该变量时退回纯轮询，其余功能
+  不受影响。打开未读邮件会在正文读取成功后先在远端标已读（Graph `PATCH isRead` / IMAP
+  `\Seen`），再更新本地；除此之外不提供发信、删除、移动、归档或星标等远端写操作。
 - refresh token、短期 access token与经确认留存的四字段组合 password 使用独立
   `MICROSOFT_CREDENTIALS_KEY` 进行 AES-GCM 加密；组合 password 不参与认证，API、日志与审计
   记录也不会返回敏感凭据。
@@ -550,11 +552,14 @@ Google 应用专用密码；连接验证成功后，Worker 会异步建立最近
 
 若要启用独立的 **Microsoft 邮箱**，配置至少 32 字节的
 `MICROSOFT_CREDENTIALS_KEY`，部署并应用 `0027_microsoft_imap.sql`、
-`0028_microsoft_oauth_combination_password.sql` 与 `0036_microsoft_transport_channel.sql`
-（后者重建消息表，要求该表为空）。用户使用 OAuth2 refresh token + Client ID 连接；不再接受仅
-邮箱密码登录。四字段组合 password 经确认后独立加密留存，但不参与认证。
-Worker 只访问 Microsoft 官方 OAuth、Graph 与 IMAP 端点；批量导入文本会在浏览器中解析为结构化
-字段，不会发送给第三方服务。管理员同样可在 **系统设置 → 邮箱功能入口** 中隐藏入口。
+`0028_microsoft_oauth_combination_password.sql`、`0036_microsoft_transport_channel.sql`
+（重建消息表，要求该表为空）与 `0037_microsoft_graph_subscriptions.sql`。用户使用 OAuth2
+refresh token + Client ID 连接；不再接受仅邮箱密码登录。四字段组合 password 经确认后独立加密
+留存，但不参与认证。Worker 只访问 Microsoft 官方 OAuth、Graph 与 IMAP 端点；批量导入文本会在
+浏览器中解析为结构化字段，不会发送给第三方服务。管理员同样可在 **系统设置 → 邮箱功能入口**
+中隐藏入口。可选再配置 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL`（这个 Worker 自己的公网 HTTPS
+地址）为 Graph 通道账号开启变更通知推送，留空则该能力整体禁用，见
+[Microsoft 邮箱设置指南](docs/MICROSOFT_SETUP.md) §8。
 
 若要启用独立的 **QQ 邮箱聚合收件箱**，配置至少 32 字节的
 `QQ_MAIL_CREDENTIALS_KEY`，部署并应用到 `0030_qq_mail_smtp.sql`。用户需要先在 QQ 邮箱设置中
