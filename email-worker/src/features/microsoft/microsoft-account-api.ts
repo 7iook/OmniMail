@@ -5,6 +5,10 @@ import { sha256 } from '../auth/session/auth'
 import { microsoftMailEnabled } from './microsoft-credentials'
 import { microsoftImportAccount, MicrosoftInputError } from './microsoft-fields'
 import {
+  createMicrosoftGraphSubscriptionsForAccount,
+  teardownMicrosoftGraphSubscriptions,
+} from './microsoft-graph-subscription-lifecycle'
+import {
   maskedMicrosoftEmail,
   microsoftFailureMessage,
   microsoftJsonBody,
@@ -256,6 +260,9 @@ export async function importMicrosoftAccounts(
           authMode: account.authMode,
         })
         try { await enqueueSync(env, account.id, 'connect') } catch { /* cron will retry */ }
+        if (validated.preferredTransport === 'graph') {
+          try { await createMicrosoftGraphSubscriptionsForAccount(env, account, now) } catch { /* cron reconciles */ }
+        }
         existing.add(input.email)
         results.push({ index, status: 'accepted', account: publicMicrosoftAccount(account) })
       } catch (error) {
@@ -312,6 +319,10 @@ export async function updateMicrosoftCredential(
     // legacy password account cannot reach this point with a password to store.
     const validated = await validateImport(env, input)
     const now = Math.floor(Date.now() / 1000)
+    // Old subscriptions are meaningless once the credential they were minted
+    // under is replaced; drop them remotely (using the still-valid old token)
+    // and locally BEFORE the row's credentials change (card C-2).
+    try { await teardownMicrosoftGraphSubscriptions(env, account, { dropLocalRows: true }) } catch { /* best effort */ }
     await store.replaceOAuthCredential({
       ...account,
       clientId: input.clientId,
@@ -331,6 +342,12 @@ export async function updateMicrosoftCredential(
       email: maskedMicrosoftEmail(account.normalizedEmail),
       authMode,
     })
+    if (validated.preferredTransport === 'graph') {
+      try {
+        const fresh = await store.get(accountId)
+        await createMicrosoftGraphSubscriptionsForAccount(env, fresh, now)
+      } catch { /* cron reconciles */ }
+    }
     try { await enqueueSync(env, accountId, 'manual') } catch { /* cron will retry */ }
     return microsoftPrivateJson({ ok: true })
   } catch (error) {
@@ -412,7 +429,22 @@ export async function deleteMicrosoftAccount(
   ip: string,
 ): Promise<Response> {
   try {
-    const account = await new MicrosoftAccountStore(env, user.id).remove(accountId)
+    const store = new MicrosoftAccountStore(env, user.id)
+    // Best-effort: a corrupted/undecryptable credential must not block deletion
+    // (matches `store.remove()`'s own no-decryption path below), so a failure
+    // here just means the remote subscription is left for the ≤7-day natural
+    // expiry (card C-2's explicitly accepted edge). Local rows still cascade
+    // via the account row's own `ON DELETE CASCADE` a moment later.
+    try {
+      const account = await store.get(accountId)
+      await teardownMicrosoftGraphSubscriptions(env, account, { dropLocalRows: false })
+    } catch (error) {
+      console.error('Unable to tear down Microsoft Graph subscriptions before account deletion', {
+        accountId,
+        type: error instanceof Error ? error.name : typeof error,
+      })
+    }
+    const account = await store.remove(accountId)
     await writeAudit(env, user.id, 'microsoft.account.disconnect', accountId, ip, {
       email: maskedMicrosoftEmail(account.email),
     })

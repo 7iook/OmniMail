@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Env, SessionUser } from '../../app/types'
 import {
   claimMicrosoftValidationAttempt,
+  deleteMicrosoftAccount,
   importMicrosoftAccounts,
   listMicrosoftAccounts,
   MICROSOFT_VALIDATION_ATTEMPTS,
@@ -390,5 +391,178 @@ describe('Microsoft mail API boundaries', () => {
     )
     expect(response.status).toBe(400)
     expect(prepare).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Graph subscription lifecycle hooks (P2-W2). Uses `installTransports` for the
+// cascade (as above) plus a stubbed global `fetch` for the token exchange and
+// the Graph `/subscriptions` calls the hooks make on their own — the same
+// seam the "does not insert OAuth credentials..." test above already uses.
+// ---------------------------------------------------------------------------
+
+const webhookBaseUrl = 'https://omni-mail.example.workers.dev'
+
+function graphTokenResponse(): Response {
+  return Response.json({
+    access_token: 'graph-access-token',
+    refresh_token: 'rotated-refresh',
+    expires_in: 3_600,
+    scope: 'https://graph.microsoft.com/Mail.ReadWrite',
+  })
+}
+
+function graphSubscriptionResponse(id: string): Response {
+  return Response.json({
+    id,
+    resource: "me/mailFolders('inbox')/messages",
+    notificationUrl: `${webhookBaseUrl}/api/microsoft/graph/notifications`,
+    expirationDateTime: new Date(Date.now() + 7 * 24 * 3_600 * 1_000).toISOString(),
+  })
+}
+
+/**
+ * Like `fakeEnv`, but `all()` also answers `microsoft_graph_subscriptions`
+ * queries with caller-supplied rows — needed to exercise the delete hook,
+ * which must find existing subscription rows before it can tear them down.
+ */
+function fakeEnvWithSubscriptions(
+  accountRow: MicrosoftAccountRow,
+  subscriptionRows: Record<string, unknown>[],
+) {
+  const statements: Array<{ sql: string; bindings: unknown[] }> = []
+  const DB = {
+    prepare(sql: string) {
+      const statement = {
+        bindings: [] as unknown[],
+        bind(...bindings: unknown[]) { statement.bindings = bindings; return statement },
+        async all() {
+          statements.push({ sql, bindings: statement.bindings })
+          if (/FROM microsoft_graph_subscriptions/i.test(sql)) return { results: subscriptionRows }
+          return { results: [] }
+        },
+        async first() {
+          statements.push({ sql, bindings: statement.bindings })
+          return /FROM microsoft_imap_accounts/i.test(sql) ? accountRow : null
+        },
+        async run() {
+          statements.push({ sql, bindings: statement.bindings })
+          return { meta: { changes: 1 } }
+        },
+      }
+      return statement
+    },
+    async batch(items: unknown[]) {
+      return items.map(() => ({ meta: { changes: 1 } }))
+    },
+  }
+  const env = {
+    MICROSOFT_CREDENTIALS_KEY: key,
+    DB,
+    MAIL_QUEUE: { send: async () => undefined },
+  } as unknown as Env
+  return { env, statements }
+}
+
+function subscriptionRow(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: 'row-1',
+    account_id: 'microsoft-1',
+    folder_path: 'INBOX',
+    subscription_id: 'remote-1',
+    client_state_hash: 'a'.repeat(64),
+    expires_at: 1,
+    status: 'active',
+    failure_count: 0,
+    next_attempt_at: 0,
+    refresh_state: 'idle',
+    refresh_pending: 0,
+    refresh_state_at: 0,
+    last_notified_at: null,
+    last_error_code: '',
+    created_at: 1,
+    updated_at: 1,
+    ...overrides,
+  }
+}
+
+describe('Microsoft Graph subscription lifecycle hooks', () => {
+  it('creates an inbox and a junkemail subscription after a graph-transport import', async () => {
+    installTransports({ imap: new ImapConnectionError(401, 'IMAP authentication failed') })
+    let subscriptionCreates = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('login.microsoftonline.com')) return graphTokenResponse()
+      if (url === 'https://graph.microsoft.com/v1.0/subscriptions') {
+        subscriptionCreates += 1
+        return graphSubscriptionResponse(`sub-${subscriptionCreates}`)
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    const { env, statements } = fakeEnv()
+    env.MICROSOFT_GRAPH_WEBHOOK_BASE_URL = webhookBaseUrl
+
+    const response = await importMicrosoftAccounts(
+      env, user, request({ accounts: [oauthImport] }), '192.0.2.1',
+    )
+
+    expect(response.status).toBe(201)
+    const body = await response.json<{ results: Array<Record<string, unknown>> }>()
+    expect(body.results[0]).toMatchObject({ status: 'accepted' })
+    expect(subscriptionCreates).toBe(2)
+    expect(statements.filter(({ sql }) => /INSERT INTO microsoft_graph_subscriptions/i.test(sql)))
+      .toHaveLength(2)
+  })
+
+  it('creates zero subscriptions, and still accepts the import, when the webhook base URL is unset', async () => {
+    installTransports({ imap: new ImapConnectionError(401, 'IMAP authentication failed') })
+    let subscriptionCreates = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('login.microsoftonline.com')) return graphTokenResponse()
+      subscriptionCreates += 1
+      return graphSubscriptionResponse('should-not-happen')
+    }))
+    const { env, statements } = fakeEnv()
+    // MICROSOFT_GRAPH_WEBHOOK_BASE_URL is intentionally left unset.
+
+    const response = await importMicrosoftAccounts(
+      env, user, request({ accounts: [oauthImport] }), '192.0.2.1',
+    )
+
+    expect(response.status).toBe(201)
+    const body = await response.json<{ results: Array<Record<string, unknown>> }>()
+    expect(body.results[0]).toMatchObject({ status: 'accepted' })
+    expect(subscriptionCreates).toBe(0)
+    expect(statements.some(({ sql }) => /INSERT INTO microsoft_graph_subscriptions/i.test(sql))).toBe(false)
+  })
+
+  it('deletes every remote Graph subscription before the account row is removed', async () => {
+    const { env: seed } = fakeEnv()
+    const accountRow = await storedAccountRow(seed)
+    const rows = [
+      subscriptionRow({ id: 'row-1', subscription_id: 'remote-1', folder_path: 'INBOX' }),
+      subscriptionRow({ id: 'row-2', subscription_id: 'remote-2', folder_path: 'Junk Email' }),
+    ]
+    const { env, statements } = fakeEnvWithSubscriptions(accountRow, rows)
+    const remoteDeletesAt: number[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('login.microsoftonline.com')) return graphTokenResponse()
+      if (url.startsWith('https://graph.microsoft.com/v1.0/subscriptions/') && init?.method === 'DELETE') {
+        remoteDeletesAt.push(statements.length)
+        return new Response(null, { status: 204 })
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+
+    const response = await deleteMicrosoftAccount(env, user, accountRow.id, '192.0.2.1')
+
+    expect(response.status).toBe(200)
+    expect(remoteDeletesAt).toHaveLength(2)
+    const removalIndex = statements.findIndex(({ sql }) => /DELETE FROM microsoft_imap_accounts/i.test(sql))
+    expect(removalIndex).toBeGreaterThan(-1)
+    // Every remote DELETE was recorded before the account row's own DELETE ran.
+    expect(remoteDeletesAt.every((index) => index < removalIndex)).toBe(true)
   })
 })
