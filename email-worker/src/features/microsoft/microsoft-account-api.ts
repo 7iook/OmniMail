@@ -466,11 +466,12 @@ export async function listMicrosoftFolders(
   let account: MicrosoftAccount | undefined
   try {
     const store = new MicrosoftAccountStore(env, user.id)
+    const refresh = new URL(request.url).searchParams.get('refresh') === '1'
+    // Claim before loading the row, as verify does: our own rate limit is not
+    // a remote failure and must not be recorded against the account.
+    if (refresh) await claimMicrosoftValidationAttempt(env, user.id, ip)
     account = await store.get(accountId)
-    if (new URL(request.url).searchParams.get('refresh') === '1') {
-      await claimMicrosoftValidationAttempt(env, user.id, ip)
-      await refreshMicrosoftFolders(env, account)
-    }
+    if (refresh) await refreshMicrosoftFolders(env, account)
     return microsoftPrivateJson({ folders: await store.folders(accountId) })
   } catch (error) {
     if (account) await recordRemoteFailure(env, account, error)
