@@ -281,14 +281,16 @@ describe('Microsoft failure to account status', () => {
     expect(error.status).toBe(400)
   })
 
-  it('exposes only the per-channel facts a client needs', () => {
+  it('exposes only the per-channel facts a client needs, each with its sentence', () => {
     const attempts = publicMicrosoftTransportAttempts([
       microsoftTransportFailure(authFailure, 'graph'),
       microsoftTransportFailure(imapRejected, 'imap'),
-    ])
+    ], (code) => `sentence for ${code}`)
     expect(attempts).toEqual([
-      { transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401 },
-      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+      { transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401,
+        message: 'sentence for graph_credential_rejected' },
+      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401,
+        message: 'sentence for imap_access_rejected' },
     ])
     expect(Object.keys(attempts[0])).not.toContain('mayTryOtherTransport')
   })

@@ -18,6 +18,7 @@ import {
   type MicrosoftImportMode,
   type ParsedMicrosoftImport,
 } from '../model/microsoft-import'
+import { microsoftImportResultError } from '../model/microsoft-import-result'
 import { MicrosoftImportProgress, type MicrosoftImportProgressValue } from './MicrosoftImportProgress'
 
 gsap.registerPlugin(useGSAP, Flip)
@@ -32,12 +33,6 @@ const importPlaceholder = [
   MICROSOFT_IMPORT_FORMATS[0], MICROSOFT_IMPORT_ALTERNATE_FORMAT,
   ...MICROSOFT_IMPORT_FORMATS.slice(1),
 ].join('\n')
-
-function safeResultError(code?: string, message?: string) {
-  if (message) return message
-  if (code === 'duplicate') return t('账号已存在。')
-  return t('账号验证失败，请检查凭据、权限和 IMAP 设置。')
-}
 
 function importModeLabel(mode: MicrosoftImportMode | null) {
   if (mode === 'oauth2_combination') return t('OAuth2 · 组合密码将加密保存')
@@ -210,7 +205,7 @@ export function MicrosoftBatchImport({ onBusyChange, onChanged, onError, onNotic
         failed += 1
         flushSync(() => setItems((current) => current.map((candidate) => (
           candidate.preview.line === item.preview.line
-            ? { ...candidate, importStatus: 'error', resultError: safeResultError(result.code, result.error) }
+            ? { ...candidate, importStatus: 'error', resultError: microsoftImportResultError(result) }
             : candidate
         ))))
       }

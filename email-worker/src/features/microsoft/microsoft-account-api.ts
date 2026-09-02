@@ -6,6 +6,7 @@ import { microsoftMailEnabled } from './microsoft-credentials'
 import { microsoftImportAccount, MicrosoftInputError } from './microsoft-fields'
 import {
   maskedMicrosoftEmail,
+  microsoftFailureMessage,
   microsoftJsonBody,
   microsoftName,
   microsoftPrivateJson,
@@ -152,7 +153,9 @@ export async function listMicrosoftAccounts(env: Env, user: SessionUser): Promis
  *
  * Adds the per-channel `attempts` when the cascade exhausted both transports,
  * so a client can show "Graph: permission denied / IMAP: access rejected"
- * instead of one opaque failure (I-7). Everything else keeps the shared shape.
+ * instead of one opaque failure (I-7). Each attempt carries the same sentence
+ * the single-error path would have used for its code. Everything else keeps
+ * the shared shape.
  */
 function accountErrorResponse(
   error: unknown,
@@ -162,7 +165,7 @@ function accountErrorResponse(
     return microsoftPrivateJson({
       error: error.message,
       code: error.code,
-      attempts: publicMicrosoftTransportAttempts(error.attempts),
+      attempts: publicMicrosoftTransportAttempts(error.attempts, microsoftFailureMessage),
     }, error.status)
   }
   return microsoftResponseError(error, authMode)

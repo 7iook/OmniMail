@@ -51,7 +51,7 @@ export function MicrosoftReader({ selected, message, loading, error, remoteImage
       <MessageReaderToolbarTitle key={message.id} detailsLabel={t('Microsoft 邮件')}
         scrollTopLabel={t('回到顶部')} subject={subject}
         subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
-      <span className="icloud-source-badge is-imap">IMAP</span>
+      <span className="icloud-source-badge is-imap">Microsoft</span>
     </header>
     <div ref={readerRoot} className="reader-content icloud-reader-content">
       <div className="icloud-reader-inner">

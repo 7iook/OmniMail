@@ -45,7 +45,10 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
           contentId: null, disposition: 'attachment',
         }] }} loading={false} error="" remoteImagesEnabled={false}
       onBack={() => undefined} onRetry={() => undefined} />)
-    expect(html).toContain('IMAP')
+    // D-1: the source badge names the provider, not the transport, since the
+    // same reader serves Graph- and IMAP-connected accounts.
+    expect(html).toContain('icloud-source-badge is-imap">Microsoft<')
+    expect(html).not.toContain('>IMAP<')
     expect(html).not.toContain('仅允许已读状态写入')
     expect(html).not.toContain('gmail-readonly-note')
     expect(html).toContain('/api/microsoft/accounts/microsoft-1/messages/message-1/attachments/0')

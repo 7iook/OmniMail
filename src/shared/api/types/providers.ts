@@ -304,6 +304,8 @@ export interface MicrosoftTransportAttempt {
   code: string
   /** The upstream HTTP-equivalent status of that channel's failure. */
   status: number
+  /** Server-side human sentence for `code`; the UI shows it as-is, never re-maps the code. */
+  message: string
 }
 
 export interface MicrosoftImportResult {

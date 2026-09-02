@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
-import { microsoftResponseError } from './microsoft-api-shared'
+import { microsoftFailureMessage, microsoftResponseError } from './microsoft-api-shared'
 import { MicrosoftGraphError } from './microsoft-graph'
 
 async function body(response: Response): Promise<{ code: string; error: string }> {
@@ -60,6 +60,21 @@ describe('Microsoft failure to HTTP response', () => {
       expect(json.code).toBe(code)
       expect(json.error).not.toBe('暂时无法连接 Microsoft 邮箱，请稍后重试。')
     }
+  })
+
+  it('gives per-attempt lookups the same sentence as the single-error response', async () => {
+    const single = await body(microsoftResponseError(new MicrosoftGraphError('graph_permission_denied', 403, false)))
+    expect(microsoftFailureMessage('graph_permission_denied')).toBe(single.error)
+    // Every code the cascade can leave in `attempts` (auth/permission class) has
+    // a sentence of its own; only a genuinely unknown code gets the generic one.
+    for (const code of [
+      'invalid_grant', 'invalid_client', 'unauthorized_client', 'consent_required', 'invalid_scope',
+      'imap_scope_missing', 'graph_scope_missing', 'imap_access_rejected', 'xoauth2_unavailable',
+      'graph_credential_rejected', 'graph_permission_denied',
+    ]) {
+      expect(microsoftFailureMessage(code)).not.toBe('暂时无法连接 Microsoft 邮箱，请稍后重试。')
+    }
+    expect(microsoftFailureMessage('never_seen_before')).toBe('暂时无法连接 Microsoft 邮箱，请稍后重试。')
   })
 
   it('logs unknown errors with the classified code and answers 500', async () => {

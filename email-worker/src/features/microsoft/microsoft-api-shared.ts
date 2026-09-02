@@ -26,6 +26,8 @@ const messages: Record<string, string> = {
   invalid_grant: 'Microsoft 授权已失效或 refresh token 与 Client ID 不匹配。',
   invalid_client: 'Microsoft Client ID 无法用于这份 refresh token。',
   invalid_scope: 'Microsoft 授权不包含 Outlook 邮件权限。',
+  unauthorized_client: 'Microsoft 应用未获准访问这个账号，请检查 Client ID 或重新授权。',
+  consent_required: 'Microsoft 账号尚未同意应用权限，请重新授权。',
   imap_scope_missing: 'Microsoft token 缺少 Outlook IMAP 权限，请重新授权。',
   graph_scope_missing: 'Microsoft token 缺少 Outlook 邮件（Graph）权限，请重新授权。',
   imap_access_rejected: 'Microsoft 拒绝 IMAP OAuth2 登录；请检查权限或租户是否启用 IMAP。',
@@ -50,6 +52,15 @@ const messages: Record<string, string> = {
   graph_invalid_message_id: 'Microsoft 邮件标识无效，请刷新邮件列表。',
   graph_invalid_folder: 'Microsoft 文件夹无法通过 Graph 定位，请刷新文件夹列表。',
   graph_request_failed: 'Microsoft Graph 拒绝了这个请求。',
+}
+
+/**
+ * The user-facing sentence for a transport failure code. The one lookup both
+ * the single-error response and the per-channel `attempts` payload use, so a
+ * code can never read differently depending on which path surfaced it.
+ */
+export function microsoftFailureMessage(code: string): string {
+  return messages[code] || messages.connection_failed
 }
 
 /**
@@ -86,7 +97,7 @@ function transportFailureResponse(
   const headers: Record<string, string> = failure.retryAfterSeconds !== null
     ? { 'Retry-After': String(failure.retryAfterSeconds) } : {}
   return microsoftPrivateJson({
-    error: messages[code] || messages.connection_failed,
+    error: microsoftFailureMessage(code),
     code,
   }, responseStatus(failure), headers)
 }

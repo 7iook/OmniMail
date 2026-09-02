@@ -29,7 +29,7 @@ function statusLabel(status: MicrosoftAccount['status']) {
 function safeResultError(code?: string, message?: string) {
   if (message) return message
   if (code === 'duplicate') return t('账号已存在。')
-  return t('账号验证失败，请检查凭据、权限和 IMAP 设置。')
+  return t('账号验证失败，请检查凭据与权限。')
 }
 
 export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose, onChanged }: {
@@ -201,7 +201,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
   async function verify() {
     if (!target) return
     setBusy('verify'); setError('')
-    try { await api.verifyMicrosoft(target.id); await onChanged(); setNotice(t('Microsoft IMAP 连接有效。')) }
+    try { await api.verifyMicrosoft(target.id); await onChanged(); setNotice(t('Microsoft 邮箱连接有效。')) }
     catch (verifyError) { setError(errorMessage(verifyError)); await onChanged() }
     finally { setBusy('') }
   }
@@ -317,7 +317,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
         {canGoBack && <button className="icon-button gmail-dialog-back" type="button"
           disabled={Boolean(busy)} onClick={() => { setError(''); setNotice(''); setView('accounts') }}
           aria-label={t('返回')}><ArrowLeft size={17} /></button>}
-        <div><p className="eyebrow">MICROSOFT · IMAP</p><h2 id={titleId}>{title}</h2>
+        <div><p className="eyebrow">MICROSOFT · MAIL</p><h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>{t('仅允许读取和标记已读；凭据仅在服务端加密保存。')}</p></div>
         <button ref={closeRef} className="icon-button" type="button" disabled={Boolean(busy)}
           onClick={requestClose} aria-label={t('关闭')}><X size={17} /></button>
@@ -446,7 +446,7 @@ export function MicrosoftAccountDialog({ accounts, startAdding = false, onClose,
           </span></label>
         </form>
         <section className="gmail-account-action"><span><strong>{t('验证邮箱连接')}</strong>
-          <small>{t('检查当前凭据与 Microsoft IMAP 权限。')}</small></span>
+          <small>{t('检查当前凭据与 Microsoft 邮箱权限。')}</small></span>
           <button className="button button--secondary" type="button" disabled={Boolean(busy)} onClick={() => void verify()}>
             {busy === 'verify' ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />}{t('立即验证')}</button></section>
         <section className="gmail-account-action"><span><strong>{t('同步这个账号')}</strong>
@@ -495,6 +495,6 @@ function CombinationPasswordFields({ password, consent, onPassword, onConsent }:
 }) {
   return <><label><span>{t('组合密码（可选）')}</span><input type="password" value={password}
     autoComplete="new-password" onChange={(event) => onPassword(event.target.value)} />
-    <small>{t('只做加密留存，不参与 Microsoft IMAP 认证。')}</small></label>
+    <small>{t('只做加密留存，不参与 Microsoft 认证。')}</small></label>
     {password && <Consent checked={consent} onChange={onConsent} />}</>
 }

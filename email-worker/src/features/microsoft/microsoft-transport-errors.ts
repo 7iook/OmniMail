@@ -55,13 +55,23 @@ export interface MicrosoftTransportAttempt {
   code: string
   /** The upstream HTTP-equivalent status of that channel's failure. */
   status: number
+  /**
+   * The human sentence for `code`, so the client never needs its own
+   * code-to-sentence table (the worker's table is the single source of truth).
+   */
+  message: string
 }
 
+/**
+ * `describe` is injected rather than imported: the message table lives in
+ * `microsoft-api-shared.ts`, which already imports this module.
+ */
 export function publicMicrosoftTransportAttempts(
   attempts: readonly MicrosoftTransportFailure[],
+  describe: (code: string) => string,
 ): MicrosoftTransportAttempt[] {
   return attempts.map(({ transport, category, code, status }) => ({
-    transport, category, code, status,
+    transport, category, code, status, message: describe(code),
   }))
 }
 

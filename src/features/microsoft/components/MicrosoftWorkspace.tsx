@@ -220,7 +220,7 @@ export function MicrosoftWorkspace({ enabled, remoteImagesEnabled }: {
           onFolderChange={setFolderPath} onLimitChange={setLimit}
           onRefreshFolders={() => loadFolders(true)} onCopyAddress={copyAddress}
           onManage={() => setDialogMode('manage')} />
-          : <p className="eyebrow">MICROSOFT · IMAP</p>}
+          : <p className="eyebrow">MICROSOFT · MAIL</p>}
           <ListScrollTopHeading title="Microsoft" onScrollTop={mailListScroll.scrollToTop} /></div>
         {enabled && <div className="list-header__actions">
           {accounts.length > 0 && <span className="icloud-mail-status is-imap"><ShieldCheck size={13} />{t('只读同步')}</span>}

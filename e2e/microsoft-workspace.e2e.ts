@@ -192,6 +192,53 @@ test('previews Microsoft OAuth2 formats without echoing secrets', async ({ page 
   await expect(backdrop).toHaveCount(0)
 })
 
+test('names each refusing channel when both Graph and IMAP reject an import row', async ({ page }) => {
+  await prepare(page)
+  const graphSentence = 'Microsoft 授权缺少 Outlook 邮件权限（Graph 403），请重新授权。'
+  const imapSentence = 'Microsoft 拒绝 IMAP OAuth2 登录；请检查权限或租户是否启用 IMAP。'
+  await page.route('**://*/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (await shell(route, path)) return
+    if (path === '/api/microsoft/accounts' && request.method() === 'GET') {
+      return json(route, { enabled: true, accounts: [] })
+    }
+    if (path === '/api/microsoft/messages') {
+      return json(route, { messages: [], page: { hasMore: false, nextCursor: null, limit: 50 }, folderPath: 'INBOX' })
+    }
+    if (path === '/api/microsoft/accounts/import' && request.method() === 'POST') {
+      // The worker answers 207 when at least one row failed; the per-channel
+      // `attempts` carry the sentences the UI must show verbatim (I-7 / F-2).
+      return json(route, { results: [{
+        index: 0, status: 'error', code: 'transport_unavailable',
+        error: '暂时无法连接 Microsoft 邮箱，请稍后重试。',
+        attempts: [
+          { transport: 'graph', category: 'permission', code: 'graph_permission_denied', status: 403, message: graphSentence },
+          { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401, message: imapSentence },
+        ],
+      }] }, 207)
+    }
+    return route.abort()
+  })
+
+  await page.goto('/microsoft')
+  await page.getByRole('button', { name: '添加 Microsoft 账号' }).last().click()
+  const dialog = page.getByRole('dialog', { name: '连接 Microsoft 邮箱' })
+  await dialog.getByRole('tab', { name: '批量导入' }).click()
+  await dialog.getByLabel('每行一个账号')
+    .fill('denied@outlook.com--------refresh-denied----00000000-0000-4000-8000-000000000000')
+  await dialog.getByRole('button', { name: '下一步：安全预览' }).click()
+  await dialog.getByRole('button', { name: '开始导入 1 个账号' }).click()
+
+  const row = dialog.locator('.microsoft-import-preview li')
+  await expect(row).toHaveCount(1)
+  await expect(row).toHaveClass(/is-error/)
+  await expect(row.locator('small')).toHaveText(`Graph：${graphSentence} · IMAP：${imapSentence}`)
+  await expect(row.locator('.microsoft-import-item-status.is-error')).toBeVisible()
+  await expect(dialog.getByText('成功 0 个，失败 1 个。')).toBeVisible()
+  await expect(dialog.getByText('暂时无法连接 Microsoft 邮箱，请稍后重试。')).toHaveCount(0)
+})
+
 test('bulk-manages and disconnects selected Microsoft accounts', async ({ page }) => {
   await prepare(page)
   const managedAccounts = [account,

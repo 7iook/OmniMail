@@ -188,9 +188,17 @@ describe('Microsoft import and verify go through the transport cascade', () => {
     const body = await response.json<{ results: Array<Record<string, unknown>> }>()
     expect(response.status).toBe(207)
     expect(body.results[0]).toMatchObject({ status: 'error', code: 'transport_unavailable' })
+    // Each attempt carries the sentence from the worker's message table, so the
+    // client can label "Graph: … · IMAP: …" without a table of its own.
     expect(body.results[0].attempts).toEqual([
-      { transport: 'graph', category: 'permission', code: 'graph_permission_denied', status: 403 },
-      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+      {
+        transport: 'graph', category: 'permission', code: 'graph_permission_denied', status: 403,
+        message: 'Microsoft 授权缺少 Outlook 邮件权限（Graph 403），请重新授权。',
+      },
+      {
+        transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401,
+        message: 'Microsoft 拒绝 IMAP OAuth2 登录；请检查权限或租户是否启用 IMAP。',
+      },
     ])
     expect(JSON.stringify(body)).not.toContain('refresh-secret')
     expect(statements.some(({ sql }) => /INSERT INTO microsoft_imap_accounts/i.test(sql))).toBe(false)
@@ -224,8 +232,14 @@ describe('Microsoft import and verify go through the transport cascade', () => {
     const body = await response.json<Record<string, unknown>>()
     expect(body).toMatchObject({ code: 'transport_unavailable' })
     expect(body.attempts).toEqual([
-      { transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401 },
-      { transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401 },
+      {
+        transport: 'graph', category: 'auth', code: 'graph_credential_rejected', status: 401,
+        message: 'Microsoft 拒绝了 Graph 访问令牌，请重新授权。',
+      },
+      {
+        transport: 'imap', category: 'auth', code: 'imap_access_rejected', status: 401,
+        message: 'Microsoft 拒绝 IMAP OAuth2 登录；请检查权限或租户是否启用 IMAP。',
+      },
     ])
     const failure = statements.find(({ sql }) => /SET status = \?, last_error_code = \?/.test(sql))
     // Both channels rejected the credential: the same verdict sync reaches, not a
@@ -297,8 +311,10 @@ describe('Microsoft mail API boundaries', () => {
       status: 'error',
       code: 'transport_unavailable',
       attempts: [
-        { transport: 'graph', code: 'invalid_grant', category: 'auth' },
-        { transport: 'imap', code: 'invalid_grant', category: 'auth' },
+        { transport: 'graph', code: 'invalid_grant', category: 'auth',
+          message: 'Microsoft 授权已失效或 refresh token 与 Client ID 不匹配。' },
+        { transport: 'imap', code: 'invalid_grant', category: 'auth',
+          message: 'Microsoft 授权已失效或 refresh token 与 Client ID 不匹配。' },
       ],
     }] })
     expect(JSON.stringify(body)).not.toContain('refresh-secret')
