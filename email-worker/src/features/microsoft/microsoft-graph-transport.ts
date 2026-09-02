@@ -45,6 +45,17 @@ const INBOX_PATH = 'INBOX'
 const INBOX_FOLDER: MicrosoftGraphFolder = { id: GRAPH_INBOX, displayName: 'INBOX' }
 
 /**
+ * Page budget for the id-only listing that deletion reconciliation consumes.
+ *
+ * The client defaults (50 x 40) would report any folder above 2000 messages as
+ * truncated on every sync, and a truncated listing is skipped — so such a folder
+ * would never reconcile. Ids are tiny, so wide pages cost little; the ceiling is
+ * still finite so a runaway mailbox cannot pin a Worker invocation.
+ */
+const REMOTE_ID_PAGE_SIZE = 500
+const REMOTE_ID_MAX_PAGES = 20
+
+/**
  * Presents a Graph mailbox as the same transport-agnostic mailbox as IMAP.
  *
  * Where Graph has no equivalent of an IMAP concept, this reports the absence
@@ -144,7 +155,10 @@ export function microsoftGraphTransport(
     async listRemoteIds(folderPath: string): Promise<string[]> {
       // Throws `graph_listing_truncated` rather than returning a partial set:
       // deletion reconciliation reads absence as "deleted remotely".
-      return await client.listMessageIds(folderId(folderPath))
+      return await client.listMessageIds(folderId(folderPath), {
+        pageSize: REMOTE_ID_PAGE_SIZE,
+        maxPages: REMOTE_ID_MAX_PAGES,
+      })
     },
 
     async listRecentMetadata(

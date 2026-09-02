@@ -85,6 +85,19 @@ describe('Microsoft Graph transport adapter', () => {
     expect(calls).toContain('listMessageIds(inbox)')
   })
 
+  it('lists remote ids with a page budget wide enough for a real inbox', async () => {
+    const { client } = graphClient()
+    const transport = microsoftGraphTransport(client as never)
+    await transport.open()
+    await transport.listRemoteIds('INBOX')
+    // 50 x 40 (the client defaults) caps reconciliation at 2000 messages; any
+    // larger folder would be reported truncated on every sync and never reconcile.
+    const [, options] = (client.listMessageIds as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string, { pageSize: number; maxPages: number },
+    ]
+    expect(options.pageSize * options.maxPages).toBeGreaterThanOrEqual(10_000)
+  })
+
   it('resolves a non-inbox path back to its opaque Graph folder id', async () => {
     const { client, calls } = graphClient()
     const transport = microsoftGraphTransport(client as never)

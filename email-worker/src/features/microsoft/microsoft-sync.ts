@@ -1,48 +1,33 @@
 import type { Env, MailQueueJob, MicrosoftSyncJob } from '../../app/types'
-import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import { microsoftMailEnabled } from './microsoft-credentials'
-import type { MicrosoftImapClient } from './microsoft-imap'
-import { parseMicrosoftImapUid } from './microsoft-imap-values'
-import { openMicrosoftClient } from './microsoft-session'
+import { resolveMicrosoftTransport } from './microsoft-session'
 import {
   microsoftAccountForSync,
   MicrosoftStoreError,
   saveMicrosoftFolders,
 } from './microsoft-store'
-import { MicrosoftTokenError } from './microsoft-token'
-import type {
-  MicrosoftAccount,
-  MicrosoftFolder,
-  MicrosoftMessageMetadata,
-} from './microsoft-types'
+import { refreshMicrosoftFolderWithTransport } from './microsoft-sync-folder'
+import type { MicrosoftMailTransport } from './microsoft-transport'
+import {
+  microsoftAccountStatusForFailure,
+  microsoftTransportFailure,
+  type MicrosoftTransportFailure,
+} from './microsoft-transport-errors'
+import type { MicrosoftAccount, MicrosoftFolder, MicrosoftTransport } from './microsoft-types'
 
 const INITIAL_MESSAGE_LIMIT = 100
-const INDEX_MESSAGE_LIMIT = 500
 const SYNC_INTERVAL_SECONDS = 5 * 60
+const PARKED_INTERVAL_SECONDS = 24 * 60 * 60
 const LEASE_SECONDS = 6 * 60
 const SCHEDULE_BATCH = 50
+const QUEUE_MAX_ATTEMPTS = 3
+const QUEUE_BASE_DELAY_SECONDS = 30
 
-export type MicrosoftSyncResult = { status: 'synced' | 'skipped'; retryable: boolean }
-
-export function microsoftSyncErrorCode(error: unknown, authMode?: MicrosoftAccount['authMode']): string {
-  if (error instanceof MicrosoftTokenError) return error.code
-  if (error instanceof MicrosoftStoreError) return error.code
-  if (error instanceof ImapConnectionError) {
-    if (error.status === 400 || error.status === 401) {
-      return authMode === 'password' ? 'basic_auth_rejected' : 'imap_access_rejected'
-    }
-    if (error.status === 404) return 'remote_message_not_found'
-    if (error.status === 504) return 'timeout'
-    if (/超过.*上限/.test(error.message)) return 'response_too_large'
-    if (/XOAUTH2/.test(error.message)) return 'xoauth2_unavailable'
-    return 'connection_failed'
-  }
-  return 'sync_failed'
-}
-
-export function missingMicrosoftUids(localUids: number[], remoteUids: number[]): number[] {
-  const remote = new Set(remoteUids)
-  return localUids.filter((uid) => !remote.has(uid))
+export type MicrosoftSyncResult = {
+  status: 'synced' | 'skipped'
+  retryable: boolean
+  /** Seconds Microsoft asked us to wait; the queue retry must not come sooner. */
+  retryAfterSeconds: number | null
 }
 
 async function claimLease(
@@ -60,233 +45,65 @@ async function claimLease(
   return Boolean(result.meta.changes)
 }
 
-async function localUids(
-  env: Env,
-  accountId: string,
-  folderPath: string,
-  uidValidity: number,
-): Promise<number[]> {
-  // remote_id holds the IMAP UID in string form; this IMAP-only path converts back.
-  const { results } = await env.DB.prepare(
-    `SELECT remote_id FROM microsoft_imap_messages
-      WHERE account_id = ? AND folder_path = ? AND uid_validity = ?
-        AND source_transport = 'imap'
-      ORDER BY received_at DESC, id DESC LIMIT ?`,
-  ).bind(accountId, folderPath, uidValidity, INDEX_MESSAGE_LIMIT)
-    .all<{ remote_id: string }>()
-  return results
-    .map(({ remote_id }) => parseMicrosoftImapUid(remote_id))
-    .filter((uid): uid is number => uid !== null)
-}
-
-function messageStatement(
-  env: Env,
-  accountId: string,
-  folderPath: string,
-  uidValidity: number,
-  message: MicrosoftMessageMetadata,
-  now: number,
-): D1PreparedStatement {
-  // Two upsert paths, because a row can collide on either identity layer:
-  //  1. named locator target — the same transport re-fetching the same message;
-  //     refresh the payload in place.
-  //  2. targetless fallback — the same mail (matched on RFC5322 Message-ID by the
-  //     partial index) arriving over the OTHER transport, or from a folder this
-  //     transport names differently. Take over the existing row and adopt the new
-  //     locator, so later fetches and deletion reconciliation address it through
-  //     whichever transport last won. Without this the insert fails outright and
-  //     takes the entire D1 batch with it.
-  // SQLite only permits a target on non-final clauses, so the fallback must come
-  // last and stay targetless — a second named target is rejected at prepare time.
-  return env.DB.prepare(
-    `INSERT INTO microsoft_imap_messages (
-      id, account_id, folder_path, source_transport, remote_id, uid_validity,
-      internet_message_id, sender_name, sender_address, recipients_json,
-      cc_json, subject, preview, received_at, sent_at, size_bytes, flags_json,
-      is_read, is_starred, has_attachments, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(account_id, folder_path, source_transport, remote_id) DO UPDATE SET
-      internet_message_id = excluded.internet_message_id,
-      sender_name = excluded.sender_name,
-      sender_address = excluded.sender_address,
-      recipients_json = excluded.recipients_json,
-      cc_json = excluded.cc_json,
-      subject = excluded.subject,
-      preview = excluded.preview,
-      received_at = excluded.received_at,
-      sent_at = excluded.sent_at,
-      size_bytes = excluded.size_bytes,
-      flags_json = excluded.flags_json,
-      is_read = excluded.is_read,
-      is_starred = excluded.is_starred,
-      has_attachments = excluded.has_attachments,
-      updated_at = excluded.updated_at
-    ON CONFLICT DO UPDATE SET
-      folder_path = excluded.folder_path,
-      source_transport = excluded.source_transport,
-      remote_id = excluded.remote_id,
-      uid_validity = excluded.uid_validity,
-      sender_name = excluded.sender_name,
-      sender_address = excluded.sender_address,
-      recipients_json = excluded.recipients_json,
-      cc_json = excluded.cc_json,
-      subject = excluded.subject,
-      preview = excluded.preview,
-      received_at = excluded.received_at,
-      sent_at = excluded.sent_at,
-      size_bytes = excluded.size_bytes,
-      flags_json = excluded.flags_json,
-      is_read = excluded.is_read,
-      is_starred = excluded.is_starred,
-      has_attachments = excluded.has_attachments,
-      updated_at = excluded.updated_at`,
-  ).bind(
-    `microsoft_msg_${crypto.randomUUID().replaceAll('-', '')}`,
-    accountId,
-    folderPath,
-    'imap',
-    message.remoteId,
-    uidValidity,
-    message.internetMessageId,
-    message.senderName,
-    message.senderAddress,
-    JSON.stringify(message.recipients),
-    JSON.stringify(message.cc),
-    message.subject,
-    message.preview,
-    message.receivedAt || now,
-    message.sentAt,
-    message.sizeBytes,
-    JSON.stringify(message.flags),
-    Number(message.isRead),
-    Number(message.isStarred),
-    Number(message.hasAttachments),
-    now,
-    now,
-  )
-}
-
-export async function refreshMicrosoftFolderWithClient(
-  env: Env,
-  accountId: string,
-  folderPath: string,
-  limit: number,
-  client: MicrosoftImapClient,
-  now = Math.floor(Date.now() / 1000),
-): Promise<{ uidValidity: number; indexed: number }> {
-  const mailbox = await client.examineFolder(folderPath)
-  const remoteUids = await client.searchAllUids()
-  const existing = await localUids(env, accountId, folderPath, mailbox.uidValidity)
-  const targetCount = Math.min(
-    INDEX_MESSAGE_LIMIT,
-    Math.max(limit, existing.length),
-  )
-  const targetUids = remoteUids.slice(-targetCount)
-  const metadata = await client.fetchMetadata(targetUids)
-  const missing = missingMicrosoftUids(existing, remoteUids)
-  const folder = await env.DB.prepare(
-    `SELECT uid_validity FROM microsoft_imap_folders
-      WHERE account_id = ? AND path = ? LIMIT 1`,
-  ).bind(accountId, folderPath).first<{ uid_validity: number | null }>()
-  if (!folder) throw new MicrosoftStoreError(404, 'folder_not_found', 'Microsoft 文件夹不存在。')
-
-  const statements: D1PreparedStatement[] = []
-  if (folder.uid_validity !== null && folder.uid_validity !== mailbox.uidValidity) {
-    // UIDVALIDITY is an IMAP concept: a change invalidates IMAP locators only.
-    // Graph rows in the same folder are addressed by opaque id and stay valid, so
-    // wiping them here would destroy mail the IMAP server never spoke for.
-    statements.push(env.DB.prepare(
-      `DELETE FROM microsoft_imap_messages
-        WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'`,
-    ).bind(accountId, folderPath))
-  }
-  statements.push(...metadata.map((message) => messageStatement(
-    env,
-    accountId,
-    folderPath,
-    mailbox.uidValidity,
-    message,
-    now,
-  )))
-  statements.push(...missing.map((uid) => env.DB.prepare(
-    `DELETE FROM microsoft_imap_messages
-      WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
-        AND remote_id = ?`,
-  ).bind(accountId, folderPath, String(uid))))
-  // Retention trim, scoped to this transport: ranking IMAP and Graph rows together
-  // would let an IMAP sync evict Graph-fetched mail (and vice versa) purely because
-  // the other transport happened to hold newer messages.
-  statements.push(env.DB.prepare(
-    `DELETE FROM microsoft_imap_messages
-      WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
-        AND id NOT IN (
-        SELECT id FROM microsoft_imap_messages
-          WHERE account_id = ? AND folder_path = ? AND source_transport = 'imap'
-          ORDER BY received_at DESC, id DESC LIMIT ?
-      )`,
-  ).bind(accountId, folderPath, accountId, folderPath, INDEX_MESSAGE_LIMIT))
-  statements.push(env.DB.prepare(
-    `UPDATE microsoft_imap_folders
-        SET uid_validity = ?, last_uid = ?, last_listed_at = ?
-      WHERE account_id = ? AND path = ?`,
-  ).bind(
-    mailbox.uidValidity,
-    Math.max(0, ...remoteUids),
-    now,
-    accountId,
-    folderPath,
-  ))
-  await env.DB.batch(statements)
-  return { uidValidity: mailbox.uidValidity, indexed: metadata.length }
-}
-
 export async function refreshMicrosoftFolders(
   env: Env,
   account: MicrosoftAccount,
   now = Math.floor(Date.now() / 1000),
 ): Promise<MicrosoftFolder[]> {
-  const client = await openMicrosoftClient(env, account)
+  const { transport } = await resolveMicrosoftTransport(env, account)
   try {
-    const folders = await client.listFolders()
+    const folders = await transport.listFolders()
     await saveMicrosoftFolders(env, account.id, folders, now)
     return folders
   } finally {
-    await client.close()
+    await transport.close()
   }
+}
+
+/**
+ * When to look at a failed account again.
+ *
+ * Credential and permission failures park the account for a day — scheduling
+ * is also gated on status, so this is a backstop. Throttling waits at least the
+ * Retry-After Microsoft sent (I-3) but never comes back sooner than the normal
+ * cadence would have.
+ */
+function nextSyncDelay(failure: MicrosoftTransportFailure): number {
+  if (failure.category === 'auth' || failure.category === 'permission') {
+    return PARKED_INTERVAL_SECONDS
+  }
+  return Math.max(SYNC_INTERVAL_SECONDS, failure.retryAfterSeconds ?? 0)
 }
 
 async function recordFailure(
   env: Env,
   accountId: string,
   leaseId: string,
-  error: unknown,
-  authMode: MicrosoftAccount['authMode'] | undefined,
+  failure: MicrosoftTransportFailure,
   now: number,
-): Promise<string> {
-  const code = microsoftSyncErrorCode(error, authMode)
-  const credentialError = [
-    'invalid_grant', 'invalid_client', 'credential_decryption_failed',
-    'credential_key_unavailable', 'basic_auth_rejected',
-  ].includes(code)
-  const permissionError = [
-    'imap_scope_missing', 'imap_access_rejected', 'xoauth2_unavailable',
-    'invalid_scope', 'unauthorized_client', 'consent_required',
-  ].includes(code)
+): Promise<void> {
   await env.DB.prepare(
     `UPDATE microsoft_imap_accounts
         SET status = ?, last_error_code = ?, last_error_at = ?, next_sync_at = ?,
             sync_lease_id = NULL, sync_lease_until = NULL, updated_at = ?
       WHERE id = ? AND sync_lease_id = ?`,
   ).bind(
-    credentialError ? 'credential_error' : permissionError ? 'permission_error' : 'error',
-    code,
+    microsoftAccountStatusForFailure(failure),
+    failure.code,
     now,
-    now + ((credentialError || permissionError) ? 24 * 60 * 60 : SYNC_INTERVAL_SECONDS),
+    now + nextSyncDelay(failure),
     now,
     accountId,
     leaseId,
   ).run()
-  return code
+}
+
+/**
+ * The channel a failure is attributed to when it surfaced before any transport
+ * was resolved. The classifier does not depend on it; it only labels the record.
+ */
+function attemptedTransport(account: MicrosoftAccount | null): MicrosoftTransport {
+  return account?.preferredTransport === 'imap' ? 'imap' : 'graph'
 }
 
 export async function syncMicrosoftAccount(
@@ -296,24 +113,26 @@ export async function syncMicrosoftAccount(
 ): Promise<MicrosoftSyncResult> {
   const leaseId = crypto.randomUUID()
   if (!await claimLease(env, accountId, leaseId, now)) {
-    return { status: 'skipped', retryable: false }
+    return { status: 'skipped', retryable: false, retryAfterSeconds: null }
   }
   let account: MicrosoftAccount | null = null
-  let client: MicrosoftImapClient | undefined
+  let transport: MicrosoftMailTransport | undefined
   try {
     account = await microsoftAccountForSync(env, accountId)
     if (!account) throw new MicrosoftStoreError(404, 'account_not_found', 'Microsoft 账号不存在。')
-    client = await openMicrosoftClient(env, account)
-    const folders = await client.listFolders()
+    transport = (await resolveMicrosoftTransport(env, account)).transport
+    const folders = await transport.listFolders()
+    // Folder rows first: the messages table has a composite FK onto them, and a
+    // Graph mailbox has no rows at all until this runs.
     await saveMicrosoftFolders(env, accountId, folders, now)
     const inbox = folders.find(({ path }) => path.toUpperCase() === 'INBOX')
     if (!inbox) throw new MicrosoftStoreError(502, 'inbox_unavailable', 'Microsoft INBOX 不可用。')
-    await refreshMicrosoftFolderWithClient(
+    await refreshMicrosoftFolderWithTransport(
       env,
       accountId,
       inbox.path,
       INITIAL_MESSAGE_LIMIT,
-      client,
+      transport,
       now,
     )
     await env.DB.prepare(
@@ -323,20 +142,22 @@ export async function syncMicrosoftAccount(
               sync_lease_id = NULL, sync_lease_until = NULL, updated_at = ?
         WHERE id = ? AND sync_lease_id = ?`,
     ).bind(now, now + SYNC_INTERVAL_SECONDS, now, accountId, leaseId).run()
-    return { status: 'synced', retryable: false }
+    return { status: 'synced', retryable: false, retryAfterSeconds: null }
   } catch (error) {
-    const code = await recordFailure(env, accountId, leaseId, error, account?.authMode, now)
+    const failure = microsoftTransportFailure(
+      error,
+      transport?.transport ?? attemptedTransport(account),
+    )
+    await recordFailure(env, accountId, leaseId, failure, now)
     return {
       status: 'skipped',
-      retryable: ![
-        'invalid_grant', 'invalid_client', 'credential_decryption_failed',
-        'credential_key_unavailable', 'basic_auth_rejected', 'imap_scope_missing',
-        'imap_access_rejected', 'xoauth2_unavailable', 'invalid_scope',
-        'response_too_large', 'account_not_found',
-      ].includes(code),
+      // Only a wait can be retried usefully. Auth, permission, data and contract
+      // failures come back identical on the next attempt.
+      retryable: failure.category === 'transient' || failure.category === 'throttled',
+      retryAfterSeconds: failure.retryAfterSeconds,
     }
   } finally {
-    await client?.close()
+    await transport?.close()
   }
 }
 
@@ -346,8 +167,10 @@ export async function consumeMicrosoftSyncJob(
 ): Promise<void> {
   if (message.body.kind !== 'microsoft-sync') return
   const result = await syncMicrosoftAccount(env, message.body.accountId)
-  if (result.retryable && message.attempts < 3) {
-    message.retry({ delaySeconds: 30 * 2 ** Math.max(0, message.attempts - 1) })
+  if (result.retryable && message.attempts < QUEUE_MAX_ATTEMPTS) {
+    const backoff = QUEUE_BASE_DELAY_SECONDS * 2 ** Math.max(0, message.attempts - 1)
+    // Retrying inside Microsoft's Retry-After window would extend the lockout.
+    message.retry({ delaySeconds: Math.max(backoff, result.retryAfterSeconds ?? 0) })
   } else {
     message.ack()
   }

@@ -11,10 +11,15 @@ export type MicrosoftMessageContent = Awaited<ReturnType<typeof parseMicrosoftMe
 /**
  * A folder's live remote state.
  *
- * `uidValidity` is `null` for Graph, which has no such concept; consumers must
- * branch on that rather than expect a fabricated integer (decision card §3.2
- * forbids inventing one). `exists` is `null` when the transport cannot report a
- * count cheaply.
+ * `uidValidity` is the transport's *locator epoch*: while it holds the same
+ * value, every remote id the transport issued for the folder still addresses
+ * the same message. The orchestrator compares it with the epoch it stored last
+ * time and, when both are non-null and differ, discards only this transport's
+ * rows for the folder. IMAP reports its UIDVALIDITY here; Graph, whose ids
+ * survive independently of any epoch, reports `null` — which by construction can
+ * never trigger that discard. Nobody fabricates an integer (decision card §3.2).
+ *
+ * `exists` is `null` when the transport cannot report a count cheaply.
  */
 export interface MicrosoftFolderState {
   uidValidity: number | null
@@ -63,7 +68,8 @@ export interface MicrosoftMailTransport {
    * Every remote id currently present in a folder, for deletion reconciliation.
    *
    * Absence from this set means "deleted remotely", so an implementation must
-   * fail rather than return a partial set.
+   * fail rather than return a partial set. A failure here skips reconciliation
+   * for the run; it never reads as "the folder is empty".
    */
   listRemoteIds(folderPath: string): Promise<string[]>
 

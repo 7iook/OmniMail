@@ -28,8 +28,8 @@ function imapUid(remoteId: string): number {
  * Presents an IMAP client as a transport-agnostic mailbox.
  *
  * Behaviour is deliberately identical to calling the client directly — this is a
- * shape change, not a policy change. Two IMAP facts are absorbed here rather than
- * leaking to the orchestrator:
+ * shape change, not a policy change. Three IMAP facts are absorbed here rather
+ * than leaking to the orchestrator:
  *
  *  - "newest N messages" is a slice of the ascending UID set. That works because
  *    IMAP UIDs increase monotonically; Graph ids do not, so its implementation
@@ -38,6 +38,13 @@ function imapUid(remoteId: string): number {
  *  - UIDVALIDITY belongs to the mailbox, not to a FETCH line, so the parser
  *    cannot fill it in. It is stamped on here, where the folder has just been
  *    examined, instead of being left for the persistence layer to remember.
+ *  - UIDVALIDITY is also the locator epoch `folderState` reports: when it moves,
+ *    every UID this adapter ever handed out for the folder is void, and the
+ *    orchestrator discards this transport's rows without knowing why.
+ *
+ * Nothing here computes a high-water UID: the old `last_uid` write was never
+ * read back, and `Math.max` over Graph ids would be NaN, so it was dropped
+ * rather than generalised.
  */
 export function microsoftImapTransport(
   client: MicrosoftImapClient,

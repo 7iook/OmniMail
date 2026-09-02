@@ -200,11 +200,11 @@ export class MicrosoftAccountStore {
           id, user_id, name, provided_email, normalized_email, auth_mode,
           client_id, authority, refresh_token_cipher, access_token_cipher,
           access_token_expires_at, password_cipher, combination_password_cipher,
-          status, last_synced_at,
+          status, preferred_transport, last_synced_at,
           next_sync_at, last_error_code, last_error_at, sync_lease_id,
           sync_lease_until, token_lease_id, token_lease_until,
           last_manual_sync_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         account.id,
         this.userId,
@@ -220,6 +220,7 @@ export class MicrosoftAccountStore {
         passwordCipher,
         combinationPasswordCipher,
         account.status,
+        account.preferredTransport,
         account.lastSyncedAt,
         account.nextSyncAt,
         account.lastErrorCode,

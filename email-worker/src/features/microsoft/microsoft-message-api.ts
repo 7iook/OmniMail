@@ -1,15 +1,16 @@
 import type { Env, SessionUser } from '../../app/types'
 import { attachmentDisposition, safeJsonArray } from '../../shared/http/api-helpers'
 import { microsoftMessageLimit } from './microsoft-fields'
-import type { MicrosoftImapClient } from './microsoft-imap'
 import {
   microsoftPrivateJson,
   microsoftResponseError,
+  recordMicrosoftAccountFailure,
 } from './microsoft-api-shared'
-import { openMicrosoftClient } from './microsoft-session'
+import { resolveMicrosoftTransport } from './microsoft-session'
 import { MicrosoftAccountStore, MicrosoftStoreError } from './microsoft-store'
-import { parseMicrosoftImapUid } from './microsoft-imap-values'
-import { refreshMicrosoftFolderWithClient } from './microsoft-sync'
+import { refreshMicrosoftFolderWithTransport } from './microsoft-sync-folder'
+import type { MicrosoftMailTransport, MicrosoftMessageContent } from './microsoft-transport'
+import { microsoftTransportFailure } from './microsoft-transport-errors'
 import type { MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
@@ -122,11 +123,11 @@ async function refreshFolder(
     throw new MicrosoftStoreError(429, 'folder_refresh_rate_limited', '文件夹刷新过于频繁，请稍后重试。')
   }
   const account = await store.get(accountId)
-  const client = await openMicrosoftClient(env, account)
+  const { transport } = await resolveMicrosoftTransport(env, account)
   try {
-    await refreshMicrosoftFolderWithClient(env, accountId, folderPath, limit, client, now)
+    await refreshMicrosoftFolderWithTransport(env, accountId, folderPath, limit, transport, now)
   } finally {
-    await client.close()
+    await transport.close()
   }
 }
 
@@ -226,6 +227,90 @@ async function ownedMessage(
   return row
 }
 
+/**
+ * Guards that the row can be addressed through the resolved transport.
+ *
+ * Locators are transport-private (decision card §1.3.1): an IMAP UID means
+ * nothing to Graph and vice versa. When the cascade has moved the account to
+ * the other channel, the row is re-adopted by the next folder refresh (the
+ * Message-ID upsert rewrites its locator), so the honest answer here is "refresh
+ * the list", not a guess at the other channel's id.
+ */
+function assertAddressable(row: MicrosoftMessageRow, transport: MicrosoftMailTransport): void {
+  if (row.source_transport !== transport.transport) {
+    throw new MicrosoftStoreError(
+      409,
+      'message_locator_stale',
+      'Microsoft 邮件索引来自另一条通道，请刷新邮件列表后重试。',
+    )
+  }
+}
+
+/**
+ * IMAP's optimistic identity check. Only rows that carry an epoch are checked;
+ * a Graph row has none, and a Graph message that no longer exists surfaces as a
+ * 404 from the fetch itself instead.
+ */
+async function assertIdentityUnchanged(
+  row: MicrosoftMessageRow,
+  transport: MicrosoftMailTransport,
+): Promise<void> {
+  if (row.uid_validity === null) return
+  const state = await transport.folderState(row.folder_path)
+  if (state.uidValidity !== row.uid_validity) {
+    throw new MicrosoftStoreError(
+      404,
+      'message_identity_changed',
+      'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
+    )
+  }
+}
+
+/**
+ * Marks the message read remotely, then locally — in that order, so OmniMail
+ * never shows "read" for mail Outlook still shows unread (link table node 9).
+ *
+ * A write is never replayed over the other transport (fallback matrix §3.5): a
+ * permission failure is recorded on the account as `permission_error`, which is
+ * the status the UI already explains with a re-authorise prompt.
+ */
+async function markRemoteRead(
+  env: Env,
+  transport: MicrosoftMailTransport,
+  row: MicrosoftMessageRow,
+): Promise<boolean> {
+  try {
+    await transport.markSeen(row.folder_path, row.remote_id, row.uid_validity)
+  } catch (error) {
+    const failure = microsoftTransportFailure(error, transport.transport, 'write')
+    console.error('Unable to mark Microsoft message as seen', {
+      accountId: row.account_id,
+      messageId: row.id,
+      transport: transport.transport,
+      code: failure.code,
+    })
+    if (failure.category === 'permission') {
+      await recordMicrosoftAccountFailure(env, row.account_id, failure)
+      row.account_status = 'permission_error'
+    }
+    return false
+  }
+  try {
+    await env.DB.prepare(
+      // `id` is the primary key; the extra predicates only guard against a stale row.
+      `UPDATE microsoft_imap_messages SET is_read = 1, updated_at = ?
+        WHERE id = ? AND account_id = ? AND folder_path = ?`,
+    ).bind(Math.floor(Date.now() / 1000), row.id, row.account_id, row.folder_path).run()
+  } catch (error) {
+    console.error('Unable to persist Microsoft read state', {
+      accountId: row.account_id,
+      messageId: row.id,
+      type: error instanceof Error ? error.name : typeof error,
+    })
+  }
+  return true
+}
+
 async function remoteMessage(
   env: Env,
   user: SessionUser,
@@ -234,69 +319,22 @@ async function remoteMessage(
   markRead = false,
 ): Promise<{
   row: MicrosoftMessageRow
-  parsed: Awaited<ReturnType<MicrosoftImapClient['getMessage']>>
+  parsed: MicrosoftMessageContent
   markedRead: boolean
 }> {
   const row = await ownedMessage(env, user.id, accountId, messageId)
   const account = await new MicrosoftAccountStore(env, user.id).get(accountId)
-  const client = await openMicrosoftClient(env, account)
+  const { transport } = await resolveMicrosoftTransport(env, account)
   try {
-    const mailbox = await client.examineFolder(row.folder_path)
-    if (mailbox.uidValidity !== row.uid_validity) {
-      throw new MicrosoftStoreError(
-        404,
-        'message_identity_changed',
-        'Microsoft 文件夹 UIDVALIDITY 已变化，请刷新邮件列表。',
-      )
-    }
-    // This path is still IMAP-shaped; a Graph row cannot be addressed by UID at
-    // all, so fail with a clear code rather than sending NaN or 0 to the server.
-    // (The transport branch that routes Graph rows elsewhere lands with the
-    // cascade — see the decision card's link table.)
-    const uid = parseMicrosoftImapUid(row.remote_id)
-    if (uid === null) {
-      throw new MicrosoftStoreError(
-        409,
-        'message_transport_unsupported',
-        'Microsoft 邮件来自 Graph 通道，暂不支持在此读取。',
-      )
-    }
-    const parsed = await client.getMessage(row.folder_path, uid)
-    let markedRead = false
-    if (markRead && !row.is_read) {
-      try {
-        await client.markSeen(row.folder_path, uid, row.uid_validity ?? 0)
-        markedRead = true
-        try {
-          await env.DB.prepare(
-            // `id` is the primary key — the old uid_validity/imap_uid predicates were
-            // redundant, and are transport-specific besides.
-            `UPDATE microsoft_imap_messages SET is_read = 1, updated_at = ?
-              WHERE id = ? AND account_id = ? AND folder_path = ?`,
-          ).bind(
-            Math.floor(Date.now() / 1000),
-            row.id,
-            accountId,
-            row.folder_path,
-          ).run()
-        } catch (error) {
-          console.error('Unable to persist Microsoft read state', {
-            accountId,
-            messageId,
-            type: error instanceof Error ? error.name : typeof error,
-          })
-        }
-      } catch (error) {
-        console.error('Unable to mark Microsoft message as seen', {
-          accountId,
-          messageId,
-          type: error instanceof Error ? error.name : typeof error,
-        })
-      }
-    }
+    assertAddressable(row, transport)
+    await assertIdentityUnchanged(row, transport)
+    const parsed = await transport.getMessage(row.folder_path, row.remote_id)
+    const markedRead = markRead && !row.is_read
+      ? await markRemoteRead(env, transport, row)
+      : false
     return { row, parsed, markedRead }
   } finally {
-    await client.close()
+    await transport.close()
   }
 }
 
