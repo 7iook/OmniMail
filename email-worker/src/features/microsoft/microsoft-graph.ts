@@ -313,7 +313,11 @@ export class MicrosoftGraphClient {
 
   constructor({
     accessToken,
-    fetcher = fetch,
+    // Wrapped, not stored bare: `this.fetcher(...)` would invoke the platform
+    // fetch with `this` = the client, which workerd rejects as an illegal
+    // invocation. Unit tests always inject a fetcher, so only real deployments
+    // hit this default.
+    fetcher = (input, init) => fetch(input, init),
     sleeper = (ms: number) => new Promise((resolve) => { setTimeout(resolve, ms) }),
   }: {
     accessToken: string

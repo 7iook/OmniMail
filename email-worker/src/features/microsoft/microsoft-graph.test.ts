@@ -290,6 +290,26 @@ describe('Microsoft Graph pagination', () => {
 })
 
 describe('Microsoft Graph endpoints', () => {
+  it('calls the platform fetch without rebinding `this` when no fetcher is injected', async () => {
+    // Regression: storing `fetch` on the instance and calling `this.fetcher()`
+    // made workerd throw "Illegal invocation" on every real request. Every other
+    // test injects a fetcher, so only this one exercises the default path.
+    const seenThis: unknown[] = []
+    const stub = vi.fn(function (this: unknown) {
+      seenThis.push(this)
+      return Promise.resolve(messagePage(['m1']))
+    })
+    vi.stubGlobal('fetch', stub)
+    try {
+      const graph = new MicrosoftGraphClient({ accessToken: 'graph-access-token' })
+      await graph.listMessages('inbox', { pageSize: 1 })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(stub).toHaveBeenCalledTimes(1)
+    expect(seenThis[0] === undefined || seenThis[0] === globalThis).toBe(true)
+  })
+
   it('narrows the message list with $select and orders newest first', async () => {
     const { graph, log } = client([() => messagePage(['m1'])])
 
