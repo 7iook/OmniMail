@@ -84,6 +84,9 @@ export interface MicrosoftAccount extends MicrosoftAccountSecrets {
   updatedAt: number
 }
 
+/** Graph push-subscription health surfaced to the UI (decision card §12.7 Q3). */
+export type MicrosoftPushStatus = 'active' | 'degraded' | 'off'
+
 export interface PublicMicrosoftAccount {
   id: string
   name: string
@@ -106,6 +109,12 @@ export interface PublicMicrosoftAccount {
   lastErrorAt: number | null
   createdAt: number
   hasCredential: true
+  /**
+   * Additive (card §12.7 Q3). Derived in `MicrosoftAccountStore.list()` from
+   * `preferred_transport` / `MICROSOFT_GRAPH_WEBHOOK_BASE_URL` /
+   * `microsoft_graph_subscriptions`; see that function for the exact rule.
+   */
+  pushStatus?: MicrosoftPushStatus
 }
 
 export interface MicrosoftFolderRow {
@@ -284,8 +293,14 @@ export interface MicrosoftGraphSubscriptionRepository {
   /** C-3 transitions. Each returns true only if this caller performed the transition. */
   markQueued(id: string, now: number): Promise<boolean>
   markPending(id: string, now: number): Promise<void>
+  /**
+   * Undoes a failed enqueue. Returns true when a notification raced in and set
+   * pending meanwhile — the row then stays queued and the caller must resend.
+   */
   releaseQueued(id: string, now: number): Promise<boolean>
   markRunning(id: string, now: number): Promise<boolean>
   /** Ends a run: clears pending and returns whether a follow-up refresh must be enqueued. */
   finishRunning(id: string, now: number): Promise<{ requeue: boolean }>
+  /** C-3 retry ownership: running→queued so the platform redelivery can claim it again. */
+  requeueForRetry(id: string, now: number): Promise<boolean>
 }

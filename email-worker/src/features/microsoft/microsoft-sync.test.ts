@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Env, MailQueueJob } from '../../app/types'
 import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import {
@@ -6,15 +6,13 @@ import {
   microsoftCredentialContext,
 } from './microsoft-credentials'
 import { MicrosoftGraphError } from './microsoft-graph'
-import { configureMicrosoftGraphSubscriptionRuntime } from './microsoft-graph-notifications'
-import { consumeMicrosoftFolderRefreshJob, consumeMicrosoftSyncJob, syncMicrosoftAccount } from './microsoft-sync'
+import { consumeMicrosoftSyncJob, syncMicrosoftAccount } from './microsoft-sync'
 import type { MicrosoftMailTransport } from './microsoft-transport'
-import type {
-  MicrosoftGraphSubscription,
-  MicrosoftGraphSubscriptionRepository,
-  MicrosoftMessageMetadata,
-  MicrosoftTransport,
-} from './microsoft-types'
+import type { MicrosoftMessageMetadata, MicrosoftTransport } from './microsoft-types'
+
+// The C-3/C-4 folder-refresh queue consumer (`consumeMicrosoftFolderRefreshJob`)
+// has its own test file, `microsoft-sync-folder-refresh.test.ts` — split out
+// so this file stays under the 600-line gate (`scripts/check-file-lines.mjs`).
 
 const { resolveMicrosoftTransport } = vi.hoisted(() => ({
   resolveMicrosoftTransport: vi.fn(),
@@ -230,6 +228,29 @@ describe('Microsoft account sync through the transport cascade', () => {
     const messageInserts = batches.flat().filter(({ sql }) => sql.includes('INSERT INTO microsoft_imap_messages'))
     expect(messageInserts.map(({ bindings }) => bindings[2])).toEqual(['INBOX'])
   })
+
+  it('never refreshes an IMAP mailbox whose own folder happens to be literally named "Junk Email" (review3 Important #6)', async () => {
+    // The previous test's IMAP fixture only ever lists INBOX, so it could
+    // not have caught a gate that keyed off the folder *path* instead of
+    // the resolved *transport*: a real IMAP server can have a folder that
+    // happens to share Graph's fixed well-known-name literal.
+    const { transport } = fakeTransport('imap', ['7'])
+    transport.listFolders = async () => [
+      { path: 'INBOX', displayName: 'INBOX', flags: [], specialUse: '\\inbox', uidValidity: 42, lastUid: 0 },
+      { path: 'Junk Email', displayName: 'Junk Email', flags: [], specialUse: '\\junk', uidValidity: 42, lastUid: 0 },
+    ]
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'imap' })
+    const { env, batches } = await testEnv()
+
+    await syncMicrosoftAccount(env, 'microsoft-1', NOW)
+
+    const messageInserts = batches.flat().filter(({ sql }) => sql.includes('INSERT INTO microsoft_imap_messages'))
+    expect(messageInserts.map(({ bindings }) => bindings[2])).toEqual(['INBOX'])
+    const folderInserts = batches.flat().filter(({ sql }) => sql.includes('INSERT INTO microsoft_imap_folders'))
+    // The folder row itself is still saved (it really exists on the
+    // mailbox) — only the *refresh* (message sync) into it must be skipped.
+    expect(folderInserts.some(({ bindings }) => bindings[1] === 'Junk Email')).toBe(true)
+  })
 })
 
 describe('Microsoft sync queue retries', () => {
@@ -271,184 +292,6 @@ describe('Microsoft sync queue retries', () => {
     const { env } = await testEnv()
     const { message, retry, ack } = queueMessage(1)
     await consumeMicrosoftSyncJob(message, env)
-    expect(retry).not.toHaveBeenCalled()
-    expect(ack).toHaveBeenCalled()
-  })
-})
-
-describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
-  beforeEach(() => {
-    resolveMicrosoftTransport.mockReset()
-    configureMicrosoftGraphSubscriptionRuntime(null)
-  })
-  afterEach(() => {
-    configureMicrosoftGraphSubscriptionRuntime(null)
-  })
-
-  function folderRefreshMessage(attempts = 1) {
-    const retry = vi.fn()
-    const ack = vi.fn()
-    const message = {
-      body: { kind: 'microsoft-folder-refresh', accountId: 'microsoft-1', folderPath: 'Junk Email', reason: 'notification' },
-      attempts,
-      retry,
-      ack,
-    } as unknown as Message<MailQueueJob>
-    return { message, retry, ack }
-  }
-
-  function trackedTransport(kind: MicrosoftTransport) {
-    const folderState = vi.fn(async () => ({ uidValidity: kind === 'imap' ? 42 : null, exists: 0 }))
-    const listRecentMetadata = vi.fn(async () => [] as MicrosoftMessageMetadata[])
-    const listRemoteIds = vi.fn(async () => [] as string[])
-    const close = vi.fn(async () => undefined)
-    const transport: MicrosoftMailTransport = {
-      transport: kind,
-      open: async () => undefined,
-      close,
-      listFolders: async () => [],
-      folderState,
-      listRemoteIds,
-      listRecentMetadata,
-      getMessage: async () => { throw new Error('not used') },
-      markSeen: async () => undefined,
-    }
-    return { transport, folderState, listRecentMetadata, listRemoteIds, close }
-  }
-
-  function subscriptionFixture(overrides: Partial<MicrosoftGraphSubscription> = {}): MicrosoftGraphSubscription {
-    return {
-      id: 'sub-row-1', accountId: 'microsoft-1', folderPath: 'Junk Email', subscriptionId: 'sub-1',
-      clientStateHash: '', expiresAt: 0, status: 'active', failureCount: 0, nextAttemptAt: 0,
-      refreshState: 'idle', refreshPending: false, refreshStateAt: 0, lastNotifiedAt: null,
-      lastErrorCode: '', createdAt: 0, updatedAt: 0,
-      ...overrides,
-    }
-  }
-
-  function fakeRuntimeWithRow(row: MicrosoftGraphSubscription) {
-    let current = row
-    const repository: MicrosoftGraphSubscriptionRepository = {
-      async bySubscriptionId() { throw new Error('not used') },
-      async forAccount(accountId) { return current.accountId === accountId ? [current] : [] },
-      async insert() { throw new Error('not used') },
-      async remove() { throw new Error('not used') },
-      async update() { throw new Error('not used') },
-      async due() { return [] },
-      async markQueued() { throw new Error('not used') },
-      async markPending() { throw new Error('not used') },
-      async releaseQueued() { throw new Error('not used') },
-      async markRunning(id, now) {
-        if (current.id !== id) return false
-        current = { ...current, refreshState: 'running', refreshStateAt: now }
-        return true
-      },
-      async finishRunning(id, now) {
-        if (current.id !== id) return { requeue: false }
-        const requeue = current.refreshPending
-        current = { ...current, refreshState: requeue ? 'queued' : 'idle', refreshPending: false, refreshStateAt: now }
-        return { requeue }
-      },
-    }
-    configureMicrosoftGraphSubscriptionRuntime({
-      repositoryFor: () => repository,
-      clientFor: () => { throw new Error('not used') },
-    })
-    return { current: () => current }
-  }
-
-  it('acks and makes zero Graph calls when the account has fallen back to IMAP (C-4)', async () => {
-    const { transport, folderState, close } = trackedTransport('imap')
-    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'imap' })
-    const { env } = await testEnv()
-    const { message, retry, ack } = folderRefreshMessage()
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(ack).toHaveBeenCalled()
-    expect(retry).not.toHaveBeenCalled()
-    expect(folderState).not.toHaveBeenCalled()
-    expect(close).toHaveBeenCalled()
-  })
-
-  it('refreshes exactly the named folder for a Graph transport and acks', async () => {
-    const { transport, folderState } = trackedTransport('graph')
-    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
-    const { env, batches } = await testEnv()
-    const { message, ack } = folderRefreshMessage()
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(ack).toHaveBeenCalled()
-    expect(folderState).toHaveBeenCalledWith('Junk Email')
-    const folderUpdate = batches.flat().find(({ sql }) => sql.includes('UPDATE microsoft_imap_folders'))
-    expect(folderUpdate?.bindings.slice(2)).toEqual(['microsoft-1', 'Junk Email'])
-  })
-
-  it('releases the C-3 running state and sends a follow-up job when a notification arrived mid-run', async () => {
-    const { transport } = trackedTransport('graph')
-    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
-    const { current } = fakeRuntimeWithRow(subscriptionFixture({ refreshPending: true }))
-    const { env } = await testEnv()
-    const send = vi.fn(async () => undefined)
-    ;(env as unknown as { MAIL_QUEUE: { send: typeof send } }).MAIL_QUEUE = { send }
-    const { message, ack } = folderRefreshMessage()
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(ack).toHaveBeenCalled()
-    expect(send).toHaveBeenCalledTimes(1)
-    expect(send).toHaveBeenCalledWith({
-      kind: 'microsoft-folder-refresh', accountId: 'microsoft-1', folderPath: 'Junk Email', reason: 'notification',
-    })
-    expect(current().refreshState).toBe('queued')
-  })
-
-  it('does not send a follow-up job when nothing arrived while running', async () => {
-    const { transport } = trackedTransport('graph')
-    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
-    const { current } = fakeRuntimeWithRow(subscriptionFixture())
-    const { env } = await testEnv()
-    const send = vi.fn(async () => undefined)
-    ;(env as unknown as { MAIL_QUEUE: { send: typeof send } }).MAIL_QUEUE = { send }
-    const { message, ack } = folderRefreshMessage()
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(ack).toHaveBeenCalled()
-    expect(send).not.toHaveBeenCalled()
-    expect(current().refreshState).toBe('idle')
-  })
-
-  it('reuses the sync retry shape: Retry-After wins over exponential backoff', async () => {
-    resolveMicrosoftTransport.mockRejectedValue(new MicrosoftGraphError('graph_throttled', 429, true, 600))
-    const { env } = await testEnv()
-    const { message, retry, ack } = folderRefreshMessage(1)
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(retry).toHaveBeenCalledWith({ delaySeconds: 600 })
-    expect(ack).not.toHaveBeenCalled()
-  })
-
-  it('acks instead of retrying a rejected credential, same as the scheduled sync consumer', async () => {
-    resolveMicrosoftTransport.mockRejectedValue(new MicrosoftGraphError('graph_credential_rejected', 401, false))
-    const { env } = await testEnv()
-    const { message, retry, ack } = folderRefreshMessage(1)
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
-    expect(retry).not.toHaveBeenCalled()
-    expect(ack).toHaveBeenCalled()
-  })
-
-  it('exhausts retries after QUEUE_MAX_ATTEMPTS, same as the scheduled sync consumer', async () => {
-    resolveMicrosoftTransport.mockRejectedValue(new MicrosoftGraphError('graph_unavailable', 503, true))
-    const { env } = await testEnv()
-    const { message, retry, ack } = folderRefreshMessage(3)
-
-    await consumeMicrosoftFolderRefreshJob(message, env)
-
     expect(retry).not.toHaveBeenCalled()
     expect(ack).toHaveBeenCalled()
   })

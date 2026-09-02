@@ -21,7 +21,7 @@ function recorder() {
 
 function client(
   responses: Array<() => Response>,
-  { waits = [] as number[] } = {},
+  { waits = [] as number[], clock }: { waits?: number[]; clock?: () => number } = {},
 ) {
   const log = recorder()
   let index = 0
@@ -41,6 +41,7 @@ function client(
       accessToken: 'graph-access-token',
       fetcher,
       sleeper,
+      ...(clock ? { clock } : {}),
     }),
   }
 }
@@ -143,6 +144,40 @@ describe('Microsoft Graph subscription client · create', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  it('clamps an expiresAt beyond the 10,080-minute Graph ceiling instead of sending it verbatim (Minor #4)', async () => {
+    const now = 1_700_000_000
+    const { subscriptions, log } = client([() => subscription()], { clock: () => now })
+    const farBeyondCeiling = now + 30 * 24 * 60 * 60 // 30 days out
+
+    await subscriptions.create({
+      wellKnownFolder: 'inbox',
+      notificationUrl: 'https://x/notifications',
+      lifecycleNotificationUrl: 'https://x/lifecycle',
+      clientState: 'state',
+      expiresAt: farBeyondCeiling,
+    })
+
+    const body = JSON.parse(log.calls[0].init?.body as string)
+    expect(body.expirationDateTime).toBe(new Date((now + 10_080 * 60) * 1_000).toISOString())
+  })
+
+  it('leaves an expiresAt within the ceiling untouched', async () => {
+    const now = 1_700_000_000
+    const withinCeiling = now + 6 * 24 * 60 * 60 // 6 days out
+    const { subscriptions, log } = client([() => subscription()], { clock: () => now })
+
+    await subscriptions.create({
+      wellKnownFolder: 'inbox',
+      notificationUrl: 'https://x/notifications',
+      lifecycleNotificationUrl: 'https://x/lifecycle',
+      clientState: 'state',
+      expiresAt: withinCeiling,
+    })
+
+    const body = JSON.parse(log.calls[0].init?.body as string)
+    expect(body.expirationDateTime).toBe(new Date(withinCeiling * 1_000).toISOString())
+  })
+
   it('waits the Retry-After seconds on a 429 before retrying a create', async () => {
     const { subscriptions, fetcher, sleeper, waits } = client([
       () => throttled('9'),
@@ -175,6 +210,17 @@ describe('Microsoft Graph subscription client · renew', () => {
       expirationDateTime: new Date(1_700_600_000 * 1_000).toISOString(),
     })
     expect(result.expiresAt).toBe(Math.floor(Date.parse('2026-09-16T00:00:00Z') / 1_000))
+  })
+
+  it('also clamps a renew expiresAt beyond the 10,080-minute ceiling (Minor #4)', async () => {
+    const now = 1_700_000_000
+    const { subscriptions, log } = client([() => subscription()], { clock: () => now })
+
+    await subscriptions.renew('sub-1', now + 30 * 24 * 60 * 60)
+
+    expect(JSON.parse(log.calls[0].init?.body as string)).toEqual({
+      expirationDateTime: new Date((now + 10_080 * 60) * 1_000).toISOString(),
+    })
   })
 })
 

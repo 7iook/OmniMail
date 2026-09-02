@@ -20,8 +20,23 @@ import {
   type MicrosoftAccount,
   type MicrosoftFolder,
   type MicrosoftGraphSubscription,
+  type MicrosoftGraphSubscriptionRepository,
   type MicrosoftTransport,
 } from './microsoft-types'
+
+/**
+ * `MicrosoftGraphSubscriptionRepository` (frozen in `microsoft-types.ts`) has
+ * no C-3 "retry ownership" transition — see this package's report for the
+ * proposed port diff (`requeueForRetry(): Promise<boolean>`). The concrete
+ * `MicrosoftGraphSubscriptionStore` exposes it as an additive convenience
+ * (like `markRejected`/`markActive`/etc.), so this widens the local type with
+ * that one *optional* method rather than casting: a value satisfying the
+ * frozen interface always satisfies this too, and a fake repository built
+ * directly against the frozen port (as most tests do) simply omits it.
+ */
+type MicrosoftGraphSubscriptionRepositoryWithRetryOwnership = MicrosoftGraphSubscriptionRepository & {
+  requeueForRetry?(id: string, now: number): Promise<boolean>
+}
 
 /** Fixed literal path for Junk Email (card C-4/C-7); see `microsoft-graph-transport.ts`. */
 const JUNK_FOLDER_PATH_UPPER = MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS[1].folderPath.toUpperCase()
@@ -146,10 +161,15 @@ export async function syncMicrosoftAccount(
       transport,
       now,
     )
-    // Junk Email is Graph-only (card C-4): IMAP's Junk folder is whatever the
-    // mailbox calls it locally, never this literal path, so this is a no-op for
-    // IMAP transports without needing a `transport.transport` branch here.
-    const junk = folders.find(({ path }) => path.toUpperCase() === JUNK_FOLDER_PATH_UPPER)
+    // Junk Email is Graph-only (card C-4). Gate explicitly on the resolved
+    // transport rather than only on the folder path: an IMAP mailbox can have
+    // a real folder that happens to be named the same literal "Junk Email"
+    // (review3 Important #6) — refreshing it through that path would be
+    // addressing an IMAP folder using Graph's fixed well-known-name path,
+    // which is only meaningful for a Graph transport.
+    const junk = transport.transport === 'graph'
+      ? folders.find(({ path }) => path.toUpperCase() === JUNK_FOLDER_PATH_UPPER)
+      : undefined
     if (junk) {
       await refreshMicrosoftFolderWithTransport(
         env,
@@ -224,14 +244,26 @@ export async function consumeMicrosoftFolderRefreshJob(
   const { accountId, folderPath } = message.body
   const now = Math.floor(Date.now() / 1000)
   const runtime = microsoftGraphSubscriptionRuntime()
-  const repository = runtime?.repositoryFor(env) ?? null
+  const repository: MicrosoftGraphSubscriptionRepositoryWithRetryOwnership | null = runtime?.repositoryFor(env) ?? null
   let subscription: MicrosoftGraphSubscription | null = null
   if (repository) {
     subscription = (await repository.forAccount(accountId)).find((row) => row.folderPath === folderPath) ?? null
-    if (subscription) await repository.markRunning(subscription.id, now)
+    if (subscription) {
+      // review3 Important #4 / Minor #1: this delivery must honour the C-3
+      // queued->running CAS result. A delivery that cannot claim it is a
+      // duplicate (another delivery already owns the refresh) or a stale
+      // reclaim window that has not opened yet — either way it does zero
+      // work and is dropped, never racing the real owner.
+      const claimed = await repository.markRunning(subscription.id, now)
+      if (!claimed) {
+        message.ack()
+        return
+      }
+    }
   }
   let account: MicrosoftAccount | null = null
   let transport: MicrosoftMailTransport | undefined
+  let retrying = false
   try {
     account = await microsoftAccountForSync(env, accountId)
     if (!account) {
@@ -258,16 +290,37 @@ export async function consumeMicrosoftFolderRefreshJob(
     await recordMicrosoftAccountFailure(env, accountId, failure, now)
     if ((failure.category === 'transient' || failure.category === 'throttled')
       && message.attempts < QUEUE_MAX_ATTEMPTS) {
+      retrying = true
       const backoff = QUEUE_BASE_DELAY_SECONDS * 2 ** Math.max(0, message.attempts - 1)
+      if (repository && subscription) {
+        // Model platform-retry ownership explicitly (review3 Important #4):
+        // hand this row back to `queued` now so the redelivery's own
+        // queued->running CAS can claim it. `finishRunning` must NOT run for
+        // this path — it would resolve straight to `idle` (nothing pending)
+        // and the redelivery would then find neither `queued` nor a stale
+        // window, dropping the only in-flight attempt as an unclaimable
+        // duplicate.
+        if (repository.requeueForRetry) {
+          await repository.requeueForRetry(subscription.id, now)
+        } else {
+          // Fake repository built directly against the frozen port: no
+          // precise retry-ownership primitive available. Falling through to
+          // `finishRunning` at least never leaves the row stuck forever.
+          await repository.finishRunning(subscription.id, now)
+        }
+      }
       message.retry({ delaySeconds: Math.max(backoff, failure.retryAfterSeconds ?? 0) })
     } else {
       message.ack()
     }
   } finally {
     await transport?.close()
-    // Always release the C-3 state, success or failure, so a stuck `running`
-    // row does not block every future notification for this (account, folder).
-    if (repository && subscription) {
+    // Release the C-3 state on every path that gives up (success or final
+    // failure) so a stuck `running` row does not block every future
+    // notification for this (account, folder) — but never after a retry was
+    // just scheduled above (review3 Important #4): that already transitioned
+    // the row for the redelivery to reclaim.
+    if (repository && subscription && !retrying) {
       const { requeue } = await repository.finishRunning(subscription.id, now)
       if (requeue) {
         try {
@@ -278,6 +331,25 @@ export async function consumeMicrosoftFolderRefreshJob(
             folderPath,
             type: sendError instanceof Error ? sendError.name : typeof sendError,
           })
+          // review3 Important #5: a message that never made it onto the
+          // queue must not leave the row claiming one is in flight forever
+          // (only self-healing after the 10-minute stale window otherwise).
+          // #8: releaseQueued preserves any pending flag a fresher
+          // notification set in the meantime rather than erasing it, and
+          // reports that back so this same caller retries the enqueue once
+          // instead of relying on a notification that already happened.
+          const mustResend = await repository.releaseQueued(subscription.id, now)
+          if (mustResend) {
+            try {
+              await env.MAIL_QUEUE.send({ kind: 'microsoft-folder-refresh', accountId, folderPath, reason: 'notification' })
+            } catch (retryError) {
+              console.error('Unable to enqueue the follow-up Microsoft folder refresh on retry', {
+                accountId,
+                folderPath,
+                type: retryError instanceof Error ? retryError.name : typeof retryError,
+              })
+            }
+          }
         }
       }
     }

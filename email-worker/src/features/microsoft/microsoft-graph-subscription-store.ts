@@ -9,7 +9,8 @@
  * `MicrosoftGraphSubscriptionRepository` (frozen in `microsoft-types.ts`,
  * P2-W1) is implemented exactly. The class also exposes a few extra methods
  * beyond that interface — `markRejected` / `markTransientFailure` /
- * `markActive` / `markStale` (C-5) and `expiringSoon` — which are additive
+ * `markActive` / `markStale` (C-5), `expiringSoon`, and `requeueForRetry`
+ * (C-3 retry ownership, review3 Important #4) — which are additive
  * conveniences, not modifications to the frozen port; see this package's
  * report for why they were not folded into `update()`.
  */
@@ -215,14 +216,32 @@ export class MicrosoftGraphSubscriptionStore implements MicrosoftGraphSubscripti
     ).bind(now, id).run()
   }
 
-  /** Send failed after a successful `markQueued`: release the slot so the next notification re-enqueues. */
+  /**
+   * Send failed after a successful `markQueued`/`finishRunning` requeue:
+   * release the slot so the row stops claiming a job is in flight when none
+   * exists.
+   *
+   * Fix #8 (review3 Important #8): a second notification racing in between
+   * sets `refresh_pending` unconditionally (`markPending`); blindly resetting
+   * it to idle here would silently erase that wakeup with nothing left to
+   * ever act on it. So the pending flag is consumed atomically instead of
+   * cleared blind: if nothing was pending, the row goes to `idle` as before
+   * (return `false` — nothing further to do). If something *was* pending,
+   * the row is left `queued` (there is, after all, a reason to still want a
+   * job) and this returns `true` so the caller knows no queue message
+   * actually exists for that `queued` row and must send one itself.
+   */
   async releaseQueued(id: string, now: number): Promise<boolean> {
-    const result = await this.env.DB.prepare(
+    const row = await this.env.DB.prepare(
       `UPDATE microsoft_graph_subscriptions
-          SET refresh_state = 'idle', refresh_state_at = ?, refresh_pending = 0, updated_at = ?
-        WHERE id = ? AND refresh_state = 'queued'`,
-    ).bind(now, now, id).run()
-    return Boolean(result.meta.changes)
+          SET refresh_state = CASE WHEN refresh_pending = 1 THEN 'queued' ELSE 'idle' END,
+              refresh_pending = 0,
+              refresh_state_at = ?,
+              updated_at = ?
+        WHERE id = ? AND refresh_state = 'queued'
+        RETURNING refresh_state`,
+    ).bind(now, now, id).first<{ refresh_state: MicrosoftGraphRefreshState }>()
+    return row?.refresh_state === 'queued'
   }
 
   async markRunning(id: string, now: number): Promise<boolean> {
@@ -231,6 +250,33 @@ export class MicrosoftGraphSubscriptionStore implements MicrosoftGraphSubscripti
           SET refresh_state = 'running', refresh_state_at = ?, updated_at = ?
         WHERE id = ? AND (refresh_state = 'queued' OR refresh_state_at < ?)`,
     ).bind(now, now, id, now - STALE_SECONDS).run()
+    return Boolean(result.meta.changes)
+  }
+
+  /**
+   * C-3 retry ownership (review3 Important #4): scheduling a platform
+   * `message.retry()` for this row's in-flight refresh must hand the row
+   * back to `queued` explicitly, rather than falling through to
+   * `finishRunning`'s `running->idle` transition — `idle` would leave
+   * nothing for the redelivery's own `queued->running` CAS to claim, so the
+   * retry would be silently dropped as an unclaimable duplicate.
+   * `refresh_pending` is left untouched: a notification that arrived mid-run
+   * is a separate, later concern that the delivery which eventually calls
+   * `finishRunning` (this one, on redelivery, or a fresher claim after the
+   * stale window) still resolves correctly.
+   *
+   * Deliberately NOT part of `MicrosoftGraphSubscriptionRepository` (frozen
+   * in `microsoft-types.ts`) — see this package's report for the proposed
+   * port diff. `microsoft-sync.ts` calls it only when present so a fake
+   * repository built directly against the frozen interface still falls back
+   * to a safe (if less precise) behavior.
+   */
+  async requeueForRetry(id: string, now: number): Promise<boolean> {
+    const result = await this.env.DB.prepare(
+      `UPDATE microsoft_graph_subscriptions
+          SET refresh_state = 'queued', refresh_state_at = ?, updated_at = ?
+        WHERE id = ? AND refresh_state = 'running'`,
+    ).bind(now, now, id).run()
     return Boolean(result.meta.changes)
   }
 

@@ -41,6 +41,54 @@ function transientBackoff(failureCount: number): number {
 }
 
 /**
+ * Marks a `rejected` scheduling row created at *create* time (review3
+ * Important #7, card C-5) — one for which no remote subscription was ever
+ * obtained, as opposed to a row that once had a real one and lost it on
+ * renewal. Never a shape Microsoft issues (its subscription ids are GUIDs
+ * with no colon), so this sentinel can never collide with — or be mistaken
+ * for — a real remote id by list-based reconciliation or an incoming
+ * notification's lookup. The random suffix keeps it satisfying the column's
+ * `UNIQUE` constraint without a schema change (see this package's report for
+ * why a migration was not used instead).
+ */
+const PENDING_SUBSCRIPTION_PREFIX = 'pending:'
+
+function isPendingSentinel(subscriptionId: string): boolean {
+  return subscriptionId.startsWith(PENDING_SUBSCRIPTION_PREFIX)
+}
+
+/**
+ * Suspected/operational risk (review3): this cron path makes real outbound
+ * HTTP calls (token + list/create/renew/remove), unlike every other
+ * `cleanup()` step. One budget, shared across all three passes below, caps
+ * both wall-clock time and call volume so a slow tenant or a large batch
+ * cannot starve the rest of `cleanup()`. `nowMs` is injectable so a test can
+ * simulate elapsed time without a real 20-second sleep.
+ */
+export const RECONCILE_DEADLINE_MS = 20_000
+export const RECONCILE_MAX_OUTBOUND_CALLS = 60
+
+interface ReconcileBudget {
+  /** True while another row/account's worth of outbound work may still start. */
+  hasCapacity(): boolean
+  /** Call once per row/account whose processing was started. */
+  spend(): void
+}
+
+function createReconcileBudget(
+  nowMs: () => number,
+  deadlineMs = RECONCILE_DEADLINE_MS,
+  maxCalls = RECONCILE_MAX_OUTBOUND_CALLS,
+): ReconcileBudget {
+  const deadline = nowMs() + deadlineMs
+  let remaining = maxCalls
+  return {
+    hasCapacity: () => remaining > 0 && nowMs() < deadline,
+    spend: () => { remaining -= 1 },
+  }
+}
+
+/**
  * Whether a subscription-API failure is a permanent refusal (403 / other 4xx
  * that isn't 429) rather than a transient one (5xx / timeout / 429).
  *
@@ -182,9 +230,12 @@ async function renewOrRebuildDue(
   runtime: MicrosoftGraphSubscriptionRuntime,
   baseUrl: string,
   now: number,
+  budget: ReconcileBudget,
 ): Promise<void> {
   const due = await repository.due(now, RECONCILE_BATCH)
   for (const row of due) {
+    if (!budget.hasCapacity()) break
+    budget.spend()
     try {
       const client = await graphClientForAccount(env, runtime, row.accountId)
       if (!client) {
@@ -193,7 +244,10 @@ async function renewOrRebuildDue(
         await repository.remove(row.id)
         continue
       }
-      if (row.status === 'stale') {
+      // A `stale` row (lifecycle event) and a create-time `pending:` sentinel
+      // (review3 Important #7) both need a fresh `create()`, not a `renew()`
+      // against an id that either no longer exists or never did.
+      if (row.status === 'stale' || isPendingSentinel(row.subscriptionId)) {
         await rebuildSubscription(repository, client, baseUrl, row, now)
       } else {
         await renewOne(repository, client, row, now)
@@ -236,6 +290,11 @@ async function reconcileOrphans(
   const local = await repository.forAccount(accountId)
   const remoteIds = new Set(remote.map((item) => item.subscriptionId))
   for (const row of local) {
+    // A `pending:` sentinel (review3 Important #7, C-5) never had a remote
+    // resource in the first place — it would never appear in `remote` no
+    // matter how many passes go by, so this branch would otherwise delete
+    // it (and thus its create-time 24h backoff) on every single pass.
+    if (isPendingSentinel(row.subscriptionId)) continue
     if (!remoteIds.has(row.subscriptionId)) {
       // Local row, no remote resource: delete it so the caller's subsequent
       // "create what's missing" step recreates it in this same pass (C-2).
@@ -294,11 +353,41 @@ async function createOne(
       lastErrorCode: '',
     }, now)
   } catch (error) {
-    // Creation failed, or its result is unknown (a network blip after Microsoft
-    // may already have created it remotely) — card C-2's accepted edge case: no
-    // local row is written here, so the NEXT pass's orphan check (`client.list()`
-    // in {@link reconcileOrphans}) is what cleans up a remote-only leftover, not
-    // a retry counter on a row that was never inserted.
+    if (isPermanentSubscriptionRejection(error)) {
+      // review3 Important #7 (C-5): a confirmed 403/4xx-non-429 at create
+      // time is Microsoft telling us "no", not "maybe" like the ambiguous
+      // case below — retrying every five minutes would just hammer the same
+      // wall for 24h. Persist a `rejected` scheduling row now so the C-5 due
+      // scan (`renewOrRebuildDue`, which routes a `pending:` sentinel to
+      // `rebuildSubscription` instead of `renewOne`) is what retries it,
+      // once, no sooner than `REJECTED_RETRY_SECONDS` from now. This also
+      // makes the account's "present folders" set (in the caller) count this
+      // folder as accounted for, so this same pass does not immediately
+      // retry it again.
+      await repository.insert({
+        id: `microsoft_graph_sub_${crypto.randomUUID().replaceAll('-', '')}`,
+        accountId,
+        folderPath,
+        subscriptionId: `${PENDING_SUBSCRIPTION_PREFIX}${crypto.randomUUID()}`,
+        clientStateHash: await hashMicrosoftGraphClientState(clientState),
+        expiresAt: now,
+        status: 'rejected',
+        failureCount: 1,
+        nextAttemptAt: now + REJECTED_RETRY_SECONDS,
+        refreshState: 'idle',
+        refreshPending: false,
+        refreshStateAt: now,
+        lastNotifiedAt: null,
+        lastErrorCode: subscriptionErrorCode(error),
+      }, now)
+      return
+    }
+    // Creation failed ambiguously (network blip, 5xx, timeout — its result is
+    // genuinely unknown, Microsoft may already have created it remotely) —
+    // card C-2's accepted edge case: no local row is written here, so the
+    // NEXT pass's orphan check (`client.list()` in {@link reconcileOrphans})
+    // is what cleans up a remote-only leftover, not a retry counter on a row
+    // that was never inserted.
     console.error('Unable to create a Microsoft Graph subscription', {
       accountId,
       folderPath,
@@ -307,23 +396,37 @@ async function createOne(
   }
 }
 
-/** Graph-preferred accounts with fewer than the two expected subscription rows. */
-async function createMissingSubscriptions(
+/**
+ * C-2 two-way reconciliation, then C-5 create-what's-missing, for a bounded
+ * set of Graph-preferred accounts.
+ *
+ * review3 Important #3: this used to select only accounts with fewer than
+ * the two expected rows, so `reconcileOrphans` (this function's own remote
+ * `list()` call) never ran at all for an account that already had two local
+ * rows — even if those two rows were themselves stale/orphaned. The account
+ * selection below is independent of local row count; `reconcileOrphans` now
+ * runs once per selected account regardless, and only the subsequent
+ * "create what's missing" step is conditioned on what that reconciliation
+ * left behind.
+ */
+async function reconcileAndCreateSubscriptions(
   env: Env,
   repository: MicrosoftGraphSubscriptionRepository,
   runtime: MicrosoftGraphSubscriptionRuntime,
   baseUrl: string,
   now: number,
+  budget: ReconcileBudget,
 ): Promise<void> {
   const { results } = await env.DB.prepare(
     `SELECT a.id FROM microsoft_imap_accounts a
       WHERE a.preferred_transport = 'graph'
         AND a.status NOT IN ('credential_error', 'permission_error')
-        AND (SELECT COUNT(*) FROM microsoft_graph_subscriptions s WHERE s.account_id = a.id) < 2
       ORDER BY a.id
       LIMIT ?`,
   ).bind(RECONCILE_BATCH).all<{ id: string }>()
   for (const { id: accountId } of results) {
+    if (!budget.hasCapacity()) break
+    budget.spend()
     try {
       const client = await graphClientForAccount(env, runtime, accountId)
       if (!client) continue
@@ -334,7 +437,7 @@ async function createMissingSubscriptions(
         await createOne(repository, client, baseUrl, accountId, spec.folderPath, now)
       }
     } catch (error) {
-      console.error('Unable to create missing Microsoft Graph subscriptions for one account', {
+      console.error('Unable to reconcile/create Microsoft Graph subscriptions for one account', {
         accountId,
         type: error instanceof Error ? error.name : typeof error,
       })
@@ -354,6 +457,7 @@ async function removeForNonGraphAccounts(
   env: Env,
   repository: MicrosoftGraphSubscriptionRepository,
   runtime: MicrosoftGraphSubscriptionRuntime,
+  budget: ReconcileBudget,
 ): Promise<void> {
   const { results } = await env.DB.prepare(
     `SELECT DISTINCT a.id FROM microsoft_imap_accounts a
@@ -363,29 +467,43 @@ async function removeForNonGraphAccounts(
       LIMIT ?`,
   ).bind(RECONCILE_BATCH).all<{ id: string }>()
   for (const { id: accountId } of results) {
-    const rows = await repository.forAccount(accountId)
-    let client: MicrosoftGraphSubscriptionClient | null = null
+    if (!budget.hasCapacity()) break
+    budget.spend()
     try {
-      client = await graphClientForAccount(env, runtime, accountId)
+      const rows = await repository.forAccount(accountId)
+      let client: MicrosoftGraphSubscriptionClient | null = null
+      try {
+        client = await graphClientForAccount(env, runtime, accountId)
+      } catch (error) {
+        console.warn('Unable to obtain a Graph token to remove stale subscriptions remotely', {
+          accountId,
+          type: error instanceof Error ? error.name : typeof error,
+        })
+      }
+      for (const row of rows) {
+        if (client) {
+          try {
+            await client.remove(row.subscriptionId)
+          } catch (error) {
+            console.warn('Unable to remove a Microsoft Graph subscription remotely', {
+              accountId,
+              subscriptionId: row.subscriptionId,
+              type: error instanceof Error ? error.name : typeof error,
+            })
+          }
+        }
+        await repository.remove(row.id)
+      }
     } catch (error) {
-      console.warn('Unable to obtain a Graph token to remove stale subscriptions remotely', {
+      // review3 "Suspected/operational risk": a repository/D1 failure for
+      // one account (e.g. `forAccount`/`remove` itself) must not abort this
+      // phase for the rest — the Graph token/DELETE failures just above were
+      // already isolated, but nothing previously caught a failure from the
+      // repository calls themselves.
+      console.error('Unable to remove Microsoft Graph subscriptions for one non-Graph account', {
         accountId,
         type: error instanceof Error ? error.name : typeof error,
       })
-    }
-    for (const row of rows) {
-      if (client) {
-        try {
-          await client.remove(row.subscriptionId)
-        } catch (error) {
-          console.warn('Unable to remove a Microsoft Graph subscription remotely', {
-            accountId,
-            subscriptionId: row.subscriptionId,
-            type: error instanceof Error ? error.name : typeof error,
-          })
-        }
-      }
-      await repository.remove(row.id)
     }
   }
 }
@@ -395,18 +513,25 @@ async function removeForNonGraphAccounts(
  * `env.MICROSOFT_GRAPH_WEBHOOK_BASE_URL` unset is treated as "push disabled":
  * the caller ({@link reconcileDueMicrosoftGraphSubscriptions}) already logs
  * this once, so this function stays silent and simply does nothing.
+ *
+ * `nowMs` is the wall-clock source for the shared {@link ReconcileBudget}
+ * (review3 "Suspected/operational risk") — separate from `now`, which stays
+ * in epoch seconds for D1 timestamps. A test can inject a fake clock to
+ * prove the deadline actually stops the pass without a real 20-second sleep.
  */
 export async function reconcileMicrosoftGraphSubscriptions(
   env: Env,
   now: number,
   runtime: MicrosoftGraphSubscriptionRuntime,
+  nowMs: () => number = () => Date.now(),
 ): Promise<void> {
   const baseUrl = env.MICROSOFT_GRAPH_WEBHOOK_BASE_URL
   if (!baseUrl) return
   const repository = runtime.repositoryFor(env)
-  await renewOrRebuildDue(env, repository, runtime, baseUrl, now)
-  await createMissingSubscriptions(env, repository, runtime, baseUrl, now)
-  await removeForNonGraphAccounts(env, repository, runtime)
+  const budget = createReconcileBudget(nowMs)
+  await renewOrRebuildDue(env, repository, runtime, baseUrl, now, budget)
+  await reconcileAndCreateSubscriptions(env, repository, runtime, baseUrl, now, budget)
+  await removeForNonGraphAccounts(env, repository, runtime, budget)
 }
 
 let loggedDisabledOnce = false

@@ -248,13 +248,61 @@ describe('Microsoft Graph subscription repository — C-3 coalescing state machi
     expect(updated?.refreshState).toBe('running')
   })
 
-  it('releaseQueued sends the row back to idle when the enqueue itself failed', async () => {
+  it('releaseQueued sends the row back to idle when the enqueue failed and nothing is pending', async () => {
     const { store } = harness()
     await store.insert(row({ refreshState: 'queued' }), T0)
-    expect(await store.releaseQueued('sub_row_1', T0)).toBe(true)
+    expect(await store.releaseQueued('sub_row_1', T0)).toBe(false)
     expect((await store.bySubscriptionId('remote-sub-1'))?.refreshState).toBe('idle')
     // Not queued any more: a second release is a no-op, not a double-release.
     expect(await store.releaseQueued('sub_row_1', T0)).toBe(false)
+  })
+
+  it('releaseQueued preserves a concurrently-set pending flag instead of erasing it (fix #8)', async () => {
+    const { store } = harness()
+    await store.insert(row({ refreshState: 'queued' }), T0)
+    // A second notification races in while the first caller's send is still
+    // failing: it sees `queued` and only flags pending, per C-3.
+    await store.markPending('sub_row_1', T0 + 1)
+
+    const mustResend = await store.releaseQueued('sub_row_1', T0 + 2)
+
+    expect(mustResend).toBe(true)
+    const row1 = await store.bySubscriptionId('remote-sub-1')
+    // Still `queued`, not `idle`: erasing it here would leave the pending
+    // notification's wakeup with nothing to ever act on it.
+    expect(row1?.refreshState).toBe('queued')
+    expect(row1?.refreshPending).toBe(false)
+  })
+
+  it('requeueForRetry hands a running row back to queued for the redelivery to reclaim (fix #4)', async () => {
+    const { store } = harness()
+    await store.insert(row({ refreshState: 'running' }), T0)
+
+    expect(await store.requeueForRetry('sub_row_1', T0 + 1)).toBe(true)
+    expect((await store.bySubscriptionId('remote-sub-1'))?.refreshState).toBe('queued')
+
+    // The redelivery can now win the queued->running CAS exactly like a
+    // fresh claim would.
+    expect(await store.markRunning('sub_row_1', T0 + 2)).toBe(true)
+  })
+
+  it('requeueForRetry preserves a pending flag set mid-run, unlike finishRunning', async () => {
+    const { store } = harness()
+    await store.insert(row({ refreshState: 'running' }), T0)
+    await store.markPending('sub_row_1', T0 + 1)
+
+    await store.requeueForRetry('sub_row_1', T0 + 2)
+
+    const updated = await store.bySubscriptionId('remote-sub-1')
+    expect(updated?.refreshState).toBe('queued')
+    expect(updated?.refreshPending).toBe(true)
+  })
+
+  it('requeueForRetry is a no-op when the row is not running', async () => {
+    const { store } = harness()
+    await store.insert(row({ refreshState: 'idle' }), T0)
+    expect(await store.requeueForRetry('sub_row_1', T0)).toBe(false)
+    expect((await store.bySubscriptionId('remote-sub-1'))?.refreshState).toBe('idle')
   })
 
   it('queued → running CAS', async () => {

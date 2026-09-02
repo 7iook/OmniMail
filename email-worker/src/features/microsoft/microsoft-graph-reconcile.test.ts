@@ -299,6 +299,105 @@ describe('reconcileMicrosoftGraphSubscriptions (C-2, C-5)', () => {
     expect(rows()).toHaveLength(0)
   })
 
+  it('C-2 (review3 Important #3): an account with exactly two local rows and an empty remote list still gets both dropped and recreated', async () => {
+    // Before the fix, an account was only selected for reconciliation when
+    // it had fewer than two local rows, so `reconcileOrphans` (and its
+    // `client.list()` call) never ran here at all — an account that already
+    // "looked complete" locally, but whose remote subscriptions had both
+    // vanished, was invisible to the two-way reconciliation forever.
+    const rowA = subscriptionRow({ id: 'row-a', folderPath: 'INBOX', subscriptionId: 'sub-a', nextAttemptAt: NOW + 999_999 })
+    const rowB = subscriptionRow({ id: 'row-b', folderPath: 'Junk Email', subscriptionId: 'sub-b', nextAttemptAt: NOW + 999_999 })
+    const { repository, rows } = fakeRepository([rowA, rowB])
+    const client = fakeClient({ list: vi.fn(async () => []) })
+    const env = fakeEnv({ missingSubscriptionAccountIds: ['acct-1'] })
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    expect(client.list).toHaveBeenCalledTimes(1)
+    expect(rows().some((row) => row.subscriptionId === 'sub-a' || row.subscriptionId === 'sub-b')).toBe(false)
+    expect(client.create).toHaveBeenCalledTimes(2)
+    expect(rows().map((row) => row.folderPath).sort()).toEqual(['INBOX', 'Junk Email'])
+    expect(rows().every((row) => row.status === 'active')).toBe(true)
+  })
+
+  it('a create-time permanent rejection (403) persists a rejected row and is not retried within 24h (review3 Important #7)', async () => {
+    const { repository, rows } = fakeRepository([])
+    const client = fakeClient({ create: vi.fn(async () => { throw { status: 403, code: 'graph_subscription_forbidden' } }) })
+    const env = fakeEnv({ missingSubscriptionAccountIds: ['acct-1'] })
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    expect(client.create).toHaveBeenCalledTimes(2)
+    const created = rows()
+    expect(created).toHaveLength(2)
+    for (const row of created) {
+      expect(row).toMatchObject({ status: 'rejected', failureCount: 1, lastErrorCode: 'graph_subscription_forbidden' })
+      expect(row.nextAttemptAt).toBe(NOW + 24 * 60 * 60)
+      // No real remote identity — a sentinel, not a Microsoft-issued GUID.
+      expect(row.subscriptionId.startsWith('pending:')).toBe(true)
+    }
+
+    // Next pass, still within 24h: no second create() attempt for either
+    // folder (the sentinel rows count as "present"), and reconcileOrphans's
+    // list-based orphan check must not delete them either.
+    client.create.mockClear()
+    await reconcileMicrosoftGraphSubscriptions(env, NOW + 60, runtimeFor(repository, client))
+    expect(client.create).not.toHaveBeenCalled()
+    expect(rows()).toHaveLength(2)
+
+    // 24h later, the due scan retries via create (not renew — there is no
+    // real id to renew), and this time it succeeds.
+    const succeeding = fakeClient()
+    await reconcileMicrosoftGraphSubscriptions(env, NOW + 24 * 60 * 60, runtimeFor(repository, succeeding))
+    expect(succeeding.renew).not.toHaveBeenCalled()
+    expect(succeeding.create).toHaveBeenCalled()
+    expect(rows().every((row) => row.status === 'active' && !row.subscriptionId.startsWith('pending:'))).toBe(true)
+  })
+
+  it('a global budget stops the pass early against a pathologically slow client (Suspected/operational risk)', async () => {
+    const many = Array.from({ length: 10 }, (_, index) => subscriptionRow({
+      id: `row-${index}`, subscriptionId: `sub-${index}`, nextAttemptAt: NOW - index,
+    }))
+    const { repository } = fakeRepository(many)
+    // Each `renew()` call "takes" 6 real seconds of wall clock, per the
+    // injected fake clock below — comfortably slow enough that the 20s
+    // budget deadline trips well before all 10 due rows are processed.
+    let elapsedMs = 0
+    const client = fakeClient({
+      renew: vi.fn(async (subscriptionId: string, expiresAt: number) => {
+        elapsedMs += 6_000
+        return { subscriptionId, resource: 'r', notificationUrl: `${BASE_URL}/api/microsoft/graph/notifications`, expiresAt }
+      }),
+    })
+    const startMs = 1_000_000
+    const nowMs = () => startMs + elapsedMs
+
+    await reconcileMicrosoftGraphSubscriptions(fakeEnv(), NOW, runtimeFor(repository, client), nowMs)
+
+    // 20s budget / 6s per call caps this at 4 calls, well short of all 10.
+    expect(client.renew.mock.calls.length).toBeLessThan(10)
+    expect(client.renew.mock.calls.length).toBeGreaterThan(0)
+  })
+
+  it('a repository failure removing one non-Graph account does not stop the rest of that phase (Suspected/operational risk)', async () => {
+    const failing = subscriptionRow({ id: 'row-fail', accountId: 'acct-fail', subscriptionId: 'sub-fail', nextAttemptAt: NOW + 999_999 })
+    const healthy = subscriptionRow({ id: 'row-ok', accountId: 'acct-ok', subscriptionId: 'sub-ok', nextAttemptAt: NOW + 999_999 })
+    const { repository, rows } = fakeRepository([failing, healthy])
+    const originalForAccount = repository.forAccount.bind(repository)
+    repository.forAccount = async (accountId: string) => {
+      if (accountId === 'acct-fail') throw new Error('D1 unavailable')
+      return originalForAccount(accountId)
+    }
+    const client = fakeClient()
+    const env = fakeEnv({ nonGraphAccountIds: ['acct-fail', 'acct-ok'] })
+    microsoftAccountForSync.mockResolvedValue(account('acct-ok', 'imap'))
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    expect(rows().some((row) => row.accountId === 'acct-fail')).toBe(true)
+    expect(rows().some((row) => row.accountId === 'acct-ok')).toBe(false)
+  })
+
   it('one account failing does not stop the rest of the due-scan pass (per-account isolation)', async () => {
     const failing = subscriptionRow({ id: 'row-1', accountId: 'acct-fail', subscriptionId: 'sub-fail' })
     const healthy = subscriptionRow({ id: 'row-2', accountId: 'acct-ok', subscriptionId: 'sub-ok' })

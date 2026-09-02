@@ -15,6 +15,15 @@ import type { Env } from '../types'
 
 vi.mock('../../platform/d1/schema', () => ({ ensureSchema: vi.fn() }))
 
+const { consumeMicrosoftFolderRefreshJob, consumeMicrosoftSyncJob } = vi.hoisted(() => ({
+  consumeMicrosoftFolderRefreshJob: vi.fn(async (message: { ack: () => void }) => { message.ack() }),
+  consumeMicrosoftSyncJob: vi.fn(async (message: { ack: () => void }) => { message.ack() }),
+}))
+vi.mock('../../features/microsoft/microsoft-sync', () => ({
+  consumeMicrosoftFolderRefreshJob,
+  consumeMicrosoftSyncJob,
+}))
+
 describe('mail helpers', () => {
   it('routes unassigned managed-domain mail to the owner only when enabled', async () => {
     const statements: Array<{ sql: string; bindings: unknown[] }> = []
@@ -169,6 +178,31 @@ describe('mail helpers', () => {
 
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 30 })
     expect(message.ack).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a microsoft-folder-refresh job to its consumer without falling through to parsing (Minor #2)', async () => {
+    consumeMicrosoftFolderRefreshJob.mockClear()
+    consumeMicrosoftSyncJob.mockClear()
+    const message = {
+      body: { kind: 'microsoft-folder-refresh', accountId: 'microsoft-1', folderPath: 'Junk Email', reason: 'notification' },
+      attempts: 1,
+      ack: vi.fn(),
+      retry: vi.fn(),
+    }
+    const db = { prepare: vi.fn() }
+
+    await consumeEmailQueue(
+      { messages: [message] } as unknown as MessageBatch<{ messageId: string }>,
+      { DB: db } as unknown as Parameters<typeof consumeEmailQueue>[1],
+    )
+
+    expect(consumeMicrosoftFolderRefreshJob).toHaveBeenCalledTimes(1)
+    expect(consumeMicrosoftFolderRefreshJob).toHaveBeenCalledWith(message, expect.objectContaining({ DB: db }))
+    expect(consumeMicrosoftSyncJob).not.toHaveBeenCalled()
+    expect(message.ack).toHaveBeenCalled()
+    // Never falls through to `parseMessage`'s path, which would have read
+    // `messages`/updated a parse-failure row via `db.prepare`.
+    expect(db.prepare).not.toHaveBeenCalled()
   })
 
   it('only exposes a failure after automatic Queue retries are exhausted', () => {

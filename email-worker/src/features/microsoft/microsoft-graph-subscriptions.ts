@@ -28,6 +28,17 @@ const BACKOFF_BASE_MS = 1_000
 const MAX_WAIT_IN_INVOCATION_MS = 60_000
 /** Each account holds exactly two subscriptions; any more pages means something is wrong. */
 const MAX_LIST_PAGES = 20
+/**
+ * Graph's own ceiling for an Outlook-message subscription (review3 Minor #4):
+ * 10,080 minutes (7 days) from the moment Graph receives the request, not
+ * from whatever epoch the caller computed `expiresAt` against. Current
+ * callers already stay comfortably under this with margin
+ * (`microsoft-graph-subscription-lifecycle.ts` uses 10,075 minutes,
+ * `microsoft-graph-reconcile.ts` uses 10,020), so clamping here is
+ * defense-in-depth against a future caller's bad arithmetic, not a fix for a
+ * currently-bad request.
+ */
+const MAX_EXPIRATION_SECONDS = 10_080 * 60
 /** Graph well-known folder names are lowercase ASCII words (`inbox`, `junkemail`, …). */
 const WELL_KNOWN_FOLDER = /^[a-z]+$/
 
@@ -49,6 +60,8 @@ export class MicrosoftGraphSubscriptionError extends Error {
 
 /** Injected so tests never sleep in real time. */
 export type MicrosoftGraphSubscriptionSleeper = (ms: number) => Promise<void>
+/** Injected so the review3 Minor #4 expiry clamp is deterministically testable. Epoch seconds. */
+export type MicrosoftGraphSubscriptionClock = () => number
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -130,6 +143,7 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
   private readonly accessToken: string
   private readonly fetcher: typeof fetch
   private readonly sleeper: MicrosoftGraphSubscriptionSleeper
+  private readonly clock: MicrosoftGraphSubscriptionClock
 
   constructor({
     accessToken,
@@ -138,14 +152,22 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
     // invocation (same pitfall `microsoft-graph.ts` documents).
     fetcher = (input, init) => fetch(input, init),
     sleeper = (ms: number) => new Promise((resolve) => { setTimeout(resolve, ms) }),
+    clock = () => Math.floor(Date.now() / 1_000),
   }: {
     accessToken: string
     fetcher?: typeof fetch
     sleeper?: MicrosoftGraphSubscriptionSleeper
+    clock?: MicrosoftGraphSubscriptionClock
   }) {
     this.accessToken = accessToken
     this.fetcher = fetcher
     this.sleeper = sleeper
+    this.clock = clock
+  }
+
+  /** review3 Minor #4: never send Graph an expiry beyond its own 10,080-minute ceiling. */
+  private clampExpiresAt(expiresAt: number): number {
+    return Math.min(expiresAt, this.clock() + MAX_EXPIRATION_SECONDS)
   }
 
   /** Mirrors `microsoft-graph.ts`'s private `request()` — see that file's comment for why. */
@@ -253,7 +275,7 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
         resource: `me/mailFolders('${wellKnownFolder}')/messages`,
         notificationUrl: input.notificationUrl,
         lifecycleNotificationUrl: input.lifecycleNotificationUrl,
-        expirationDateTime: isoFromEpoch(input.expiresAt),
+        expirationDateTime: isoFromEpoch(this.clampExpiresAt(input.expiresAt)),
         clientState: input.clientState,
       },
       // A write must not be blindly replayed: duplicating a subscription create
@@ -268,7 +290,7 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
       `${GRAPH_BASE}/subscriptions/${encodeURIComponent(subscriptionId)}`,
       {
         method: 'PATCH',
-        body: { expirationDateTime: isoFromEpoch(expiresAt) },
+        body: { expirationDateTime: isoFromEpoch(this.clampExpiresAt(expiresAt)) },
         retryable: false,
       },
     )

@@ -1,6 +1,10 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Env } from '../../app/types'
 import { WRANGLER_MIGRATION_NAMES } from '../../platform/d1/schema-migrations'
 import { MicrosoftGraphSubscriptionStore } from './microsoft-graph-subscription-store'
@@ -59,6 +63,17 @@ function seed(db: DatabaseSync): string {
   return id
 }
 
+function applyDiskMigrationsToFile(file: string): DatabaseSync {
+  const db = new DatabaseSync(file)
+  db.exec('PRAGMA foreign_keys = OFF')
+  for (const name of WRANGLER_MIGRATION_NAMES) {
+    const sql = readFileSync(`migrations/${name}`, 'utf8')
+    db.exec(sql)
+  }
+  db.exec('PRAGMA foreign_keys = ON')
+  return db
+}
+
 /** The slice of `D1Database` the store touches, executed for real (mirrors `microsoft-sync-folder.upsert.test.ts`). */
 function realEnv(db: DatabaseSync): Env {
   const statement = (sql: string, values: SQLInputValue[]) => ({
@@ -105,6 +120,66 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
     expect(row?.refreshState).toBe('queued')
   })
 
+  describe('a genuine two-thread race (Minor #1: the above is sequential, this is not)', () => {
+    let dir: string | null = null
+
+    afterEach(async () => {
+      // Windows keeps the file handle briefly after a `DatabaseSync`/worker
+      // close; retry the cleanup rather than flake the suite on `EBUSY`.
+      for (let attempt = 0; dir && attempt < 5; attempt += 1) {
+        try {
+          rmSync(dir, { recursive: true, force: true })
+          dir = null
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+      }
+    })
+
+    /**
+     * Two *different OS threads* (`worker_threads`, not two logical calls on
+     * one connection) hold their own `DatabaseSync` connection to the SAME
+     * on-disk file and both attempt `markQueued` for the same row at
+     * essentially the same wall-clock moment: the worker is started first (so
+     * it is already running its `UPDATE` against the file) and the main
+     * thread issues its own `UPDATE` immediately after, without awaiting the
+     * worker first — the two file-level writes genuinely overlap and
+     * SQLite's own locking (not our test's call ordering) decides who goes
+     * first. Exactly one of them must observe `refresh_state = 'idle'` and win.
+     */
+    it('of two racing OS threads on the same on-disk file, exactly one wins the CAS', async () => {
+      dir = mkdtempSync(path.join(os.tmpdir(), 'omnimail-graph-cas-'))
+      const file = path.join(dir, 'race.sqlite')
+      const seedDb = applyDiskMigrationsToFile(file)
+      const id = seed(seedDb)
+      seedDb.close()
+
+      const workerUrl = new URL('./microsoft-graph-subscription-cas.worker.ts', import.meta.url)
+      const worker = new Worker(fileURLToPath(workerUrl), {
+        workerData: { file, id, now: NOW },
+        execArgv: [...process.execArgv, '--experimental-strip-types'],
+      })
+      const workerClaimed = new Promise<boolean>((resolve, reject) => {
+        worker.once('message', (message: { claimed: boolean }) => resolve(message.claimed))
+        worker.once('error', reject)
+      })
+
+      // No `await` between starting the worker and issuing the main thread's
+      // own attempt: both writers are in flight against the file concurrently.
+      const mainDb = new DatabaseSync(file)
+      mainDb.exec('PRAGMA busy_timeout = 5000')
+      const mainStore = new MicrosoftGraphSubscriptionStore(realEnv(mainDb))
+      const mainClaimed = await mainStore.markQueued(id, NOW)
+      const workerResult = await workerClaimed
+      const row = await mainStore.bySubscriptionId('graph-sub-1')
+      mainDb.close()
+      await worker.terminate()
+
+      expect([mainClaimed, workerResult].filter(Boolean)).toHaveLength(1)
+      expect(row?.refreshState).toBe('queued')
+    })
+  })
+
   it('a notification arriving while running is recorded as pending, then requeues on finish', async () => {
     const db = applyDiskMigrations()
     const id = seed(db)
@@ -140,13 +215,29 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
     const store = new MicrosoftGraphSubscriptionStore(realEnv(db))
     await store.markQueued(id, NOW)
 
-    const released = await store.releaseQueued(id, NOW + 1)
+    const mustResend = await store.releaseQueued(id, NOW + 1)
 
-    expect(released).toBe(true)
+    expect(mustResend).toBe(false)
     const row = await store.bySubscriptionId('graph-sub-1')
     expect(row?.refreshState).toBe('idle')
     // Idle again: a fresh notification can win the CAS once more.
     expect(await store.markQueued(id, NOW + 2)).toBe(true)
+  })
+
+  it('a send failure racing a concurrent notification preserves the pending wakeup (fix #8)', async () => {
+    const db = applyDiskMigrations()
+    const id = seed(db)
+    const store = new MicrosoftGraphSubscriptionStore(realEnv(db))
+    await store.markQueued(id, NOW)
+    // A second notification arrives while the first caller's send is still
+    // in flight and failing: it observes `queued` and only sets pending.
+    await store.markPending(id, NOW + 1)
+
+    const mustResend = await store.releaseQueued(id, NOW + 2)
+
+    expect(mustResend).toBe(true)
+    const row = await store.bySubscriptionId('graph-sub-1')
+    expect(row).toMatchObject({ refreshState: 'queued', refreshPending: false })
   })
 
   it('a >10-minute-old running row is treated as abandoned and can be re-claimed (crash recovery)', async () => {
