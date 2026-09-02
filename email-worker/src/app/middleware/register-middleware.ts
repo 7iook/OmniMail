@@ -8,6 +8,10 @@ import { syncSuperAdminIdentity } from '../../features/auth/account/super-admin-
 import { authenticateAccessToken, bearerToken } from '../../features/auth/tokens/token-api'
 import { deviceScopesAllow } from '../../features/auth/tokens/token-scope'
 import { officialExtensionEnabled } from '../../features/admin/settings/system-settings'
+import {
+  MICROSOFT_GRAPH_LIFECYCLE_PATH,
+  MICROSOFT_GRAPH_NOTIFICATION_PATH,
+} from '../../features/microsoft/microsoft-graph-notifications'
 import { ensureSchema } from '../../platform/d1/schema'
 import { isAllowedOrigin, isOfficialChromeExtensionOrigin } from './origin-policy'
 
@@ -26,8 +30,23 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/linux-do',
   '/api/auth/linux-do/callback',
   '/api/webhooks/resend',
-  '/api/microsoft/graph/notifications',
-  '/api/microsoft/graph/lifecycle',
+  MICROSOFT_GRAPH_NOTIFICATION_PATH,
+  MICROSOFT_GRAPH_LIFECYCLE_PATH,
+])
+
+/**
+ * Paths that must reach their handler without any D1 access from this
+ * middleware stack (card C-6 branch 1: the handshake echoes the token and
+ * touches nothing else). `/api/health` shares the same need for a cheap
+ * liveness check; the two Graph paths need it for both handshake and
+ * notification requests, since their own handlers already do their own
+ * targeted D1 reads and schema is guaranteed by every other request plus
+ * cron (review3 #1).
+ */
+const SCHEMA_BYPASS_PATHS = new Set([
+  '/api/health',
+  MICROSOFT_GRAPH_NOTIFICATION_PATH,
+  MICROSOFT_GRAPH_LIFECYCLE_PATH,
 ])
 
 export function registerMiddleware(app: Hono<AppContext>): void {
@@ -68,7 +87,7 @@ app.use('*', async (context, next) => {
 })
 
 app.use('/api/*', async (context, next) => {
-  if (context.req.path === '/api/health') {
+  if (SCHEMA_BYPASS_PATHS.has(context.req.path)) {
     await next()
     return
   }

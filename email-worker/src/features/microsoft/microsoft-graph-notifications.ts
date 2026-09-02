@@ -55,6 +55,21 @@ const NOTIFICATION_IP_WINDOW_SECONDS = 10 * 60
 const NOTIFICATION_IP_MAX_ATTEMPTS = 600
 
 /**
+ * Rate-limit identity for these two webhook routes only: `CF-Connecting-IP`
+ * (set by Cloudflare on every request that reaches a Worker, not forgeable
+ * off that ingress) and nothing else. The shared `clientIp()` helper falls
+ * back to the client-controlled `x-forwarded-for` header, which would let an
+ * attacker pick their own rate-limit bucket (review3 #10) — that fallback is
+ * fine for routes reached through the app's own reverse-proxy assumptions,
+ * but wrong for a public endpoint Microsoft calls directly. A request
+ * genuinely missing the header (should not happen on a deployed Worker) maps
+ * to one fixed sentinel bucket instead of bypassing the counter.
+ */
+export function microsoftGraphWebhookClientIp(headers: Headers): string {
+  return headers.get('CF-Connecting-IP') || 'unknown'
+}
+
+/**
  * D1 CAS counter, 600 requests / 10 minutes per IP (card C-6 abuse guard).
  *
  * Reuses the `microsoft_imap_validation_limits` idiom
@@ -151,7 +166,10 @@ export async function parseNotificationItems<T extends { subscriptionId: string;
   } catch {
     return []
   }
-  if (text.length > MAX_NOTIFICATION_BODY_BYTES) return []
+  // Byte length, not `.length` (UTF-16 code units): a chunked/missing-length
+  // request with multibyte JSON can stay under 65,536 code units while
+  // exceeding 64 KiB on the wire (review3 #9).
+  if (new TextEncoder().encode(text).byteLength > MAX_NOTIFICATION_BODY_BYTES) return []
   let body: unknown
   try {
     body = JSON.parse(text)
@@ -160,8 +178,12 @@ export async function parseNotificationItems<T extends { subscriptionId: string;
   }
   const value = (body as { value?: unknown })?.value
   if (!Array.isArray(value)) return []
+  // Over the limit: drop the whole batch rather than silently trusting the
+  // first 100 — Graph never sends more than this per POST, so anything larger
+  // is not a partial-trust case worth acting on (review3 #2).
+  if (value.length > MAX_NOTIFICATION_ITEMS) return []
   const items: T[] = []
-  for (const raw of value.slice(0, MAX_NOTIFICATION_ITEMS)) {
+  for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue
     const record = raw as Record<string, unknown>
     if (typeof record.subscriptionId !== 'string' || !UUID.test(record.subscriptionId)) continue

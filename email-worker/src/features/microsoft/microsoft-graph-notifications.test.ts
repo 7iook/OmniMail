@@ -6,6 +6,7 @@ import {
   hashMicrosoftGraphClientState,
   MAX_NOTIFICATION_BODY_BYTES,
   MAX_NOTIFICATION_ITEMS,
+  microsoftGraphWebhookClientIp,
   MICROSOFT_GRAPH_NOTIFICATION_PATH,
   processMicrosoftGraphLifecycleItems,
   processMicrosoftGraphNotificationItems,
@@ -150,7 +151,24 @@ describe('Microsoft Graph notification endpoint · notifications (C-6 branch 2, 
     expect(db.calls).toBe(5)
   })
 
-  it('drops malformed items individually and caps the batch, without changing the response', async () => {
+  it('drops a multibyte body that exceeds 64 KiB on the wire while staying under 65,536 UTF-16 code units (review3 #9)', async () => {
+    const { run, process, settle } = harness()
+    // '语' is 1 UTF-16 code unit but 3 UTF-8 bytes: this string blows the byte
+    // cap while its `.length` (code units) stays comfortably under it. No
+    // content-length header is set, so this only exercises the post-read check.
+    const filler = '语'.repeat(22_000)
+    const text = `{"value":[],"pad":"${filler}"}`
+    expect(text.length).toBeLessThan(MAX_NOTIFICATION_BODY_BYTES)
+    expect(new TextEncoder().encode(text).byteLength).toBeGreaterThan(MAX_NOTIFICATION_BODY_BYTES)
+
+    const response = await run(post(text))
+
+    expect(response.status).toBe(202)
+    await settle()
+    expect(process).not.toHaveBeenCalled()
+  })
+
+  it('drops malformed items individually without changing the response', async () => {
     const { run, processed, settle } = harness()
     const good = { subscriptionId: SUB_ID, clientState: 's', changeType: 'created', resource: 'r' }
     const value = [
@@ -159,15 +177,28 @@ describe('Microsoft Graph notification endpoint · notifications (C-6 branch 2, 
       { subscriptionId: SUB_ID },
       null,
       'string',
-      ...Array.from({ length: MAX_NOTIFICATION_ITEMS + 10 }, () => good),
     ]
 
     const response = await run(post({ value }))
 
     expect(response.status).toBe(202)
     await settle()
-    // The first MAX_NOTIFICATION_ITEMS raw entries are considered; 4 of them are junk.
-    expect(processed[0]).toHaveLength(MAX_NOTIFICATION_ITEMS - 4)
+    expect(processed[0]).toHaveLength(1)
+  })
+
+  it('drops the entire batch — not just the first 100 — when it exceeds the item cap (review3 #2)', async () => {
+    const { run, process, db, settle } = harness()
+    const good = { subscriptionId: SUB_ID, clientState: 's', changeType: 'created', resource: 'r' }
+    const value = Array.from({ length: MAX_NOTIFICATION_ITEMS + 1 }, () => good)
+
+    const response = await run(post({ value }))
+
+    expect(response.status).toBe(202)
+    await settle()
+    expect(process).not.toHaveBeenCalled()
+    // The IP counter still records exactly one attempt for this one request —
+    // the over-limit batch is never even parsed into items, but it is not free.
+    expect(db.calls).toBe(1)
   })
 
   it('never lets a processor failure change the response', async () => {
@@ -219,6 +250,40 @@ describe('Microsoft Graph notification endpoint · per-IP abuse guard (C-6)', ()
     expect(response.status).toBe(202)
     await settle()
     expect(process).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('microsoftGraphWebhookClientIp (review3 #10)', () => {
+  it('uses CF-Connecting-IP only, never x-forwarded-for', () => {
+    const headers = new Headers({ 'CF-Connecting-IP': '203.0.113.5', 'x-forwarded-for': '9.9.9.9' })
+    expect(microsoftGraphWebhookClientIp(headers)).toBe('203.0.113.5')
+  })
+
+  it('maps a missing CF-Connecting-IP to one fixed sentinel bucket regardless of x-forwarded-for', () => {
+    expect(microsoftGraphWebhookClientIp(new Headers({ 'x-forwarded-for': '1.1.1.1' }))).toBe('unknown')
+    expect(microsoftGraphWebhookClientIp(new Headers({ 'x-forwarded-for': '2.2.2.2' }))).toBe('unknown')
+    expect(microsoftGraphWebhookClientIp(new Headers())).toBe('unknown')
+  })
+
+  it('requests with no CF header and varying x-forwarded-for share one bucket and hit the 600 limit together', async () => {
+    const { run, process, settle } = harness()
+    const request = () => post({ value: [{
+      subscriptionId: SUB_ID, clientState: 's', changeType: 'created', resource: 'r',
+    }] })
+    // An attacker cannot escape the shared bucket by varying x-forwarded-for:
+    // with no CF-Connecting-IP, every one of these resolves to 'unknown'.
+    for (let index = 0; index < 600; index += 1) {
+      const ip = microsoftGraphWebhookClientIp(new Headers({ 'x-forwarded-for': `198.51.100.${index % 250}` }))
+      expect((await run(request(), ip)).status).toBe(202)
+    }
+    process.mockClear()
+
+    const ip = microsoftGraphWebhookClientIp(new Headers({ 'x-forwarded-for': '9.9.9.9' }))
+    const response = await run(request(), ip)
+
+    expect(response.status).toBe(202)
+    await settle()
+    expect(process).not.toHaveBeenCalled()
   })
 })
 

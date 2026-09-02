@@ -17,6 +17,7 @@ import {
   handleMicrosoftGraphNotification,
   microsoftGraphLifecycleProcessor,
   microsoftGraphNotificationProcessor,
+  microsoftGraphWebhookClientIp,
   MICROSOFT_GRAPH_LIFECYCLE_PATH,
   MICROSOFT_GRAPH_NOTIFICATION_PATH,
 } from '../../features/microsoft/microsoft-graph-notifications'
@@ -60,18 +61,20 @@ app.get('/api/auth/linux-do/callback', async (context) => {
 app.get('/api/remote-images', (context) => proxyRemoteImage(context.req.raw))
 app.post('/api/webhooks/resend', (context) => handleResendWebhook(context.env, context.req.raw))
 // Microsoft Graph calls these itself: no session, no Origin header. The handler
-// answers within Graph's 3 s budget and defers real work via waitUntil.
+// answers within Graph's 3 s budget and defers real work via waitUntil. The
+// rate-limit identity is `CF-Connecting-IP` only (never the shared `clientIp()`
+// helper's `x-forwarded-for` fallback) — see `microsoftGraphWebhookClientIp`.
 app.post(MICROSOFT_GRAPH_NOTIFICATION_PATH, (context) => handleMicrosoftGraphNotification(
   context.env,
   context.req.raw,
-  clientIp(context.req.raw.headers),
+  microsoftGraphWebhookClientIp(context.req.raw.headers),
   (task) => context.executionCtx.waitUntil(task),
   microsoftGraphNotificationProcessor,
 ))
 app.post(MICROSOFT_GRAPH_LIFECYCLE_PATH, (context) => handleMicrosoftGraphLifecycle(
   context.env,
   context.req.raw,
-  clientIp(context.req.raw.headers),
+  microsoftGraphWebhookClientIp(context.req.raw.headers),
   (task) => context.executionCtx.waitUntil(task),
   microsoftGraphLifecycleProcessor,
 ))
