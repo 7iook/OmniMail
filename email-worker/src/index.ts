@@ -2,6 +2,7 @@ import { fetchApi } from './app/api'
 import { cleanup } from './platform/scheduling/cleanup'
 import { consumeEmailQueue, receiveEmail } from './app/handlers/mail'
 import type { Env, MailQueueJob } from './app/types'
+import './features/microsoft/microsoft-graph-runtime'
 
 export { OmniMailBackupWorkflow } from './features/backups/backup'
 export { OmniMailCleanupWorkflow } from './platform/scheduling/cleanup-workflow'
