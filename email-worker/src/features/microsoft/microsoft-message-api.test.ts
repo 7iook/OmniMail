@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Env, SessionUser } from '../../app/types'
+import { ImapConnectionError } from '../../platform/imap/imap-errors'
 import {
   encryptMicrosoftCredential,
   microsoftCredentialContext,
 } from './microsoft-credentials'
 import { MicrosoftGraphError } from './microsoft-graph'
-import { getMicrosoftMessage } from './microsoft-message-api'
+import {
+  getMicrosoftAttachment,
+  getMicrosoftMessage,
+  listMicrosoftMessages,
+} from './microsoft-message-api'
 import type { MicrosoftMailTransport } from './microsoft-transport'
+import {
+  microsoftTransportFailure,
+  MicrosoftTransportUnavailableError,
+} from './microsoft-transport-errors'
 import type { MicrosoftTransport } from './microsoft-types'
 
 const { resolveMicrosoftTransport } = vi.hoisted(() => ({
@@ -93,6 +102,10 @@ async function testEnv(row: {
     sync_lease_until: null, token_lease_id: null, token_lease_until: null,
     last_manual_sync_at: null, created_at: 1, updated_at: 1,
   }
+  const folderRow = {
+    account_id: 'microsoft-1', path: 'INBOX', display_name: 'Inbox', flags_json: '[]',
+    special_use: 'inbox', uid_validity: row.uid_validity, last_uid: 0,
+  }
   const env = {
     MICROSOFT_CREDENTIALS_KEY: key,
     DB: { prepare(sql: string) {
@@ -102,6 +115,9 @@ async function testEnv(row: {
           first: async () => sql.includes('JOIN microsoft_imap_messages')
             ? messageRow : sql.includes('SELECT * FROM microsoft_imap_accounts')
               ? accountRow : null,
+          all: async () => ({
+            results: sql.includes('FROM microsoft_imap_folders') ? [folderRow] : [],
+          }),
           run: async () => ({ meta: { changes: 1 } }),
         }
       } }
@@ -235,5 +251,134 @@ describe('Microsoft message open through the transport interface', () => {
     expect(response.status).toBe(200)
     expect(result.message.isRead).toBe(true)
     expect(calls.some((call) => call.startsWith('markSeen'))).toBe(false)
+  })
+})
+
+/**
+ * Review F2: a credential that dies between two scheduled syncs must stop
+ * reading `active` the moment a list or read request hits it, using the same
+ * status derivation verify and sync already use.
+ */
+describe('Microsoft message handlers leave transport verdicts on the account row', () => {
+  const listRequest = new Request(
+    'https://mail.example.com/api/microsoft/messages?accountId=microsoft-1&refresh=1',
+  )
+  const graphRow = { source_transport: 'graph' as const, remote_id: GRAPH_ID, uid_validity: null }
+
+  beforeEach(() => {
+    resolveMicrosoftTransport.mockReset()
+  })
+
+  it('records credential_error when the cascade is exhausted during a list refresh', async () => {
+    resolveMicrosoftTransport.mockRejectedValue(new MicrosoftTransportUnavailableError([
+      microsoftTransportFailure(new MicrosoftGraphError('graph_credential_rejected', 401, false), 'graph'),
+      microsoftTransportFailure(new ImapConnectionError(401, 'IMAP authentication failed'), 'imap'),
+    ]))
+    const { env, statements } = await testEnv(graphRow)
+
+    const response = await listMicrosoftMessages(env, user, listRequest)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ code: 'transport_unavailable' })
+    const status = statements.find(accountStatusUpdate)
+    expect(status?.bindings).toEqual([
+      'credential_error', 'transport_unavailable', expect.any(Number), expect.any(Number), 'microsoft-1',
+    ])
+  })
+
+  it('records credential_error when Graph rejects the token while opening a message', async () => {
+    resolveMicrosoftTransport.mockRejectedValue(
+      new MicrosoftGraphError('graph_credential_rejected', 401, false),
+    )
+    const { env, statements } = await testEnv(graphRow)
+
+    const response = await getMicrosoftMessage(env, user, 'microsoft-1', 'message-1')
+
+    // Never 401: the frontend treats a 401 from our API as a lost session.
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ code: 'graph_credential_rejected' })
+    const status = statements.find(accountStatusUpdate)
+    expect(status?.bindings.slice(0, 2)).toEqual(['credential_error', 'graph_credential_rejected'])
+    expect(status?.bindings.at(-1)).toBe('microsoft-1')
+  })
+
+  it('records permission_error when a Graph 403 surfaces on an attachment download', async () => {
+    const { transport, calls } = fakeTransport('graph', null)
+    transport.getMessage = async () => { throw new MicrosoftGraphError('graph_permission_denied', 403, false) }
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
+    const { env, statements } = await testEnv(graphRow)
+
+    const response = await getMicrosoftAttachment(env, user, 'microsoft-1', 'message-1', '0')
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({ code: 'graph_permission_denied' })
+    const status = statements.find(accountStatusUpdate)
+    expect(status?.bindings.slice(0, 2)).toEqual(['permission_error', 'graph_permission_denied'])
+    expect(calls).toContain('close')
+  })
+
+  it('records a throttled read as a plain error, the way verify does', async () => {
+    const { transport } = fakeTransport('graph', null)
+    transport.getMessage = async () => { throw new MicrosoftGraphError('graph_throttled', 429, true, 30) }
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
+    const { env, statements } = await testEnv(graphRow)
+
+    const response = await getMicrosoftMessage(env, user, 'microsoft-1', 'message-1')
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('30')
+    const status = statements.find(accountStatusUpdate)
+    expect(status?.bindings.slice(0, 2)).toEqual(['error', 'graph_throttled'])
+  })
+
+  it('does not touch the account when the row is refused by our own 404 or 409', async () => {
+    // UIDVALIDITY moved on: a MicrosoftStoreError 404 about the row, not the credential.
+    const stale = fakeTransport('imap', 43)
+    resolveMicrosoftTransport.mockResolvedValue({ transport: stale.transport, preferredTransport: 'imap' })
+    const identity = await testEnv({ source_transport: 'imap', remote_id: '7', uid_validity: 42 })
+    const identityResponse = await getMicrosoftMessage(identity.env, user, 'microsoft-1', 'message-1')
+    expect(identityResponse.status).toBe(404)
+    await expect(identityResponse.json()).resolves.toMatchObject({ code: 'message_identity_changed' })
+    expect(identity.statements.some(accountStatusUpdate)).toBe(false)
+
+    // Locator from the other channel: a 409 that only asks for a list refresh.
+    const other = fakeTransport('graph', null)
+    resolveMicrosoftTransport.mockResolvedValue({ transport: other.transport, preferredTransport: 'graph' })
+    const locator = await testEnv({ source_transport: 'imap', remote_id: '7', uid_validity: 42 })
+    const locatorResponse = await getMicrosoftMessage(locator.env, user, 'microsoft-1', 'message-1')
+    expect(locatorResponse.status).toBe(409)
+    expect(locator.statements.some(accountStatusUpdate)).toBe(false)
+  })
+
+  it('does not touch the account when the remote mail itself is gone', async () => {
+    const { transport } = fakeTransport('graph', null)
+    transport.getMessage = async () => { throw new MicrosoftGraphError('graph_message_not_found', 404, false) }
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
+    const { env, statements } = await testEnv(graphRow)
+
+    const response = await getMicrosoftMessage(env, user, 'microsoft-1', 'message-1')
+
+    expect(response.status).toBe(404)
+    expect(statements.some(accountStatusUpdate)).toBe(false)
+  })
+
+  it('does not record our own folder-refresh rate limit against the account', async () => {
+    const { env, statements } = await testEnv(graphRow)
+    const claimed = env.DB.prepare
+    env.DB.prepare = (sql: string) => {
+      const statement = claimed.call(env.DB, sql)
+      if (!sql.includes('SET last_manual_sync_at = ?')) return statement
+      return { bind: (...bindings: unknown[]) => {
+        statements.push({ sql, bindings })
+        return { run: async () => ({ meta: { changes: 0 } }) }
+      } } as never
+    }
+
+    const response = await listMicrosoftMessages(env, user, listRequest)
+
+    expect(response.status).toBe(429)
+    await expect(response.json()).resolves.toMatchObject({ code: 'folder_refresh_rate_limited' })
+    expect(resolveMicrosoftTransport).not.toHaveBeenCalled()
+    expect(statements.some(accountStatusUpdate)).toBe(false)
   })
 })

@@ -11,7 +11,7 @@ import { MicrosoftAccountStore, MicrosoftStoreError } from './microsoft-store'
 import { refreshMicrosoftFolderWithTransport } from './microsoft-sync-folder'
 import type { MicrosoftMailTransport, MicrosoftMessageContent } from './microsoft-transport'
 import { microsoftTransportFailure } from './microsoft-transport-errors'
-import type { MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
+import type { MicrosoftAccount, MicrosoftAccountStatus, MicrosoftTransport } from './microsoft-types'
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 const FOLDER_REFRESH_INTERVAL_SECONDS = 30
@@ -106,6 +106,66 @@ async function selectedFolder(
   return inbox.path
 }
 
+/**
+ * Leaves a remote failure on the account row, the way verify and sync do, so a
+ * credential that dies between two scheduled syncs stops reading `active` the
+ * moment a list or read request hits it (review F2).
+ *
+ * `auth`, `permission`, `throttled` and `transient` are verdicts about the
+ * credential or the channel's health and land as the status the classifier
+ * derives (the same one `recordRemoteFailure` in the account API writes).
+ * `contract` and `data` are verdicts about the request — a stale locator, a
+ * mail that is gone, a payload we could not parse — and say nothing about the
+ * account, so they leave the row alone. Always rethrows: recording is a side
+ * effect of failing, not a replacement for the error response.
+ */
+async function recordRemoteFailure(
+  env: Env,
+  account: MicrosoftAccount,
+  error: unknown,
+  transport: MicrosoftTransport,
+): Promise<never> {
+  const failure = microsoftTransportFailure(error, transport)
+  if (failure.category !== 'contract' && failure.category !== 'data') {
+    await recordMicrosoftAccountFailure(env, account.id, failure)
+  }
+  throw error
+}
+
+/**
+ * The channel a failure is attributed to when it surfaced before any transport
+ * was resolved. The classifier does not depend on it; it only labels the record.
+ */
+function attemptedTransport(account: MicrosoftAccount): MicrosoftTransport {
+  return account.preferredTransport === 'imap' ? 'imap' : 'graph'
+}
+
+/**
+ * Runs the remote phase of a request against a resolved transport.
+ *
+ * Only failures raised here reach {@link recordRemoteFailure}: a cascade that
+ * cannot open a channel, or a transport call that fails. Our own pre-checks
+ * (rate-limit claim, ownership, folder lookup) and the local D1 queries around
+ * it stay outside, so they can never be mistaken for a verdict on the account.
+ */
+async function withRemote<T>(
+  env: Env,
+  account: MicrosoftAccount,
+  work: (transport: MicrosoftMailTransport) => Promise<T>,
+): Promise<T> {
+  let transport: MicrosoftMailTransport | undefined
+  try {
+    transport = (await resolveMicrosoftTransport(env, account)).transport
+    return await work(transport)
+  } catch (error) {
+    return await recordRemoteFailure(
+      env, account, error, transport?.transport ?? attemptedTransport(account),
+    )
+  } finally {
+    await transport?.close()
+  }
+}
+
 async function refreshFolder(
   env: Env,
   store: MicrosoftAccountStore,
@@ -123,12 +183,9 @@ async function refreshFolder(
     throw new MicrosoftStoreError(429, 'folder_refresh_rate_limited', '文件夹刷新过于频繁，请稍后重试。')
   }
   const account = await store.get(accountId)
-  const { transport } = await resolveMicrosoftTransport(env, account)
-  try {
-    await refreshMicrosoftFolderWithTransport(env, accountId, folderPath, limit, transport, now)
-  } finally {
-    await transport.close()
-  }
+  await withRemote(env, account, (transport) => (
+    refreshMicrosoftFolderWithTransport(env, accountId, folderPath, limit, transport, now)
+  ))
 }
 
 export async function listMicrosoftMessages(
@@ -324,8 +381,7 @@ async function remoteMessage(
 }> {
   const row = await ownedMessage(env, user.id, accountId, messageId)
   const account = await new MicrosoftAccountStore(env, user.id).get(accountId)
-  const { transport } = await resolveMicrosoftTransport(env, account)
-  try {
+  return await withRemote(env, account, async (transport) => {
     assertAddressable(row, transport)
     await assertIdentityUnchanged(row, transport)
     const parsed = await transport.getMessage(row.folder_path, row.remote_id)
@@ -333,9 +389,7 @@ async function remoteMessage(
       ? await markRemoteRead(env, transport, row)
       : false
     return { row, parsed, markedRead }
-  } finally {
-    await transport.close()
-  }
+  })
 }
 
 export async function getMicrosoftMessage(
