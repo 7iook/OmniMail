@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Env } from '../../app/types'
 import { WRANGLER_MIGRATION_NAMES } from '../../platform/d1/schema-migrations'
 import { MicrosoftGraphSubscriptionStore } from './microsoft-graph-subscription-store'
+import { waitForRaceBarrier } from './microsoft-graph-subscription-cas.race-barrier'
 
 /**
  * Real-SQLite acceptance test for the C-3 coalescing state machine, against
@@ -139,13 +140,19 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
     /**
      * Two *different OS threads* (`worker_threads`, not two logical calls on
      * one connection) hold their own `DatabaseSync` connection to the SAME
-     * on-disk file and both attempt `markQueued` for the same row at
-     * essentially the same wall-clock moment: the worker is started first (so
-     * it is already running its `UPDATE` against the file) and the main
-     * thread issues its own `UPDATE` immediately after, without awaiting the
-     * worker first — the two file-level writes genuinely overlap and
-     * SQLite's own locking (not our test's call ordering) decides who goes
-     * first. Exactly one of them must observe `refresh_state = 'idle'` and win.
+     * on-disk file and both attempt `markQueued` for the same row.
+     *
+     * Minor #1 (re-review): starting the worker first and immediately racing
+     * ahead on the main thread does NOT guarantee overlap — worker thread
+     * start-up (module load, `DatabaseSync` open) has its own latency, so the
+     * main thread's write could complete before the worker even connects,
+     * which would just prove the CAS predicate sequentially again. Both sides
+     * now block on a shared `SharedArrayBuffer` barrier
+     * (`waitForRaceBarrier`) right after opening their DB connection, so
+     * neither issues its `UPDATE` until BOTH are ready — the two file-level
+     * writes then genuinely overlap and SQLite's own locking (not thread
+     * start timing) decides who goes first. Exactly one of them must observe
+     * `refresh_state = 'idle'` and win.
      */
     it('of two racing OS threads on the same on-disk file, exactly one wins the CAS', async () => {
       dir = mkdtempSync(path.join(os.tmpdir(), 'omnimail-graph-cas-'))
@@ -154,9 +161,10 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
       const id = seed(seedDb)
       seedDb.close()
 
+      const barrier = new SharedArrayBuffer(4)
       const workerUrl = new URL('./microsoft-graph-subscription-cas.worker.ts', import.meta.url)
       const worker = new Worker(fileURLToPath(workerUrl), {
-        workerData: { file, id, now: NOW },
+        workerData: { file, id, now: NOW, barrier },
         execArgv: [...process.execArgv, '--experimental-strip-types'],
       })
       const workerClaimed = new Promise<boolean>((resolve, reject) => {
@@ -164,11 +172,12 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
         worker.once('error', reject)
       })
 
-      // No `await` between starting the worker and issuing the main thread's
-      // own attempt: both writers are in flight against the file concurrently.
       const mainDb = new DatabaseSync(file)
       mainDb.exec('PRAGMA busy_timeout = 5000')
       const mainStore = new MicrosoftGraphSubscriptionStore(realEnv(mainDb))
+      // Block here until the worker has ALSO connected and reached its own
+      // barrier call — only then does either side issue its `UPDATE`.
+      waitForRaceBarrier(new Int32Array(barrier))
       const mainClaimed = await mainStore.markQueued(id, NOW)
       const workerResult = await workerClaimed
       const row = await mainStore.bySubscriptionId('graph-sub-1')

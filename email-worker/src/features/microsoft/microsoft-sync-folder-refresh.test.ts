@@ -139,14 +139,12 @@ describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
    * previous `markRunning` fake for always returning `true` regardless of
    * the row's actual state, which hid the consumer's missing CAS check.
    *
-   * `withRetryOwnership: false` produces a repository that only implements
-   * the frozen `MicrosoftGraphSubscriptionRepository` port (no
-   * `requeueForRetry`), exercising the consumer's documented fallback.
+   * `requeueForRetry` is always present now: the port made it required
+   * (re-review Important #4's "New-mechanism scrutiny" note), so the
+   * consumer no longer has — and this fake no longer needs to exercise — a
+   * fallback for a repository built without it.
    */
-  function fakeSubscriptionRepository(
-    row: MicrosoftGraphSubscription,
-    { withRetryOwnership = true }: { withRetryOwnership?: boolean } = {},
-  ) {
+  function fakeSubscriptionRepository(row: MicrosoftGraphSubscription) {
     let current = row
     const calls = { markRunning: 0, finishRunning: 0, releaseQueued: 0, requeueForRetry: 0 }
     const stale = (now: number) => current.refreshStateAt < now - STALE_SECONDS
@@ -193,7 +191,7 @@ describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
         return { requeue }
       },
     }
-    const repository = (withRetryOwnership ? {
+    const repository: MicrosoftGraphSubscriptionRepository = {
       ...base,
       async requeueForRetry(id: string, now: number) {
         calls.requeueForRetry += 1
@@ -202,7 +200,7 @@ describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
         if (claimed) current = { ...current, refreshState: 'queued', refreshStateAt: now }
         return claimed
       },
-    } : base) as MicrosoftGraphSubscriptionRepository & { requeueForRetry?(id: string, now: number): Promise<boolean> }
+    }
     configureMicrosoftGraphSubscriptionRuntime({
       repositoryFor: () => repository,
       clientFor: () => { throw new Error('not used') },
@@ -325,20 +323,39 @@ describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
     expect(current().refreshState).toBe('idle')
   })
 
-  it('falls back to finishRunning when the repository has no requeueForRetry (frozen-port fake)', async () => {
-    resolveMicrosoftTransport.mockRejectedValue(new MicrosoftGraphError('graph_unavailable', 503, true))
-    const { current, calls } = fakeSubscriptionRepository(
-      subscriptionFixture({ refreshState: 'queued' }),
-      { withRetryOwnership: false },
-    )
+  it('acks and makes zero Graph calls when no subscription row matches the (account, folder) (re-review Important #4)', async () => {
+    const { transport, folderState, close } = trackedTransport('graph')
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
+    // A repository IS configured (runtime present), but `forAccount` returns
+    // nothing for this folder — e.g. a delayed duplicate delivered after
+    // teardown or reconciliation deleted the row.
+    configureMicrosoftGraphSubscriptionRuntime({
+      repositoryFor: () => ({
+        async bySubscriptionId() { throw new Error('not used') },
+        async forAccount() { return [] },
+        async insert() { throw new Error('not used') },
+        async remove() { throw new Error('not used') },
+        async update() { throw new Error('not used') },
+        async due() { return [] },
+        async markQueued() { throw new Error('not used') },
+        async markPending() { throw new Error('not used') },
+        async releaseQueued() { throw new Error('not used') },
+        async markRunning() { throw new Error('not used') },
+        async finishRunning() { throw new Error('not used') },
+        async requeueForRetry() { throw new Error('not used') },
+      }),
+      clientFor: () => { throw new Error('not used') },
+    })
     const { env } = await testEnv()
-    const { message, retry } = folderRefreshMessage(1)
+    const { message, retry, ack } = folderRefreshMessage()
 
     await consumeMicrosoftFolderRefreshJob(message, env)
 
-    expect(retry).toHaveBeenCalledWith({ delaySeconds: 30 })
-    expect(calls.finishRunning).toBe(1)
-    expect(current().refreshState).toBe('idle')
+    expect(ack).toHaveBeenCalled()
+    expect(retry).not.toHaveBeenCalled()
+    expect(resolveMicrosoftTransport).not.toHaveBeenCalled()
+    expect(folderState).not.toHaveBeenCalled()
+    expect(close).not.toHaveBeenCalled()
   })
 
   it('conditionally releases the queued follow-up slot when the follow-up send fails (Important #5/#8)', async () => {
@@ -388,6 +405,39 @@ describe('Microsoft Graph folder-refresh queue consumer (C-3, C-4)', () => {
     // it, not because the wakeup was silently dropped.
     expect(send).toHaveBeenCalledTimes(2)
     expect(fixture.current().refreshState).toBe('queued')
+  })
+
+  it('a double follow-up send failure with no further wakeup ends idle, not stuck queued (re-review Important #2)', async () => {
+    const { transport } = trackedTransport('graph')
+    resolveMicrosoftTransport.mockResolvedValue({ transport, preferredTransport: 'graph' })
+    // `finishRunning` consumes this initial pending flag (requeue=true,
+    // refresh_pending reset to false) before any send is attempted — so a
+    // fresh wakeup must arrive DURING the first failing send for the
+    // recovery loop's own `releaseQueued` to ever see `true`.
+    const fixture = fakeSubscriptionRepository(subscriptionFixture({ refreshState: 'queued', refreshPending: true }))
+    const { env } = await testEnv()
+    let sendCalls = 0
+    const send = vi.fn(async () => {
+      sendCalls += 1
+      if (sendCalls === 1) {
+        // A fresh notification races in during the first failing send.
+        await fixture.repository.markPending('sub-row-1', NOW)
+      }
+      throw new Error('queue unavailable') // both attempts fail
+    })
+    ;(env as unknown as { MAIL_QUEUE: { send: typeof send } }).MAIL_QUEUE = { send }
+    const { message, ack } = folderRefreshMessage()
+
+    await consumeMicrosoftFolderRefreshJob(message, env)
+
+    expect(ack).toHaveBeenCalled()
+    // Send #1 fails; the race sets `refresh_pending` again, so `releaseQueued`
+    // reports `true` (must resend). Send #2 fails too, but nothing raced in
+    // this time, so `releaseQueued` reports `false` — recovery stops, never
+    // a third send, and the row ends `idle` rather than stranded `queued`.
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(fixture.calls.releaseQueued).toBe(2)
+    expect(fixture.current().refreshState).toBe('idle')
   })
 
   it('reuses the sync retry shape: Retry-After wins over exponential backoff', async () => {

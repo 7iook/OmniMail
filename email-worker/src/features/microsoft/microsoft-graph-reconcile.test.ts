@@ -105,21 +105,32 @@ function fakeClient(overrides: Partial<MicrosoftGraphSubscriptionClient> = {}): 
 function fakeEnv(options: {
   missingSubscriptionAccountIds?: string[]
   nonGraphAccountIds?: string[]
+  /** Fairness (re-review Important #3): if set, this order wins over `missingSubscriptionAccountIds`. */
+  graphAccountOrder?: string[]
+  onTouch?: (accountId: string) => void
 } = {}): Env {
   return {
     MICROSOFT_GRAPH_WEBHOOK_BASE_URL: BASE_URL,
     DB: {
       prepare(sql: string) {
         return {
-          bind: () => ({
+          bind: (...bindings: unknown[]) => ({
             async all() {
               if (sql.includes("preferred_transport = 'graph'")) {
-                return { results: (options.missingSubscriptionAccountIds ?? []).map((id) => ({ id })) }
+                const ids = options.graphAccountOrder ?? options.missingSubscriptionAccountIds ?? []
+                return { results: ids.map((id) => ({ id })) }
               }
               if (sql.includes("preferred_transport != 'graph'")) {
                 return { results: (options.nonGraphAccountIds ?? []).map((id) => ({ id })) }
               }
               return { results: [] }
+            },
+            async run() {
+              // The fairness "touch" UPDATE (`UPDATE ... SET updated_at = ? WHERE account_id = ?`).
+              if (sql.includes('UPDATE microsoft_graph_subscriptions') && sql.includes('account_id = ?')) {
+                options.onTouch?.(bindings[1] as string)
+              }
+              return { meta: { changes: 1 } }
             },
           }),
         }
@@ -333,8 +344,8 @@ describe('reconcileMicrosoftGraphSubscriptions (C-2, C-5)', () => {
     for (const row of created) {
       expect(row).toMatchObject({ status: 'rejected', failureCount: 1, lastErrorCode: 'graph_subscription_forbidden' })
       expect(row.nextAttemptAt).toBe(NOW + 24 * 60 * 60)
-      // No real remote identity — a sentinel, not a Microsoft-issued GUID.
-      expect(row.subscriptionId.startsWith('pending:')).toBe(true)
+      // No real remote identity (0038: null, never a sentinel string).
+      expect(row.subscriptionId).toBeNull()
     }
 
     // Next pass, still within 24h: no second create() attempt for either
@@ -351,7 +362,86 @@ describe('reconcileMicrosoftGraphSubscriptions (C-2, C-5)', () => {
     await reconcileMicrosoftGraphSubscriptions(env, NOW + 24 * 60 * 60, runtimeFor(repository, succeeding))
     expect(succeeding.renew).not.toHaveBeenCalled()
     expect(succeeding.create).toHaveBeenCalled()
-    expect(rows().every((row) => row.status === 'active' && !row.subscriptionId.startsWith('pending:'))).toBe(true)
+    expect(rows().every((row) => row.status === 'active' && row.subscriptionId !== null)).toBe(true)
+  })
+
+  it('a rejected null-id row causes no remote DELETE when the due scan rebuilds it (re-review #1)', async () => {
+    const rejected = subscriptionRow({ status: 'rejected', subscriptionId: null, failureCount: 1 })
+    const { repository, rows } = fakeRepository([rejected])
+    const client = fakeClient()
+
+    await reconcileMicrosoftGraphSubscriptions(fakeEnv(), NOW, runtimeFor(repository, client))
+
+    expect(client.remove).not.toHaveBeenCalled()
+    expect(client.renew).not.toHaveBeenCalled()
+    expect(client.create).toHaveBeenCalledTimes(1)
+    expect(rows()[0]).toMatchObject({ status: 'active', subscriptionId: expect.any(String) })
+  })
+
+  it('a null-id row is never treated as a remote orphan match (re-review #1)', async () => {
+    const rejected = subscriptionRow({
+      id: 'row-rejected', status: 'rejected', subscriptionId: null, nextAttemptAt: NOW + 999_999,
+    })
+    const { repository, rows } = fakeRepository([rejected])
+    const client = fakeClient({ list: vi.fn(async () => []) })
+    const env = fakeEnv({ missingSubscriptionAccountIds: ['acct-1'] })
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    // The null-id row must survive `reconcileOrphans` untouched (not deleted
+    // as "local, no matching remote"), and its folder must not be recreated
+    // a second time in the same pass.
+    expect(rows().some((row) => row.id === 'row-rejected')).toBe(true)
+    expect(client.create).toHaveBeenCalledTimes(1)
+    expect(rows().map((row) => row.folderPath).sort()).toEqual(['INBOX', 'Junk Email'])
+  })
+
+  it('fairness (re-review Important #3): accounts rotate by least-recently-reconciled rather than the first ten by id winning forever', async () => {
+    const touched: string[] = []
+    const { repository, rows } = fakeRepository([])
+    const client = fakeClient()
+    // The account-selection SQL is faked directly (real ordering logic lives
+    // in D1), but the "touch" call must fire for every account attempted so
+    // a real D1's `MIN(s.updated_at)` would actually rotate it to the back.
+    const env = fakeEnv({ graphAccountOrder: ['acct-11'], onTouch: (id) => touched.push(id) })
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    expect(touched).toEqual(['acct-11'])
+    expect(rows().filter((row) => row.accountId === 'acct-11')).toHaveLength(2)
+  })
+
+  it('fairness: an account is still touched (rotated) even when reconciling it fails', async () => {
+    const touched: string[] = []
+    const { repository } = fakeRepository([])
+    const client = fakeClient()
+    microsoftAccessToken.mockRejectedValue(new Error('token unavailable'))
+    const env = fakeEnv({ graphAccountOrder: ['acct-broken'], onTouch: (id) => touched.push(id) })
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client))
+
+    expect(touched).toEqual(['acct-broken'])
+  })
+
+  it('the deadline stops work mid-account, and the same untouched account is retried on the next tick (re-review Important #3)', async () => {
+    const { repository, rows } = fakeRepository([])
+    const client = fakeClient()
+    const env = fakeEnv({ graphAccountOrder: ['acct-1'] })
+    // Each `hasCapacity()`/budget check advances the clock by 7s; the 20s
+    // deadline trips partway through this one account's token+list+create+
+    // create sequence, before both folders can be created.
+    let elapsedMs = 0
+    const nowMs = () => { const value = 1_000_000 + elapsedMs; elapsedMs += 7_000; return value }
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtimeFor(repository, client), nowMs)
+
+    expect(client.create.mock.calls.length).toBeLessThan(2)
+
+    // Next tick, real budget: the account was never `touchAccountReconciled`
+    // (the exhausted pass broke before reaching it), so it is retried and
+    // finishes both folders this time.
+    await reconcileMicrosoftGraphSubscriptions(env, NOW + 1, runtimeFor(repository, client))
+    expect(rows().map((row) => row.folderPath).sort()).toEqual(['INBOX', 'Junk Email'])
   })
 
   it('a global budget stops the pass early against a pathologically slow client (Suspected/operational risk)', async () => {
@@ -396,6 +486,61 @@ describe('reconcileMicrosoftGraphSubscriptions (C-2, C-5)', () => {
 
     expect(rows().some((row) => row.accountId === 'acct-fail')).toBe(true)
     expect(rows().some((row) => row.accountId === 'acct-ok')).toBe(false)
+  })
+
+  it('fairness across ticks: >10 Graph accounts all get reconciled within a bounded number of ticks (re-review Important #3)', async () => {
+    const accountIds = Array.from({ length: 15 }, (_, index) => `acct-${String(index).padStart(2, '0')}`)
+    const { repository, rows } = fakeRepository([])
+    const client = fakeClient()
+    microsoftAccountForSync.mockImplementation(async (_env: Env, id: string) => account(id))
+    // Mirrors the real `ORDER BY MIN(s.updated_at) ASC, a.id ASC` (D1 sorts
+    // NULL first): an account with zero rows always outranks one that has
+    // been reconciled at least once, breaking ties by id.
+    function fairnessEnv(): Env {
+      return {
+        ...fakeEnv({}),
+        DB: {
+          prepare(sql: string) {
+            return {
+              bind: () => ({
+                async all() {
+                  if (sql.includes("preferred_transport = 'graph'")) {
+                    const marker = (id: string) => {
+                      const values = rows().filter((row) => row.accountId === id).map((row) => row.updatedAt)
+                      return values.length ? Math.min(...values) : null
+                    }
+                    const ordered = [...accountIds].sort((a, b) => {
+                      const ma = marker(a)
+                      const mb = marker(b)
+                      if (ma === mb) return a.localeCompare(b)
+                      if (ma === null) return -1
+                      if (mb === null) return 1
+                      return ma - mb
+                    })
+                    return { results: ordered.slice(0, 10).map((id) => ({ id })) }
+                  }
+                  return { results: [] }
+                },
+                async run() { return { meta: { changes: 1 } } },
+              }),
+            }
+          },
+        },
+      } as unknown as Env
+    }
+
+    await reconcileMicrosoftGraphSubscriptions(fairnessEnv(), NOW, runtimeFor(repository, client))
+    const afterFirstTick = new Set(rows().map((row) => row.accountId))
+    expect(afterFirstTick.size).toBe(10)
+
+    await reconcileMicrosoftGraphSubscriptions(fairnessEnv(), NOW + 1, runtimeFor(repository, client))
+    const afterSecondTick = new Set(rows().map((row) => row.accountId))
+    // The flat `ORDER BY a.id LIMIT 10` bug would keep selecting the same
+    // first ten forever; the fairness fix reaches all 15 within two ticks.
+    expect(afterSecondTick.size).toBe(15)
+    for (const id of accountIds) {
+      expect(rows().filter((row) => row.accountId === id)).toHaveLength(2)
+    }
   })
 
   it('one account failing does not stop the rest of the due-scan pass (per-account isolation)', async () => {

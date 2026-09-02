@@ -175,7 +175,12 @@ export class MicrosoftAccountStore {
    */
   async list(): Promise<PublicMicrosoftAccount[]> {
     const { results } = await this.env.DB.prepare(
-      `SELECT a.*, COUNT(CASE WHEN s.status = 'active' THEN 1 END) AS active_subscriptions
+      // `subscription_id IS NOT NULL` is defense-in-depth on top of the 0038
+      // CHECK (`status != 'active' OR subscription_id IS NOT NULL`), which
+      // already makes an active+null-id row impossible — but this count must
+      // never trust that invariant silently (re-review Important #1).
+      `SELECT a.*, COUNT(CASE WHEN s.status = 'active' AND s.subscription_id IS NOT NULL THEN 1 END)
+         AS active_subscriptions
          FROM microsoft_imap_accounts a
          LEFT JOIN microsoft_graph_subscriptions s ON s.account_id = a.id
         WHERE a.user_id = ?

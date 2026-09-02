@@ -130,6 +130,44 @@ describe('Microsoft Graph subscription repository — identity & lookups', () =>
   })
 })
 
+describe('Microsoft Graph subscription repository — 0038 nullable subscription_id (re-review Important #1)', () => {
+  it('inserts and reads back a rejected row with subscription_id: null', async () => {
+    const { store } = harness()
+    await store.insert(row({ subscriptionId: null, status: 'rejected', failureCount: 1 }), T0)
+
+    const forAccount = await store.forAccount(ACCOUNT)
+    expect(forAccount).toHaveLength(1)
+    expect(forAccount[0].subscriptionId).toBeNull()
+    // A null id can never be matched by an incoming notification's lookup.
+    expect(await store.bySubscriptionId('')).toBeNull()
+  })
+
+  it('the real 0038 CHECK constraint rejects an active row with a null subscription_id', async () => {
+    const { store } = harness()
+    await expect(store.insert(row({ subscriptionId: null, status: 'active' }), T0))
+      .rejects.toThrow(/CHECK constraint failed/)
+  })
+
+  it('two rejected rows with null subscription_id do not collide on the partial unique index', async () => {
+    const { store } = harness()
+    await store.insert(row({ id: 'sub_row_1', folderPath: 'INBOX', subscriptionId: null, status: 'rejected' }), T0)
+    await store.insert(row({ id: 'sub_row_2', folderPath: 'Junk Email', subscriptionId: null, status: 'rejected' }), T0)
+
+    expect(await store.forAccount(ACCOUNT)).toHaveLength(2)
+  })
+
+  it('update() can move a row from null to a real subscriptionId (rebuild) and back is never needed', async () => {
+    const { store } = harness()
+    await store.insert(row({ subscriptionId: null, status: 'rejected' }), T0)
+
+    const updated = await store.update('sub_row_1', {
+      subscriptionId: 'remote-sub-1', status: 'active', failureCount: 0,
+    }, T0 + 1)
+
+    expect(updated).toMatchObject({ subscriptionId: 'remote-sub-1', status: 'active' })
+  })
+})
+
 describe('Microsoft Graph subscription repository — update() and due()', () => {
   it('patches only the identity/scheduling columns named in the patch', async () => {
     const { store } = harness()

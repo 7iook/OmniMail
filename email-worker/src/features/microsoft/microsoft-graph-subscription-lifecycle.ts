@@ -152,6 +152,9 @@ export async function teardownMicrosoftGraphSubscriptions(
       const accessToken = await microsoftAccessToken(env, account, { transport: 'graph' })
       const client = new MicrosoftGraphSubscriptionClient({ accessToken })
       for (const row of rows) {
+        // 0038: a null id means no remote subscription was ever obtained for
+        // this row (rejected at create time) — there is nothing to DELETE.
+        if (row.subscriptionId === null) continue
         try {
           await client.remove(row.subscriptionId)
         } catch (error) {

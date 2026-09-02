@@ -36,7 +36,8 @@ type Row = {
   id: string
   account_id: string
   folder_path: string
-  subscription_id: string
+  /** NULL = no remote subscription exists for this row (0038: create refused / not yet created). */
+  subscription_id: string | null
   client_state_hash: string
   expires_at: number
   status: MicrosoftGraphSubscriptionStatus

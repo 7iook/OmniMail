@@ -341,8 +341,9 @@ function fakeRepository(initial: MicrosoftGraphSubscription | null) {
     },
     async releaseQueued(id, now) {
       if (!row || row.id !== id || row.refreshState !== 'queued') return false
-      row = { ...row, refreshState: 'idle', refreshStateAt: now }
-      return true
+      const hadPending = row.refreshPending
+      row = { ...row, refreshState: hadPending ? 'queued' : 'idle', refreshPending: false, refreshStateAt: now }
+      return hadPending
     },
     async markRunning(id, now) {
       if (!row || row.id !== id) return false
@@ -450,6 +451,58 @@ describe('processMicrosoftGraphNotificationItems (C-1, C-3)', () => {
       { subscriptionId: SUB_ID, clientState: 'right-state', changeType: 'created', resource: 'r' },
     ], NOW)
 
+    expect(current()?.refreshState).toBe('idle')
+    errorSpy.mockRestore()
+  })
+
+  it('a send failure racing a concurrent notification resends once and succeeds (re-review Important #2)', async () => {
+    const hash = await hashMicrosoftGraphClientState('right-state')
+    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
+    let sendCalls = 0
+    const send = vi.fn(async () => {
+      sendCalls += 1
+      if (sendCalls === 1) {
+        // A second notification races in and observes `queued`, only
+        // flagging a follow-up, while the first send is still failing.
+        await repository.markPending('sub-row-1', NOW)
+        throw new Error('queue down')
+      }
+    })
+    const env2 = { MAIL_QUEUE: { send } } as unknown as Env
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await processMicrosoftGraphNotificationItems(env2, repository, [
+      { subscriptionId: SUB_ID, clientState: 'right-state', changeType: 'created', resource: 'r' },
+    ], NOW)
+
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(current()).toMatchObject({ refreshState: 'queued', refreshPending: false })
+    errorSpy.mockRestore()
+  })
+
+  it('a double send failure with no further wakeup ends idle, never a third send (re-review Important #2)', async () => {
+    const hash = await hashMicrosoftGraphClientState('right-state')
+    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
+    let sendCalls = 0
+    const send = vi.fn(async () => {
+      sendCalls += 1
+      if (sendCalls === 1) {
+        await repository.markPending('sub-row-1', NOW)
+      }
+      throw new Error('queue down') // both attempts fail
+    })
+    const env2 = { MAIL_QUEUE: { send } } as unknown as Env
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await processMicrosoftGraphNotificationItems(env2, repository, [
+      { subscriptionId: SUB_ID, clientState: 'right-state', changeType: 'created', resource: 'r' },
+    ], NOW)
+
+    // Send #1 fails and the race sets pending, so `releaseQueued` reports
+    // `true` (must resend). Send #2 also fails, but nothing raced in this
+    // time, so `releaseQueued` reports `false` — the recovery loop stops
+    // rather than spinning, and the row ends `idle`, not stranded `queued`.
+    expect(send).toHaveBeenCalledTimes(2)
     expect(current()?.refreshState).toBe('idle')
     errorSpy.mockRestore()
   })

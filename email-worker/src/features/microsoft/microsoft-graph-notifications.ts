@@ -328,6 +328,56 @@ export function microsoftGraphSubscriptionRuntime(): MicrosoftGraphSubscriptionR
 }
 
 /**
+ * Small cap on the send/`releaseQueued` recovery loop below (re-review
+ * Important #2): a pathological repository that always reports "must resend"
+ * must not spin forever inside one deferred task.
+ */
+const ENQUEUE_RECOVERY_MAX_ATTEMPTS = 3
+
+/**
+ * Sends the queue message for a subscription row that is already sitting in
+ * `queued` — either just won via `markQueued`, or left there by
+ * `finishRunning`'s own requeue. On failure, `releaseQueued` reports whether a
+ * notification raced in and set `refresh_pending` meanwhile (`true`: the row
+ * is still `queued` with nothing in flight for it, so this must resend) or
+ * went to `idle` (`false`: nothing left to do).
+ *
+ * Centralised (re-review Important #2) so both the notification processor's
+ * initial enqueue ({@link enqueueFolderRefresh}) and the consumer's follow-up
+ * send (`microsoft-sync.ts`'s `finishRunning` requeue path) share one place
+ * that never leaves a `queued` row stranded with no message — the prior
+ * per-caller duplication left the initial-enqueue path ignoring the `true`
+ * result entirely.
+ */
+export async function sendMicrosoftFolderRefreshJob(
+  env: Env,
+  repository: MicrosoftGraphSubscriptionRepository,
+  subscriptionId: string,
+  accountId: string,
+  folderPath: string,
+  now: number,
+): Promise<void> {
+  for (let attempt = 1; attempt <= ENQUEUE_RECOVERY_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await env.MAIL_QUEUE.send({ kind: 'microsoft-folder-refresh', accountId, folderPath, reason: 'notification' })
+      return
+    } catch (error) {
+      console.error('Unable to enqueue a Microsoft folder refresh', {
+        accountId,
+        folderPath,
+        attempt,
+        type: error instanceof Error ? error.name : typeof error,
+      })
+      const mustResend = await repository.releaseQueued(subscriptionId, now)
+      if (!mustResend) return
+      // A notification raced in while the send above was failing: the row is
+      // still `queued` and nothing is in flight for it, so resend.
+    }
+  }
+  console.error('Microsoft folder refresh enqueue recovery exhausted its attempt cap', { accountId, folderPath })
+}
+
+/**
  * C-3's "notification arrived" transition, shared by the notification path and
  * the `missed` lifecycle event (task item 2 treats `missed` as a notification).
  *
@@ -335,8 +385,6 @@ export function microsoftGraphSubscriptionRuntime(): MicrosoftGraphSubscriptionR
  * job. Losing it (state was already queued/running, or the repository's own
  * >10-minute crash recovery decided otherwise) means `markPending` records that
  * a fresher notification arrived without adding a second in-flight job (I-10).
- * A send failure releases the slot rather than leaving it stuck `queued`
- * forever with nothing in the queue to ever call `finishRunning`.
  */
 async function enqueueFolderRefresh(
   env: Env,
@@ -349,21 +397,9 @@ async function enqueueFolderRefresh(
     await repository.markPending(subscription.id, now)
     return
   }
-  try {
-    await env.MAIL_QUEUE.send({
-      kind: 'microsoft-folder-refresh',
-      accountId: subscription.accountId,
-      folderPath: subscription.folderPath,
-      reason: 'notification',
-    })
-  } catch (error) {
-    console.error('Unable to enqueue Microsoft folder refresh from a Graph notification', {
-      accountId: subscription.accountId,
-      folderPath: subscription.folderPath,
-      type: error instanceof Error ? error.name : typeof error,
-    })
-    await repository.releaseQueued(subscription.id, now)
-  }
+  await sendMicrosoftFolderRefreshJob(
+    env, repository, subscription.id, subscription.accountId, subscription.folderPath, now,
+  )
 }
 
 async function processNotificationItem(
