@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY } from './schema-migration-microsoft-graph-subscription-identity'
 import { MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY } from './schema-migration-microsoft-graph-subscriptions'
 import { RECOVERABLE_MIGRATIONS, WRANGLER_MIGRATION_NAMES } from './schema-migrations'
 
@@ -100,12 +101,38 @@ describe('D1 schema shape (real execution, not mocked batches)', () => {
     expect(uniqueColumnSets).toContain('account_id,folder_path')
     expect(uniqueColumnSets).toContain('subscription_id')
 
+    // 0038: remote identity is separate from the scheduling record. A rejected
+    // row may have no subscription_id (NULL), an active row must have one, and
+    // uniqueness is partial so several NULL rows can coexist.
+    const subscriptionId = db.prepare(
+      "SELECT \"notnull\" AS not_null FROM pragma_table_info('microsoft_graph_subscriptions') WHERE name = 'subscription_id'",
+    ).get() as { not_null: number }
+    expect(subscriptionId.not_null).toBe(0)
+    const partial = db.prepare(
+      "SELECT partial FROM pragma_index_list('microsoft_graph_subscriptions') WHERE name = 'idx_microsoft_graph_subscriptions_remote'",
+    ).get() as { partial: number }
+    expect(partial.partial).toBe(1)
+    // Only the CHECK constraints are under test here, not the account FK.
+    db.exec('PRAGMA foreign_keys = OFF')
+    const insert = (folder: string, id: string | null, status: string) => db.prepare(
+      `INSERT INTO microsoft_graph_subscriptions
+         (id, account_id, folder_path, subscription_id, client_state_hash, expires_at, status, created_at, updated_at)
+       VALUES (?, 'acct', ?, ?, 'h', 1, ?, 1, 1)`,
+    ).run(`${folder}-${status}`, folder, id, status)
+    expect(() => insert('INBOX', null, 'rejected')).not.toThrow()
+    expect(() => insert('Junk Email', null, 'rejected')).not.toThrow()
+    expect(() => insert('Archive', null, 'active')).toThrow(/CHECK constraint failed/)
+
     // The runtime twin must produce the same shape as the .sql file: both are
     // hand-kept, and 0036 already showed how easily they can drift.
     const runtime = new DatabaseSync(':memory:')
     runtime.exec('CREATE TABLE microsoft_imap_accounts (id TEXT PRIMARY KEY)')
     for (const statement of MICROSOFT_GRAPH_SUBSCRIPTIONS_RECOVERY.statements) runtime.exec(statement)
+    for (const statement of MICROSOFT_GRAPH_SUBSCRIPTION_IDENTITY_RECOVERY.statements) runtime.exec(statement)
     expect(columns(runtime, 'microsoft_graph_subscriptions')).toEqual(cols)
+    expect((runtime.prepare(
+      "SELECT \"notnull\" AS not_null FROM pragma_table_info('microsoft_graph_subscriptions') WHERE name = 'subscription_id'",
+    ).get() as { not_null: number }).not_null).toBe(0)
   })
 
   it('orders runtime recovery the same as the tracked migration list', () => {

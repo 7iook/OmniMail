@@ -228,7 +228,12 @@ export interface MicrosoftGraphSubscription {
   id: string
   accountId: string
   folderPath: string
-  subscriptionId: string
+  /**
+   * Remote identity, or `null` when no subscription exists on Microsoft's side
+   * (creation refused, or not yet created). Never send a null id to Graph; an
+   * `active` row always carries one (enforced by the 0038 CHECK).
+   */
+  subscriptionId: string | null
   /** SHA-256 hex of the clientState sent to Graph; the plaintext is never stored (C-1). */
   clientStateHash: string
   expiresAt: number

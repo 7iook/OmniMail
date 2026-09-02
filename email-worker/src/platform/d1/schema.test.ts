@@ -108,6 +108,7 @@ const FINAL_MIGRATIONS = [
   '0035_external_mail_indexes.sql',
   '0036_microsoft_transport_channel.sql',
   '0037_microsoft_graph_subscriptions.sql',
+  '0038_microsoft_graph_subscription_identity.sql',
 ]
 
 describe('D1 migration check', () => {
@@ -120,24 +121,24 @@ describe('D1 migration check', () => {
     const checkedMigrations = fixture.prepare.mock.results
       .map(({ value }) => (value as MockStatement).bindings[0])
       .filter(Boolean)
-    expect(checkedMigrations).toEqual(['0037_microsoft_graph_subscriptions.sql'])
+    expect(checkedMigrations).toEqual(['0038_microsoft_graph_subscription_identity.sql'])
   })
 
-  it('applies Graph subscriptions 0037 to an installation already on 0036', async () => {
+  it('applies subscription identity 0038 to an installation already on 0037', async () => {
     const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -1) })
 
     await ensureSchema(fixture.db)
 
     expect(fixture.batch).toHaveBeenCalledOnce()
-    expect(fixture.applied.has('0037_microsoft_graph_subscriptions.sql')).toBe(true)
+    expect(fixture.applied.has('0038_microsoft_graph_subscription_identity.sql')).toBe(true)
   })
 
   it('recovers from 0033 through Yandex and external mail indexes', async () => {
-    const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -2) })
+    const fixture = database({ applied: FINAL_MIGRATIONS.slice(0, -3) })
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.batch).toHaveBeenCalledTimes(2)
+    expect(fixture.batch).toHaveBeenCalledTimes(3)
     expect(fixture.applied.has('0032_netease_mail.sql')).toBe(false)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
@@ -146,12 +147,12 @@ describe('D1 migration check', () => {
 
   it('applies NAVER and Yandex when a test database already recorded NetEase 0032', async () => {
     const fixture = database({
-      applied: [...FINAL_MIGRATIONS.slice(0, -2), '0032_netease_mail.sql'],
+      applied: [...FINAL_MIGRATIONS.slice(0, -3), '0032_netease_mail.sql'],
     })
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.batch).toHaveBeenCalledTimes(2)
+    expect(fixture.batch).toHaveBeenCalledTimes(3)
     expect(fixture.applied.has('0032_netease_mail.sql')).toBe(true)
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
@@ -159,10 +160,10 @@ describe('D1 migration check', () => {
   })
 
   it.each([
-    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 23],
-    ['2026-08-01-p2-translation-permissions', 16, 21],
-    ['2026-08-03-p3-multiple-drafts', 17, 20],
-  ])('recovers legacy schema %s through migration 0037', async (
+    ['2026-07-29-p5-outbound-rate-limit-admin', 14, 24],
+    ['2026-08-01-p2-translation-permissions', 16, 22],
+    ['2026-08-03-p3-multiple-drafts', 17, 21],
+  ])('recovers legacy schema %s through migration 0038', async (
     legacyVersion,
     baseline,
     batchCount,
@@ -172,7 +173,7 @@ describe('D1 migration check', () => {
 
     expect(fixture.batch).toHaveBeenCalledTimes(batchCount)
     expect(fixture.batches[0]).toHaveLength(baseline + 1)
-    expect(fixture.applied.size).toBe(36)
+    expect(fixture.applied.size).toBe(37)
     expect(fixture.applied.has('0020_device_token_scopes.sql')).toBe(true)
     expect(fixture.applied.has('0021_icloud_accounts.sql')).toBe(true)
     expect(fixture.applied.has('0022_consistency_guards.sql')).toBe(true)
@@ -188,6 +189,7 @@ describe('D1 migration check', () => {
     expect(fixture.applied.has('0033_naver_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0034_yandex_mail_imap.sql')).toBe(true)
     expect(fixture.applied.has('0037_microsoft_graph_subscriptions.sql')).toBe(true)
+    expect(fixture.applied.has('0038_microsoft_graph_subscription_identity.sql')).toBe(true)
     expect(fixture.prepare).toHaveBeenCalledWith(
       "ALTER TABLE device_sessions ADD COLUMN scopes TEXT NOT NULL DEFAULT '*'",
     )
@@ -222,7 +224,7 @@ describe('D1 migration check', () => {
 
     await ensureSchema(fixture.db)
 
-    expect(fixture.applied.size).toBe(36)
+    expect(fixture.applied.size).toBe(37)
     expect(fixture.batches[0]).toHaveLength(18)
   })
 
@@ -257,7 +259,7 @@ describe('D1 migration check', () => {
   it('accepts a concurrent migration completed by another isolate', async () => {
     const fixture = database({
       applied: FINAL_MIGRATIONS.slice(0, -1),
-      concurrentMigration: '0037_microsoft_graph_subscriptions.sql',
+      concurrentMigration: '0038_microsoft_graph_subscription_identity.sql',
     })
 
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
@@ -270,7 +272,7 @@ describe('D1 migration check', () => {
       failBatchOnce: true,
     })
 
-    await expect(ensureSchema(fixture.db)).rejects.toThrow('0037_microsoft_graph_subscriptions.sql')
+    await expect(ensureSchema(fixture.db)).rejects.toThrow('0038_microsoft_graph_subscription_identity.sql')
     await expect(ensureSchema(fixture.db)).resolves.toBeUndefined()
     expect(fixture.batch).toHaveBeenCalledTimes(2)
   })
