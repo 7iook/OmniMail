@@ -33,7 +33,7 @@ describe('Microsoft workspace safety and accessibility boundaries', () => {
       id: 'microsoft-1', name: 'Work', email: 'user@outlook.com', status: 'active' as const,
     }
     const summary = {
-      id: 'message-1', account, folderPath: 'INBOX', uidValidity: 1, uid: 2,
+      id: 'message-1', account, folderPath: 'INBOX', uidValidity: 1, remoteId: '2',
       senderName: 'Sender', senderAddress: 'sender@example.com', recipients: [], cc: [],
       subject: 'Subject', preview: '', date: 1, sentAt: null, sizeBytes: 10,
       isRead: false, isStarred: false, hasAttachments: true,
