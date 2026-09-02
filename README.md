@@ -132,15 +132,18 @@ Serverless Webmail：
 
 ### Microsoft 邮箱（仅已读写入）
 
-- 每个 OmniMail 用户可连接多个 Outlook.com、Hotmail、Live，或租户允许 IMAP 的
-  Microsoft 365 委托式账号；首期只支持 Azure Global。
-- OAuth2 是唯一认证路径：Worker 只向 Microsoft 官方 token endpoint 兑换 access token，随后
-  固定连接 `outlook.office365.com:993` 并使用 IMAP XOAUTH2。仅邮箱密码导入与 LOGIN 已停用。
+- 每个 OmniMail 用户可连接多个 Outlook.com、Hotmail、Live 或 Microsoft 365 委托式账号；
+  只支持 Azure Global。租户关闭 IMAP 的账号也能连接。
+- OAuth2 是唯一认证路径：Worker 只向 Microsoft 官方 token endpoint 兑换 access token，随后经
+  Microsoft Graph（`graph.microsoft.com`）或 IMAP XOAUTH2（固定 `outlook.office365.com:993`）
+  访问邮箱。新账号先试 Graph、失败再试 IMAP，成功通道会被记住；限流或瞬时故障不会换通道。
+  仅邮箱密码导入与 LOGIN 已停用。
 - 工作区可以聚合 INBOX，也可选择单账号的服务器文件夹，按 1–200 条读取元数据。全部范围可把
   所有账号逐个加入同步 Queue，单账号范围可直接刷新当前文件夹；复制按钮在全部范围默认复制
-  第一个账号邮箱。正文、CID 图片与最大 5 MiB 附件仅在打开时通过 `BODY.PEEK[]` 读取，不长期保存。
-- Cron 约每 5 分钟将到期 INBOX 同步加入 Queue；这是定时收信，不是秒级推送。打开未读邮件会在
-  正文读取成功后同步 `\Seen`；除此之外不提供发信、删除、移动、归档或星标等远端写操作。
+  第一个账号邮箱。正文、CID 图片与最大 5 MiB 附件仅在打开时按需读取完整 MIME，不长期保存。
+- Cron 约每 5 分钟将到期 INBOX 同步加入 Queue，并按通道对账远端删除；这是定时收信，不是秒级
+  推送。打开未读邮件会在正文读取成功后先在远端标已读（Graph `PATCH isRead` / IMAP `\Seen`），
+  再更新本地；除此之外不提供发信、删除、移动、归档或星标等远端写操作。
 - refresh token、短期 access token与经确认留存的四字段组合 password 使用独立
   `MICROSOFT_CREDENTIALS_KEY` 进行 AES-GCM 加密；组合 password 不参与认证，API、日志与审计
   记录也不会返回敏感凭据。
@@ -546,11 +549,12 @@ Google 应用专用密码；连接验证成功后，Worker 会异步建立最近
 **系统设置 → 邮箱功能入口** 中隐藏或恢复入口，隐藏不会删除已保存账号或索引。
 
 若要启用独立的 **Microsoft 邮箱**，配置至少 32 字节的
-`MICROSOFT_CREDENTIALS_KEY`，部署并应用 `0027_microsoft_imap.sql` 与
-`0028_microsoft_oauth_combination_password.sql`。用户使用 OAuth2 refresh token + Client ID
-连接；不再接受仅邮箱密码登录。四字段组合 password 经确认后独立加密留存，但不参与认证。
-Worker 只访问 Microsoft 官方 OAuth 与 IMAP 端点；批量导入文本会在浏览器中解析为结构化字段，
-不会发送给第三方服务。管理员同样可在 **系统设置 → 邮箱功能入口** 中隐藏入口。
+`MICROSOFT_CREDENTIALS_KEY`，部署并应用 `0027_microsoft_imap.sql`、
+`0028_microsoft_oauth_combination_password.sql` 与 `0036_microsoft_transport_channel.sql`
+（后者重建消息表，要求该表为空）。用户使用 OAuth2 refresh token + Client ID 连接；不再接受仅
+邮箱密码登录。四字段组合 password 经确认后独立加密留存，但不参与认证。
+Worker 只访问 Microsoft 官方 OAuth、Graph 与 IMAP 端点；批量导入文本会在浏览器中解析为结构化
+字段，不会发送给第三方服务。管理员同样可在 **系统设置 → 邮箱功能入口** 中隐藏入口。
 
 若要启用独立的 **QQ 邮箱聚合收件箱**，配置至少 32 字节的
 `QQ_MAIL_CREDENTIALS_KEY`，部署并应用到 `0030_qq_mail_smtp.sql`。用户需要先在 QQ 邮箱设置中

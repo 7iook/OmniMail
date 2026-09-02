@@ -130,6 +130,11 @@ Provider 共用的能力应先判断是否已经存在于 `shared/mail`、`share
 Linux DO Mail 与 QQ 邮箱的受控 SMTP 会话和 MIME 序列化位于
 `email-worker/src/shared/mail/smtp-client.ts`；Provider 文件只固定端点、认证方式和错误映射。
 
+## 架构决策记录
+
+难以回退的设计决策（数据模型、跨模块边界、否决过的替代方案）记录在 `docs/architecture/`，按
+`NNNN-主题.md` 顺序编号；各 Provider 的 `*_INTEGRATION_PLAN.md` 只描述当前代码，不承载「为什么不选别的」。当前：[0001 · Microsoft 双通道传输与跨通道消息身份](architecture/0001-microsoft-transport-identity.md)。
+
 ## 验证要求
 
 目录或模块边界调整后至少运行：

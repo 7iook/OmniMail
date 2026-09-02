@@ -33,7 +33,7 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/microsoft/accounts/import catalog:87ad664da722 -->
+<!-- endpoint:POST /api/microsoft/accounts/import catalog:28996798cf8d -->
 ## `POST /api/microsoft/accounts/import`
 
 **导入 Microsoft 账号 / Import Microsoft accounts**
@@ -46,15 +46,15 @@ curl --request GET \
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
 | 请求 | JSON · accounts[1..25] · { name?, email, authMode=oauth2, refreshToken, clientId, authority?, password?, persistPasswordConfirmed? } |
-| 成功响应 | 201/207 · { results: [{ index, status=accepted\|duplicate\|error, code?, error?, account? }] } |
+| 成功响应 | 201/207 · { results: [{ index, status=accepted\|duplicate\|error, code?, error?, account?, attempts?: [{ transport=graph\|imap, category, code, status, message }] }] } |
 
 > 注意：服务端只接受结构化字段；不要把整段逐行文本直接提交到该端点。
 >
 > Note: The server accepts structured fields only; do not submit the raw multiline import text.
 
-> 注意：password 仅作为可选组合密码留存；提交时 persistPasswordConfirmed 必须为 true，且该密码永不参与认证。
+> 注意：password 仅作为可选组合密码留存；提交时 persistPasswordConfirmed 必须为 true，且该密码永不参与认证。每项先试 Graph 再试 IMAP；两条通道都被拒绝时返回 code=transport_unavailable 并附 attempts[] 逐通道说明原因。
 >
-> Note: password is optional retained combination data only; persistPasswordConfirmed must be true when it is sent, and the password is never used for authentication.
+> Note: password is optional retained combination data only; persistPasswordConfirmed must be true when it is sent, and the password is never used for authentication. Each item tries Graph first, then IMAP; when both channels refuse, the item returns code=transport_unavailable with an attempts[] array explaining each channel.
 
 ### cURL 示例
 
@@ -157,14 +157,14 @@ curl --request DELETE \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:POST /api/microsoft/accounts/:id/verify catalog:f46d9a7007b3 -->
+<!-- endpoint:POST /api/microsoft/accounts/:id/verify catalog:c51fd6792ccc -->
 ## `POST /api/microsoft/accounts/{id}/verify`
 
 **验证 Microsoft 连接 / Verify a Microsoft connection**
 
-用已保存凭据验证固定 Microsoft IMAP 端点并刷新文件夹缓存。
+用已保存凭据经 Graph/IMAP 级联验证邮箱可达并刷新文件夹缓存；成功通道会记录到账号。
 
-> Validate the fixed Microsoft IMAP endpoint with saved credentials and refresh the folder cache.
+> Validate mailbox access with saved credentials through the Graph/IMAP cascade and refresh the folder cache; the winning channel is recorded on the account.
 
 | 项目 | 内容 |
 | --- | --- |
@@ -203,14 +203,14 @@ curl --request POST \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/microsoft/accounts/:id/folders catalog:47e3ffad1333 -->
+<!-- endpoint:GET /api/microsoft/accounts/:id/folders catalog:174bcfe32e06 -->
 ## `GET /api/microsoft/accounts/{id}/folders`
 
 **列出 Microsoft 文件夹 / List Microsoft folders**
 
-读取缓存文件夹；refresh=1 时先从 IMAP LIST 安全刷新。
+读取缓存文件夹；refresh=1 时先经当前通道（Graph /me/mailFolders 或 IMAP LIST）安全刷新。
 
-> Read cached folders, optionally refreshing safely with IMAP LIST when refresh=1.
+> Read cached folders, optionally refreshing safely through the active channel (Graph /me/mailFolders or IMAP LIST) when refresh=1.
 
 | 项目 | 内容 |
 | --- | --- |
@@ -249,14 +249,14 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:4dc4956d492e -->
+<!-- endpoint:GET /api/microsoft/accounts/:accountId/messages/:messageId catalog:901cd6ba1948 -->
 ## `GET /api/microsoft/accounts/{accountId}/messages/{messageId}`
 
 **读取 Microsoft 正文 / Read a Microsoft message**
 
-再次校验用户、账号、文件夹与 UIDVALIDITY 后，通过 BODY.PEEK[] 按需读取 MIME 正文，并对未读邮件精确写入 \Seen。
+再次校验用户、账号、文件夹与通道内定位（IMAP 行含 UIDVALIDITY）后，按需读取完整 MIME（Graph /$value 或 IMAP BODY.PEEK[]），并对未读邮件先远端标已读（Graph PATCH isRead / IMAP \Seen）再更新本地。
 
-> Revalidate user, account, folder, and UIDVALIDITY, fetch MIME content on demand with BODY.PEEK[], and write Seen for unread messages only.
+> Revalidate user, account, folder, and the per-channel locator (UIDVALIDITY for IMAP rows), fetch full MIME on demand (Graph /$value or IMAP BODY.PEEK[]), and for unread messages mark read remotely first (Graph PATCH isRead / IMAP Seen) before updating the local index.
 
 | 项目 | 内容 |
 | --- | --- |
@@ -264,9 +264,9 @@ curl --request GET \
 | 请求 | Path · accountId, messageId |
 | 成功响应 | 200 · { message } |
 
-> 注意：已读写入失败不会阻断正文响应；移动、删除、归档、星标和其他 flags 写入均未开放。
+> 注意：已读写入失败不会阻断正文响应；Graph 403 会把账号标为 permission_error 且不换通道重放。索引来自另一通道时返回 409 message_locator_stale，刷新列表后重试。移动、删除、归档、星标和其他写入均未开放。
 >
-> Note: A Seen write failure does not block the body response; move, delete, archive, star, and other flag writes are not available.
+> Note: A read-state write failure does not block the body response; a Graph 403 marks the account permission_error and is never replayed over the other channel. A row indexed by the other channel returns 409 message_locator_stale — refresh the list and retry. Move, delete, archive, star, and other writes are not available.
 
 ### cURL 示例
 

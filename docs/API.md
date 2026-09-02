@@ -686,8 +686,10 @@ GET /api/gmail/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 
 配置至少 32 字节的 `MICROSOFT_CREDENTIALS_KEY` 后，用户可导入结构化 OAuth2 凭据。
 四字段组合 password 经确认后独立加密留存，但不参与认证。OAuth2 只访问 Microsoft Global
-官方 token endpoint；IMAP 固定为 `outlook.office365.com:993` TLS。请求不能提供任意 URL、
-主机或端口，也不会在 OAuth2 失败后自动改用密码。
+官方 token endpoint；邮箱经两条通道之一访问并自动级联：Microsoft Graph 固定为
+`https://graph.microsoft.com/v1.0`，IMAP 固定为 `outlook.office365.com:993` TLS。新账号先试
+Graph，成功通道记在账号上；只有认证/权限类失败会换通道。请求不能提供任意 URL、主机或端口，
+也不会在 OAuth2 失败后自动改用密码。
 
 账号与文件夹接口：
 
@@ -702,8 +704,11 @@ POST /api/microsoft/accounts/{id}/sync
 GET /api/microsoft/accounts/{id}/folders?refresh=1
 ```
 
-批量导入每次接受 1–25 个已解析对象，每项独立返回 `accepted`、`duplicate` 或稳定错误。查询接口
-仅返回脱敏 Client ID、认证模式与状态，不返回 refresh token、access token、密码或密文。
+批量导入每次接受 1–25 个已解析对象，每项独立返回 `accepted`、`duplicate` 或稳定错误。两条通道
+都被拒绝时错误项为 `code: transport_unavailable` 并附 `attempts[]`，每项
+`{ transport, category, code, status, message }` 说明该通道为何失败。查询接口仅返回脱敏
+Client ID、认证模式、状态与诊断用 `preferredTransport`，不返回 refresh token、access token、
+密码或密文。
 
 邮件接口：
 
@@ -713,11 +718,13 @@ GET /api/microsoft/accounts/{accountId}/messages/{messageId}
 GET /api/microsoft/accounts/{accountId}/messages/{messageId}/attachments/{partId}
 ```
 
-元数据身份绑定账号、folder、UIDVALIDITY 与 UID。正文和最大 5 MiB 附件通过 `BODY.PEEK[]`
-按需读取且不持久化；正文读取成功后，未读邮件会通过固定的
-`UID STORE ... +FLAGS.SILENT (\\Seen)` 同步已读状态。写入失败不会阻断正文响应，也不会错误更新
-本地已读索引。后台约每 5 分钟只读同步 INBOX；全部账号同步由浏览器逐账号调用单账号 sync
-端点，单账号当前文件夹可通过 messages 的 `refresh=1` 受限刷新。这是轮询而非秒级推送。
+元数据身份分两层：`internet_message_id`（Message-ID）跨通道去重，`(source_transport, remote_id)`
+通道内定位；IMAP 行另绑 UIDVALIDITY，Graph 行的 `uidValidity` 为 `null`。正文和最大 5 MiB 附件
+按需读取完整 MIME（Graph `/$value`、IMAP `BODY.PEEK[]`）且不持久化；正文读取成功后，未读邮件先
+在远端标已读（Graph `PATCH isRead` / IMAP `UID STORE ... +FLAGS.SILENT (\\Seen)`），成功后才更新
+本地索引。写入失败不会阻断正文响应；Graph 403 会把账号标为 `permission_error`。后台约每 5 分钟
+只读同步 INBOX 并按通道对账远端删除；全部账号同步由浏览器逐账号调用单账号 sync 端点，单账号
+当前文件夹可通过 messages 的 `refresh=1` 受限刷新。这是轮询而非秒级推送。
 除精确标记已读外，不提供移动、删除、归档、星标或其他远端写入。部署与真实账号验收见
 [`MICROSOFT_SETUP.md`](MICROSOFT_SETUP.md)，完整字段见 [`api/microsoft.md`](api/microsoft.md)。
 
@@ -849,7 +856,7 @@ npm run docs:api
 | `POST /api/microsoft/accounts/import` | 独立验证并导入一批结构化 OAuth2 账号；可确认加密保存组合 password |
 | `PATCH/DELETE /api/microsoft/accounts/{id}` | 重命名或断开 Microsoft 账号 |
 | `PUT /api/microsoft/accounts/{id}/credential` | 验证并替换 OAuth2 凭据 |
-| `POST /api/microsoft/accounts/{id}/verify` | 验证已保存的 Microsoft IMAP 凭据与权限 |
+| `POST /api/microsoft/accounts/{id}/verify` | 经 Graph/IMAP 级联验证已保存的 Microsoft 凭据与权限 |
 | `POST /api/microsoft/accounts/{id}/sync` | 请求受限的异步 Microsoft INBOX 同步 |
 | `GET /api/microsoft/accounts/{id}/folders` | 读取或受限刷新服务器文件夹列表 |
 | `GET /api/microsoft/messages` | 按账号和文件夹搜索 Microsoft 元数据并分页 |

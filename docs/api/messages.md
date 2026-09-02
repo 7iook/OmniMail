@@ -15,9 +15,9 @@
 
 **读取统一新邮件通知摘要 / Read unified new-mail notification summaries**
 
-从 OmniMail 及已启用的外部邮箱索引读取统一的新邮件摘要，供浏览器扩展轮询提醒。
+按来源读取已连接邮箱的轻量元数据，不返回正文或附件。
 
-> Read unified new-mail summaries from OmniMail and enabled external-mail indexes for extension polling.
+> Read lightweight metadata for connected mail sources without returning bodies or attachments.
 
 | 项目 | 内容 |
 | --- | --- |
