@@ -38,10 +38,13 @@
   of one account. -DelaySeconds (default 2) is slept between imports.
 
 .EXAMPLE
-  pwsh -File scripts/microsoft-graph-e2e.ps1 -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -ReadIndexes 13,15
+  pwsh -Command "& scripts/microsoft-graph-e2e.ps1 -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -ReadIndexes @(13,15)"
 
 .EXAMPLE
-  pwsh -File scripts/microsoft-graph-e2e.ps1 -BaseUrl https://omni-mail.example.workers.dev -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -ReadIndexes 13,15 -AllowDuplicate
+  pwsh -Command "& scripts/microsoft-graph-e2e.ps1 -BaseUrl https://omni-mail.example.workers.dev -CredentialFile D:\x.txt -Email admin@example.com -Password '***' -ReadIndexes @(13,15) -AllowDuplicate"
+
+  Use -Command (or call from an interactive pwsh), not `pwsh -File`: with -File every
+  argument arrives as a string, so `13,15` is not parsed as an int array.
 
 .NOTES
   Exit code 0 = every row PASS; 1 = at least one FAIL (or a fatal setup error).
@@ -330,11 +333,13 @@ foreach ($row in $importable) {
   $id = $accountIds[$row.Email]
   $path = '/api/microsoft/messages?accountId={0}&refresh=1&limit={1}' -f [uri]::EscapeDataString($id), $ListLimit
   $resp = Invoke-Api -Method GET -Path $path -Token $token -TimeoutSec 120
-  $messages = Get-Prop $resp.Body 'messages'
-  # `messages` must be an array; an empty array is a PASS. ConvertFrom-Json unwraps a
-  # one-element array only when piped, and Invoke-RestMethod does not pipe, so a
-  # single-message inbox still arrives as an array here.
-  $isArray = ($null -ne $messages) -and ($messages -is [System.Array] -or $messages -is [System.Collections.IList])
+  # `messages` must be an array; an empty array is a PASS (18/20 inboxes are empty).
+  # Read the property directly: returning an empty array through a function
+  # unrolls it to $null, which would turn every empty inbox into a false FAIL.
+  $messagesProp = if ($null -ne $resp.Body) { $resp.Body.PSObject.Properties['messages'] } else { $null }
+  $messages = if ($null -ne $messagesProp) { $messagesProp.Value } else { $null }
+  $isArray = ($null -ne $messagesProp) -and (
+    $null -eq $messages -or $messages -is [System.Array] -or $messages -is [System.Collections.IList])
   if ($resp.Status -eq 200 -and $isArray) {
     $count = @($messages).Count
     if ($count -gt 0) {
