@@ -4,8 +4,18 @@ import {
   microsoftGraphClientStateDigest,
   MicrosoftGraphSubscriptionClient,
   MicrosoftGraphSubscriptionError,
+  type MicrosoftGraphSubscriptionRequestBudget,
   timingSafeEqual,
 } from './microsoft-graph-subscriptions'
+
+function fakeRequestBudget(capacity: number) {
+  let spent = 0
+  const budget: MicrosoftGraphSubscriptionRequestBudget = {
+    hasCapacity: () => spent < capacity,
+    spend: () => { spent += 1 },
+  }
+  return { budget, spent: () => spent }
+}
 
 type Call = { url: string; init: RequestInit | undefined }
 
@@ -21,7 +31,11 @@ function recorder() {
 
 function client(
   responses: Array<() => Response>,
-  { waits = [] as number[], clock }: { waits?: number[]; clock?: () => number } = {},
+  {
+    waits = [] as number[],
+    clock,
+    budget,
+  }: { waits?: number[]; clock?: () => number; budget?: MicrosoftGraphSubscriptionRequestBudget } = {},
 ) {
   const log = recorder()
   let index = 0
@@ -42,6 +56,7 @@ function client(
       fetcher,
       sleeper,
       ...(clock ? { clock } : {}),
+      ...(budget ? { budget } : {}),
     }),
   }
 }
@@ -273,6 +288,89 @@ describe('Microsoft Graph subscription client · list', () => {
     ])
 
     await expect(subscriptions.list()).rejects.toMatchObject({ code: 'graph_subscription_rejected' })
+  })
+})
+
+describe('Microsoft Graph subscription client · request budget (re-review 2 Important #2a)', () => {
+  it('charges the budget once per page fetched by list(), not once per call', async () => {
+    const { budget, spent } = fakeRequestBudget(10)
+    const nextLink = (page: number) => `https://graph.microsoft.com/v1.0/subscriptions?$skiptoken=${page}`
+    const { subscriptions } = client([
+      () => Response.json({
+        value: [{ id: 'sub-1', resource: 'r', notificationUrl: 'u', expirationDateTime: '2026-09-09T00:00:00Z' }],
+        '@odata.nextLink': nextLink(2),
+      }),
+      () => Response.json({
+        value: [{ id: 'sub-2', resource: 'r', notificationUrl: 'u', expirationDateTime: '2026-09-09T00:00:00Z' }],
+        '@odata.nextLink': nextLink(3),
+      }),
+      () => Response.json({
+        value: [{ id: 'sub-3', resource: 'r', notificationUrl: 'u', expirationDateTime: '2026-09-09T00:00:00Z' }],
+      }),
+    ], { budget })
+
+    const result = await subscriptions.list()
+
+    expect(result).toHaveLength(3)
+    expect(spent()).toBe(3)
+  })
+
+  it('charges once per retry attempt: a 429 then success charges 2, not 1', async () => {
+    const { budget, spent } = fakeRequestBudget(10)
+    const { subscriptions, fetcher } = client([() => throttled('1'), () => subscription()], { budget })
+
+    await subscriptions.create({
+      wellKnownFolder: 'inbox',
+      notificationUrl: 'https://x/notifications',
+      lifecycleNotificationUrl: 'https://x/lifecycle',
+      clientState: 'state',
+      expiresAt: 1_700_000_000,
+    })
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(spent()).toBe(2)
+  })
+
+  it('stops before the next fetch attempt with a clear budget-exhausted error once capacity runs out', async () => {
+    const { budget } = fakeRequestBudget(0)
+    const { subscriptions, fetcher } = client([() => subscription()], { budget })
+
+    const error = await subscriptions.create({
+      wellKnownFolder: 'inbox',
+      notificationUrl: 'https://x/notifications',
+      lifecycleNotificationUrl: 'https://x/lifecycle',
+      clientState: 'state',
+      expiresAt: 1_700_000_000,
+    }).catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(MicrosoftGraphSubscriptionError)
+    expect((error as MicrosoftGraphSubscriptionError).code).toBe('graph_subscription_budget_exhausted')
+    expect((error as MicrosoftGraphSubscriptionError).retryable).toBe(true)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('exhaustion mid-list stops after the pages already fetched, without fetching further pages', async () => {
+    const { budget, spent } = fakeRequestBudget(2)
+    const nextLink = 'https://graph.microsoft.com/v1.0/subscriptions?$skiptoken=2'
+    const { subscriptions, fetcher } = client([
+      () => Response.json({
+        value: [{ id: 'sub-1', resource: 'r', notificationUrl: 'u', expirationDateTime: '2026-09-09T00:00:00Z' }],
+        '@odata.nextLink': nextLink,
+      }),
+      () => Response.json({
+        value: [{ id: 'sub-2', resource: 'r', notificationUrl: 'u', expirationDateTime: '2026-09-09T00:00:00Z' }],
+        '@odata.nextLink': 'https://graph.microsoft.com/v1.0/subscriptions?$skiptoken=3',
+      }),
+      () => Response.json({ value: [] }),
+    ], { budget })
+
+    const error = await subscriptions.list().catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(MicrosoftGraphSubscriptionError)
+    expect((error as MicrosoftGraphSubscriptionError).code).toBe('graph_subscription_budget_exhausted')
+    // Two pages actually charged capacity (2); the third is never attempted.
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(spent()).toBe(2)
   })
 })
 

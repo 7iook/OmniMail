@@ -62,7 +62,33 @@ export async function chargedCall<T>(budget: ReconcileBudget, call: () => Promis
   return call()
 }
 
+/**
+ * Duck-typed match for `MicrosoftGraphSubscriptionClient`'s own budget-
+ * exhaustion signal (re-review 2 Important #2a) — checked by shape rather
+ * than imported, so this generic call-budget module stays independent of the
+ * Graph client's own error taxonomy (mirrors `microsoft-graph-reconcile.ts`'s
+ * own duck-typed `isPermanentSubscriptionRejection`).
+ */
+function isGraphClientBudgetExhausted(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'graph_subscription_budget_exhausted'
+}
+
+/**
+ * True for either budget-exhaustion signal reconciliation can now see: this
+ * module's own {@link ReconcileBudgetExhaustedError} (thrown by
+ * `chargedCall`, still used for token acquisition and every top-level
+ * create/renew/remove/list call) or the Graph client's own per-attempt
+ * budget check (re-review 2 Important #2a, thrown from inside a real
+ * `list()`/`create()`/etc. call once the SAME shared budget is spent).
+ * Reconciliation treats both identically: stop this pass, never mark a
+ * subscription rejected/backed-off for a reason that has nothing to do with
+ * what Microsoft said.
+ */
+export function isBudgetExhausted(error: unknown): boolean {
+  return error instanceof ReconcileBudgetExhaustedError || isGraphClientBudgetExhausted(error)
+}
+
 /** Guard for every catch block that would otherwise swallow or reclassify this signal. */
 export function rethrowIfBudgetExhausted(error: unknown): void {
-  if (error instanceof ReconcileBudgetExhaustedError) throw error
+  if (isBudgetExhausted(error)) throw error
 }

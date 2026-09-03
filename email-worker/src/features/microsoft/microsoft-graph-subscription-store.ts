@@ -9,10 +9,10 @@
  * `MicrosoftGraphSubscriptionRepository` (frozen in `microsoft-types.ts`,
  * P2-W1) is implemented exactly. The class also exposes a few extra methods
  * beyond that interface — `markRejected` / `markTransientFailure` /
- * `markActive` / `markStale` (C-5), `expiringSoon`, and `requeueForRetry`
- * (C-3 retry ownership, review3 Important #4) — which are additive
- * conveniences, not modifications to the frozen port; see this package's
- * report for why they were not folded into `update()`.
+ * `markActive` / `markStale` (C-5), `expiringSoon`, and `abandonQueued`
+ * (re-review 2 Important #1) — which are additive conveniences, not
+ * modifications to the frozen port; see this package's report for why they
+ * were not folded into `update()`.
  */
 
 import type { Env } from '../../app/types'
@@ -255,6 +255,29 @@ export class MicrosoftGraphSubscriptionStore implements MicrosoftGraphSubscripti
   }
 
   /**
+   * Terminal give-up transition (re-review 2 Important #1): the
+   * send/`releaseQueued`-resend loop in `sendMicrosoftFolderRefreshJob`
+   * (`microsoft-graph-notifications.ts`) calls this once its attempt cap is
+   * hit while a notification is still owed a job — there is nowhere left in
+   * that deferred task to send it from. Unlike `releaseQueued`, which
+   * preserves an outstanding wakeup so the caller can act on it, this
+   * unconditionally forces the row to `idle` and clears the pending flag:
+   * the wakeup itself is dropped, and I-11's five-minute cron floor (not a
+   * further in-process retry) is what eventually picks the folder back up.
+   *
+   * Deliberately NOT part of `MicrosoftGraphSubscriptionRepository` (frozen
+   * in `microsoft-types.ts`) — additive, like `markRejected`/`markActive`/
+   * etc. above; see this package's report for the proposed port diff.
+   */
+  async abandonQueued(id: string, now: number): Promise<void> {
+    await this.env.DB.prepare(
+      `UPDATE microsoft_graph_subscriptions
+          SET refresh_state = 'idle', refresh_pending = 0, refresh_state_at = ?, updated_at = ?
+        WHERE id = ? AND refresh_state = 'queued'`,
+    ).bind(now, now, id).run()
+  }
+
+  /**
    * C-3 retry ownership (review3 Important #4): scheduling a platform
    * `message.retry()` for this row's in-flight refresh must hand the row
    * back to `queued` explicitly, rather than falling through to
@@ -266,11 +289,10 @@ export class MicrosoftGraphSubscriptionStore implements MicrosoftGraphSubscripti
    * `finishRunning` (this one, on redelivery, or a fresher claim after the
    * stale window) still resolves correctly.
    *
-   * Deliberately NOT part of `MicrosoftGraphSubscriptionRepository` (frozen
-   * in `microsoft-types.ts`) — see this package's report for the proposed
-   * port diff. `microsoft-sync.ts` calls it only when present so a fake
-   * repository built directly against the frozen interface still falls back
-   * to a safe (if less precise) behavior.
+   * Part of `MicrosoftGraphSubscriptionRepository` (frozen in
+   * `microsoft-types.ts`): the coordinator added it to the port after this
+   * comment was first written, so `microsoft-sync.ts` now calls it
+   * unconditionally rather than only when present.
    */
   async requeueForRetry(id: string, now: number): Promise<boolean> {
     const result = await this.env.DB.prepare(

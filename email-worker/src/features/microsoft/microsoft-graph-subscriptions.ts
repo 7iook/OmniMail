@@ -45,6 +45,14 @@ const WELL_KNOWN_FOLDER = /^[a-z]+$/
 export type MicrosoftGraphSubscriptionErrorCode =
   | 'graph_subscription_rejected'
   | 'graph_subscription_transient'
+  /**
+   * Re-review 2 Important #2a: the caller-supplied {@link
+   * MicrosoftGraphSubscriptionRequestBudget} ran out before the next real
+   * HTTP attempt. Distinct from `graph_subscription_transient` on purpose —
+   * this is never something Microsoft said, so reconciliation must stop the
+   * pass without marking any subscription rejected/backed-off for it.
+   */
+  | 'graph_subscription_budget_exhausted'
 
 export class MicrosoftGraphSubscriptionError extends Error {
   constructor(
@@ -62,6 +70,20 @@ export class MicrosoftGraphSubscriptionError extends Error {
 export type MicrosoftGraphSubscriptionSleeper = (ms: number) => Promise<void>
 /** Injected so the review3 Minor #4 expiry clamp is deterministically testable. Epoch seconds. */
 export type MicrosoftGraphSubscriptionClock = () => number
+
+/**
+ * Structural budget port (re-review 2 Important #2a): checked by shape, not
+ * imported, so this generic Graph client stays independent of
+ * `microsoft-graph-reconcile-budget.ts`'s reconciliation-specific
+ * `ReconcileBudget` — the two never import each other, but a `ReconcileBudget`
+ * instance already satisfies this shape and can be handed straight through.
+ */
+export interface MicrosoftGraphSubscriptionRequestBudget {
+  /** True while another real HTTP attempt may still start. */
+  hasCapacity(): boolean
+  /** Call once per real HTTP attempt about to be made. */
+  spend(): void
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -144,6 +166,7 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
   private readonly fetcher: typeof fetch
   private readonly sleeper: MicrosoftGraphSubscriptionSleeper
   private readonly clock: MicrosoftGraphSubscriptionClock
+  private readonly budget: MicrosoftGraphSubscriptionRequestBudget | undefined
 
   constructor({
     accessToken,
@@ -153,16 +176,20 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
     fetcher = (input, init) => fetch(input, init),
     sleeper = (ms: number) => new Promise((resolve) => { setTimeout(resolve, ms) }),
     clock = () => Math.floor(Date.now() / 1_000),
+    budget,
   }: {
     accessToken: string
     fetcher?: typeof fetch
     sleeper?: MicrosoftGraphSubscriptionSleeper
     clock?: MicrosoftGraphSubscriptionClock
+    /** Re-review 2 Important #2a: optional, charged once per real HTTP attempt. */
+    budget?: MicrosoftGraphSubscriptionRequestBudget
   }) {
     this.accessToken = accessToken
     this.fetcher = fetcher
     this.sleeper = sleeper
     this.clock = clock
+    this.budget = budget
   }
 
   /** review3 Minor #4: never send Graph an expiry beyond its own 10,080-minute ceiling. */
@@ -185,6 +212,19 @@ export class MicrosoftGraphSubscriptionClient implements MicrosoftGraphSubscript
         const wait = this.delayMs(attempt, lastError)
         if (wait === null) throw lastError as MicrosoftGraphSubscriptionError
         await this.sleeper(wait)
+      }
+
+      // Re-review 2 Important #2a: charged per real attempt (this covers
+      // every retry within one page/request AND, via `list()` calling
+      // `request()` fresh for each page, every page too) — checked and
+      // spent right before the fetch, never after a caught failure, so an
+      // exhausted budget stops here with its own clear error rather than
+      // ever being recorded as something Microsoft said.
+      if (this.budget) {
+        if (!this.budget.hasCapacity()) {
+          throw new MicrosoftGraphSubscriptionError('graph_subscription_budget_exhausted', 0, true)
+        }
+        this.budget.spend()
       }
 
       let response: Response

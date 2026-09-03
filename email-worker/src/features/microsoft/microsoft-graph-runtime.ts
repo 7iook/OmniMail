@@ -12,5 +12,10 @@ import { MicrosoftGraphSubscriptionClient } from './microsoft-graph-subscription
  */
 configureMicrosoftGraphSubscriptionRuntime({
   repositoryFor: (env) => new MicrosoftGraphSubscriptionStore(env),
-  clientFor: (accessToken) => new MicrosoftGraphSubscriptionClient({ accessToken }),
+  // `requestBudget` (re-review 2 Important #2a) is only ever supplied by
+  // cron reconciliation; forwarded straight through so the real client
+  // charges it per actual HTTP attempt.
+  clientFor: (accessToken, requestBudget) => (
+    new MicrosoftGraphSubscriptionClient({ accessToken, budget: requestBudget })
+  ),
 })

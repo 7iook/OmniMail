@@ -18,6 +18,15 @@ import { DatabaseSync } from 'node:sqlite'
  * both have signalled, so the two file-level writes genuinely race and
  * SQLite's own locking (not thread-start timing) decides the winner.
  *
+ * Minor #2 (re-review 2): the barrier alone still let one post-barrier
+ * `UPDATE` finish before the other thread even reached its own — one
+ * winner, no proof they overlapped. Both sides now wrap their `UPDATE` in
+ * an explicit `BEGIN IMMEDIATE ... COMMIT` and hold it open for `holdMs`
+ * after writing, forcing whichever contender loses the write lock to
+ * genuinely block on `busy_timeout` while the winner still holds it; both
+ * report their own attempt window so the test can assert the windows
+ * intersected, not merely that one side won.
+ *
  * The `UPDATE` below is deliberately the exact same predicate as
  * `MicrosoftGraphSubscriptionStore.markQueued` — if that SQL ever changes,
  * this must change with it, or the test stops proving anything.
@@ -28,6 +37,8 @@ interface WorkerInput {
   id: string
   now: number
   barrier: SharedArrayBuffer
+  /** Re-review 2 Minor #2: how long the winner holds its transaction open. */
+  holdMs: number
 }
 
 /**
@@ -51,7 +62,38 @@ function waitForRaceBarrier(counter: Int32Array, timeoutMs = 5_000): void {
   }
 }
 
-const { file, id, now, barrier } = workerData as WorkerInput
+/** Duplicated alongside `waitForRaceBarrier` above — see that function's comment. */
+function blockingSleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/**
+ * Re-review 2 Minor #2: attempts the exact same CAS predicate as the main
+ * thread's helper in the test file, but holds an explicit transaction open
+ * for `holdMs` after a winning `UPDATE` so the other contender is forced to
+ * observably block on `busy_timeout` behind it — proving genuine overlap,
+ * not just "one winner". Returns wall-clock timestamps around the whole
+ * attempt so the test can assert the two attempt windows intersected.
+ */
+function attemptClaimWithHold(
+  database: DatabaseSync,
+  rowId: string,
+  now: number,
+  holdMs: number,
+): { claimed: boolean; startedAt: number; endedAt: number } {
+  const startedAt = Date.now()
+  database.exec('BEGIN IMMEDIATE')
+  const claimed = database.prepare(
+    `UPDATE microsoft_graph_subscriptions
+        SET refresh_state = 'queued', refresh_state_at = ?, updated_at = ?
+      WHERE id = ? AND (refresh_state = 'idle' OR refresh_state_at < ?)`,
+  ).run(now, now, rowId, now - 10 * 60).changes > 0
+  blockingSleepMs(holdMs)
+  database.exec('COMMIT')
+  return { claimed, startedAt, endedAt: Date.now() }
+}
+
+const { file, id, now, barrier, holdMs } = workerData as WorkerInput
 const db = new DatabaseSync(file)
 // Wait for the main thread's writer rather than failing outright on contention —
 // that is the whole point of the overlap (see the test file's docstring).
@@ -59,10 +101,6 @@ db.exec('PRAGMA busy_timeout = 5000')
 
 waitForRaceBarrier(new Int32Array(barrier))
 
-const claimed = db.prepare(
-  `UPDATE microsoft_graph_subscriptions
-      SET refresh_state = 'queued', refresh_state_at = ?, updated_at = ?
-    WHERE id = ? AND (refresh_state = 'idle' OR refresh_state_at < ?)`,
-).run(now, now, id, now - 10 * 60).changes > 0
+const result = attemptClaimWithHold(db, id, now, holdMs)
 
-parentPort?.postMessage({ claimed })
+parentPort?.postMessage(result)

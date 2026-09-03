@@ -11,10 +11,11 @@ import {
 import {
   chargedCall,
   createReconcileBudget,
+  isBudgetExhausted,
   type ReconcileBudget,
-  ReconcileBudgetExhaustedError,
   rethrowIfBudgetExhausted,
 } from './microsoft-graph-reconcile-budget'
+import { markFolderStaleAfterAmbiguousCreate, touchAccountReconciled } from './microsoft-graph-reconcile-fairness'
 import { microsoftAccountForSync } from './microsoft-store'
 import { microsoftAccessToken } from './microsoft-token-manager'
 import {
@@ -90,7 +91,11 @@ async function graphClientForAccount(
   const account = await microsoftAccountForSync(env, accountId)
   if (!account) return null
   const accessToken = await chargedCall(budget, () => microsoftAccessToken(env, account, { transport: 'graph' }))
-  return runtime.clientFor(accessToken)
+  // Re-review 2 Important #2a: the same shared budget also charges every
+  // real HTTP attempt this client makes (each retry, each `list()` page),
+  // on top of the coarser per-operation charge each call site below already
+  // takes via `chargedCall`.
+  return runtime.clientFor(accessToken, budget)
 }
 
 async function recordSubscriptionFailure(
@@ -224,7 +229,7 @@ async function renewOrRebuildDue(
         await renewOne(repository, client, row, subscriptionId, now, budget)
       }
     } catch (error) {
-      if (error instanceof ReconcileBudgetExhaustedError) break
+      if (isBudgetExhausted(error)) break
       // Each account isolated (matches every other provider's cron block,
       // recon §2): a token failure for one account must not stop the pass.
       console.error('Microsoft Graph subscription renewal failed for one account', {
@@ -352,31 +357,27 @@ async function createOne(
       return
     }
     // Creation failed ambiguously (network blip, 5xx, timeout — its result is
-    // genuinely unknown, Microsoft may already have created it remotely) —
-    // card C-2's accepted edge case: no local row is written here, so the
-    // NEXT pass's orphan check (`client.list()` in {@link reconcileOrphans})
-    // is what cleans up a remote-only leftover, not a retry counter on a row
-    // that was never inserted.
+    // genuinely unknown, Microsoft may already have created it remotely).
+    // card C-2's orphan check (`client.list()` in {@link reconcileOrphans})
+    // is still what cleans up a remote-only leftover on the NEXT pass, since
+    // this row carries no real id either way. But re-review 2 Important #2b:
+    // leaving NO local row at all made the account permanently zero-row to
+    // the fairness ordering above (`NULL` always sorts first), so a
+    // persistently broken account would starve every account behind it
+    // forever. A `stale`, null-id marker with C-5's own transient backoff
+    // fixes both at once: the account is no longer zero-row, and the next
+    // `due()` scan retries via `rebuildSubscription` on a real schedule
+    // instead of this same create() being re-attempted on every single tick.
     console.error('Unable to create a Microsoft Graph subscription', {
       accountId,
       folderPath,
       type: error instanceof Error ? error.name : typeof error,
     })
+    await markFolderStaleAfterAmbiguousCreate(
+      repository, accountId, folderPath, await hashMicrosoftGraphClientState(clientState),
+      subscriptionErrorCode(error), now + transientBackoff(0), now,
+    )
   }
-}
-
-/**
- * Bumps every one of this account's subscription rows' `updated_at` so the
- * fairness ordering below (`MIN(s.updated_at)`) rotates this account to the
- * back of the queue once it has actually been looked at this tick (re-review
- * Important #3). A no-op for an account with zero rows — that is fine: it
- * means the account still has nothing, so it legitimately stays at the front
- * (sorted first by the `NULL`-sorts-first rule) until it gets some.
- */
-async function touchAccountReconciled(env: Env, accountId: string, now: number): Promise<void> {
-  await env.DB.prepare(
-    'UPDATE microsoft_graph_subscriptions SET updated_at = ? WHERE account_id = ?',
-  ).bind(now, accountId).run()
 }
 
 /**
@@ -428,7 +429,26 @@ async function reconcileAndCreateSubscriptions(
       // to the back of the fairness queue so the next tick looks at others.
       await touchAccountReconciled(env, accountId, now)
     } catch (error) {
-      if (error instanceof ReconcileBudgetExhaustedError) break
+      if (isBudgetExhausted(error)) {
+        // Re-review 2 Important #2b: a budget-exhausted account must not
+        // keep monopolising the front of the fairness queue on every future
+        // tick either — that is exactly the "exhausted account remains
+        // untouched" starvation this finding named. If it already carries
+        // rows (from this or an earlier pass), rotate them like a normal
+        // attempt; if it has none at all (the budget ran out before this
+        // account got as far as a single `createOne`), leave one stale
+        // marker so `MIN(updated_at)` moves past it next tick too.
+        const existingRows = await repository.forAccount(accountId)
+        if (existingRows.length) {
+          await touchAccountReconciled(env, accountId, now)
+        } else {
+          await markFolderStaleAfterAmbiguousCreate(
+            repository, accountId, MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS[0].folderPath, '',
+            'graph_subscription_budget_exhausted', now + transientBackoff(0), now,
+          )
+        }
+        break
+      }
       console.error('Unable to reconcile/create Microsoft Graph subscriptions for one account', {
         accountId,
         type: error instanceof Error ? error.name : typeof error,
@@ -495,7 +515,7 @@ async function removeForNonGraphAccounts(
         await repository.remove(row.id)
       }
     } catch (error) {
-      if (error instanceof ReconcileBudgetExhaustedError) break
+      if (isBudgetExhausted(error)) break
       // review3 "Suspected/operational risk": a repository/D1 failure for
       // one account (e.g. `forAccount`/`remove` itself) must not abort this
       // phase for the rest — the Graph token/DELETE failures just above were

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Env } from '../../app/types'
 import { WRANGLER_MIGRATION_NAMES } from '../../platform/d1/schema-migrations'
 import { MicrosoftGraphSubscriptionStore } from './microsoft-graph-subscription-store'
-import { waitForRaceBarrier } from './microsoft-graph-subscription-cas.race-barrier'
+import { blockingSleepMs, waitForRaceBarrier } from './microsoft-graph-subscription-cas.race-barrier'
 
 /**
  * Real-SQLite acceptance test for the C-3 coalescing state machine, against
@@ -24,6 +24,8 @@ import { waitForRaceBarrier } from './microsoft-graph-subscription-cas.race-barr
 
 const ACCOUNT = 'acct_cas'
 const NOW = 1_700_000_000
+/** Re-review 2 Minor #2: how long the winner holds its transaction open, forcing observable contention. */
+const HOLD_MS = 200
 
 function applyDiskMigrations(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
@@ -73,6 +75,31 @@ function applyDiskMigrationsToFile(file: string): DatabaseSync {
   }
   db.exec('PRAGMA foreign_keys = ON')
   return db
+}
+
+/**
+ * Attempts the CAS predicate under an explicit transaction held open for
+ * `HOLD_MS` after a winning `UPDATE` (re-review 2 Minor #2), mirroring the
+ * worker's own copy exactly — see that file's docstring for why the two
+ * cannot share one import. Returns the wall-clock window of the whole
+ * attempt so the test can assert the two contenders' windows overlapped.
+ */
+function attemptClaimWithHold(
+  database: DatabaseSync,
+  rowId: string,
+  now: number,
+  holdMs: number,
+): { claimed: boolean; startedAt: number; endedAt: number } {
+  const startedAt = Date.now()
+  database.exec('BEGIN IMMEDIATE')
+  const claimed = database.prepare(
+    `UPDATE microsoft_graph_subscriptions
+        SET refresh_state = 'queued', refresh_state_at = ?, updated_at = ?
+      WHERE id = ? AND (refresh_state = 'idle' OR refresh_state_at < ?)`,
+  ).run(now, now, rowId, now - 10 * 60).changes > 0
+  blockingSleepMs(holdMs)
+  database.exec('COMMIT')
+  return { claimed, startedAt, endedAt: Date.now() }
 }
 
 /** The slice of `D1Database` the store touches, executed for real (mirrors `microsoft-sync-folder.upsert.test.ts`). */
@@ -140,7 +167,7 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
     /**
      * Two *different OS threads* (`worker_threads`, not two logical calls on
      * one connection) hold their own `DatabaseSync` connection to the SAME
-     * on-disk file and both attempt `markQueued` for the same row.
+     * on-disk file and both attempt the CAS predicate for the same row.
      *
      * Minor #1 (re-review): starting the worker first and immediately racing
      * ahead on the main thread does NOT guarantee overlap — worker thread
@@ -149,12 +176,22 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
      * which would just prove the CAS predicate sequentially again. Both sides
      * now block on a shared `SharedArrayBuffer` barrier
      * (`waitForRaceBarrier`) right after opening their DB connection, so
-     * neither issues its `UPDATE` until BOTH are ready — the two file-level
-     * writes then genuinely overlap and SQLite's own locking (not thread
-     * start timing) decides who goes first. Exactly one of them must observe
-     * `refresh_state = 'idle'` and win.
+     * neither issues its `UPDATE` until BOTH are ready.
+     *
+     * Minor #2 (re-review 2): the barrier alone still does not PROVE overlap
+     * — one post-barrier `UPDATE` can simply finish before the other thread
+     * is even scheduled, which again only proves the predicate sequentially.
+     * Both sides now hold an explicit `BEGIN IMMEDIATE ... COMMIT`
+     * transaction open for `HOLD_MS` after their own `UPDATE`, so whichever
+     * side loses the write lock is forced to genuinely block on
+     * `busy_timeout` behind the winner — deterministic because it is timeout-
+     * driven, not scheduler-timing-driven. Both sides report their own
+     * attempt window; the assertions below check the winner actually held
+     * the lock, the loser's own attempt window overlapped the winner's, and
+     * the loser was measurably blocked for close to the hold window (not
+     * merely unlucky against a sequential predicate check).
      */
-    it('of two racing OS threads on the same on-disk file, exactly one wins the CAS', async () => {
+    it('of two racing OS threads on the same on-disk file, exactly one wins the CAS and the loser observably blocks on the winner\'s held lock', async () => {
       dir = mkdtempSync(path.join(os.tmpdir(), 'omnimail-graph-cas-'))
       const file = path.join(dir, 'race.sqlite')
       const seedDb = applyDiskMigrationsToFile(file)
@@ -164,28 +201,40 @@ describe('Microsoft Graph subscription C-3 CAS race (real SQLite, real 0037 DDL,
       const barrier = new SharedArrayBuffer(4)
       const workerUrl = new URL('./microsoft-graph-subscription-cas.worker.ts', import.meta.url)
       const worker = new Worker(fileURLToPath(workerUrl), {
-        workerData: { file, id, now: NOW, barrier },
+        workerData: { file, id, now: NOW, barrier, holdMs: HOLD_MS },
         execArgv: [...process.execArgv, '--experimental-strip-types'],
       })
-      const workerClaimed = new Promise<boolean>((resolve, reject) => {
-        worker.once('message', (message: { claimed: boolean }) => resolve(message.claimed))
+      type Attempt = { claimed: boolean; startedAt: number; endedAt: number }
+      const workerResult = new Promise<Attempt>((resolve, reject) => {
+        worker.once('message', (message: Attempt) => resolve(message))
         worker.once('error', reject)
       })
 
       const mainDb = new DatabaseSync(file)
       mainDb.exec('PRAGMA busy_timeout = 5000')
-      const mainStore = new MicrosoftGraphSubscriptionStore(realEnv(mainDb))
       // Block here until the worker has ALSO connected and reached its own
       // barrier call — only then does either side issue its `UPDATE`.
       waitForRaceBarrier(new Int32Array(barrier))
-      const mainClaimed = await mainStore.markQueued(id, NOW)
-      const workerResult = await workerClaimed
+      const mainAttempt = attemptClaimWithHold(mainDb, id, NOW, HOLD_MS)
+      const workerAttempt = await workerResult
+      const mainStore = new MicrosoftGraphSubscriptionStore(realEnv(mainDb))
       const row = await mainStore.bySubscriptionId('graph-sub-1')
       mainDb.close()
       await worker.terminate()
 
-      expect([mainClaimed, workerResult].filter(Boolean)).toHaveLength(1)
+      expect([mainAttempt.claimed, workerAttempt.claimed].filter(Boolean)).toHaveLength(1)
       expect(row?.refreshState).toBe('queued')
+
+      // Minor #2: overlap evidence, not just "one winner". The loser's own
+      // attempt window must have genuinely intersected the winner's held
+      // transaction — it was blocked on `BEGIN IMMEDIATE` behind
+      // `busy_timeout`, not merely unlucky in a sequential predicate check —
+      // and its own attempt duration must show it was actually held up for
+      // close to the winner's hold window, not returned instantly.
+      const [winner, loser] = mainAttempt.claimed ? [mainAttempt, workerAttempt] : [workerAttempt, mainAttempt]
+      expect(loser.startedAt).toBeLessThan(winner.endedAt)
+      expect(winner.startedAt).toBeLessThan(loser.endedAt)
+      expect(loser.endedAt - loser.startedAt).toBeGreaterThanOrEqual(HOLD_MS * 0.5)
     })
   })
 

@@ -25,3 +25,17 @@ export function waitForRaceBarrier(counter: Int32Array, timeoutMs = 5_000): void
     Atomics.wait(counter, 0, Atomics.load(counter, 0), Math.min(remaining, 25))
   }
 }
+
+/**
+ * A synchronous, thread-blocking sleep (re-review 2 Minor #2: "observable
+ * overlap" evidence): waits on a private, never-signalled `SharedArrayBuffer`
+ * cell so the calling thread genuinely blocks for `ms` without yielding to
+ * any pending microtask/timer. `DatabaseSync` calls are synchronous too, so
+ * an `async`/`setTimeout` delay would not keep the surrounding `BEGIN
+ * IMMEDIATE ... COMMIT` transaction open for a deterministic window the way
+ * this does — the whole point is to force the loser to observably wait on
+ * `busy_timeout` while the winner still holds the write lock.
+ */
+export function blockingSleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}

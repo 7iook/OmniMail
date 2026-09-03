@@ -8,9 +8,8 @@ import {
   MAX_NOTIFICATION_ITEMS,
   microsoftGraphWebhookClientIp,
   MICROSOFT_GRAPH_NOTIFICATION_PATH,
-  processMicrosoftGraphLifecycleItems,
   processMicrosoftGraphNotificationItems,
-  type MicrosoftGraphLifecycleItem,
+  sendMicrosoftFolderRefreshJob,
   type MicrosoftGraphNotificationItem,
 } from './microsoft-graph-notifications'
 import type {
@@ -356,6 +355,11 @@ function fakeRepository(initial: MicrosoftGraphSubscription | null) {
       row = { ...row, refreshState: requeue ? 'queued' : 'idle', refreshPending: false, refreshStateAt: now }
       return { requeue }
     },
+    async abandonQueued(id, now) {
+      if (row && row.id === id && row.refreshState === 'queued') {
+        row = { ...row, refreshState: 'idle', refreshPending: false, refreshStateAt: now }
+      }
+    },
   }
   return { repository, current: () => row }
 }
@@ -507,6 +511,30 @@ describe('processMicrosoftGraphNotificationItems (C-1, C-3)', () => {
     errorSpy.mockRestore()
   })
 
+  it('cap exhaustion with a wakeup still outstanding forces idle and drops the wakeup exactly once (re-review 2 Important #1)', async () => {
+    const { repository, current } = fakeRepository(subscriptionFixture({ refreshState: 'queued' }))
+    const send = vi.fn(async () => {
+      // A notification races in during every single failed attempt, so
+      // `releaseQueued` keeps reporting `true` (must resend) all three
+      // times — the recovery loop's attempt cap is exhausted with a wakeup
+      // still outstanding.
+      await repository.markPending('sub-row-1', NOW)
+      throw new Error('queue down')
+    })
+    const env2 = { MAIL_QUEUE: { send } } as unknown as Env
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await sendMicrosoftFolderRefreshJob(env2, repository, 'sub-row-1', 'microsoft-1', 'INBOX', NOW)
+
+    expect(send).toHaveBeenCalledTimes(3)
+    expect(current()).toMatchObject({ refreshState: 'idle', refreshPending: false })
+    const dropped = errorSpy.mock.calls.filter(([message]) => (
+      typeof message === 'string' && message.includes('dropped the pending wakeup')
+    ))
+    expect(dropped).toHaveLength(1)
+    errorSpy.mockRestore()
+  })
+
   it('a 50-notification storm for the same subscription enqueues exactly one refresh', async () => {
     const hash = await hashMicrosoftGraphClientState('right-state')
     const { repository } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
@@ -518,72 +546,5 @@ describe('processMicrosoftGraphNotificationItems (C-1, C-3)', () => {
     await processMicrosoftGraphNotificationItems(queueEnv, repository, items, NOW)
 
     expect(send).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('processMicrosoftGraphLifecycleItems', () => {
-  const NOW = 1_700_000_000
-
-  it('subscriptionRemoved marks the row stale so cron rebuilds it', async () => {
-    const hash = await hashMicrosoftGraphClientState('right-state')
-    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
-    const item: MicrosoftGraphLifecycleItem = {
-      subscriptionId: SUB_ID, clientState: 'right-state', lifecycleEvent: 'subscriptionRemoved',
-    }
-
-    await processMicrosoftGraphLifecycleItems(env, repository, [item], NOW)
-
-    expect(current()?.status).toBe('stale')
-  })
-
-  it('reauthorizationRequired marks the row stale', async () => {
-    const hash = await hashMicrosoftGraphClientState('right-state')
-    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
-    const item: MicrosoftGraphLifecycleItem = {
-      subscriptionId: SUB_ID, clientState: 'right-state', lifecycleEvent: 'reauthorizationRequired',
-    }
-
-    await processMicrosoftGraphLifecycleItems(env, repository, [item], NOW)
-
-    expect(current()?.status).toBe('stale')
-  })
-
-  it('missed is treated as a notification: it enqueues a refresh', async () => {
-    const hash = await hashMicrosoftGraphClientState('right-state')
-    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
-    const send = vi.fn(async () => undefined)
-    const queueEnv = { MAIL_QUEUE: { send } } as unknown as Env
-    const item: MicrosoftGraphLifecycleItem = {
-      subscriptionId: SUB_ID, clientState: 'right-state', lifecycleEvent: 'missed',
-    }
-
-    await processMicrosoftGraphLifecycleItems(queueEnv, repository, [item], NOW)
-
-    expect(send).toHaveBeenCalledTimes(1)
-    expect(current()?.refreshState).toBe('queued')
-  })
-
-  it('a clientState mismatch is dropped, even for a real lifecycle event', async () => {
-    const hash = await hashMicrosoftGraphClientState('right-state')
-    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
-    const item: MicrosoftGraphLifecycleItem = {
-      subscriptionId: SUB_ID, clientState: 'wrong-state', lifecycleEvent: 'subscriptionRemoved',
-    }
-
-    await processMicrosoftGraphLifecycleItems(env, repository, [item], NOW)
-
-    expect(current()?.status).toBe('active')
-  })
-
-  it('an unrecognised lifecycle event is dropped without touching the row', async () => {
-    const hash = await hashMicrosoftGraphClientState('right-state')
-    const { repository, current } = fakeRepository(subscriptionFixture({ clientStateHash: hash }))
-    const item: MicrosoftGraphLifecycleItem = {
-      subscriptionId: SUB_ID, clientState: 'right-state', lifecycleEvent: 'somethingNew',
-    }
-
-    await processMicrosoftGraphLifecycleItems(env, repository, [item], NOW)
-
-    expect(current()).toMatchObject({ status: 'active', refreshState: 'idle' })
   })
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   chargedCall,
   createReconcileBudget,
+  isBudgetExhausted,
   ReconcileBudgetExhaustedError,
   rethrowIfBudgetExhausted,
 } from './microsoft-graph-reconcile-budget'
@@ -38,5 +39,33 @@ describe('microsoft-graph-reconcile-budget (re-review Important #3)', () => {
     expect(() => rethrowIfBudgetExhausted(new ReconcileBudgetExhaustedError())).toThrow(ReconcileBudgetExhaustedError)
     expect(() => rethrowIfBudgetExhausted(new Error('some other failure'))).not.toThrow()
     expect(() => rethrowIfBudgetExhausted({ status: 403 })).not.toThrow()
+  })
+
+  describe('isBudgetExhausted (re-review 2 Important #2a)', () => {
+    it('recognises this module\'s own sentinel', () => {
+      expect(isBudgetExhausted(new ReconcileBudgetExhaustedError())).toBe(true)
+    })
+
+    it('recognises the Graph client\'s own budget-exhaustion code by shape, without importing its class', () => {
+      expect(isBudgetExhausted({ code: 'graph_subscription_budget_exhausted' })).toBe(true)
+    })
+
+    it('is false for an unrelated error, including one that merely has a `code` field', () => {
+      expect(isBudgetExhausted(new Error('boom'))).toBe(false)
+      expect(isBudgetExhausted({ code: 'graph_subscription_rejected' })).toBe(false)
+      expect(isBudgetExhausted({ status: 403 })).toBe(false)
+      expect(isBudgetExhausted(null)).toBe(false)
+    })
+
+    it('rethrowIfBudgetExhausted also rethrows the Graph client\'s budget-exhaustion shape', () => {
+      const clientError = { code: 'graph_subscription_budget_exhausted' }
+      let thrown: unknown
+      try {
+        rethrowIfBudgetExhausted(clientError)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBe(clientError)
+    })
   })
 })

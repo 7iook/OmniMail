@@ -1,5 +1,6 @@
 import type { Env } from '../../app/types'
 import { sha256 } from '../auth/session/auth'
+import type { MicrosoftGraphSubscriptionRequestBudget } from './microsoft-graph-subscriptions'
 import type {
   MicrosoftGraphSubscription,
   MicrosoftGraphSubscriptionClient,
@@ -293,10 +294,20 @@ export const dropLifecycle: LifecycleProcessor = async () => undefined
  * subscription client per Graph access token, since `MicrosoftGraphSubscriptionClient`
  * is documented as talking "for one account's access token" — there is no single
  * global client to hand over.
+ *
+ * `clientFor`'s second parameter (re-review 2 Important #2a) is optional and
+ * only ever supplied by cron reconciliation (`microsoft-graph-reconcile.ts`
+ * is the sole caller with an outbound-call budget to enforce); it lets the
+ * real client charge that budget once per actual HTTP attempt (each retry,
+ * each `list()` page) rather than once per top-level create/renew/remove/
+ * list call.
  */
 export interface MicrosoftGraphSubscriptionRuntime {
   repositoryFor: (env: Env) => MicrosoftGraphSubscriptionRepository
-  clientFor: (accessToken: string) => MicrosoftGraphSubscriptionClient
+  clientFor: (
+    accessToken: string,
+    requestBudget?: MicrosoftGraphSubscriptionRequestBudget,
+  ) => MicrosoftGraphSubscriptionClient
 }
 
 let runtime: MicrosoftGraphSubscriptionRuntime | null = null
@@ -335,6 +346,21 @@ export function microsoftGraphSubscriptionRuntime(): MicrosoftGraphSubscriptionR
 const ENQUEUE_RECOVERY_MAX_ATTEMPTS = 3
 
 /**
+ * Additive repository surface `sendMicrosoftFolderRefreshJob` needs beyond
+ * the frozen `MicrosoftGraphSubscriptionRepository` port (re-review 2
+ * Important #1): a terminal queued->idle transition for when the recovery
+ * loop below gives up its attempt cap with a wakeup still outstanding.
+ * Optional so every caller holding a plain `MicrosoftGraphSubscriptionRepository`
+ * — including fakes built directly against the frozen interface — still
+ * type-checks without it; the concrete `MicrosoftGraphSubscriptionStore`
+ * implements it (see that file, and this package's report for the proposed
+ * port diff).
+ */
+type SubscriptionRepositoryWithAbandon = MicrosoftGraphSubscriptionRepository & {
+  abandonQueued?(id: string, now: number): Promise<void>
+}
+
+/**
  * Sends the queue message for a subscription row that is already sitting in
  * `queued` — either just won via `markQueued`, or left there by
  * `finishRunning`'s own requeue. On failure, `releaseQueued` reports whether a
@@ -348,10 +374,18 @@ const ENQUEUE_RECOVERY_MAX_ATTEMPTS = 3
  * that never leaves a `queued` row stranded with no message — the prior
  * per-caller duplication left the initial-enqueue path ignoring the `true`
  * result entirely.
+ *
+ * Re-review 2 Important #1: exhausting the attempt cap while the LAST
+ * `releaseQueued` still reported `true` used to just log and return, leaving
+ * the row `queued` with no queue message and no further sender — stranded
+ * until the 10-minute stale-recovery window. That case now forces a terminal
+ * `queued->idle` transition (dropping the wakeup itself, deliberately: I-11
+ * says the 5-minute cron floor, not another in-process retry, is the
+ * backstop) and logs it exactly once.
  */
 export async function sendMicrosoftFolderRefreshJob(
   env: Env,
-  repository: MicrosoftGraphSubscriptionRepository,
+  repository: SubscriptionRepositoryWithAbandon,
   subscriptionId: string,
   accountId: string,
   folderPath: string,
@@ -374,7 +408,14 @@ export async function sendMicrosoftFolderRefreshJob(
       // still `queued` and nothing is in flight for it, so resend.
     }
   }
-  console.error('Microsoft folder refresh enqueue recovery exhausted its attempt cap', { accountId, folderPath })
+  // The loop only falls through here when the final `releaseQueued` above
+  // returned `true` (a `false` would have returned already) — the row is
+  // still `queued`, still owed a job, and this was the last attempt.
+  await repository.abandonQueued?.(subscriptionId, now)
+  console.error(
+    'Microsoft folder refresh enqueue recovery exhausted its attempt cap; dropped the pending wakeup',
+    { accountId, folderPath },
+  )
 }
 
 /**
