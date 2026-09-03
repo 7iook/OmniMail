@@ -172,6 +172,35 @@ describe('reconcileMicrosoftGraphSubscriptions · re-review 2 Important #2a/#2b'
     expect(rows()).toEqual([existing])
   })
 
+  it('re-review 3: budget exhaustion on a zero-row account writes no subscription state at all', async () => {
+    // Same mid-list exhaustion, but the account has no rows yet. A local
+    // scheduling stop must not be recorded as a stale/rejected subscription
+    // or as a Graph failure code — the next tick simply starts with a fresh
+    // budget and reaches this account first.
+    const { repository, rows } = fakeRepository([])
+    const fetcher = vi.fn(async () => Response.json({
+      value: [],
+      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/subscriptions?$skiptoken=next',
+    }))
+    const runtime: MicrosoftGraphSubscriptionRuntime = {
+      repositoryFor: () => repository,
+      clientFor: (accessToken, requestBudget) => new MicrosoftGraphSubscriptionClient({
+        accessToken, fetcher, budget: requestBudget,
+      }),
+    }
+    const env = fakeEnv({ missingSubscriptionAccountIds: ['acct-1'] })
+    let calls = 0
+    const nowMs = () => {
+      calls += 1
+      return calls <= 5 ? 1_000_000 : 1_000_000 + 25_000
+    }
+
+    await reconcileMicrosoftGraphSubscriptions(env, NOW, runtime, nowMs)
+
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(rows()).toEqual([])
+  })
+
   it('Important #2b: ten accounts whose create always fails transiently do not starve a healthy zero-row account', async () => {
     const failingIds = Array.from({ length: 10 }, (_, index) => `acct-fail-${String(index).padStart(2, '0')}`)
     const healthyId = 'acct-healthy'

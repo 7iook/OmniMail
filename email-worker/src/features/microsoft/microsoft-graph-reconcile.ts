@@ -430,22 +430,14 @@ async function reconcileAndCreateSubscriptions(
       await touchAccountReconciled(env, accountId, now)
     } catch (error) {
       if (isBudgetExhausted(error)) {
-        // Re-review 2 Important #2b: a budget-exhausted account must not
-        // keep monopolising the front of the fairness queue on every future
-        // tick either — that is exactly the "exhausted account remains
-        // untouched" starvation this finding named. If it already carries
-        // rows (from this or an earlier pass), rotate them like a normal
-        // attempt; if it has none at all (the budget ran out before this
-        // account got as far as a single `createOne`), leave one stale
-        // marker so `MIN(updated_at)` moves past it next tick too.
-        const existingRows = await repository.forAccount(accountId)
-        if (existingRows.length) {
+        // A budget stop is a local scheduling fact, not a verdict about the
+        // subscription, so it must never be written into subscription state
+        // (no stale/rejected row, no Graph failure code). Rows this account
+        // already has are rotated like a normal attempt; an account with no
+        // rows is simply left where it is — the next tick starts with a fresh
+        // budget and reaches it first, so it cannot starve.
+        if ((await repository.forAccount(accountId)).length) {
           await touchAccountReconciled(env, accountId, now)
-        } else {
-          await markFolderStaleAfterAmbiguousCreate(
-            repository, accountId, MICROSOFT_GRAPH_SUBSCRIBED_FOLDERS[0].folderPath, '',
-            'graph_subscription_budget_exhausted', now + transientBackoff(0), now,
-          )
         }
         break
       }
