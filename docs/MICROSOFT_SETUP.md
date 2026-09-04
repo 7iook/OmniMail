@@ -187,7 +187,8 @@ Graph 通道账号可以额外开启「change notifications」推送：Outlook �
 
 ### 8.1 部署配置
 
-1. 确认已应用 D1 迁移 `0037_microsoft_graph_subscriptions.sql`（§1 第 3 步）。
+1. 确认已应用 D1 迁移 `0037_microsoft_graph_subscriptions.sql` 与
+   `0038_microsoft_graph_subscription_identity.sql`（§1 第 3 步）。
 2. 在 Worker 的 **Variables & Secrets** 中新增变量 `MICROSOFT_GRAPH_WEBHOOK_BASE_URL`，值为
    这个 Worker 自己可从公网 HTTPS 访问到的 origin，不带路径和结尾斜杠，例如：
 
@@ -195,7 +196,14 @@ Graph 通道账号可以额外开启「change notifications」推送：Outlook �
    MICROSOFT_GRAPH_WEBHOOK_BASE_URL=https://<你的 Worker 名称>.workers.dev
    ```
 
-   （或已绑定的自定义域名，例如 `https://mail.example.com`）。可以在 Dashboard 中作为普通
+   （或已绑定的自定义域名，例如 `https://mail.example.com`）。
+
+   > ⚠️ 在 Wrangler 配置里加 `routes` 绑定自定义域时，**必须同时显式写
+   > `"workers_dev": true`**，否则 `*.workers.dev` 子域会被自动关闭并返回 404；已创建的
+   > 订阅仍把那个地址记在 `notificationUrl` 里，通知会全部投递失败。绑定自定义域后建议
+   > 把本变量改成新域名，并让下一轮 cron 对账重建订阅。
+
+   可以在 Dashboard 中作为普通
    Text 变量配置，也可以用命令行写入：
 
    ```powershell
