@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  getIndexedSourceAdapter,
+  MAIL_SOURCE_WEB_PATHS,
   type MailSourceDescriptor,
   type MailSourceId,
 } from './mail-source'
@@ -60,8 +60,7 @@ export function usePanelMailSources(apiOrigin: string) {
 
   const openWeb = useCallback((source: MailSourceId) => {
     if (!apiOrigin) return
-    const path = getIndexedSourceAdapter(source)?.webPath
-      || (source === 'icloud' ? '/icloud' : '/')
+    const path = MAIL_SOURCE_WEB_PATHS[source]
     void chrome.tabs.create({ url: new URL(path, apiOrigin).toString() })
   }, [apiOrigin])
 

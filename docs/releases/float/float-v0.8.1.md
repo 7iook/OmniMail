@@ -39,10 +39,13 @@
 ### 安装与升级
 
 - GitHub Release 提供 `omnimail-float-0.8.1.zip`；解压后可在 Chrome 开发者模式中加载。
-- 本版本不上传 Chrome Web Store，也不部署 OmniMail Web 生产环境。
+- Chrome Web Store 条目 `fpeecjailboemocpmpcbjaghpkpcaihf` 已于 2026-08-31 发布本版本。
+- 商店版需要生产 OmniMail Web/API `0.10.4` 或更高版本。
 
 ### 测试
 
 - 已通过 TypeScript、Oxlint、生产构建、153 个测试文件共 626 项测试。
 - 已通过真实 Chromium 冒烟测试，覆盖验证码复制、单输入框填入、多输入框拒绝猜测、
   全部邮箱来源显示、亮暗主题和英文界面。
+- 已通过 Float `0.2.x` 商店旧会话升级回归：旧登录保持可用，缺失 Scope 会明确提示升级
+  授权，授权完成后撤销旧令牌，并能从新的持久化认证存储恢复登录。

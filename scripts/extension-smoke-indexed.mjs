@@ -205,6 +205,60 @@ export async function upgradeMailSourceAuthorization(context, frame) {
   assert.equal(indexedAccountRequests, 11)
 }
 
+export async function verifyStore021Upgrade(context, serviceWorker, panelFrame, legacyUser) {
+  const legacyRefreshToken = 'om_rt_store_021_refresh_token_123456'
+  const revokedRefreshTokens = []
+  const recordRevocation = (request) => {
+    if (new URL(request.url()).pathname !== '/api/auth/token/revoke') return
+    revokedRefreshTokens.push(request.postDataJSON().refreshToken)
+  }
+  context.on('request', recordRevocation)
+  let legacyPanelPage
+  try {
+    await serviceWorker.evaluate(({ accessExpiresAt, refreshToken, user }) => (
+      chrome.storage.session.set({
+        accessToken: 'om_at_store_021_access_token_123456',
+        accessExpiresAt,
+        refreshToken,
+        user,
+      })
+    ), {
+      accessExpiresAt: Date.now() + 900_000,
+      refreshToken: legacyRefreshToken,
+      user: legacyUser,
+    })
+    const legacyAuth = await panelFrame.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
+    }))
+    assert.equal(legacyAuth.authenticated, true)
+    assert.equal(legacyAuth.iCloudAuthorized, false)
+    assert.equal(legacyAuth.mailSourcesAuthorized, false)
+
+    const legacyPanelUrl = new URL(panelFrame.url())
+    legacyPanelUrl.search = ''
+    legacyPanelUrl.hash = 'inbox'
+    legacyPanelPage = await context.newPage()
+    await legacyPanelPage.goto(legacyPanelUrl.toString())
+    await legacyPanelPage.getByRole('heading', { name: '收件箱', exact: true }).waitFor()
+    const legacyUpgradeButton = legacyPanelPage.getByRole('button', { name: '升级授权' })
+    await legacyUpgradeButton.waitFor()
+    await authorizeFromPanel(context, legacyUpgradeButton)
+    await legacyUpgradeButton.waitFor({ state: 'hidden' })
+    assert(revokedRefreshTokens.includes(legacyRefreshToken))
+
+    await serviceWorker.evaluate(() => chrome.storage.session.clear())
+    const migratedAuth = await legacyPanelPage.evaluate(() => new Promise((resolveResponse) => {
+      chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
+    }))
+    assert.equal(migratedAuth.authenticated, true)
+    assert.equal(migratedAuth.iCloudAuthorized, true)
+    assert.equal(migratedAuth.mailSourcesAuthorized, true)
+  } finally {
+    context.off('request', recordRevocation)
+    await legacyPanelPage?.close()
+  }
+}
+
 async function verifySource(frame, label, heading, code) {
   await selectMailSource(frame, label)
   await frame.getByRole('heading', { name: heading }).waitFor()

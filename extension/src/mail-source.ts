@@ -1,13 +1,29 @@
-export const INDEXED_SOURCE_IDS = ['gmail', 'microsoft', 'qq', 'naver', 'yandex', 'linuxdo'] as const
+import {
+  MAIL_SOURCE_WEB_PATHS,
+  OFFICIAL_MAIL_SOURCE_IDS,
+  type OfficialMailSourceId,
+} from '../../src/shared/mail/mailSourceContract'
 
+export const MAIL_SOURCE_IDS = OFFICIAL_MAIL_SOURCE_IDS
+export { MAIL_SOURCE_WEB_PATHS }
+export type MailSourceId = OfficialMailSourceId
+
+export const INDEXED_SOURCE_IDS = ['gmail', 'microsoft', 'qq', 'naver', 'yandex', 'linuxdo'] as const
 export type IndexedMailSourceId = typeof INDEXED_SOURCE_IDS[number]
-export type MailSourceId = 'omnimail' | 'icloud' | IndexedMailSourceId
+
+export const MAIL_SOURCE_ACCOUNT_STATUSES = ['active', 'syncing', 'error'] as const
+export type MailSourceAccountStatus = typeof MAIL_SOURCE_ACCOUNT_STATUSES[number]
+
+export const MAIL_SOURCE_CAPABILITY_IDS = [
+  'attachments', 'folders', 'reply', 'send', 'sync',
+] as const
+export type MailSourceCapabilityId = typeof MAIL_SOURCE_CAPABILITY_IDS[number]
 
 export interface MailSourceAccount {
   id: string
   name: string
   email: string
-  status: 'active' | 'syncing' | 'error'
+  status: MailSourceAccountStatus
   needsAttention: boolean
   senders?: Array<{ name: string; email: string }>
 }
@@ -16,13 +32,7 @@ export interface MailSourceDescriptor {
   id: MailSourceId
   label: string
   accounts: MailSourceAccount[]
-  capabilities?: {
-    attachments: boolean
-    folders: boolean
-    reply: boolean
-    send: boolean
-    sync: boolean
-  }
+  capabilities?: Record<MailSourceCapabilityId, boolean>
 }
 
 export interface IndexedMessageSummary {
@@ -79,7 +89,7 @@ function adapter(id: IndexedMailSourceId, label: string, apiRoot: string): Index
     id,
     label,
     accountsPath: `/api/${apiRoot}/accounts`,
-    webPath: `/${apiRoot}`,
+    webPath: MAIL_SOURCE_WEB_PATHS[id],
     messagesPath: ({ accountId, query, cursor, folder }) => {
       const search = new URLSearchParams({ limit: '30' })
       if (accountId) search.set('accountId', accountId)
@@ -111,7 +121,7 @@ function linuxDoAdapter(): IndexedSourceAdapter {
     id: 'linuxdo',
     label: 'Linux DO Mail',
     accountsPath: '/api/linux-do-mail/account',
-    webPath: '/linuxdo-mail',
+    webPath: MAIL_SOURCE_WEB_PATHS.linuxdo,
     messagesPath: ({ query, folder = 'inbox' }) => {
       const value = query?.trim()
       return value

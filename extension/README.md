@@ -8,7 +8,8 @@ NAVER 与 Yandex 邮箱的来信，并在已授权来源上发信、回复、下
 
 隐私政策见 [`docs/EXTENSION_PRIVACY.md`](../docs/EXTENSION_PRIVACY.md)，商店介绍、权限
 理由和隐私披露填写稿见 [`STORE_LISTING.md`](./STORE_LISTING.md)，多邮箱来源的长期
-版本计划见 [`ROADMAP.md`](./ROADMAP.md)。
+版本计划见 [`ROADMAP.md`](./ROADMAP.md)，Float/Web `1.x` 的稳定来源、能力和深链接
+约定见 [`COMPATIBILITY.md`](./COMPATIBILITY.md)。
 
 ## 构建与安装
 

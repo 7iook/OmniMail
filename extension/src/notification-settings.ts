@@ -1,8 +1,6 @@
-import type { MailSourceId } from './mail-source'
+import { MAIL_SOURCE_IDS, type MailSourceId } from './mail-source'
 
-export const NOTIFICATION_SOURCE_IDS: MailSourceId[] = [
-  'omnimail', 'icloud', 'linuxdo', 'gmail', 'microsoft', 'qq', 'naver', 'yandex',
-]
+export const NOTIFICATION_SOURCE_IDS: MailSourceId[] = [...MAIL_SOURCE_IDS]
 
 export interface NotificationSettings {
   notificationsEnabled: boolean

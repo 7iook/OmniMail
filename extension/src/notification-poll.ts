@@ -1,4 +1,4 @@
-import type { MailSourceId } from './mail-source'
+import { MAIL_SOURCE_WEB_PATHS, type MailSourceId } from './mail-source'
 import { isQuietTime, normalizedNotificationSettings } from './notification-settings'
 
 type AuthenticatedRequest = <T = unknown>(path: string, init?: RequestInit) => Promise<T>
@@ -27,23 +27,17 @@ interface NotificationResult {
   unread: number
 }
 
-const notificationRoutes: Record<MailSourceId, string> = {
-  omnimail: '/mail/inbox', icloud: '/icloud', linuxdo: '/linux-do-mail',
-  gmail: '/gmail', microsoft: '/microsoft', qq: '/qq-mail',
-  naver: '/naver-mail', yandex: '/yandex-mail',
-}
-
 function notificationKey(source: MailSourceId, accountId: string, messageId: string): string {
   return `${source}:${accountId}:${messageId}`
 }
 
-function notificationRoute(candidate: NotificationCandidate): string {
+export function notificationRoute(candidate: NotificationCandidate): string {
   const search = new URLSearchParams({
     source: candidate.source,
     accountId: candidate.accountId,
     messageId: candidate.messageId,
   })
-  return `${notificationRoutes[candidate.source]}?${search}`
+  return `${MAIL_SOURCE_WEB_PATHS[candidate.source]}?${search}`
 }
 
 async function updateBadge(unread: number): Promise<void> {
