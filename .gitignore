@@ -15,3 +15,16 @@ test-results/
 *.log
 .DS_Store
 Thumbs.db
+.ace-tool/
+wrangler.deploy.jsonc
+# Git worktrees live under the repo root; they carry their own .dev.vars copies
+# and local D1 state, so they must never be added as files.
+.worktrees/
+# Agent working notes (recon reports, decision cards, task ledgers).
+.agent-workspace/
+# Throwaway probes and captured session transcripts.
+upsert-probe.mjs
+*-eomnimailagent-worksp.txt
+# Machine-specific deploy helpers: they hard-code this checkout's absolute path
+# and stand wrangler.deploy.jsonc in for wrangler.jsonc.
+scripts/local-*.ps1
