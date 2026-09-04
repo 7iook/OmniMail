@@ -13,7 +13,7 @@ import {
   addGmailNotification,
   authorizeFromPanel, handleIndexedRequest, selectAndRememberSource,
   selectGenerateMailSource, selectMailSource, upgradeMailSourceAuthorization, verifyIndexedSources,
-  verifyRemainingSources,
+  verifyRemainingSources, verifyStore021Upgrade,
 } from './extension-smoke-indexed.mjs'
 import { createPromoAsset } from './extension-smoke-promo.mjs'
 import { handleComposeRequest, verifyOmniCompose, verifyOmniReply } from './extension-smoke-compose.mjs'
@@ -394,7 +394,7 @@ try {
   await page.waitForTimeout(500)
   assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '1')
   await page.screenshot({ path: resolve('test-results', 'extension-scrollbar-visible.png') })
-  await panelFrame.locator('.panel-nav').hover()
+  await panelFrame.getByRole('heading', { name: '快速生成邮箱' }).hover()
   await page.waitForTimeout(300)
   assert.equal(await customScrollbar.evaluate((element) => getComputedStyle(element).opacity), '0')
   await page.screenshot({ path: resolve('test-results', 'extension-icloud.png') })
@@ -576,6 +576,7 @@ try {
       chrome.runtime.sendMessage({ type: 'auth:status' }, resolveResponse)
     }))
     assert.equal(clearedAuth.authenticated, false)
+    refreshResponseStatus = 200; await verifyStore021Upgrade(context, serviceWorker, restoredFrame, user)
   }
 
   if (previewMode) {
