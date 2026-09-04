@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    test: {
+      // Git worktrees under the repo root hold a second copy of every suite;
+      // without this, a run here executes each test twice.
+      exclude: ['**/node_modules/**', '**/dist/**', '.worktrees/**'],
+    },
     server: {
       port: devPort,
       strictPort: true,

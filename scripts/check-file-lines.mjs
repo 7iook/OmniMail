@@ -6,6 +6,10 @@ const limit = 600
 const frontendImplementationLimit = 500
 const ignoredDirectories = new Set([
   '.git',
+  // Git worktrees hold a second copy of the tree; scanning them double-counts
+  // every file and lets an unrelated branch fail this checkout's gate.
+  '.worktrees',
+  '.agent-workspace',
   '.wrangler',
   'build',
   'dist',
