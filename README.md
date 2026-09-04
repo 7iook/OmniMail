@@ -23,8 +23,8 @@
 </p>
 
 > [!IMPORTANT]
-> OmniMail 当前处于 **Alpha / 0.x** 阶段，适合个人、小团队和测试环境。
-> 在承载重要邮件前，请完成独立安全审查、备份方案和真实邮件链路测试。
+> OmniMail `1.0` 是面向个人和小团队自托管场景的首个稳定兼容基线。
+> 在承载重要邮件前，仍应完成独立安全审查、备份方案和真实邮件链路测试。
 
 ## 目录
 
@@ -684,7 +684,7 @@ OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
 
 ## 浏览器悬浮扩展
 
-仓库内置 Chrome Manifest V3 扩展，可在普通网页显示隔离的 OmniMail 悬浮面板，
+仓库内置 OmniMail Float `1.0` Chrome Manifest V3 扩展，可在普通网页显示隔离的悬浮面板，
 支持跳转 OmniMail 网站授权、生成普通邮箱或 iCloud 隐藏地址、复制或填入当前网页，
 查看 OmniMail、iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱的来信，
 安全读取附件，按来源发信/回复，并接收服务端元数据索引的新邮件通知。密码、MFA 和第三方邮箱凭据只由 OmniMail 网站处理，
@@ -698,7 +698,8 @@ npm run build:extension
 显示的 ID 以 `chrome-extension://扩展ID` 形式加入 `APP_ORIGINS`；Chrome Web Store
 固定版本只需由主管理员在系统设置中开启，不需要配置该变量。
 完整安装步骤和安全边界见 [`extension/README.md`](./extension/README.md)，扩展的数据
-处理方式见 [`docs/EXTENSION_PRIVACY.md`](./docs/EXTENSION_PRIVACY.md)。
+处理方式见 [`docs/EXTENSION_PRIVACY.md`](./docs/EXTENSION_PRIVACY.md)，Web/Float `1.x`
+兼容承诺见 [`extension/COMPATIBILITY.md`](./extension/COMPATIBILITY.md)。
 
 ## 本地开发
 
@@ -794,7 +795,7 @@ Cloudflare Workers Builds 自动执行。
 
 ### 后续方向
 
-- 稳定并版本化 `/api/v1`
+- 为外部集成提供路径级版本化的 `/api/v1`
 - 桌面客户端与增量同步
 - 更细粒度的 Token Scope 与管理策略
 

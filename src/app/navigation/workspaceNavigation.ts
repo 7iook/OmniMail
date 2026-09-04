@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Folder, UserRole } from '../../shared/api'
 import { isAdminRole } from '../../shared/auth/roles'
+import { MAIL_SOURCE_WEB_PATHS } from '../../shared/mail/mailSourceContract'
 
 export type AdminView = 'statistics' | 'mail' | 'users' | 'invites' | 'logs' | 'settings' | 'account' | 'api' | 'icloud' | 'linuxdo-mail' | 'gmail' | 'microsoft' | 'qq-mail' | 'naver-mail' | 'yandex-mail'
 
@@ -29,7 +30,7 @@ export type WorkspaceRoute =
   | { kind: 'admin'; view: AdminView; path: string }
 
 const folderPaths: Record<Folder, string> = {
-  inbox: '/mail/inbox',
+  inbox: MAIL_SOURCE_WEB_PATHS.omnimail,
   starred: '/mail/starred',
   drafts: '/mail/drafts',
   sent: '/mail/sent',
@@ -45,13 +46,13 @@ const adminPaths: Record<AdminView, string> = {
   settings: '/admin/settings',
   account: '/settings/account',
   api: '/settings/api',
-  icloud: '/icloud',
-  'linuxdo-mail': '/linux-do-mail',
-  gmail: '/gmail',
-  microsoft: '/microsoft',
-  'qq-mail': '/qq-mail',
-  'naver-mail': '/naver-mail',
-  'yandex-mail': '/yandex-mail',
+  icloud: MAIL_SOURCE_WEB_PATHS.icloud,
+  'linuxdo-mail': MAIL_SOURCE_WEB_PATHS.linuxdo,
+  gmail: MAIL_SOURCE_WEB_PATHS.gmail,
+  microsoft: MAIL_SOURCE_WEB_PATHS.microsoft,
+  'qq-mail': MAIL_SOURCE_WEB_PATHS.qq,
+  'naver-mail': MAIL_SOURCE_WEB_PATHS.naver,
+  'yandex-mail': MAIL_SOURCE_WEB_PATHS.yandex,
 }
 
 function canOpenAdminView(
