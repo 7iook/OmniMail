@@ -28,13 +28,14 @@
 
 ## 目录
 
+- [版本与产品层级](#版本与产品层级)
 - [为什么选择 OmniMail](#为什么选择-omnimail)
 - [功能概览](#功能概览)
 - [技术架构](#技术架构)
 - [快速部署](#快速部署)
 - [首次初始化](#首次初始化)
 - [用户与权限](#用户与权限)
-- [API 与桌面客户端](#api-与桌面客户端)
+- [API 与客户端鉴权](#api-与客户端鉴权)
 - [浏览器悬浮扩展](#浏览器悬浮扩展)
 - [本地开发](#本地开发)
 - [安全模型](#安全模型)
@@ -42,6 +43,41 @@
 - [贡献](#贡献)
 - [鸣谢](#鸣谢)
 - [许可证](#许可证)
+
+## 版本与产品层级
+
+本仓库同时交付三个版本独立、职责不同的产品层。版本号只表示对应交付物的兼容阶段，
+不能跨产品推断；例如 Web `1.0.0` 不会自动把 Android `0.x` 变成稳定版。
+
+| 产品层 | 当前版本 | 支持层级 | 职责与兼容关系 |
+| --- | --- | --- | --- |
+| Web + Worker API | [`1.0.0`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/v1.0.0) | 稳定兼容基线 | 核心服务、Webmail、数据和所有邮箱来源；自托管实例的唯一服务端 |
+| OmniMail Float | [`1.0.0`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/float-v1.0.0) | 稳定兼容基线 | Chrome Manifest V3 浏览器协作层；连接 Web/API `1.x`，不直连第三方邮箱 |
+| Android | [`0.3.0`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/android-v0.3.0) | 独立预览版 | 原生移动客户端；仍处于 `0.x`，兼容承诺和发布节奏独立于 Web/Float |
+
+### 支持层级
+
+- **稳定兼容基线**：Web/API 与 Float 的 `1.x` 会保持已公布来源 ID、账号状态、能力字段、
+  工作区路径和通知深链接向后兼容；破坏性变更必须进入新的主版本并提供迁移说明。
+- **可选邮箱集成**：iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 依赖
+  第三方服务能力和实例配置。NAVER、Yandex 仍按灰度流程开放，稳定版本号不取消真实账号
+  验收、低频观察或紧急关闭开关。
+- **独立预览版**：Android `0.x` 可用于测试和日常验证，但不继承 Web/Float `1.x` 的完整
+  稳定契约；升级前应阅读对应 Android Release Notes。
+
+### 1.x 兼容边界
+
+- Float `1.x` 推荐连接 Web/API `1.x`；升级时先部署 Web，再更新扩展。
+- Float `0.8.1 → 1.0.0` 不增加 Chrome 权限或设备 Scope，不需要重新授权；Web
+  `0.10.4 → 1.0.0` 不新增 D1 迁移、变量、Secret 或资源绑定。
+- `1.0` 的“稳定”指已记录的 Web/Float 产品契约，不代表企业 SLA、端到端加密、合规归档
+  或高可用保证。
+- 当前未带版本前缀的 `/api/*` 主要服务于同仓库客户端；面向第三方的通用稳定 HTTP API
+  将通过后续 `/api/v1` 单独承诺。
+
+完整的来源矩阵与字段协议见
+[`extension/COMPATIBILITY.md`](./extension/COMPATIBILITY.md)，各产品的独立发布记录见
+[`docs/releases`](./docs/releases/README.md)。
 
 ## 为什么选择 OmniMail
 
@@ -228,13 +264,17 @@ flowchart LR
 
     Browser[浏览器] -->|HTML / CSS / JS| Worker
     Browser -->|同源 /api| Worker
-    Desktop[桌面客户端] -->|Bearer Token| Worker
+    Float[Float 浏览器扩展] -->|最小权限设备令牌| Worker
+    Android[Android 客户端] -->|最小权限设备令牌| Worker
+    Desktop[其他 API 客户端] -->|Bearer Token| Worker
 ```
 
 | 层级 | 技术 |
 | --- | --- |
 | Web | React、TypeScript、Vite |
 | API | Cloudflare Workers、Hono |
+| Float | React、TypeScript、Chrome Manifest V3 |
+| Android | Kotlin、Jetpack Compose、Room、WorkManager |
 | 数据库 | Cloudflare D1 |
 | 对象存储 | Cloudflare R2 |
 | 异步任务 | Cloudflare Queues、Workflows |
@@ -252,6 +292,8 @@ flowchart LR
 │   ├── shared/                # API、i18n、通用邮件与 UI 能力
 │   └── main.tsx               # Web 稳定入口
 ├── public/                    # Worker Static Assets 与安全响应头
+├── extension/                 # OmniMail Float 浏览器扩展、商店资料与兼容契约
+├── android/                   # 独立版本的原生 Android 客户端
 ├── email-worker/
 │   └── src/
 │       ├── app/               # Hono 装配、中间件与路由
@@ -670,12 +712,13 @@ AI 翻译，也不能读取已经缓存的译文；管理员和主管理员始�
 邀请过期只阻止继续注册，不影响已经创建的账号。临时账号到期或用户主动删除后，
 登录账号会立即停用，邮箱地址、历史邮件与附件会在管理员设置的保留期结束后清理。
 
-## API 与桌面客户端
+## API 与客户端鉴权
 
-OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
+OmniMail 的各客户端连接同一套 Worker JSON API，但按产品层使用不同会话边界：
 
-- 浏览器：`HttpOnly + Secure + SameSite=Lax` Cookie
-- 桌面客户端：15 分钟 Access Token + 30 天轮换 Refresh Token
+- Webmail：`HttpOnly + Secure + SameSite=Lax` Cookie
+- Float、Android 与其他设备客户端：15 分钟 Access Token + 30 天轮换 Refresh Token，
+  并按客户端类型授予最小 Scope
 - 分页：稳定游标，不依赖可变页码
 - 下载：附件和 `.eml` 使用鉴权 API，不暴露 R2 公共地址
 
@@ -684,11 +727,18 @@ OmniMail 的 Web 和桌面客户端共用同一套 JSON API：
 
 ## 浏览器悬浮扩展
 
-仓库内置 OmniMail Float `1.0` Chrome Manifest V3 扩展，可在普通网页显示隔离的悬浮面板，
+仓库内置 OmniMail Float `1.0.0` Chrome Manifest V3 扩展，可在普通网页显示隔离的
+悬浮面板，
 支持跳转 OmniMail 网站授权、生成普通邮箱或 iCloud 隐藏地址、复制或填入当前网页，
 查看 OmniMail、iCloud、Linux DO、Gmail、Microsoft、QQ、NAVER 与 Yandex 邮箱的来信，
 安全读取附件，按来源发信/回复，并接收服务端元数据索引的新邮件通知。密码、MFA 和第三方邮箱凭据只由 OmniMail 网站处理，
 扩展通过 PKCE 一次性授权码获得可随时撤销的设备令牌。
+
+- [Chrome Web Store 安装](https://chromewebstore.google.com/detail/omnimail-float/fpeecjailboemocpmpcbjaghpkpcaihf)
+- [Float `1.0.0` Release 与开发者模式 ZIP](https://github.com/mibgb65-cloud/OmniMail/releases/tag/float-v1.0.0)
+
+Chrome Web Store 需要经过 Google 审核，因此商店显示版本可能暂时落后于 GitHub Release；
+两种渠道应使用相同版本的发布构建，不要把仓库源码压缩包当作扩展安装包。
 
 ```powershell
 npm run build:extension
