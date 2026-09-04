@@ -31,4 +31,5 @@
 ### 发布
 
 - GitHub Release 提供 `omnimail-float-1.0.0.zip`，并使用 `float-v1.0.0` 独立 Tag。
-- 生产 Web/API `1.0.0` 验证完成后，再把同一构建提交 Chrome Web Store 审核。
+- Chrome Web Store 条目 `fpeecjailboemocpmpcbjaghpkpcaihf` 已于 2026-09-04 提交
+  `1.0.0` 审核，并设置为审核通过后自动发布；审核期间公开版本继续保持 `0.8.1`。
